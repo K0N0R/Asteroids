@@ -1,6 +1,0 @@
-E:\PROGRAMY\MujPierwszySexAnalny\MujPierwszySexAnalny\bin\MujPierwszySexAnalny.dll.config
-E:\PROGRAMY\MujPierwszySexAnalny\MujPierwszySexAnalny\bin\MujPierwszySexAnalny.dll
-E:\PROGRAMY\MujPierwszySexAnalny\MujPierwszySexAnalny\bin\MujPierwszySexAnalny.pdb
-E:\PROGRAMY\MujPierwszySexAnalny\MujPierwszySexAnalny\obj\Debug\MujPierwszySexAnalny.dll
-E:\PROGRAMY\MujPierwszySexAnalny\MujPierwszySexAnalny\obj\Debug\MujPierwszySexAnalny.pdb
-E:\PROGRAMY\MujPierwszySexAnalny\MujPierwszySexAnalny\obj\Debug\MujPierwszySexAnalny.csprojResolveAssemblyReference.cache
