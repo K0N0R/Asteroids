@@ -1,0 +1,35 @@
+﻿body {
+    font-family: Arial;
+    color:white;
+    background-color:black;
+}
+var {
+    font-size: 50px;
+    margin-left: 300px;
+    margin-top: 100px;
+}
+span {
+    font-style: italic;
+}
+
+canvas {
+   cursor:url(cursor.cur), auto;
+   width: 1200px;
+   height: 800px;
+   position: absolute;
+   top: 50%;
+   left: 50%;
+   margin-left: -600px;
+   margin-top: -400px;
+   background:url(background.jpg) repeat;
+   border: 2px dotted red;
+}
+
+.unselectable {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
