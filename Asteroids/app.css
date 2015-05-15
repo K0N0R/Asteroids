@@ -13,7 +13,7 @@ span {
 }
 
 canvas {
-   cursor:url(cursor.cur), auto;
+   cursor:url('./cursor.cur'), auto;
    width: 1200px;
    height: 800px;
    position: absolute;
@@ -21,7 +21,7 @@ canvas {
    left: 50%;
    margin-left: -600px;
    margin-top: -400px;
-   background:url(background.jpg) repeat;
+   background:url('./background.jpg') repeat;
    border: 2px dotted red;
 }
 

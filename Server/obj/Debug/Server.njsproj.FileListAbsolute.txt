@@ -1,2 +1,0 @@
-E:\PROGRAMY\Kafle\Server\obj\Debug\Server.njsprojResolveAssemblyReference.cache
-E:\PROGRAMY\Kafle\Server\bin\Microsoft.NodejsTools.WebRole.dll

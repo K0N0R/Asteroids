@@ -198,11 +198,11 @@ window.onload = function () {
     Health1 = new Health({ x: (1000 * Math.random() + 100), y: (600 * Math.random() + 100) });
     Player1.StartCheckingMousePosition();
     Keyboard.start();
-    image_player.src = "spaceship.png";
-    image_bullet.src = "bullet.png";
-    image_asteroid.src = "asteroid2.png";
-    image_health.src = "health.png";
-    image_shipshield.src = "shipshield.png";
+    image_player.src = "./spaceship.png";
+    image_bullet.src = "./bullet.png";
+    image_asteroid.src = "./asteroid2.png";
+    image_health.src = "./health.png";
+    image_shipshield.src = "./shipshield.png";
     var counter = 0;
     image_bullet.onload = function () {
         counter++;
