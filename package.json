@@ -1,0 +1,16 @@
+{
+  "name": "Server",
+  "version": "0.0.0",
+  "description": "Server",
+  "main": "app.js",
+  "author": {
+    "name": "Maciej",
+    "email": ""
+  },
+  "dependencies": {
+    "express": "^4.12.3",
+    "gulp": "^3.8.11",
+    "gulp-clean": "^0.3.1",
+    "serve-static": "^1.9.2"
+  }
+}

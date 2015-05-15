@@ -1,0 +1,6 @@
+E:\PROGRAMY\Asteroids\Asteroids\bin\Asteroids.dll.config
+E:\PROGRAMY\Asteroids\Asteroids\bin\Asteroids.dll
+E:\PROGRAMY\Asteroids\Asteroids\bin\Asteroids.pdb
+E:\PROGRAMY\Asteroids\Asteroids\obj\Debug\Asteroids.csprojResolveAssemblyReference.cache
+E:\PROGRAMY\Asteroids\Asteroids\obj\Debug\Asteroids.dll
+E:\PROGRAMY\Asteroids\Asteroids\obj\Debug\Asteroids.pdb

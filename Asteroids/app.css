@@ -33,3 +33,6 @@ canvas {
     -ms-user-select: none;
     user-select: none;
 }
+div {
+    position:absolute;
+}
