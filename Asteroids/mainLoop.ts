@@ -38,11 +38,11 @@ window.onload = function () {
 
     Player1.StartCheckingMousePosition();
     Keyboard.start();
-    image_player.src = "./spaceship.png";
-    image_bullet.src = "./bullet.png";
-    image_asteroid.src = "./asteroid2.png";
-    image_health.src = "./health.png"
-    image_shipshield.src = "./shipshield.png";
+    image_player.src = "./asteroids/spaceship.png";
+    image_bullet.src = "./asteroids/bullet.png";
+    image_asteroid.src = "./asteroids/asteroid2.png";
+    image_health.src = "./asteroids/health.png"
+    image_shipshield.src = "./asteroids/shipshield.png";
     var counter = 0;
     image_bullet.onload = function () {
         counter++;
