@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/K0N0R/Asteroids#readme",
   "dependencies": {
-    "gulp-dest": "^0.2.3"
+    "gulp": "^3.9.1",
+    "gulp-dest": "^0.2.3",
+    "gulp-typescript": "^2.11.0"
   }
 }
