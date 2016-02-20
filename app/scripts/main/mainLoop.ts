@@ -1,4 +1,4 @@
-﻿var canvas;
+﻿var canvas:any;
 var ctx: CanvasRenderingContext2D;
 var Player1: Player;
 var Health1: Health;
@@ -38,11 +38,11 @@ window.onload = function () {
 
     Player1.StartCheckingMousePosition();
     Keyboard.start();
-    image_player.src = "./asteroids/spaceship.png";
-    image_bullet.src = "./asteroids/bullet.png";
-    image_asteroid.src = "./asteroids/asteroid2.png";
-    image_health.src = "./asteroids/health.png"
-    image_shipshield.src = "./asteroids/shipshield.png";
+    image_player.src = "./app/assets/images/spaceship.png";
+    image_bullet.src = "./app/assets/images/bullet.png";
+    image_asteroid.src = "./app/assets/images/asteroid2.png";
+    image_health.src = "./app/assets/images/health.png"
+    image_shipshield.src = "./app/assets/images/shipshield.png";
     var counter = 0;
     image_bullet.onload = function () {
         counter++;
@@ -72,4 +72,3 @@ window.onload = function () {
         canvas.style.backgroundPositionX = bgr_x.toString() + "px";
         canvas.style.backgroundPositionY = bgr_y.toString() + "px";
 }
-  

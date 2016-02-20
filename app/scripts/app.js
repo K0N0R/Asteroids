@@ -9,7 +9,7 @@ var Asteroid = (function () {
         this.movV.y = movV.y * 5;
     }
     Asteroid.Render = function () {
-        if (Asteroid.Asteroids.length < 20) {
+        if (Asteroid.Asteroids.length < 5) {
             var AsteroidsSpawn = [{ x: 1200 * Math.random(), y: 0 }, { x: 1200 * Math.random(), y: 800 }, { x: 0, y: 800 * Math.random() }, { x: 1200, y: 800 * Math.random() }];
             var randomElement = (Math.random() * 4) | 0;
             Asteroid.Asteroids.push(new Asteroid({ x: AsteroidsSpawn[randomElement].x, y: AsteroidsSpawn[randomElement].y }, NormalizeVectorFromPoints(AsteroidsSpawn[randomElement], { x: (Player1.pos.x + Math.random() * 20 + 20), y: (Player1.pos.x + Math.random() * 20 + 20) })));
@@ -149,99 +149,6 @@ var Health = (function () {
     };
     return Health;
 })();
-var Keyboard = (function () {
-    function Keyboard() {
-    }
-    Keyboard.start = function () {
-        window.onkeydown = function keypress(evt) {
-            Keyboard.keys[evt.keyCode] = true;
-        };
-        window.onkeyup = function keypress(evt) {
-            Keyboard.keys[evt.keyCode] = false;
-        };
-    };
-    Keyboard.keys = new Array(200);
-    return Keyboard;
-})();
-var canvas;
-var ctx;
-var Player1;
-var Health1;
-var image_player = new Image();
-var image_bullet = new Image();
-var image_asteroid = new Image();
-var image_health = new Image();
-var image_shipshield = new Image();
-var x = 0;
-var scoreNumber = 0;
-function loop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    Player1.Render();
-    Asteroid.Render();
-    Health1.Draw();
-    if (Player1.GetLifeNumber() < 3) {
-        Health1.StartApprinng();
-    }
-    else {
-        Health1.StopApprinng();
-    }
-    if (Player1.GetLifeNumber() === 0) {
-        return 0;
-    }
-    bgrTranslation();
-    requestAnimationFrame(loop);
-}
-window.onload = function () {
-    canvas = document.getElementById('MainCanvas');
-    ctx = canvas.getContext('2d');
-    Player1 = new Player();
-    Health1 = new Health({ x: (1000 * Math.random() + 100), y: (600 * Math.random() + 100) });
-    Player1.StartCheckingMousePosition();
-    Keyboard.start();
-    image_player.src = "./asteroids/spaceship.png";
-    image_bullet.src = "./asteroids/bullet.png";
-    image_asteroid.src = "./asteroids/asteroid2.png";
-    image_health.src = "./asteroids/health.png";
-    image_shipshield.src = "./asteroids/shipshield.png";
-    var counter = 0;
-    image_bullet.onload = function () {
-        counter++;
-        if (counter === 5) {
-            loop();
-        }
-    };
-    image_player.onload = function () {
-        counter++;
-        if (counter === 5) {
-            loop();
-        }
-    };
-    image_asteroid.onload = function () {
-        counter++;
-        if (counter === 5) {
-            loop();
-        }
-    };
-    image_health.onload = function () {
-        counter++;
-        if (counter === 5) {
-            loop();
-        }
-    };
-    image_shipshield.onload = function () {
-        counter++;
-        if (counter === 5) {
-            loop();
-        }
-    };
-};
-function bgrTranslation() {
-    x += 0.0001;
-    var bgr_x = Math.cos(x) * 10000;
-    var bgr_y = Math.sin(x) * 10000;
-    canvas.style.backgroundPositionX = bgr_x.toString() + "px";
-    canvas.style.backgroundPositionY = bgr_y.toString() + "px";
-}
 var Player = (function () {
     function Player() {
         this.pos = { x: 600, y: 400 };
@@ -265,14 +172,14 @@ var Player = (function () {
             var translationY1 = Math.sin(angle - 0.58) * 47;
             var translationX2 = Math.cos(angle + 0.51) * 45;
             var translationY2 = Math.sin(angle + 0.51) * 45;
-            var translationX3 = Math.cos(angle - 0.107) * 73;
-            var translationY3 = Math.sin(angle - 0.107) * 73;
-            var translationX4 = Math.cos(angle + 0.045) * 73;
-            var translationY4 = Math.sin(angle + 0.045) * 73;
+            //var translationX3 = Math.cos(angle - 0.107) * 73;
+            //var translationY3 = Math.sin(angle - 0.107) * 73;
+            //var translationX4 = Math.cos(angle + 0.045) * 73;
+            //var translationY4 = Math.sin(angle + 0.045) * 73;
             _this.Bullets.push(new Bullet({ x: _this.pos.x + translationX1, y: _this.pos.y + translationY1 }, _this.rotV));
             _this.Bullets.push(new Bullet({ x: _this.pos.x + translationX2, y: _this.pos.y + translationY2 }, _this.rotV));
-            _this.Bullets.push(new Bullet({ x: _this.pos.x + translationX3, y: _this.pos.y + translationY3 }, _this.rotV));
-            _this.Bullets.push(new Bullet({ x: _this.pos.x + translationX4, y: _this.pos.y + translationY4 }, _this.rotV));
+            //this.Bullets.push(new Bullet({ x: this.pos.x + translationX3, y: this.pos.y + translationY3 }, this.rotV));
+            //this.Bullets.push(new Bullet({ x: this.pos.x + translationX4, y: this.pos.y + translationY4 }, this.rotV));
         };
     };
     Player.prototype.Render = function () {
@@ -292,7 +199,7 @@ var Player = (function () {
         this.LifeNumberChecker();
         this.Draw();
         for (var i = 0; i < this.Bullets.length; i++) {
-            this.Bullets[i].Draw();
+            this.Bullets[i].Draw(); //DrawingBullets
         }
         this.RemovingBulletsAndAsteroids();
     };
@@ -354,9 +261,7 @@ var Player = (function () {
                     return;
                 }
                 this.isImmortal = true;
-                setTimeout(function () {
-                    _this.isImmortal = false;
-                }, 3000);
+                setTimeout(function () { _this.isImmortal = false; }, 3000);
                 if (this.lifesNumber === 1) {
                     life1.style.display = "none";
                     this.lifesNumber--;
@@ -408,4 +313,96 @@ var Player = (function () {
     };
     return Player;
 })();
-//# sourceMappingURL=app.js.map
+var canvas;
+var ctx;
+var Player1;
+var Health1;
+var image_player = new Image();
+var image_bullet = new Image();
+var image_asteroid = new Image();
+var image_health = new Image();
+var image_shipshield = new Image();
+var x = 0;
+var scoreNumber = 0;
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    Player1.Render();
+    Asteroid.Render();
+    Health1.Draw();
+    if (Player1.GetLifeNumber() < 3) {
+        Health1.StartApprinng();
+    }
+    else {
+        Health1.StopApprinng();
+    }
+    if (Player1.GetLifeNumber() === 0) {
+        return 0;
+    }
+    bgrTranslation();
+    requestAnimationFrame(loop);
+}
+window.onload = function () {
+    canvas = document.getElementById('MainCanvas');
+    ctx = canvas.getContext('2d');
+    Player1 = new Player();
+    Health1 = new Health({ x: (1000 * Math.random() + 100), y: (600 * Math.random() + 100) });
+    Player1.StartCheckingMousePosition();
+    Keyboard.start();
+    image_player.src = "./app/assets/images/spaceship.png";
+    image_bullet.src = "./app/assets/images/bullet.png";
+    image_asteroid.src = "./app/assets/images/asteroid2.png";
+    image_health.src = "./app/assets/images/health.png";
+    image_shipshield.src = "./app/assets/images/shipshield.png";
+    var counter = 0;
+    image_bullet.onload = function () {
+        counter++;
+        if (counter === 5) {
+            loop();
+        }
+    };
+    image_player.onload = function () {
+        counter++;
+        if (counter === 5) {
+            loop();
+        }
+    };
+    image_asteroid.onload = function () {
+        counter++;
+        if (counter === 5) {
+            loop();
+        }
+    };
+    image_health.onload = function () {
+        counter++;
+        if (counter === 5) {
+            loop();
+        }
+    };
+    image_shipshield.onload = function () {
+        counter++;
+        if (counter === 5) {
+            loop();
+        }
+    };
+};
+function bgrTranslation() {
+    x += 0.0001;
+    var bgr_x = Math.cos(x) * 10000;
+    var bgr_y = Math.sin(x) * 10000;
+    canvas.style.backgroundPositionX = bgr_x.toString() + "px";
+    canvas.style.backgroundPositionY = bgr_y.toString() + "px";
+}
+var Keyboard = (function () {
+    function Keyboard() {
+    }
+    Keyboard.start = function () {
+        window.onkeydown = function keypress(evt) {
+            Keyboard.keys[evt.keyCode] = true;
+        };
+        window.onkeyup = function keypress(evt) {
+            Keyboard.keys[evt.keyCode] = false;
+        };
+    };
+    Keyboard.keys = new Array(200);
+    return Keyboard;
+})();

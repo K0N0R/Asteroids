@@ -12,24 +12,24 @@
 
 
     StartCheckingMousePosition() {
-        canvas.onmousemove = (evt) => {
+        canvas.onmousemove = (evt:any) => {
             this.MousePos.x = evt.offsetX;
             this.MousePos.y = evt.offsetY;
         }
-        canvas.onmousedown = (evt) => {
+        canvas.onmousedown = (evt:any) => {
             var angle = GetAngleFromVector(this.rotV) - Math.PI / 2;
             var translationX1 = Math.cos(angle - 0.58) * 47;
             var translationY1 = Math.sin(angle - 0.58) * 47;
             var translationX2 = Math.cos(angle + 0.51) * 45;
             var translationY2 = Math.sin(angle + 0.51) * 45;
-            var translationX3 = Math.cos(angle - 0.107) * 73;
-            var translationY3 = Math.sin(angle - 0.107) * 73;
-            var translationX4 = Math.cos(angle + 0.045) * 73;
-            var translationY4 = Math.sin(angle + 0.045) * 73;
+            //var translationX3 = Math.cos(angle - 0.107) * 73;
+            //var translationY3 = Math.sin(angle - 0.107) * 73;
+            //var translationX4 = Math.cos(angle + 0.045) * 73;
+            //var translationY4 = Math.sin(angle + 0.045) * 73;
             this.Bullets.push(new Bullet({ x: this.pos.x + translationX1, y: this.pos.y + translationY1 }, this.rotV));
             this.Bullets.push(new Bullet({ x: this.pos.x + translationX2, y: this.pos.y + translationY2 }, this.rotV));
-            this.Bullets.push(new Bullet({ x: this.pos.x + translationX3, y: this.pos.y + translationY3 }, this.rotV));
-            this.Bullets.push(new Bullet({ x: this.pos.x + translationX4, y: this.pos.y + translationY4 }, this.rotV));
+            //this.Bullets.push(new Bullet({ x: this.pos.x + translationX3, y: this.pos.y + translationY3 }, this.rotV));
+            //this.Bullets.push(new Bullet({ x: this.pos.x + translationX4, y: this.pos.y + translationY4 }, this.rotV));
 
         }
     }
@@ -167,4 +167,4 @@
             ctx.restore();
         }
     }
-} 
+}

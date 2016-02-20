@@ -12,7 +12,7 @@
         this.movV.y = movV.y * 5;
     }
     static Render() {
-        if (Asteroid.Asteroids.length < 20) {
+        if (Asteroid.Asteroids.length < 5) {
             var AsteroidsSpawn = [{ x: 1200 * Math.random(), y: 0 }, { x: 1200 * Math.random(), y: 800 }, { x: 0, y: 800 * Math.random() }, { x: 1200, y: 800 * Math.random() }]
             var randomElement = (Math.random() * 4) | 0;
             Asteroid.Asteroids.push(new Asteroid({ x: AsteroidsSpawn[randomElement].x, y: AsteroidsSpawn[randomElement].y }, NormalizeVectorFromPoints(AsteroidsSpawn[randomElement], { x: (Player1.pos.x + Math.random() * 20 + 20), y: (Player1.pos.x + Math.random() * 20 + 20) })));
