@@ -1,10 +1,12 @@
 {
   "name": "asteroids",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "browser game",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "win-start": "set WATCH=true && node ./build.mjs",
+    "start": "WATCH=true node ./build.mjs",
+    "build": "node ./build.mjs"
   },
   "repository": {
     "type": "git",
@@ -16,9 +18,8 @@
     "url": "https://github.com/K0N0R/Asteroids/issues"
   },
   "homepage": "https://github.com/K0N0R/Asteroids#readme",
-  "dependencies": {
-    "gulp": "^3.9.1",
-    "gulp-dest": "^0.2.3",
-    "gulp-typescript": "^2.11.0"
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "esbuild": "0.20.2"
   }
 }
