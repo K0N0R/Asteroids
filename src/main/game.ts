@@ -3,6 +3,7 @@ import { AsteroidContainer } from "../components/asteroids";
 import { BulletContainer } from "../components/bullet";
 import { Health } from "../components/health";
 import { Player } from "../components/player";
+import { Ui } from "../components/ui";
 import { GetDistance } from "../utils/utils";
 
 export class Game {
@@ -12,35 +13,41 @@ export class Game {
     player: Player;
     health: Health;
     asteroidsContainer: AsteroidContainer;
+    gameUi: Ui;
 
     x = 0;
-    scoreNumber = 0;
-    scoreElement: HTMLElement;
 
     constructor(private assets: Assets) {
-        this.canvas = document.getElementById('MainCanvas') as HTMLCanvasElement;
+        this.canvas = document.getElementById('AsteroidCanvas') as HTMLCanvasElement;
+        this.canvas.width =  window.outerWidth;
+        this.canvas.height =  window.outerHeight;
         this.ctx = this.canvas.getContext('2d') as CanvasRenderingContext2D;
-        this.scoreElement = document.getElementById('score') as HTMLElement;
 
         this.bulletContainer = new BulletContainer(this.assets);
-        this.player = new Player(this.assets, {x: 600, y: 400}, this.bulletContainer, this.canvas);
-        this.health = new Health(this.assets.image_health, { x: (1000 * Math.random() + 100), y: (600 * Math.random() + 100) });
-        this.asteroidsContainer = new AsteroidContainer(this.assets);
+        this.player = new Player(this.assets, {x: this.canvas.width/2, y: this.canvas.height/2}, this.bulletContainer, this.canvas);
+        this.health = new Health(this.assets.image_health, this.canvas);
+        this.asteroidsContainer = new AsteroidContainer(this.assets, this.canvas);
+        this.gameUi = new Ui(this.assets);
+
+        window.addEventListener('resize', this.resize.bind(this))
+        this.resize();
     }
 
     loop() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
         this.asteroidsContainer.render(this.ctx, this.player);
         this.player.render(this.ctx);
         this.health.render(this.ctx);
         this.bulletContainer.render(this.ctx);
-        if (this.health.lifesNumber < 3) {
+        this.gameUi.render(this.ctx);
+        if (this.gameUi.lifes < 5) {
             this.health.show();
         } else {
             this.health.hide();
         }
 
-        if (this.health.lifesNumber === 0) {
+        if (this.gameUi.lifes <= 0) {
             return 0;
         }
 
@@ -49,12 +56,13 @@ export class Game {
         this.checkPlayerHealthCollision();
         this.bcgrTranslation();
         requestAnimationFrame(this.loop.bind(this));
+        
     }
 
     checkBulletsAndAsteroidsCollision() {
         for (var i = this.bulletContainer.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bulletContainer.bullets[i];
-            if (((bullet.pos.x > 1250) || (bullet.pos.x < -50)) || ((bullet.pos.y > 850) || (bullet.pos.y < -50))) {
+            if (((bullet.pos.x > this.canvas.width*1.1) || (bullet.pos.x < -this.canvas.height*0.1)) || ((bullet.pos.y > this.canvas.height*1.1) || (bullet.pos.y < -this.canvas.width*0.1))) {
                 this.bulletContainer.bullets.splice(i, 1);
                 i--;
             }
@@ -68,8 +76,7 @@ export class Game {
                     else {
                         this.bulletContainer.bullets.splice(j, 1);
                         this.asteroidsContainer.asteroids.splice(k, 1);
-                        this.scoreNumber++;
-                        this.scoreElement.innerHTML = "Score: " + this.scoreNumber.toString();
+                        this.gameUi.score++;
                         break;
                     }
                 }
@@ -85,41 +92,16 @@ export class Game {
                     this.asteroidsContainer.asteroids.splice(k, 1);
                     this.player.isImmortal = true;
                     setTimeout(() => { this.player.isImmortal = false }, 3000);
-                    switch (this.health.lifesNumber) {
-                        case 1:
-                            this.health.life1.style.display = "none";
-                            this.health.lifesNumber--;
-                            break;
-                        case 2:
-                            this.health.life2.style.display = "none";
-                            this.health.lifesNumber--;
-                            break;
-                        case 3:
-                            this.health.life3.style.display = "none";
-                            this.health.lifesNumber--;
-                            break;
-                    }
+                    this.gameUi.lifes--;
                 }
             }
         }
     }
     checkPlayerHealthCollision() {
+        if(!this.health.available) return;
         if (GetDistance(this.health.pos, this.player.pos) < 30) {
-
-            switch (this.health.lifesNumber) {
-                case 1:
-                    this.health.life2.style.display = "inline";
-                    this.health.lifesNumber++;
-                    this.health.hide();
-                    this.health.pos = { x: -100, y: -100 }
-                    break;
-                case 2:
-                    this.health.life3.style.display = "inline";
-                    this.health.lifesNumber++;
-                    this.health.hide();
-                    this.health.pos = { x: -100, y: -100 }
-                    break;
-            }
+            this.gameUi.lifes++;
+            this.health.available = false;
         }
     }
 
@@ -129,5 +111,10 @@ export class Game {
         var bgr_y = Math.sin(this.x) * 10000;
         this.canvas.style.backgroundPositionX = bgr_x.toString() + "px";
         this.canvas.style.backgroundPositionY = bgr_y.toString() + "px";
+    }
+
+    resize() {
+        this.canvas.width = document.body.clientWidth;
+        this.canvas.height = document.body.clientHeight;
     }
 }

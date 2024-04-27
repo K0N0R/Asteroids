@@ -48,8 +48,8 @@ export class Player {
             var dist = GetDistance(this.pos, this.mousePos);
             dist = Math.sqrt(dist);
             dist -= 7;
-            this.movV.x += this.rotV.x * dist / 22;
-            this.movV.y += this.rotV.y * dist / 22;
+            this.movV.x += this.rotV.x * dist / 12;
+            this.movV.y += this.rotV.y * dist / 12;
         }
         this.movV.x *= 0.92;
         this.movV.y *= 0.92;
@@ -78,7 +78,7 @@ export class Player {
 
 
     draw(ctx: CanvasRenderingContext2D) {
-        if (Keyboard.keys[32]) {
+        if (this.movV.x> 0.1 || this.movV.x) {
             ctx.save();
             this.blinkingEnginesProgress += 0.1;
             ctx.translate(this.pos.x, this.pos.y);

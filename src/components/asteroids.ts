@@ -30,12 +30,12 @@ export class Asteroid {
 export class AsteroidContainer {
     asteroids: Asteroid[] = [];
 
-    constructor(private assets: Assets) {}
+    constructor(private assets: Assets, private canvas: HTMLCanvasElement) {}
     render(ctx: CanvasRenderingContext2D, player: Player) {
         if (this.asteroids.length < 5) {
-            const AsteroidsSpawn = [{ x: 1200 * Math.random(), y: 0 }, { x: 1200 * Math.random(), y: 800 }, { x: 0, y: 800 * Math.random() }, { x: 1200, y: 800 * Math.random() }]
+            const asteroidsSpawn = [{ x:  this.canvas.width * Math.random(), y: 0 }, { x: this.canvas.width * Math.random(), y: this.canvas.height }, { x: 0, y: this.canvas.height * Math.random() }, { x: this.canvas.width, y: this.canvas.height * Math.random() }]
             const randomElement = (Math.random() * 4) | 0;
-            this.asteroids.push(new Asteroid(this.assets.image_asteroid, { x: AsteroidsSpawn[randomElement].x, y: AsteroidsSpawn[randomElement].y }, NormalizeVectorFromPoints(AsteroidsSpawn[randomElement], { x: (player.pos.x + Math.random() * 20 + 20), y: (player.pos.x + Math.random() * 20 + 20) })));
+            this.asteroids.push(new Asteroid(this.assets.image_asteroid, { x: asteroidsSpawn[randomElement].x, y: asteroidsSpawn[randomElement].y }, NormalizeVectorFromPoints(asteroidsSpawn[randomElement], { x: (player.pos.x + Math.random() * 20 + 20), y: (player.pos.x + Math.random() * 20 + 20) })));
         }
         for (var i = 0; i < this.asteroids.length; i++) {
             this.asteroids[i].render(ctx);
@@ -46,7 +46,7 @@ export class AsteroidContainer {
     }
     remove() {
         for (var i = this.asteroids.length - 1; i >= 0; i--) {
-            if (((this.asteroids[i].pos.x > 1250) || (this.asteroids[i].pos.x < -50)) || ((this.asteroids[i].pos.y > 850) || (this.asteroids[i].pos.y < -50))) {
+            if (((this.asteroids[i].pos.x > this.canvas.width*1.1) || (this.asteroids[i].pos.x < -this.canvas.width*0.1)) || ((this.asteroids[i].pos.y > this.canvas.height*1.1) || (this.asteroids[i].pos.y < -this.canvas.height*0.1))) {
                 this.asteroids.splice(i, 1);
                 i--;
             }

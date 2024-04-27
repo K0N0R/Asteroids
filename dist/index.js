@@ -29,6 +29,10 @@ function addImageProcess(src) {
     img.src = src;
   });
 }
+function getRandomValueFromRange(min, max, rng = Math.random) {
+  const delta = max - min;
+  return min + delta * rng();
+}
 
 // src/assets.ts
 var Assets = class {
@@ -77,15 +81,16 @@ var Asteroid = class {
   }
 };
 var AsteroidContainer = class {
-  constructor(assets) {
+  constructor(assets, canvas) {
     this.assets = assets;
+    this.canvas = canvas;
   }
   asteroids = [];
   render(ctx, player) {
     if (this.asteroids.length < 5) {
-      const AsteroidsSpawn = [{ x: 1200 * Math.random(), y: 0 }, { x: 1200 * Math.random(), y: 800 }, { x: 0, y: 800 * Math.random() }, { x: 1200, y: 800 * Math.random() }];
+      const asteroidsSpawn = [{ x: this.canvas.width * Math.random(), y: 0 }, { x: this.canvas.width * Math.random(), y: this.canvas.height }, { x: 0, y: this.canvas.height * Math.random() }, { x: this.canvas.width, y: this.canvas.height * Math.random() }];
       const randomElement = Math.random() * 4 | 0;
-      this.asteroids.push(new Asteroid(this.assets.image_asteroid, { x: AsteroidsSpawn[randomElement].x, y: AsteroidsSpawn[randomElement].y }, NormalizeVectorFromPoints(AsteroidsSpawn[randomElement], { x: player.pos.x + Math.random() * 20 + 20, y: player.pos.x + Math.random() * 20 + 20 })));
+      this.asteroids.push(new Asteroid(this.assets.image_asteroid, { x: asteroidsSpawn[randomElement].x, y: asteroidsSpawn[randomElement].y }, NormalizeVectorFromPoints(asteroidsSpawn[randomElement], { x: player.pos.x + Math.random() * 20 + 20, y: player.pos.x + Math.random() * 20 + 20 })));
     }
     for (var i = 0; i < this.asteroids.length; i++) {
       this.asteroids[i].render(ctx);
@@ -95,7 +100,7 @@ var AsteroidContainer = class {
   }
   remove() {
     for (var i = this.asteroids.length - 1; i >= 0; i--) {
-      if (this.asteroids[i].pos.x > 1250 || this.asteroids[i].pos.x < -50 || (this.asteroids[i].pos.y > 850 || this.asteroids[i].pos.y < -50)) {
+      if (this.asteroids[i].pos.x > this.canvas.width * 1.1 || this.asteroids[i].pos.x < -this.canvas.width * 0.1 || (this.asteroids[i].pos.y > this.canvas.height * 1.1 || this.asteroids[i].pos.y < -this.canvas.height * 0.1)) {
         this.asteroids.splice(i, 1);
         i--;
       }
@@ -163,23 +168,17 @@ var BulletContainer = class {
 
 // src/components/health.ts
 var Health = class {
-  constructor(asset, pos) {
+  constructor(asset, canvas) {
     this.asset = asset;
-    this.pos = pos;
-    this.life1 = document.getElementById("health1");
-    this.life2 = document.getElementById("health2");
-    this.life3 = document.getElementById("health3");
+    this.canvas = canvas;
   }
+  pos = { x: 0, y: 0 };
   angle = 0;
-  isAlive = false;
+  available = false;
   TimeoutHandler;
-  isWoring = false;
-  life1;
-  life2;
-  life3;
-  lifesNumber = 3;
+  isShowing = false;
   render(ctx) {
-    if (this.isAlive) {
+    if (this.available) {
       ctx.save();
       ctx.translate(this.pos.x, this.pos.y);
       ctx.rotate(this.angle);
@@ -189,25 +188,25 @@ var Health = class {
     }
   }
   show() {
-    if (this.isWoring) {
+    if (this.isShowing) {
       return;
     }
     ;
-    this.isWoring = true;
+    this.isShowing = true;
     var callback = () => {
-      this.isAlive = !this.isAlive;
-      this.pos.x = 1e3 * Math.random() + 100;
-      this.pos.y = 600 * Math.random() + 100;
+      this.available = !this.available;
+      this.pos.x = getRandomValueFromRange(this.canvas.width * 0.1, this.canvas.width * 0.9);
+      this.pos.y = getRandomValueFromRange(this.canvas.height * 0.1, this.canvas.height * 0.9);
       this.TimeoutHandler = setTimeout(callback, Math.random() * 1e4 + 1e4);
     };
     this.TimeoutHandler = setTimeout(callback, Math.random() * 1e4 + 1e4);
   }
   hide() {
-    if (!this.isWoring) {
+    if (!this.isShowing) {
       return;
     }
     ;
-    this.isWoring = false;
+    this.isShowing = false;
     clearTimeout(this.TimeoutHandler);
   }
 };
@@ -263,8 +262,8 @@ var Player = class {
       var dist = GetDistance(this.pos, this.mousePos);
       dist = Math.sqrt(dist);
       dist -= 7;
-      this.movV.x += this.rotV.x * dist / 22;
-      this.movV.y += this.rotV.y * dist / 22;
+      this.movV.x += this.rotV.x * dist / 12;
+      this.movV.y += this.rotV.y * dist / 12;
     }
     this.movV.x *= 0.92;
     this.movV.y *= 0.92;
@@ -290,7 +289,7 @@ var Player = class {
     }
   }
   draw(ctx) {
-    if (Keyboard.keys[32]) {
+    if (this.movV.x > 0.1 || this.movV.x) {
       ctx.save();
       this.blinkingEnginesProgress += 0.1;
       ctx.translate(this.pos.x, this.pos.y);
@@ -318,17 +317,65 @@ var Player = class {
   }
 };
 
+// src/components/ui.ts
+var Ui = class {
+  constructor(assets) {
+    this.assets = assets;
+    setTimeout(() => {
+      this.showHandlingOptions = false;
+    }, 1e4);
+  }
+  lifes = 5;
+  score = 0;
+  showHandlingOptions = true;
+  render(ctx) {
+    ctx.save();
+    ctx.font = "25px Trebuchet MS";
+    ctx.fillStyle = "white";
+    ctx.fillText(`Score: ${this.score}`, 12.5, 25);
+    ctx.rotate(0);
+    ctx.restore();
+    for (let i = 0; i < this.lifes; i++) {
+      ctx.save();
+      ctx.translate(37.5, 75 + i * 50);
+      ctx.rotate(0);
+      ctx.drawImage(this.assets.image_health, -25.5, -25.5);
+      ctx.restore();
+    }
+    if (this.showHandlingOptions) {
+      ctx.save();
+      ctx.font = "16px Trebuchet MS";
+      ctx.fillStyle = "white";
+      ctx.fillText(`aim: "Mouse"`, 37.5 + 50, 67.5);
+      ctx.restore();
+      ctx.save();
+      ctx.font = "16px Trebuchet MS";
+      ctx.fillStyle = "white";
+      ctx.fillText(`shoot: "Left Mouse"`, 37.5 + 50, 92.6);
+      ctx.save();
+      ctx.font = "16px Trebuchet MS";
+      ctx.fillStyle = "white";
+      ctx.fillText(`accelerate: "Space"`, 37.5 + 50, 117.5);
+      ctx.restore();
+    }
+  }
+};
+
 // src/main/game.ts
 var Game = class {
   constructor(assets) {
     this.assets = assets;
-    this.canvas = document.getElementById("MainCanvas");
+    this.canvas = document.getElementById("AsteroidCanvas");
+    this.canvas.width = window.outerWidth;
+    this.canvas.height = window.outerHeight;
     this.ctx = this.canvas.getContext("2d");
-    this.scoreElement = document.getElementById("score");
     this.bulletContainer = new BulletContainer(this.assets);
-    this.player = new Player(this.assets, { x: 600, y: 400 }, this.bulletContainer, this.canvas);
-    this.health = new Health(this.assets.image_health, { x: 1e3 * Math.random() + 100, y: 600 * Math.random() + 100 });
-    this.asteroidsContainer = new AsteroidContainer(this.assets);
+    this.player = new Player(this.assets, { x: this.canvas.width / 2, y: this.canvas.height / 2 }, this.bulletContainer, this.canvas);
+    this.health = new Health(this.assets.image_health, this.canvas);
+    this.asteroidsContainer = new AsteroidContainer(this.assets, this.canvas);
+    this.gameUi = new Ui(this.assets);
+    window.addEventListener("resize", this.resize.bind(this));
+    this.resize();
   }
   canvas;
   ctx;
@@ -336,21 +383,21 @@ var Game = class {
   player;
   health;
   asteroidsContainer;
+  gameUi;
   x = 0;
-  scoreNumber = 0;
-  scoreElement;
   loop() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.asteroidsContainer.render(this.ctx, this.player);
     this.player.render(this.ctx);
     this.health.render(this.ctx);
     this.bulletContainer.render(this.ctx);
-    if (this.health.lifesNumber < 3) {
+    this.gameUi.render(this.ctx);
+    if (this.gameUi.lifes < 5) {
       this.health.show();
     } else {
       this.health.hide();
     }
-    if (this.health.lifesNumber === 0) {
+    if (this.gameUi.lifes <= 0) {
       return 0;
     }
     this.checkBulletsAndAsteroidsCollision();
@@ -362,7 +409,7 @@ var Game = class {
   checkBulletsAndAsteroidsCollision() {
     for (var i = this.bulletContainer.bullets.length - 1; i >= 0; i--) {
       const bullet = this.bulletContainer.bullets[i];
-      if (bullet.pos.x > 1250 || bullet.pos.x < -50 || (bullet.pos.y > 850 || bullet.pos.y < -50)) {
+      if (bullet.pos.x > this.canvas.width * 1.1 || bullet.pos.x < -this.canvas.height * 0.1 || (bullet.pos.y > this.canvas.height * 1.1 || bullet.pos.y < -this.canvas.width * 0.1)) {
         this.bulletContainer.bullets.splice(i, 1);
         i--;
       }
@@ -377,8 +424,7 @@ var Game = class {
           } else {
             this.bulletContainer.bullets.splice(j, 1);
             this.asteroidsContainer.asteroids.splice(k, 1);
-            this.scoreNumber++;
-            this.scoreElement.innerHTML = "Score: " + this.scoreNumber.toString();
+            this.gameUi.score++;
             break;
           }
         }
@@ -395,40 +441,17 @@ var Game = class {
           setTimeout(() => {
             this.player.isImmortal = false;
           }, 3e3);
-          switch (this.health.lifesNumber) {
-            case 1:
-              this.health.life1.style.display = "none";
-              this.health.lifesNumber--;
-              break;
-            case 2:
-              this.health.life2.style.display = "none";
-              this.health.lifesNumber--;
-              break;
-            case 3:
-              this.health.life3.style.display = "none";
-              this.health.lifesNumber--;
-              break;
-          }
+          this.gameUi.lifes--;
         }
       }
     }
   }
   checkPlayerHealthCollision() {
+    if (!this.health.available)
+      return;
     if (GetDistance(this.health.pos, this.player.pos) < 30) {
-      switch (this.health.lifesNumber) {
-        case 1:
-          this.health.life2.style.display = "inline";
-          this.health.lifesNumber++;
-          this.health.hide();
-          this.health.pos = { x: -100, y: -100 };
-          break;
-        case 2:
-          this.health.life3.style.display = "inline";
-          this.health.lifesNumber++;
-          this.health.hide();
-          this.health.pos = { x: -100, y: -100 };
-          break;
-      }
+      this.gameUi.lifes++;
+      this.health.available = false;
     }
   }
   bcgrTranslation() {
@@ -437,6 +460,10 @@ var Game = class {
     var bgr_y = Math.sin(this.x) * 1e4;
     this.canvas.style.backgroundPositionX = bgr_x.toString() + "px";
     this.canvas.style.backgroundPositionY = bgr_y.toString() + "px";
+  }
+  resize() {
+    this.canvas.width = document.body.clientWidth;
+    this.canvas.height = document.body.clientHeight;
   }
 };
 

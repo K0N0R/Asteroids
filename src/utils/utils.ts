@@ -34,7 +34,11 @@ export function addImageProcess(src: string): Promise<HTMLImageElement>{
     })
   }
 
+export function getRandomValueFromRange(min: number, max: number, rng = Math.random) {
+    const delta = max - min
 
+    return min + delta * rng()
+}
 
 
 

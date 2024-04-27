@@ -1,22 +1,17 @@
-﻿export class Health {
+﻿import { getRandomValueFromRange } from "../utils/utils";
+
+export class Health {
+    pos = { x: 0, y: 0 }
     angle = 0;
-    isAlive = false;
+    available = false;
     private TimeoutHandler: NodeJS.Timeout;
-    isWoring = false;
+    isShowing = false;
 
-    life1: HTMLElement;
-    life2: HTMLElement;
-    life3: HTMLElement;
-
-    lifesNumber: number = 3;
-    constructor(private asset: HTMLImageElement, public pos: { x: number; y: number }) {
-        this.life1 = document.getElementById('health1') as HTMLElement;
-        this.life2 = document.getElementById('health2') as HTMLElement;
-        this.life3 = document.getElementById('health3') as HTMLElement;
+    constructor(private asset: HTMLImageElement, private canvas: HTMLCanvasElement ) {
     }
 
     render(ctx: CanvasRenderingContext2D) {
-        if (this.isAlive) {
+        if (this.available) {
             ctx.save();
             ctx.translate(this.pos.x, this.pos.y);
             ctx.rotate(this.angle);
@@ -27,21 +22,21 @@
     }
 
     show() {
-        if (this.isWoring) { return };
-        this.isWoring = true;
+        if (this.isShowing) { return };
+        this.isShowing = true;
 
         var callback = () => {
-            this.isAlive = !this.isAlive;
-            this.pos.x = 1000 * Math.random() + 100;
-            this.pos.y = 600 * Math.random() + 100;
+            this.available = !this.available;
+            this.pos.x = getRandomValueFromRange(this.canvas.width*0.1, this.canvas.width*0.9);
+            this.pos.y = getRandomValueFromRange(this.canvas.height*0.1, this.canvas.height*0.9);
             this.TimeoutHandler = setTimeout(callback, Math.random() * 10000 + 10000);
         }
         this.TimeoutHandler = setTimeout(callback, Math.random() * 10000 + 10000);
     }
 
     hide() {
-        if (!this.isWoring) { return };
-        this.isWoring = false;
+        if (!this.isShowing) { return };
+        this.isShowing = false;
         clearTimeout(this.TimeoutHandler);
     }
  
