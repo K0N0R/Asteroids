@@ -11,13 +11,15 @@ export class Asteroid {
     constructor(private asset: HTMLImageElement, pos: { x: number; y: number }, movV: { x: number; y: number }, ) {
         this.pos.x = pos.x;
         this.pos.y = pos.y;
-        this.movV.x = movV.x * getRandomValueFromRange(1.5, 4.5);
-        this.movV.y = movV.y * getRandomValueFromRange(1.5, 4.5);
+        this.movV.x = movV.x * getRandomValueFromRange(0.5, 3.5);
+        this.movV.y = movV.y * getRandomValueFromRange(0.5, 3.5);
     }
+    private scale = 0.5
     render(ctx: CanvasRenderingContext2D) {
         ctx.save();
         ctx.translate(this.pos.x, this.pos.y);
         ctx.rotate(this.angle);
+        ctx.scale(this.scale, this.scale);
         ctx.drawImage(this.asset, -25.5, -25.5)
         ctx.restore();
         this.angle += 0.02;
@@ -34,7 +36,7 @@ export class AsteroidContainer {
         setInterval(() => {
 
             const spawn = () => {
-                if (this.asteroids.length < 200) {
+                if (this.asteroids.length < 500) {
                     const angle = getRandomValueFromRange(0, Math.PI * 2);
                     const vector = normalise({ x: Math.cos(angle), y: Math.sin(angle) });
                     const distance = getRandomValueFromRange(2000, 2500);
@@ -49,15 +51,15 @@ export class AsteroidContainer {
                         asteroidsSpawn,
                         NormalizeVectorFromPoints(
                             asteroidsSpawn,
-                            { x: (this.player.pos.x + Math.random() * 20 + 20), y: (this.player.pos.x + Math.random() * 20 + 20) })
+                            { x: (this.player.pos.x + getRandomValueFromRange(-100, 100)), y: (this.player.pos.y + getRandomValueFromRange(-100, 100)) })
                     ));
                 }
-            }
+            } 
             
-            for(let i = 0; i < 20; i++) {
+            for(let i = 0; i < 50; i++) {
                 spawn();
             }
-        }, 5000)
+        }, 2500)
     }
     render(ctx: CanvasRenderingContext2D) {
         
@@ -70,7 +72,7 @@ export class AsteroidContainer {
     }
     remove() {
         for (var i = this.asteroids.length - 1; i >= 0; i--) {
-            if (distance(this.player.pos, this.asteroids[i].pos) > 5000) {
+            if (distance(this.player.pos, this.asteroids[i].pos) > 4000) {
                 this.asteroids.splice(i, 1);
             }
         }

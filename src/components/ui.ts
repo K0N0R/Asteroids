@@ -12,6 +12,7 @@ export class Ui {
     
     render(ctx: CanvasRenderingContext2D) {
 
+        ctx.textAlign = 'left';
         ctx.font = "25px Trebuchet MS";
         ctx.fillStyle = 'white';
         ctx.fillText(`Score: ${this.score}`, 12.5, 25);

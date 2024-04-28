@@ -12,9 +12,11 @@ export class Bullet {
         this.movV.y = movV.y * 10;
         this.angle = getAngleFromVector(movV);
     }
+    private scale = 0.5
     render(ctx: CanvasRenderingContext2D) {
         ctx.save();
         ctx.translate(this.pos.x, this.pos.y);
+        ctx.scale(this.scale, this.scale);
         ctx.rotate(this.angle);
         ctx.drawImage(this.asset, 2.5, 0);
         ctx.restore();
@@ -42,7 +44,7 @@ export class BulletContainer {
 
     remove() {
         for (var i = this.bullets.length - 1; i >= 0; i--) {
-            if (distance(this.player.pos, this.bullets[i].pos) > 5000) {
+            if (distance(this.player.pos, this.bullets[i].pos) > 4000) {
                 this.bullets.splice(i, 1);
             }
         }

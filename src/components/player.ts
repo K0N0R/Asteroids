@@ -39,7 +39,7 @@ export class Player {
         }
     }
 
-    private scale = 0.66
+    private scale = 0.33
     draw(ctx: CanvasRenderingContext2D) {
         if (Keyboard.keys[32]) {
             ctx.save();

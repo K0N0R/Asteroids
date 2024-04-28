@@ -10,11 +10,12 @@ export class Health {
 
     constructor(private asset: HTMLImageElement, private canvas: HTMLCanvasElement, private player: Player) {
     }
-
+    private scale = 0.5
     render(ctx: CanvasRenderingContext2D) {
         if (this.available) {
             ctx.save();
             ctx.translate(this.pos.x, this.pos.y);
+            ctx.scale(this.scale, this.scale);
             ctx.rotate(this.angle);
             ctx.drawImage(this.asset, -25.5, -25.5)
             ctx.restore();

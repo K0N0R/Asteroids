@@ -75,7 +75,7 @@ export class Game {
             for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
                 const bullet = this.bulletContainer.bullets[j];
                 const asteroid = this.asteroidsContainer.asteroids[k];
-                if (distance(bullet.pos, asteroid.pos) < 30) {
+                if (distance(bullet.pos, asteroid.pos) < 15) {
                     this.bulletContainer.bullets.splice(j, 1);
                     this.asteroidsContainer.asteroids.splice(k, 1);
                     this.gameUi.score++;
@@ -89,7 +89,7 @@ export class Game {
         if (!this.player.isImmortal) {
             for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
                 const asteroid = this.asteroidsContainer.asteroids[k];
-                if (distance(asteroid.pos, this.player.pos) < 50) {
+                if (distance(asteroid.pos, this.player.pos) < 25) {
                     this.asteroidsContainer.asteroids.splice(k, 1);
                     this.player.isImmortal = true;
                     setTimeout(() => { this.player.isImmortal = false }, 3000);
@@ -100,7 +100,7 @@ export class Game {
     }
     checkPlayerHealthCollision() {
         if(!this.health.available) return;
-        if (distance(this.health.pos, this.player.pos) < 30) {
+        if (distance(this.health.pos, this.player.pos) < 15) {
             this.gameUi.lifes++;
             this.health.available = false;
         }
@@ -108,8 +108,8 @@ export class Game {
 
     bcgrTranslation() {
         this.x += 0.0001;
-        var bgr_x = Math.cos(this.x) * 10000;
-        var bgr_y = Math.sin(this.x) * 10000;
+        var bgr_x = -this.player.pos.x/4;
+        var bgr_y = -this.player.pos.y/4;
         this.canvas.style.backgroundPositionX = bgr_x.toString() + "px";
         this.canvas.style.backgroundPositionY = bgr_y.toString() + "px";
     }

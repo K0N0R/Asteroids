@@ -73,16 +73,18 @@ var Asteroid = class {
     this.asset = asset;
     this.pos.x = pos.x;
     this.pos.y = pos.y;
-    this.movV.x = movV.x * getRandomValueFromRange(1.5, 4.5);
-    this.movV.y = movV.y * getRandomValueFromRange(1.5, 4.5);
+    this.movV.x = movV.x * getRandomValueFromRange(0.5, 3.5);
+    this.movV.y = movV.y * getRandomValueFromRange(0.5, 3.5);
   }
   pos = { x: 0, y: 0 };
   movV = { x: 0, y: 0 };
   angle = 0;
+  scale = 0.5;
   render(ctx) {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
     ctx.rotate(this.angle);
+    ctx.scale(this.scale, this.scale);
     ctx.drawImage(this.asset, -25.5, -25.5);
     ctx.restore();
     this.angle += 0.02;
@@ -97,7 +99,7 @@ var AsteroidContainer = class {
     this.canvas = canvas;
     setInterval(() => {
       const spawn = () => {
-        if (this.asteroids.length < 200) {
+        if (this.asteroids.length < 500) {
           const angle = getRandomValueFromRange(0, Math.PI * 2);
           const vector = normalise({ x: Math.cos(angle), y: Math.sin(angle) });
           const distance2 = getRandomValueFromRange(2e3, 2500);
@@ -110,15 +112,15 @@ var AsteroidContainer = class {
             asteroidsSpawn,
             NormalizeVectorFromPoints(
               asteroidsSpawn,
-              { x: this.player.pos.x + Math.random() * 20 + 20, y: this.player.pos.x + Math.random() * 20 + 20 }
+              { x: this.player.pos.x + getRandomValueFromRange(-100, 100), y: this.player.pos.y + getRandomValueFromRange(-100, 100) }
             )
           ));
         }
       };
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 50; i++) {
         spawn();
       }
-    }, 5e3);
+    }, 2500);
   }
   asteroids = [];
   render(ctx) {
@@ -130,7 +132,7 @@ var AsteroidContainer = class {
   }
   remove() {
     for (var i = this.asteroids.length - 1; i >= 0; i--) {
-      if (distance(this.player.pos, this.asteroids[i].pos) > 5e3) {
+      if (distance(this.player.pos, this.asteroids[i].pos) > 4e3) {
         this.asteroids.splice(i, 1);
       }
     }
@@ -170,9 +172,11 @@ var Bullet = class {
   }
   movV = { x: 0, y: 0 };
   angle = 0;
+  scale = 0.5;
   render(ctx) {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
+    ctx.scale(this.scale, this.scale);
     ctx.rotate(this.angle);
     ctx.drawImage(this.asset, 2.5, 0);
     ctx.restore();
@@ -197,7 +201,7 @@ var BulletContainer = class {
   }
   remove() {
     for (var i = this.bullets.length - 1; i >= 0; i--) {
-      if (distance(this.player.pos, this.bullets[i].pos) > 5e3) {
+      if (distance(this.player.pos, this.bullets[i].pos) > 4e3) {
         this.bullets.splice(i, 1);
       }
     }
@@ -216,10 +220,12 @@ var Health = class {
   available = false;
   TimeoutHandler;
   isShowing = false;
+  scale = 0.5;
   render(ctx) {
     if (this.available) {
       ctx.save();
       ctx.translate(this.pos.x, this.pos.y);
+      ctx.scale(this.scale, this.scale);
       ctx.rotate(this.angle);
       ctx.drawImage(this.asset, -25.5, -25.5);
       ctx.restore();
@@ -297,7 +303,7 @@ var Player = class {
       y: this.pos.y - this.canvas.height / 2 + this.mousePos.y
     };
   }
-  scale = 0.66;
+  scale = 0.33;
   draw(ctx) {
     if (Keyboard.keys[32]) {
       ctx.save();
@@ -343,6 +349,7 @@ var Ui = class {
   score = 0;
   showHandlingOptions = true;
   render(ctx) {
+    ctx.textAlign = "left";
     ctx.font = "25px Trebuchet MS";
     ctx.fillStyle = "white";
     ctx.fillText(`Score: ${this.score}`, 12.5, 25);
@@ -431,7 +438,7 @@ var Game = class {
       for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
         const bullet = this.bulletContainer.bullets[j];
         const asteroid = this.asteroidsContainer.asteroids[k];
-        if (distance(bullet.pos, asteroid.pos) < 30) {
+        if (distance(bullet.pos, asteroid.pos) < 15) {
           this.bulletContainer.bullets.splice(j, 1);
           this.asteroidsContainer.asteroids.splice(k, 1);
           this.gameUi.score++;
@@ -444,7 +451,7 @@ var Game = class {
     if (!this.player.isImmortal) {
       for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
         const asteroid = this.asteroidsContainer.asteroids[k];
-        if (distance(asteroid.pos, this.player.pos) < 50) {
+        if (distance(asteroid.pos, this.player.pos) < 25) {
           this.asteroidsContainer.asteroids.splice(k, 1);
           this.player.isImmortal = true;
           setTimeout(() => {
@@ -458,15 +465,15 @@ var Game = class {
   checkPlayerHealthCollision() {
     if (!this.health.available)
       return;
-    if (distance(this.health.pos, this.player.pos) < 30) {
+    if (distance(this.health.pos, this.player.pos) < 15) {
       this.gameUi.lifes++;
       this.health.available = false;
     }
   }
   bcgrTranslation() {
     this.x += 1e-4;
-    var bgr_x = Math.cos(this.x) * 1e4;
-    var bgr_y = Math.sin(this.x) * 1e4;
+    var bgr_x = -this.player.pos.x / 4;
+    var bgr_y = -this.player.pos.y / 4;
     this.canvas.style.backgroundPositionX = bgr_x.toString() + "px";
     this.canvas.style.backgroundPositionY = bgr_y.toString() + "px";
   }
