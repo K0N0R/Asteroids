@@ -1,18 +1,18 @@
 // src/utils/utils.ts
-function GetAngleFromVector(v) {
+function getAngleFromVector(v) {
   return Math.atan2(v.y, v.x) + Math.PI / 2;
 }
 function NormalizeVectorFromPoints(v1, v2) {
-  var Vlength = GetDistance(v1, v2);
+  var Vlength = distance(v1, v2);
   return { x: (v1.x - v2.x) / Vlength, y: (v1.y - v2.y) / Vlength };
 }
-function GetDistance(p1, p2) {
+function distance(p1, p2) {
   var vx = p1.x - p2.x;
   var vy = p1.y - p2.y;
   var Vlength = Math.sqrt(vx * vx + vy * vy);
   return Vlength;
 }
-function SwapAndSlow(v1, v2) {
+function swapAndSlow(v1, v2) {
   var tmp = v1.x;
   v1.x = v2.x;
   v2.x = tmp;
@@ -33,22 +33,33 @@ function getRandomValueFromRange(min, max, rng = Math.random) {
   const delta = max - min;
   return min + delta * rng();
 }
+function normalise(v) {
+  const vLength = distance(v, { x: 0, y: 0 });
+  if (vLength === 0)
+    return { x: 0, y: 0 };
+  return {
+    x: v.x / vLength,
+    y: v.y / vLength
+  };
+}
 
 // src/assets.ts
 var Assets = class {
   image_spaceship;
   image_spaceship_engines;
   image_bullet;
-  image_asteroid;
+  image_asteroid_1;
+  image_asteroid_2;
   image_health;
   image_shipshield;
   constructor() {
   }
   async preload() {
-    return [this.image_spaceship, this.image_spaceship_engines, this.image_bullet, this.image_asteroid, this.image_health, this.image_shipshield] = await Promise.all([
+    return [this.image_spaceship, this.image_spaceship_engines, this.image_bullet, this.image_asteroid_1, this.image_asteroid_2, this.image_health, this.image_shipshield] = await Promise.all([
       addImageProcess("./spaceship.png"),
       addImageProcess("./spaceship-engines.png"),
       addImageProcess("./bullet.png"),
+      addImageProcess("./asteroid1.png"),
       addImageProcess("./asteroid2.png"),
       addImageProcess("./health.png"),
       addImageProcess("./shipshield.png")
@@ -62,9 +73,8 @@ var Asteroid = class {
     this.asset = asset;
     this.pos.x = pos.x;
     this.pos.y = pos.y;
-    this.movV.x = movV.x * 2.5;
-    this.movV.y = movV.y * 2.5;
-    ;
+    this.movV.x = movV.x * getRandomValueFromRange(1.5, 4.5);
+    this.movV.y = movV.y * getRandomValueFromRange(1.5, 4.5);
   }
   pos = { x: 0, y: 0 };
   movV = { x: 0, y: 0 };
@@ -81,17 +91,37 @@ var Asteroid = class {
   }
 };
 var AsteroidContainer = class {
-  constructor(assets, canvas) {
+  constructor(assets, player, canvas) {
     this.assets = assets;
+    this.player = player;
     this.canvas = canvas;
+    setInterval(() => {
+      const spawn = () => {
+        if (this.asteroids.length < 200) {
+          const angle = getRandomValueFromRange(0, Math.PI * 2);
+          const vector = normalise({ x: Math.cos(angle), y: Math.sin(angle) });
+          const distance2 = getRandomValueFromRange(2e3, 2500);
+          const asteroidsSpawn = {
+            x: this.player.pos.x + vector.x * distance2,
+            y: this.player.pos.y + vector.y * distance2
+          };
+          this.asteroids.push(new Asteroid(
+            Math.random() > 0.5 ? this.assets.image_asteroid_1 : this.assets.image_asteroid_2,
+            asteroidsSpawn,
+            NormalizeVectorFromPoints(
+              asteroidsSpawn,
+              { x: this.player.pos.x + Math.random() * 20 + 20, y: this.player.pos.x + Math.random() * 20 + 20 }
+            )
+          ));
+        }
+      };
+      for (let i = 0; i < 20; i++) {
+        spawn();
+      }
+    }, 5e3);
   }
   asteroids = [];
-  render(ctx, player) {
-    if (this.asteroids.length < 5) {
-      const asteroidsSpawn = [{ x: this.canvas.width * Math.random(), y: 0 }, { x: this.canvas.width * Math.random(), y: this.canvas.height }, { x: 0, y: this.canvas.height * Math.random() }, { x: this.canvas.width, y: this.canvas.height * Math.random() }];
-      const randomElement = Math.random() * 4 | 0;
-      this.asteroids.push(new Asteroid(this.assets.image_asteroid, { x: asteroidsSpawn[randomElement].x, y: asteroidsSpawn[randomElement].y }, NormalizeVectorFromPoints(asteroidsSpawn[randomElement], { x: player.pos.x + Math.random() * 20 + 20, y: player.pos.x + Math.random() * 20 + 20 })));
-    }
+  render(ctx) {
     for (var i = 0; i < this.asteroids.length; i++) {
       this.asteroids[i].render(ctx);
     }
@@ -100,9 +130,8 @@ var AsteroidContainer = class {
   }
   remove() {
     for (var i = this.asteroids.length - 1; i >= 0; i--) {
-      if (this.asteroids[i].pos.x > this.canvas.width * 1.1 || this.asteroids[i].pos.x < -this.canvas.width * 0.1 || (this.asteroids[i].pos.y > this.canvas.height * 1.1 || this.asteroids[i].pos.y < -this.canvas.height * 0.1)) {
+      if (distance(this.player.pos, this.asteroids[i].pos) > 5e3) {
         this.asteroids.splice(i, 1);
-        i--;
       }
     }
   }
@@ -112,13 +141,13 @@ var AsteroidContainer = class {
         if (i === j) {
           continue;
         }
-        if (GetDistance(this.asteroids[i].pos, this.asteroids[j].pos) < 51) {
+        if (distance(this.asteroids[i].pos, this.asteroids[j].pos) < 51) {
           var vBetween = NormalizeVectorFromPoints(this.asteroids[i].pos, this.asteroids[j].pos);
           this.asteroids[i].pos.x += vBetween.x;
           this.asteroids[i].pos.y += vBetween.y;
           this.asteroids[j].pos.x -= vBetween.x;
           this.asteroids[j].pos.y -= vBetween.y;
-          var swapArray = SwapAndSlow(this.asteroids[i].movV, this.asteroids[j].movV);
+          var swapArray = swapAndSlow(this.asteroids[i].movV, this.asteroids[j].movV);
           this.asteroids[i].movV = swapArray[0];
           this.asteroids[j].movV = swapArray[1];
           continue;
@@ -137,7 +166,7 @@ var Bullet = class {
     this.pos.y = pos.y;
     this.movV.x = movV.x * 10;
     this.movV.y = movV.y * 10;
-    this.angle = GetAngleFromVector(movV);
+    this.angle = getAngleFromVector(movV);
   }
   movV = { x: 0, y: 0 };
   angle = 0;
@@ -152,8 +181,9 @@ var Bullet = class {
   }
 };
 var BulletContainer = class {
-  constructor(assets) {
+  constructor(assets, player) {
     this.assets = assets;
+    this.player = player;
   }
   bullets = [];
   addBullet(pos, angle) {
@@ -163,14 +193,23 @@ var BulletContainer = class {
     this.bullets.forEach((bullet) => {
       bullet.render(ctx);
     });
+    this.remove();
+  }
+  remove() {
+    for (var i = this.bullets.length - 1; i >= 0; i--) {
+      if (distance(this.player.pos, this.bullets[i].pos) > 5e3) {
+        this.bullets.splice(i, 1);
+      }
+    }
   }
 };
 
 // src/components/health.ts
 var Health = class {
-  constructor(asset, canvas) {
+  constructor(asset, canvas, player) {
     this.asset = asset;
     this.canvas = canvas;
+    this.player = player;
   }
   pos = { x: 0, y: 0 };
   angle = 0;
@@ -195,8 +234,8 @@ var Health = class {
     this.isShowing = true;
     var callback = () => {
       this.available = !this.available;
-      this.pos.x = getRandomValueFromRange(this.canvas.width * 0.1, this.canvas.width * 0.9);
-      this.pos.y = getRandomValueFromRange(this.canvas.height * 0.1, this.canvas.height * 0.9);
+      this.pos.x = getRandomValueFromRange(this.player.pos.x - this.canvas.width * 0.5, this.player.pos.x + this.canvas.width * 0.5);
+      this.pos.y = getRandomValueFromRange(this.player.pos.y - this.canvas.height * 0.5, this.player.pos.y + this.canvas.height * 0.5);
       this.TimeoutHandler = setTimeout(callback, Math.random() * 1e4 + 1e4);
     };
     this.TimeoutHandler = setTimeout(callback, Math.random() * 1e4 + 1e4);
@@ -226,12 +265,10 @@ var Keyboard = class _Keyboard {
 
 // src/components/player.ts
 var Player = class {
-  constructor(assets, pos, bulletContainer, canvas) {
+  constructor(assets, pos, canvas) {
     this.assets = assets;
     this.pos = pos;
-    this.bulletContainer = bulletContainer;
     this.canvas = canvas;
-    this.startCheckingMousePosition();
   }
   rotV = { x: 0, y: 0 };
   movV = { x: 0, y: 0 };
@@ -239,77 +276,53 @@ var Player = class {
   blinkingEnginesProgress = 0;
   blinkingImortalityProgress = 0;
   isImmortal = false;
-  startCheckingMousePosition() {
-    this.canvas.onmousemove = (evt) => {
-      this.mousePos.x = evt.offsetX;
-      this.mousePos.y = evt.offsetY;
-    };
-    this.canvas.onmousedown = (evt) => {
-      var angle = GetAngleFromVector(this.rotV) - Math.PI / 2;
-      var translationX1 = Math.cos(angle - 0.58) * 47;
-      var translationY1 = Math.sin(angle - 0.58) * 47;
-      var translationX2 = Math.cos(angle + 0.51) * 45;
-      var translationY2 = Math.sin(angle + 0.51) * 45;
-      this.bulletContainer.addBullet({ x: this.pos.x + translationX1, y: this.pos.y + translationY1 }, this.rotV);
-      this.bulletContainer.addBullet({ x: this.pos.x + translationX2, y: this.pos.y + translationY2 }, this.rotV);
-    };
-  }
   render(ctx) {
     this.pos.x += this.movV.x;
     this.pos.y += this.movV.y;
-    this.rotV = NormalizeVectorFromPoints({ x: this.mousePos.x + 7, y: this.mousePos.y + 7 }, { x: this.pos.x, y: this.pos.y });
+    this.rotV = NormalizeVectorFromPoints({ x: this.aimLocation.x + 7, y: this.aimLocation.y + 7 }, { x: this.pos.x, y: this.pos.y });
     if (Keyboard.keys[32]) {
-      var dist = GetDistance(this.pos, this.mousePos);
+      var dist = distance(this.pos, this.aimLocation);
       dist = Math.sqrt(dist);
       dist -= 7;
-      this.movV.x += this.rotV.x * dist / 12;
-      this.movV.y += this.rotV.y * dist / 12;
+      this.movV.x += this.rotV.x * dist / 22;
+      this.movV.y += this.rotV.y * dist / 22;
     }
     this.movV.x *= 0.92;
     this.movV.y *= 0.92;
-    this.checkCollision();
     this.draw(ctx);
   }
-  checkCollision() {
-    if (this.pos.y > this.canvas.height - 50) {
-      this.pos.y = this.canvas.height - 50;
-      this.movV.y = -this.movV.y * 0.6;
-    }
-    if (this.pos.y < 50) {
-      this.pos.y = 50;
-      this.movV.y = -this.movV.y * 0.6;
-    }
-    if (this.pos.x > this.canvas.width - 45) {
-      this.pos.x = this.canvas.width - 45;
-      this.movV.x = -this.movV.x * 0.6;
-    }
-    if (this.pos.x < 45) {
-      this.pos.x = 45;
-      this.movV.x = -this.movV.x * 0.6;
-    }
+  get aimLocation() {
+    return {
+      x: this.pos.x - this.canvas.width / 2 + this.mousePos.x,
+      y: this.pos.y - this.canvas.height / 2 + this.mousePos.y
+    };
   }
+  scale = 0.66;
   draw(ctx) {
-    if (this.movV.x > 0.1 || this.movV.x) {
+    if (Keyboard.keys[32]) {
       ctx.save();
       this.blinkingEnginesProgress += 0.1;
       ctx.translate(this.pos.x, this.pos.y);
-      ctx.rotate(GetAngleFromVector(this.rotV));
-      ctx.globalAlpha = Math.sin(this.blinkingEnginesProgress) / 2 + 0.75;
+      ctx.rotate(getAngleFromVector(this.rotV));
+      ctx.globalAlpha = Math.sin(this.blinkingEnginesProgress) / 2 + 1;
+      ctx.scale(this.scale, this.scale);
       ctx.drawImage(this.assets.image_spaceship_engines, -45, -50);
       ctx.restore();
     }
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
-    ctx.rotate(GetAngleFromVector(this.rotV));
+    ctx.rotate(getAngleFromVector(this.rotV));
     ctx.globalAlpha = 1;
+    ctx.scale(this.scale, this.scale);
     ctx.drawImage(this.assets.image_spaceship, -45, -50);
     ctx.restore();
     if (this.isImmortal) {
       this.blinkingImortalityProgress += 0.1;
       ctx.save();
       ctx.translate(this.pos.x, this.pos.y);
-      ctx.rotate(GetAngleFromVector(this.rotV));
+      ctx.rotate(getAngleFromVector(this.rotV));
       ctx.globalAlpha = Math.sin(this.blinkingImortalityProgress) / 2 + 0.5;
+      ctx.scale(this.scale, this.scale);
       ctx.drawImage(this.assets.image_shipshield, -45, -50);
       ctx.globalAlpha = 1;
       ctx.restore();
@@ -319,8 +332,9 @@ var Player = class {
 
 // src/components/ui.ts
 var Ui = class {
-  constructor(assets) {
+  constructor(assets, canvas) {
     this.assets = assets;
+    this.canvas = canvas;
     setTimeout(() => {
       this.showHandlingOptions = false;
     }, 1e4);
@@ -329,35 +343,29 @@ var Ui = class {
   score = 0;
   showHandlingOptions = true;
   render(ctx) {
-    ctx.save();
     ctx.font = "25px Trebuchet MS";
     ctx.fillStyle = "white";
     ctx.fillText(`Score: ${this.score}`, 12.5, 25);
-    ctx.rotate(0);
-    ctx.restore();
     for (let i = 0; i < this.lifes; i++) {
-      ctx.save();
-      ctx.translate(37.5, 75 + i * 50);
-      ctx.rotate(0);
-      ctx.drawImage(this.assets.image_health, -25.5, -25.5);
-      ctx.restore();
+      ctx.drawImage(this.assets.image_health, -25.5 + 37.5, -25.5 + 75 + i * 50);
     }
     if (this.showHandlingOptions) {
-      ctx.save();
       ctx.font = "16px Trebuchet MS";
       ctx.fillStyle = "white";
       ctx.fillText(`aim: "Mouse"`, 37.5 + 50, 67.5);
-      ctx.restore();
-      ctx.save();
       ctx.font = "16px Trebuchet MS";
       ctx.fillStyle = "white";
       ctx.fillText(`shoot: "Left Mouse"`, 37.5 + 50, 92.6);
-      ctx.save();
       ctx.font = "16px Trebuchet MS";
       ctx.fillStyle = "white";
       ctx.fillText(`accelerate: "Space"`, 37.5 + 50, 117.5);
-      ctx.restore();
     }
+  }
+  renderDeath(ctx) {
+    ctx.font = "56px Trebuchet MS";
+    ctx.fillStyle = "red";
+    ctx.textAlign = "center";
+    ctx.fillText(`YOU DIED`, this.canvas.width / 2, this.canvas.height / 2);
   }
 };
 
@@ -369,13 +377,15 @@ var Game = class {
     this.canvas.width = window.outerWidth;
     this.canvas.height = window.outerHeight;
     this.ctx = this.canvas.getContext("2d");
-    this.bulletContainer = new BulletContainer(this.assets);
-    this.player = new Player(this.assets, { x: this.canvas.width / 2, y: this.canvas.height / 2 }, this.bulletContainer, this.canvas);
-    this.health = new Health(this.assets.image_health, this.canvas);
-    this.asteroidsContainer = new AsteroidContainer(this.assets, this.canvas);
-    this.gameUi = new Ui(this.assets);
+    this.player = new Player(this.assets, { x: this.canvas.width / 2, y: this.canvas.height / 2 }, this.canvas);
+    this.bulletContainer = new BulletContainer(this.assets, this.player);
+    this.health = new Health(this.assets.image_health, this.canvas, this.player);
+    this.asteroidsContainer = new AsteroidContainer(this.assets, this.player, this.canvas);
+    this.gameUi = new Ui(this.assets, this.canvas);
     window.addEventListener("resize", this.resize.bind(this));
+    this.ctx.scale(0.5, 0.5);
     this.resize();
+    this.startCheckingMouse();
   }
   canvas;
   ctx;
@@ -385,48 +395,47 @@ var Game = class {
   asteroidsContainer;
   gameUi;
   x = 0;
+  get isDead() {
+    return this.gameUi.lifes <= 0;
+  }
   loop() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.asteroidsContainer.render(this.ctx, this.player);
-    this.player.render(this.ctx);
-    this.health.render(this.ctx);
-    this.bulletContainer.render(this.ctx);
-    this.gameUi.render(this.ctx);
-    if (this.gameUi.lifes < 5) {
-      this.health.show();
-    } else {
-      this.health.hide();
+    this.ctx.save();
+    this.ctx.translate(-this.player.pos.x + this.canvas.width / 2, -this.player.pos.y + this.canvas.height / 2);
+    if (!this.isDead) {
+      this.player.render(this.ctx);
+      if (this.gameUi.lifes < 5) {
+        this.health.show();
+      } else {
+        this.health.hide();
+      }
+      this.health.render(this.ctx);
     }
-    if (this.gameUi.lifes <= 0) {
-      return 0;
+    this.asteroidsContainer.render(this.ctx);
+    this.bulletContainer.render(this.ctx);
+    this.ctx.restore();
+    this.gameUi.render(this.ctx);
+    if (this.isDead) {
+      this.gameUi.renderDeath(this.ctx);
     }
     this.checkBulletsAndAsteroidsCollision();
-    this.checkPlayerAsteroidsCollision();
-    this.checkPlayerHealthCollision();
+    if (!this.isDead) {
+      this.checkPlayerAsteroidsCollision();
+      this.checkPlayerHealthCollision();
+    }
     this.bcgrTranslation();
     requestAnimationFrame(this.loop.bind(this));
   }
   checkBulletsAndAsteroidsCollision() {
-    for (var i = this.bulletContainer.bullets.length - 1; i >= 0; i--) {
-      const bullet = this.bulletContainer.bullets[i];
-      if (bullet.pos.x > this.canvas.width * 1.1 || bullet.pos.x < -this.canvas.height * 0.1 || (bullet.pos.y > this.canvas.height * 1.1 || bullet.pos.y < -this.canvas.width * 0.1)) {
-        this.bulletContainer.bullets.splice(i, 1);
-        i--;
-      }
-    }
     for (var j = 0; j < this.bulletContainer.bullets.length; j++) {
       for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
         const bullet = this.bulletContainer.bullets[j];
         const asteroid = this.asteroidsContainer.asteroids[k];
-        if (GetDistance(bullet.pos, asteroid.pos) < 30) {
-          if (this.player.isImmortal) {
-            continue;
-          } else {
-            this.bulletContainer.bullets.splice(j, 1);
-            this.asteroidsContainer.asteroids.splice(k, 1);
-            this.gameUi.score++;
-            break;
-          }
+        if (distance(bullet.pos, asteroid.pos) < 30) {
+          this.bulletContainer.bullets.splice(j, 1);
+          this.asteroidsContainer.asteroids.splice(k, 1);
+          this.gameUi.score++;
+          break;
         }
       }
     }
@@ -435,7 +444,7 @@ var Game = class {
     if (!this.player.isImmortal) {
       for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
         const asteroid = this.asteroidsContainer.asteroids[k];
-        if (GetDistance(asteroid.pos, this.player.pos) < 65.5) {
+        if (distance(asteroid.pos, this.player.pos) < 50) {
           this.asteroidsContainer.asteroids.splice(k, 1);
           this.player.isImmortal = true;
           setTimeout(() => {
@@ -449,7 +458,7 @@ var Game = class {
   checkPlayerHealthCollision() {
     if (!this.health.available)
       return;
-    if (GetDistance(this.health.pos, this.player.pos) < 30) {
+    if (distance(this.health.pos, this.player.pos) < 30) {
       this.gameUi.lifes++;
       this.health.available = false;
     }
@@ -464,6 +473,26 @@ var Game = class {
   resize() {
     this.canvas.width = document.body.clientWidth;
     this.canvas.height = document.body.clientHeight;
+  }
+  startCheckingMouse() {
+    this.canvas.onmousemove = (evt) => {
+      this.player.mousePos.x = evt.offsetX;
+      this.player.mousePos.y = evt.offsetY;
+    };
+    this.canvas.onmousedown = (evt) => {
+      if (!this.isDead) {
+        var angle = getAngleFromVector(this.player.rotV) - Math.PI / 2;
+        const bullets = [
+          { x: Math.cos(angle - 0.78) * 29, y: Math.sin(angle - 0.78) * 29 },
+          { x: Math.cos(angle + 0.49) * 24, y: Math.sin(angle + 0.49) * 24 },
+          { x: Math.cos(angle - 0.2) * 43, y: Math.sin(angle - 0.2) * 43 },
+          { x: Math.cos(angle - 0.025) * 43, y: Math.sin(angle - 0.025) * 43 }
+        ];
+        bullets.forEach((bullet) => {
+          this.bulletContainer.addBullet({ x: this.player.pos.x + bullet.x, y: this.player.pos.y + bullet.y }, this.player.rotV);
+        });
+      }
+    };
   }
 };
 

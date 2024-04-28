@@ -1,4 +1,5 @@
 ﻿import { getRandomValueFromRange } from "../utils/utils";
+import { Player } from "./player";
 
 export class Health {
     pos = { x: 0, y: 0 }
@@ -7,7 +8,7 @@ export class Health {
     private TimeoutHandler: NodeJS.Timeout;
     isShowing = false;
 
-    constructor(private asset: HTMLImageElement, private canvas: HTMLCanvasElement ) {
+    constructor(private asset: HTMLImageElement, private canvas: HTMLCanvasElement, private player: Player) {
     }
 
     render(ctx: CanvasRenderingContext2D) {
@@ -27,8 +28,8 @@ export class Health {
 
         var callback = () => {
             this.available = !this.available;
-            this.pos.x = getRandomValueFromRange(this.canvas.width*0.1, this.canvas.width*0.9);
-            this.pos.y = getRandomValueFromRange(this.canvas.height*0.1, this.canvas.height*0.9);
+            this.pos.x = getRandomValueFromRange(this.player.pos.x - this.canvas.width*0.5, this.player.pos.x + this.canvas.width*0.5);
+            this.pos.y = getRandomValueFromRange(this.player.pos.y - this.canvas.height*0.5, this.player.pos.y + this.canvas.height*0.5);
             this.TimeoutHandler = setTimeout(callback, Math.random() * 10000 + 10000);
         }
         this.TimeoutHandler = setTimeout(callback, Math.random() * 10000 + 10000);

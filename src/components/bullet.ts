@@ -1,5 +1,6 @@
 ﻿import { Assets } from "../assets";
-import { GetAngleFromVector } from "../utils/utils";
+import { distance, getAngleFromVector } from "../utils/utils";
+import { Player } from "./player";
 
 export class Bullet {
     movV = { x: 0, y: 0 };
@@ -9,7 +10,7 @@ export class Bullet {
         this.pos.y = pos.y;
         this.movV.x = movV.x * 10;
         this.movV.y = movV.y * 10;
-        this.angle = GetAngleFromVector(movV);
+        this.angle = getAngleFromVector(movV);
     }
     render(ctx: CanvasRenderingContext2D) {
         ctx.save();
@@ -25,7 +26,7 @@ export class Bullet {
 
 export class BulletContainer {
     bullets: Bullet[] = []
-    constructor(private assets: Assets) {
+    constructor(private assets: Assets, private player: Player) {
 
     }
     addBullet(pos: {x: number; y: number;}, angle: {x: number; y: number;}) {
@@ -34,6 +35,16 @@ export class BulletContainer {
     render(ctx: CanvasRenderingContext2D) {
         this.bullets.forEach(bullet => {
             bullet.render(ctx);
-        }) 
+        })
+
+        this.remove();
+    }
+
+    remove() {
+        for (var i = this.bullets.length - 1; i >= 0; i--) {
+            if (distance(this.player.pos, this.bullets[i].pos) > 5000) {
+                this.bullets.splice(i, 1);
+            }
+        }
     }
 }
