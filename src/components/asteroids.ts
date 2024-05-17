@@ -1,5 +1,5 @@
 ﻿import { Assets } from "../assets";
-import { distance, NormalizeVectorFromPoints, swapAndSlow, getRandomValueFromRange, normalise } from "../utils/utils";
+import { distance, NormalizeVectorFromPoints, swapAndSlow, getRandomValueFromRange, normalise, getRandomIntegerFromRange } from "../utils/utils";
 import { Player } from "./player";
 
 export class Asteroid {
@@ -7,19 +7,21 @@ export class Asteroid {
     movV = { x: 0, y: 0 };
 
     angle = 0;
+    health = 0;
 
-    constructor(private asset: HTMLImageElement, pos: { x: number; y: number }, movV: { x: number; y: number }, ) {
+    constructor(private asset: HTMLImageElement, pos: { x: number; y: number }, movV: { x: number; y: number }, public size: number) {
         this.pos.x = pos.x;
         this.pos.y = pos.y;
-        this.movV.x = movV.x * getRandomValueFromRange(0.5, 3.5);
-        this.movV.y = movV.y * getRandomValueFromRange(0.5, 3.5);
+        this.movV.x = movV.x * getRandomValueFromRange(0.1, 2.5);
+        this.movV.y = movV.y * getRandomValueFromRange(0.1, 2.5);
+        this.health = Math.ceil(this.size/10);
     }
-    private scale = 0.5
+    private scale = 1
     render(ctx: CanvasRenderingContext2D) {
         ctx.save();
         ctx.translate(this.pos.x, this.pos.y);
         ctx.rotate(this.angle);
-        ctx.scale(this.scale, this.scale);
+        ctx.scale(this.scale/30 * this.size, this.scale/30 * this.size);
         ctx.drawImage(this.asset, -25.5, -25.5)
         ctx.restore();
         this.angle += 0.02;
@@ -51,7 +53,8 @@ export class AsteroidContainer {
                         asteroidsSpawn,
                         NormalizeVectorFromPoints(
                             asteroidsSpawn,
-                            { x: (this.player.pos.x + getRandomValueFromRange(-100, 100)), y: (this.player.pos.y + getRandomValueFromRange(-100, 100)) })
+                            { x: (this.player.pos.x + getRandomValueFromRange(-100, 100)), y: (this.player.pos.y + getRandomValueFromRange(-100, 100)) }),
+                        getRandomIntegerFromRange(10, 100)
                     ));
                 }
             } 
@@ -81,7 +84,7 @@ export class AsteroidContainer {
         for (var i = 0; i < this.asteroids.length; i++) {
             for (var j = 0; j < this.asteroids.length; j++) {
                 if (i === j) { continue; }
-                if (distance(this.asteroids[i].pos, this.asteroids[j].pos) < 51) {
+                if (distance(this.asteroids[i].pos, this.asteroids[j].pos) < this.asteroids[i].size + this.asteroids[j].size) {
                     var vBetween = NormalizeVectorFromPoints(this.asteroids[i].pos, this.asteroids[j].pos)
                     this.asteroids[i].pos.x += vBetween.x;
                     this.asteroids[i].pos.y += vBetween.y;

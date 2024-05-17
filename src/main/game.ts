@@ -75,10 +75,14 @@ export class Game {
             for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
                 const bullet = this.bulletContainer.bullets[j];
                 const asteroid = this.asteroidsContainer.asteroids[k];
-                if (distance(bullet.pos, asteroid.pos) < 15) {
+                if (distance(bullet.pos, asteroid.pos) < asteroid.size) {
                     this.bulletContainer.bullets.splice(j, 1);
-                    this.asteroidsContainer.asteroids.splice(k, 1);
-                    this.gameUi.score++;
+                    asteroid.health -= 1;
+                    asteroid.size = asteroid.size*0.9;
+                    if (asteroid.health <= 0) {
+                        this.asteroidsContainer.asteroids.splice(k, 1);
+                        this.gameUi.score++;
+                    }
                     break;
                 }
             }
@@ -89,8 +93,12 @@ export class Game {
         if (!this.player.isImmortal) {
             for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
                 const asteroid = this.asteroidsContainer.asteroids[k];
-                if (distance(asteroid.pos, this.player.pos) < 25) {
-                    this.asteroidsContainer.asteroids.splice(k, 1);
+                if (distance(asteroid.pos, this.player.pos) < 15 + asteroid.size) {
+                    asteroid.health -= 1;
+                    asteroid.size = asteroid.size*0.9;
+                    if (asteroid.health <= 0) {
+                        this.asteroidsContainer.asteroids.splice(k, 1);
+                    }
                     this.player.isImmortal = true;
                     setTimeout(() => { this.player.isImmortal = false }, 3000);
                     this.gameUi.lifes--;

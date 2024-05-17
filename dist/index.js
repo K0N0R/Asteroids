@@ -33,6 +33,9 @@ function getRandomValueFromRange(min, max, rng = Math.random) {
   const delta = max - min;
   return min + delta * rng();
 }
+function getRandomIntegerFromRange(min, max, rng = Math.random) {
+  return Math.round(getRandomValueFromRange(min - 0.5 + Number.EPSILON, max + 0.5 - Number.EPSILON, rng));
+}
 function normalise(v) {
   const vLength = distance(v, { x: 0, y: 0 });
   if (vLength === 0)
@@ -69,22 +72,25 @@ var Assets = class {
 
 // src/components/asteroids.ts
 var Asteroid = class {
-  constructor(asset, pos, movV) {
+  constructor(asset, pos, movV, size) {
     this.asset = asset;
+    this.size = size;
     this.pos.x = pos.x;
     this.pos.y = pos.y;
-    this.movV.x = movV.x * getRandomValueFromRange(0.5, 3.5);
-    this.movV.y = movV.y * getRandomValueFromRange(0.5, 3.5);
+    this.movV.x = movV.x * getRandomValueFromRange(0.1, 2.5);
+    this.movV.y = movV.y * getRandomValueFromRange(0.1, 2.5);
+    this.health = Math.ceil(this.size / 10);
   }
   pos = { x: 0, y: 0 };
   movV = { x: 0, y: 0 };
   angle = 0;
-  scale = 0.5;
+  health = 0;
+  scale = 1;
   render(ctx) {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
     ctx.rotate(this.angle);
-    ctx.scale(this.scale, this.scale);
+    ctx.scale(this.scale / 30 * this.size, this.scale / 30 * this.size);
     ctx.drawImage(this.asset, -25.5, -25.5);
     ctx.restore();
     this.angle += 0.02;
@@ -113,7 +119,8 @@ var AsteroidContainer = class {
             NormalizeVectorFromPoints(
               asteroidsSpawn,
               { x: this.player.pos.x + getRandomValueFromRange(-100, 100), y: this.player.pos.y + getRandomValueFromRange(-100, 100) }
-            )
+            ),
+            getRandomIntegerFromRange(10, 100)
           ));
         }
       };
@@ -143,7 +150,7 @@ var AsteroidContainer = class {
         if (i === j) {
           continue;
         }
-        if (distance(this.asteroids[i].pos, this.asteroids[j].pos) < 51) {
+        if (distance(this.asteroids[i].pos, this.asteroids[j].pos) < this.asteroids[i].size + this.asteroids[j].size) {
           var vBetween = NormalizeVectorFromPoints(this.asteroids[i].pos, this.asteroids[j].pos);
           this.asteroids[i].pos.x += vBetween.x;
           this.asteroids[i].pos.y += vBetween.y;
@@ -438,10 +445,14 @@ var Game = class {
       for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
         const bullet = this.bulletContainer.bullets[j];
         const asteroid = this.asteroidsContainer.asteroids[k];
-        if (distance(bullet.pos, asteroid.pos) < 15) {
+        if (distance(bullet.pos, asteroid.pos) < asteroid.size) {
           this.bulletContainer.bullets.splice(j, 1);
-          this.asteroidsContainer.asteroids.splice(k, 1);
-          this.gameUi.score++;
+          asteroid.health -= 1;
+          asteroid.size = asteroid.size * 0.9;
+          if (asteroid.health <= 0) {
+            this.asteroidsContainer.asteroids.splice(k, 1);
+            this.gameUi.score++;
+          }
           break;
         }
       }
@@ -451,8 +462,12 @@ var Game = class {
     if (!this.player.isImmortal) {
       for (var k = 0; k < this.asteroidsContainer.asteroids.length; k++) {
         const asteroid = this.asteroidsContainer.asteroids[k];
-        if (distance(asteroid.pos, this.player.pos) < 25) {
-          this.asteroidsContainer.asteroids.splice(k, 1);
+        if (distance(asteroid.pos, this.player.pos) < 15 + asteroid.size) {
+          asteroid.health -= 1;
+          asteroid.size = asteroid.size * 0.9;
+          if (asteroid.health <= 0) {
+            this.asteroidsContainer.asteroids.splice(k, 1);
+          }
           this.player.isImmortal = true;
           setTimeout(() => {
             this.player.isImmortal = false;

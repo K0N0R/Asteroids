@@ -40,6 +40,10 @@ export function getRandomValueFromRange(min: number, max: number, rng = Math.ran
     return min + delta * rng()
 }
 
+export function getRandomIntegerFromRange(min: number, max: number, rng = Math.random) {
+    return Math.round(getRandomValueFromRange(min - 0.5 + Number.EPSILON, max + 0.5 - Number.EPSILON, rng))
+}
+
 export function normalise(v: {x: number; y: number;}) {
     const vLength = distance(v, { x: 0, y: 0 })
     if (vLength === 0) return { x: 0, y: 0 };
