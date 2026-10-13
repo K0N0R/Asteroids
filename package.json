@@ -1,25 +1,40 @@
 {
-  "name": "asteroids",
-  "version": "2.0.0",
-  "description": "browser game",
-  "main": "index.js",
-  "scripts": {
-    "win-start": "set WATCH=true && node ./build.mjs",
-    "start": "WATCH=true node ./build.mjs",
-    "build": "node ./build.mjs"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/K0N0R/Asteroids.git"
-  },
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/K0N0R/Asteroids/issues"
-  },
-  "homepage": "https://github.com/K0N0R/Asteroids#readme",
-  "devDependencies": {
-    "@types/node": "^20.12.7",
-    "esbuild": "0.20.2"
-  }
+    "name": "orbit-asteroids",
+    "version": "0.7.0",
+    "scripts": {
+        "start": "cross-env ENV=development node build.development.mjs",
+        "build": "cross-env ENV=release node build.release.mjs",
+        "build-run": "npm run build && node dist/release/server.js",
+        "lint": "eslint . --ext .ts,.mjs,.tsx,.json",
+        "lint-fix": "eslint . --ext .ts,.mjs,.tsx,.json --fix",
+        "typecheck": "tsc --noEmit",
+        "test": "node test.mjs"
+    },
+    "dependencies": {
+        "@dimforge/rapier2d-compat": "0.21.0",
+        "@pixi/sound": "^6.0.1",
+        "@tweenjs/tween.js": "^25.0.0",
+        "express": "^4.18.2",
+        "pixi.js": "^8.11.0",
+        "ws": "^8.13.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.31.0",
+        "@eslint/json": "^0.13.0",
+        "@types/express": "^5.0.3",
+        "@types/node": "^24.0.13",
+        "@types/ws": "^8.18.1",
+        "@typescript-eslint/eslint-plugin": "^8.36.0",
+        "@typescript-eslint/parser": "^8.36.0",
+        "chokidar": "^3.5.3",
+        "cross-env": "^7.0.3",
+        "esbuild": "^0.20.0",
+        "eslint": "^9.31.0",
+        "eslint-config-prettier": "^10.1.5",
+        "eslint-plugin-prettier": "^5.5.1",
+        "globals": "^16.3.0",
+        "prettier": "^3.6.2",
+        "typescript": "^5.3.3",
+        "typescript-eslint": "^8.36.0"
+    }
 }

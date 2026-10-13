@@ -1,0 +1,13 @@
+{
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "always",
+        "source.fixAll.eslint": "always"
+    },
+    "editor.formatOnSave": true,
+    "eslint.validate": ["javascript", "typescript"],
+    "prettier.requireConfig": true,
+    "cSpell.words": [
+        "PIXI",
+        "prepreload"
+    ]
+}

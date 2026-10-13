@@ -1,0 +1,13 @@
+@import url('./styles/reset.css');
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050d18;
+}
+canvas {
+    display: block;
+    touch-action: none;
+}

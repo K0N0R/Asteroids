@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "Node",
+        "esModuleInterop": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "outDir": "dist",
+        "baseUrl": ".",
+        "paths": {
+            "@config/*": ["frontend/core/config/*"],
+            "@components/*": ["frontend/core/containers/components/*"],
+            "@popup/*": ["frontend/core/containers/popup/*"],
+            "@ui/*": ["frontend/core/containers/ui/*"],
+            "@world/*": ["frontend/core/containers/world/*"],
+            "@entities/*": ["frontend/core/containers/entities/*"],
+            "@systems/*": ["frontend/core/systems/*"],
+            "@common": ["frontend/common/index.ts"]
+        }
+    },
+    "include": ["backend", "frontend"]
+}
