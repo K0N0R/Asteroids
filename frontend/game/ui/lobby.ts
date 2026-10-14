@@ -1,3 +1,4 @@
+import { WEAPONS, type WeaponId } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import {
     CONTRACTS,
@@ -54,6 +55,7 @@ import {
 export type LobbyTab = 'overview' | 'hangar' | 'station' | 'pilots' | 'crew' | 'recovery';
 export interface LobbyActions {
     launch: (recoveryId: number | null) => void;
+    equipWeapon: (weapon: WeaponId) => void;
     upgrade: (upgrade: Upgrade) => void;
     hire: (archetype: number) => void;
     selectPilot: (id: number) => void;
@@ -85,8 +87,9 @@ export class LobbyView extends Container {
     private message = '';
     private messageUntil = 0;
     private toast: ReturnType<typeof label> | null = null;
-    private hangarMode: 'owned' | 'shop' = 'owned';
+    private hangarMode: 'owned' | 'shop' | 'weapons' = 'owned';
     private chosenShipId: number | null = null;
+    private weaponFocus: WeaponId = 'standard';
     private shopHull: HullId = 'swift';
     private pilotMode: 'roster' | 'recruit' = 'roster';
     private chosenPilotId: number | null = null;
@@ -165,7 +168,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.15', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.19', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1230, 37, true);
         if (this.tab === 'overview') this.overview(ui);
@@ -359,6 +362,25 @@ export class LobbyView extends Container {
             true,
             38,
         );
+        button(
+            ui,
+            'Uzbrojenie',
+            713,
+            220,
+            240,
+            () => {
+                this.hangarMode = 'weapons';
+                this.weaponFocus = c.ship?.weapon ?? 'standard';
+                this.refresh();
+            },
+            this.hangarMode === 'weapons',
+            true,
+            38,
+        );
+        if (this.hangarMode === 'weapons') {
+            this.weaponPanel(ui);
+            return;
+        }
         const ship = ships.find((entry) => entry.id === this.chosenShipId);
         const modules = this.hangarMode === 'shop' ? bareModules(this.shopHull) : ship;
         if (modules) this.art(hullPreview(modules), 625, 430);
@@ -528,6 +550,87 @@ export class LobbyView extends Container {
                 52,
             );
         }
+    }
+    private weaponPanel(ui: Container) {
+        const c = this.campaign,
+            ship = c.ship;
+        if (!ship) {
+            label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
+            return;
+        }
+        const id = this.weaponFocus,
+            w = WEAPONS[id],
+            owned = ship.weapons.includes(id),
+            mounted = ship.weapon === id;
+        this.art(hullPreview({ ...ship, weapon: id }), 625, 430);
+        label(ui, `UZBROJENIE / ${HULLS[ship.hull].name}`, 388, 285, 16, C.muted);
+        (Object.keys(WEAPONS) as WeaponId[]).forEach((key, i) => {
+            const definition = WEAPONS[key],
+                card = choiceCard(ui, 280 + i * 240, 650, 225, 141, id === key, () => {
+                    this.weaponFocus = key;
+                    this.refresh();
+                });
+            label(card, definition.name, 18, 22, 24);
+            label(
+                card,
+                `${definition.damage} DMG · ${(1 / definition.interval).toFixed(1)}/s`,
+                18,
+                66,
+                15,
+                C.muted,
+            );
+            label(
+                card,
+                ship.weapon === key
+                    ? '● Zamontowane'
+                    : ship.weapons.includes(key)
+                      ? 'Posiadane'
+                      : 'Do kupienia',
+                18,
+                104,
+                14,
+                ship.weapon === key ? C.mint : C.muted,
+            );
+        });
+        label(ui, 'DZIAŁKA / AKTYWNY STATEK', 1072, 244, 13, C.muted);
+        label(ui, w.name, 1072, 279, 34);
+        label(ui, w.detail, 1072, 341, 18, C.muted, 456);
+        stat(ui, 'OBRAŻENIA', `${w.damage}`, 1072, 429);
+        stat(ui, 'STRZAŁY / S', (1 / w.interval).toFixed(1), 1298, 429);
+        stat(ui, 'ZASIĘG', `${Math.round(w.speed * w.life)} m`, 1072, 516);
+        stat(ui, 'POCISK', `${w.speed} m/s`, 1298, 516);
+        label(
+            ui,
+            'Zmienia wszystkie działka tego kadłuba.\nLaser nadal służy do wydobycia.',
+            1072,
+            602,
+            15,
+            C.muted,
+            456,
+        );
+        if (!owned) cost(ui, w.ore, w.parts, 1072, 679);
+        else label(ui, 'Zmiana posiadanej broni jest bezpłatna.', 1072, 679, 15, C.muted);
+        button(
+            ui,
+            mounted
+                ? 'ZAMONTOWANE'
+                : !owned && c.station.workshop < w.workshop
+                  ? 'WYMAGANY WARSZTAT I'
+                  : owned
+                    ? 'ZAMONTUJ →'
+                    : 'KUP I ZAMONTUJ →',
+            1072,
+            728,
+            456,
+            () => this.actions.equipWeapon(id),
+            true,
+            !mounted &&
+                (owned ||
+                    (c.station.workshop >= w.workshop &&
+                        c.bank.ore >= w.ore &&
+                        c.bank.parts >= w.parts)),
+            48,
+        );
     }
     private shipModules(ui: Container, ship: ReturnType<typeof ownedShips>[number]) {
         const c = this.campaign,

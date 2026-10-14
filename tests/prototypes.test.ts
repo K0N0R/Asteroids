@@ -318,6 +318,7 @@ test('laser prototype changes ray reach and real asteroid damage', () => {
 });
 test('gun prototype applies to emitted combat rounds while asteroid damage stays small', () => {
     withPrototype('guns', (sim) => {
+        sim.ship.setTranslation({ x: 20, y: 0 }, true);
         sim.step({ ...idle, fire: true });
         assert.equal(sim.bullets.size, 1);
         assert.ok(

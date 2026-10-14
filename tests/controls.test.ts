@@ -52,6 +52,7 @@ test('both rotating gun muzzles fire toward the cursor while the hull points els
     const sim = new MissionSimulation(campaign, 7);
     try {
         clearSector(sim);
+        sim.ship.setTranslation({ x: 20, y: 0 }, true);
         sim.ship.setRotation(Math.PI / 2, true);
         const target = { x: sim.position.x + 800, y: sim.position.y - 100 };
         for (let i = 0; i < 14; i++) sim.step({ ...idle, target, fire: true });
@@ -86,19 +87,19 @@ test('guns barely damage rocks while the laser is powerful, range-limited and st
                 sim.rocks.delete(rock.id);
             }
         rocks.forEach((rock, i) => {
-            rock.body.setTranslation({ x: 10 + i * 0.9, y: 0 }, true);
+            rock.body.setTranslation({ x: 20 + i * 0.9, y: 0 }, true);
             rock.body.setLinvel({ x: 0, y: 0 }, true);
             rock.health = 1000;
         });
-        sim.ship.setTranslation({ x: 7, y: 0 }, true);
+        sim.ship.setTranslation({ x: 17, y: 0 }, true);
         for (let i = 0; i < 30; i++) sim.step({ ...idle, fire: i === 0 });
         assert.equal(1000 - rocks[0].health, GAME.shotRockDamage);
         const before = rocks[0].health;
-        sim.ship.setTranslation({ x: 2, y: 0 }, true);
+        sim.ship.setTranslation({ x: 12, y: 0 }, true);
         for (let i = 0; i < 30; i++) sim.step({ ...idle, mine: true });
         assert.equal(rocks[0].health, before);
         // Rear-mounted laser needs a closer approach than the old nose-mounted one.
-        sim.ship.setTranslation({ x: 8.5, y: 0 }, true);
+        sim.ship.setTranslation({ x: 18.5, y: 0 }, true);
         for (let i = 0; i < 30; i++) sim.step({ ...idle, mine: true });
         assert.ok(before - rocks[0].health > 70);
         assert.equal(rocks[1].health, 1000);
@@ -118,7 +119,7 @@ test('guns barely damage rocks while the laser is powerful, range-limited and st
 test('mining laser cannot bypass an enemy hull to mine an asteroid behind it', () => {
     const sim = new MissionSimulation(newCampaign(), 7);
     try {
-        const rock = [...sim.rocks.values()][0];
+        const rock = [...sim.rocks.values()].find((r) => r.radius < 40)!;
         for (const other of sim.rocks.values())
             if (other !== rock) {
                 sim.world.removeRigidBody(other.body);
@@ -127,17 +128,17 @@ test('mining laser cannot bypass an enemy hull to mine an asteroid behind it', (
         const enemy = [...sim.enemies.enemies.values()][0];
         for (const other of sim.enemies.enemies.values())
             if (other !== enemy) sim.enemies.damage(other.id, 1000);
-        sim.ship.setTranslation({ x: 0, y: 0 }, true);
-        enemy.body.setTranslation({ x: 1, y: 0 }, true);
-        enemy.home = { x: 100, y: 0 };
+        sim.ship.setTranslation({ x: 20, y: 0 }, true);
+        enemy.body.setTranslation({ x: 21, y: 0 }, true);
+        enemy.home = { x: 2100, y: 0 };
         enemy.phase = 0;
-        rock.body.setTranslation({ x: 2, y: 0 }, true);
-        rock.body.setLinvel({ x: 0, y: 0 }, true);
+        rock.body.setTranslation({ x: 22, y: 0 }, true);
+        rock.body.setLinvel({ x: 20, y: 0 }, true);
         rock.health = 1000;
         sim.step({ ...idle, mine: true });
         assert.equal(enemy.health, 54);
         assert.equal(rock.health, 1000);
-        assert.ok(sim.laserBeam!.to.x < 130);
+        assert.ok(sim.laserBeam!.to.x < 2130);
     } finally {
         sim.dispose();
     }

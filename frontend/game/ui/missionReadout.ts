@@ -1,4 +1,13 @@
-import { CONTRACTS, GAME, OUTPOST, RECOVERY, SCAN, SCAN_SITES, ScanSiteId } from '../config';
+import {
+    CONTRACTS,
+    GAME,
+    OUTPOST,
+    WEAPONS,
+    RECOVERY,
+    SCAN,
+    SCAN_SITES,
+    ScanSiteId,
+} from '../config';
 import type { Cargo } from '../state/campaign';
 import type { MissionSimulation } from '../systems/mission';
 import { CACHE } from '../systems/prototypes';
@@ -67,6 +76,8 @@ export function flightHint(s: MissionSimulation) {
     if (s.pendingChoice) return '';
     if (s.outpost.sabotageProgress > 0)
         return `G  Sabotaż · ${percent(s.outpost.sabotageProgress, OUTPOST.sabotageSeconds)}`;
+    if (s.outpost.equipmentProgress > 0)
+        return `E  Magazyn · ${percent(s.outpost.equipmentProgress, OUTPOST.equipmentSeconds)}`;
     if (s.outpost.download > 0)
         return `E  Przechwyt · ${percent(s.outpost.download, OUTPOST.downloadSeconds)}`;
     if (s.repairProgress > 0)
@@ -97,11 +108,20 @@ export function flightHint(s: MissionSimulation) {
             : s.cargo.parts >= 1
               ? ' · G  Sabotaż: 3 s / 1 komponent'
               : ' · Sabotaż wymaga 1 komponentu w ładowni';
+        const action = s.outpost.equipmentSecured
+            ? '1  Baza'
+            : s.outpost.secured
+              ? !s.equipmentRoom
+                  ? 'Magazyn wymaga 3 wolnych miejsc w ładowni'
+                  : !s.outpost.equipmentArmed
+                    ? 'Puść E · dostęp do magazynu'
+                    : `E  Zabierz ${WEAPONS[s.outpostEquipment].name} · 5 s / 3 miejsca`
+              : 'E  Wykradnij dane · 4 s';
         if (s.outpost.disabledTime > 0)
-            return `${s.outpost.secured ? '1  Baza' : 'E  Wykradnij dane · 4 s'} · skaner wyłączony ${Math.ceil(s.outpost.disabledTime)} s`;
+            return `${action} · skaner wyłączony ${Math.ceil(s.outpost.disabledTime)} s`;
         if (s.outpost.alarm > 0)
             return `Alarm · terminal zablokowany ${Math.ceil(s.outpost.alarm)} s${sabotage}`;
-        if (s.outpost.secured) return `Dane zabezpieczone · 1  Baza${sabotage}`;
+        if (s.outpost.secured) return `${action}${sabotage}`;
         return `E  Wykradnij dane · 4 s${sabotage}`;
     }
     if (s.outpost.detection > 0)

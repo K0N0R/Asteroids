@@ -1,3 +1,4 @@
+import { WEAPONS } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import { BasePopup } from '../../core/containers/popup/basePopup';
 import { Campaign } from '../state/campaign';
@@ -59,10 +60,10 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             root,
             [
                 `Kadłub ${Math.ceil(s.hull)}/${s.maxHull} · ładunek ${s.cargoUsed}/${s.cargoCapacity}`,
-                `Ruda ${s.cargo.ore} · komponenty ${s.cargo.parts}`,
+                `Ruda ${s.cargo.ore} · komponenty ${s.cargo.parts}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
                 `Prędkość ${Math.round(s.speed)} / ${Math.round(s.hullConfig.maxSpeed * s.driveMultiplier * (s.engineFault ? GAME.damagedThrust : 1))} m/s`,
                 `Skręt ${s.turnSpeed.toFixed(2)} rad/s · laser ${Math.round(s.laserRange)} m`,
-                `Działka ${s.gunDamage.toFixed(1)} obrażeń · zestawy ${s.repairKits}`,
+                `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń · zestawy ${s.repairKits}`,
                 `Kamuflaż: ${!s.hullConfig.cloak ? 'brak' : s.cloaked ? 'aktywny' : s.cloakEnabled ? `ujawniony (${Math.ceil(s.revealTime)} s)` : 'wyłączony'}`,
             ].join('\n'),
             280,
@@ -186,7 +187,9 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             s.outpost.disabledTime > 0
                 ? `Cerber: skaner wyłączony · ${Math.ceil(s.outpost.disabledTime)} s`
                 : s.outpost.secured
-                  ? 'Cerber: dane zabezpieczone'
+                  ? s.stolenEquipment
+                      ? 'Cerber: sprzęt i dane na pokładzie'
+                      : `Cerber: E magazyn · ${WEAPONS[s.outpostEquipment].name} / 3 miejsca`
                   : s.outpost.alarm > 0
                     ? `Cerber: alarm · ${Math.ceil(s.outpost.alarm)} s`
                     : 'Cerber: E dane · G sabotaż: 3 s / 1 komponent',

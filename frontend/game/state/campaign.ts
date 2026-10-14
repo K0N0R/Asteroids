@@ -1,3 +1,4 @@
+import { WEAPONS, type WeaponId } from '../config';
 import {
     CONTRACTS,
     CREW,
@@ -42,9 +43,11 @@ export type ShipModules = Record<'engine' | 'handling' | 'cargo' | 'drill' | 'ar
 export interface Ship extends ShipModules {
     id: number;
     hull: HullId;
+    weapon: WeaponId;
+    weapons: WeaponId[];
 }
 export interface Campaign {
-    version: 10;
+    version: 11;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
@@ -81,6 +84,7 @@ export interface RunResult {
     reward: Cargo;
     overflow: number;
     recoveryText: string;
+    equipmentText: string;
     contractText: string;
     pilotProgress: PilotProgress | null;
 }
@@ -89,6 +93,8 @@ export const SAVE_KEY = 'asteroids.campaign.v1';
 export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
     id,
     hull,
+    weapon: 'standard',
+    weapons: ['standard'],
     engine: 0,
     handling: 0,
     cargo: 0,
@@ -97,7 +103,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 10,
+        version: 11,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
@@ -130,7 +136,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         const p: unknown = JSON.parse(json ?? 'null');
         if (
             !object(p) ||
-            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(p.version as number) ||
+            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(p.version as number) ||
             !cargo(p.bank) ||
             !object(p.station)
         )
@@ -242,7 +248,16 @@ export function parseCampaign(json: string | null): Campaign | null {
             typeof ship.hull === 'string' &&
             Object.hasOwn(HULLS, ship.hull) &&
             ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
-            ((p.version as number) < 7 || integer(ship.handling, 3));
+            ((p.version as number) < 7 || integer(ship.handling, 3)) &&
+            ((p.version as number) < 11 ||
+                (typeof ship.weapon === 'string' &&
+                    Object.hasOwn(WEAPONS, ship.weapon) &&
+                    Array.isArray(ship.weapons) &&
+                    ship.weapons.length <= 3 &&
+                    ship.weapons.every((w) => typeof w === 'string' && Object.hasOwn(WEAPONS, w)) &&
+                    new Set(ship.weapons).size === ship.weapons.length &&
+                    ship.weapons.includes('standard') &&
+                    ship.weapons.includes(ship.weapon)));
         if (
             (p.ship !== null && !validShip(p.ship)) ||
             !Array.isArray(p.reserveShips) ||
@@ -371,7 +386,18 @@ export function parseCampaign(json: string | null): Campaign | null {
             p.recoverySignals.forEach((signal) => migrate(signal.ship));
             p.version = 7;
         }
-        p.version = 10;
+        if ((p.version as number) < 11) {
+            const migrateWeapon = (ship: any) => {
+                if (ship) {
+                    ship.weapon = 'standard';
+                    ship.weapons = ['standard'];
+                }
+            };
+            migrateWeapon(p.ship);
+            p.reserveShips.forEach(migrateWeapon);
+            p.recoverySignals.forEach((signal) => migrateWeapon(signal.ship));
+        }
+        p.version = 11;
         const campaign = p as unknown as Campaign;
         if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
             return null;
@@ -402,6 +428,10 @@ export function scrapRefund(ship: Ship): Cargo {
         const levels = (ship[key] * (ship[key] + 1)) / 2;
         ore += UPGRADES[key].ore * levels;
         parts += UPGRADES[key].parts * levels;
+    }
+    for (const weapon of ship.weapons) {
+        ore += WEAPONS[weapon].ore;
+        parts += WEAPONS[weapon].parts;
     }
     return { ore: Math.floor(ore / 2), parts: Math.floor(parts / 2) };
 }
@@ -525,6 +555,7 @@ export function finishRun(
         lossPosition?: Point;
         data?: readonly ScanSiteId[];
         kills?: number;
+        equipment?: WeaponId;
     } = {},
 ): RunResult | null {
     const active = c.activeRun;
@@ -540,6 +571,7 @@ export function finishRun(
         reward: { ore: 0, parts: 0 },
         overflow: 0,
         recoveryText: '',
+        equipmentText: '',
         contractText: success
             ? 'Cel kontraktu nie został wykonany.'
             : 'Kontrakt nie został rozliczony. Dane wyprawy przepadły.',
@@ -566,6 +598,23 @@ export function finishRun(
             result.recoveryText = 'Nie podjęto celu ratunkowego. Sygnał pozostaje dostępny.';
         const contract = CONTRACTS[active.contract];
         const data = (recovery.data ?? []).filter((site) => Object.hasOwn(SCAN_SITES, site));
+        const equipment = recovery.equipment;
+        if (
+            equipment &&
+            equipment !== 'standard' &&
+            Object.hasOwn(WEAPONS, equipment) &&
+            data.includes('outpost')
+        ) {
+            const weapon = WEAPONS[equipment];
+            if (c.ship!.weapons.includes(equipment)) {
+                result.reward.ore += Math.floor(weapon.ore / 2);
+                result.reward.parts += Math.floor(weapon.parts / 2);
+                result.equipmentText = `Duplikat ${weapon.name} rozebrano: ${Math.floor(weapon.ore / 2)} rudy / ${Math.floor(weapon.parts / 2)} komponentów.`;
+            } else {
+                c.ship!.weapons.push(equipment);
+                result.equipmentText = `Odzyskano ${weapon.name} · dostępne w Hangar → Uzbrojenie.`;
+            }
+        }
         const kills =
             Number.isInteger(recovery.kills) && (recovery.kills ?? 0) >= 0 ? recovery.kills! : 0;
         if (contractReady(active.contract, collected, data, kills)) {

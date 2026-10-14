@@ -1,3 +1,4 @@
+import { uiCue } from '../systems/audio';
 import { Container, Graphics, TextStyle } from 'pixi.js';
 import { Typography } from '../../core/containers/components/typography';
 import { Button } from '../../core/containers/components/button';
@@ -66,7 +67,10 @@ export function button(
         roundness: 7,
         children: [textView],
         onClick: () => {
-            if (enabled) onClick();
+            if (enabled) {
+                uiCue('click');
+                onClick();
+            }
         },
     });
     view.alpha = enabled ? 1 : 0.38;

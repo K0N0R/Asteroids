@@ -1,3 +1,4 @@
+import { createMissionAudio } from '../systems/audio';
 import { Container, Graphics } from 'pixi.js';
 import { MissionSimulation, FlightInput } from '../systems/mission';
 import {
@@ -8,8 +9,9 @@ import {
     wreckView,
     surveySiteView,
     DroneView,
+    cacheView,
 } from '../graphics/shapes';
-import { GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
+import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
 import { SoundManager } from '../../core/systems/soundManager';
 import { Ship } from '../state/campaign';
 import { label } from '../ui/primitives';
@@ -17,10 +19,12 @@ import { enemyPosition } from '../systems/enemies';
 import { angleDifference, followCameraAngle, rotateVector } from '../systems/flight';
 import type { Point } from './sector';
 import { outpostView } from '../graphics/outpostView';
+import { impactParticleCount } from '../systems/impact';
 import { CACHE } from '../systems/prototypes';
 
 const interpolate = (a: number, b: number, t: number) => a + (b - a) * t;
 export class MissionWorld extends Container {
+    readonly audio = createMissionAudio();
     readonly camera = new Container();
     readonly shipView;
     private rocks = new Map<number, Graphics>();
@@ -28,7 +32,16 @@ export class MissionWorld extends Container {
     private enemyViews = new Map<number, DroneView>();
     private enemyStatus = new Graphics();
     private loot = new Map<number, Graphics>();
-    private particles: { view: Graphics; vx: number; vy: number; life: number }[] = [];
+    private particles: {
+        view: Graphics;
+        vx: number;
+        vy: number;
+        life: number;
+        duration: number;
+        spin: number;
+        dust: boolean;
+    }[] = [];
+    private shield = new Graphics();
     private rockLayer = new Container();
     private effectLayer = new Container();
     private shapes = new ShapeLibrary();
@@ -59,12 +72,12 @@ export class MissionWorld extends Container {
         this.shipView = new ShipView(modules);
         this.shipView.scale.set(simulation.hullConfig.size);
         this.camera.rotation = -Math.PI / 2 - simulation.ship.rotation();
-        this.camera.addChild(this.navigation, this.home);
+        this.camera.addChild(this.navigation, this.shield, this.home);
         const wreck = wreckView(),
             w = simulation.sector.landmarks[2];
         wreck.position.set(w.x, w.y);
         this.camera.addChild(wreck, this.rockLayer, this.effectLayer, this.shipView);
-        this.camera.addChild(this.enemyStatus);
+        this.camera.addChild(this.enemyStatus, this.effectLayer);
         this.camera.addChildAt(this.laser, this.camera.getChildIndex(this.shipView));
         this.camera.addChildAt(this.grabberLines, this.camera.getChildIndex(this.shipView));
         this.camera.addChildAt(this.surveyRings, 2);
@@ -97,19 +110,7 @@ export class MissionWorld extends Container {
         const signal = simulation.recoverySignal;
         this.camera.addChildAt(this.cacheRings, 2);
         for (const cache of simulation.sector.caches) {
-            const view = new Container();
-            view.addChild(
-                new Graphics()
-                    .poly([-42, -28, 0, -48, 42, -28, 42, 28, 0, 48, -42, 28])
-                    .fill(C.ink)
-                    .stroke({ color: C.cyan, width: 3 })
-                    .roundRect(-24, -20, 48, 40, 5)
-                    .fill(0x193744)
-                    .rect(-3, -15, 6, 30)
-                    .fill(C.mint)
-                    .rect(-15, -3, 30, 6)
-                    .fill(C.mint),
-            );
+            const view = cacheView();
             view.position.set(cache.x, cache.y);
             this.cacheLabels.set(cache.id, label(view, cache.name, -90, 72, 17, C.mint));
             this.cacheViews.set(cache.id, view);
@@ -157,41 +158,86 @@ export class MissionWorld extends Container {
                 : this.accumulator / GAME.step,
             Math.min(deltaMS / 1000, 0.1),
         );
+        this.audio.update(this.simulation);
         for (const event of this.simulation.events.splice(0)) {
-            SoundManager.checkThresholdAndPlay(
-                {
-                    soundName: `sounds/${event.kind}.wav`,
-                    group: 'gameplay',
-                    volume: event.kind === 'shot' ? 0.4 : 0.7,
-                },
-                70,
-            );
-            if (event.kind === 'shot') continue;
-            const count = event.kind === 'break' ? 13 : event.kind === 'hit' ? 5 : 2;
-            for (let i = 0; i < count && this.particles.length < 240; i++) {
-                const view = new Graphics()
-                    .rect(-1.5, -1.5, 3, 3)
-                    .fill(event.rich ? C.gold : event.kind === 'collect' ? C.mint : C.cyan);
+            this.audio.event(event, this.simulation.position, this.simulation.elapsed);
+            if (event.kind === 'shot' || !this.inView(event)) continue;
+            const count = impactParticleCount(event.kind, event.strength);
+            for (let i = 0; i < count && this.particles.length < 800; i++) {
+                const dust = event.kind === 'break' && i % 3 === 0;
+                const color =
+                    event.kind === 'weld'
+                        ? i % 2
+                            ? 0xffcb79
+                            : 0xeaf5ff
+                        : event.kind === 'shield'
+                          ? 0x80d5ff
+                          : event.kind === 'collect'
+                            ? C.mint
+                            : dust
+                              ? 0x8b8171
+                              : i % 3 === 0
+                                ? 0xe5bc84
+                                : 0xacc0ca;
+                const view = new Graphics();
+                const size = dust
+                    ? 4 + Math.random() * 7
+                    : event.kind === 'break'
+                      ? 1.4 + Math.random() * 3
+                      : 0.7 + Math.random() * 1.4;
+                if (event.kind === 'weld' && i === 0)
+                    view.circle(0, 0, 4).fill({ color: 0xd8edff, alpha: 0.75 });
+                else if (dust) view.circle(0, 0, size).fill({ color, alpha: 0.23 });
+                else if (event.kind === 'break' && i % 2 === 0)
+                    view.poly([
+                        -size,
+                        -size,
+                        size,
+                        -size * 0.4,
+                        size * 0.5,
+                        size,
+                        -size * 0.7,
+                        size * 0.5,
+                    ]).fill(color);
+                else
+                    view.roundRect(-size * 2, -size * 0.4, size * 4, size * 0.8, size * 0.25).fill(
+                        color,
+                    );
                 view.position.set(event.x, event.y);
+                if (!dust) view.blendMode = 'add';
                 this.effectLayer.addChild(view);
                 const angle = Math.random() * Math.PI * 2,
-                    speed = 25 + Math.random() * 100;
+                    speed =
+                        (event.kind === 'break' ? 60 : event.kind === 'weld' ? 45 : 35) +
+                        Math.random() * (event.kind === 'break' ? 250 : 130),
+                    duration = dust
+                        ? 0.8 + Math.random() * 0.7
+                        : 0.18 + Math.random() * (event.kind === 'break' ? 0.85 : 0.45);
+                view.rotation = angle;
                 this.particles.push({
                     view,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    life: 0.4 + Math.random() * 0.4,
+                    vx: Math.cos(angle) * speed + (event.velocity?.x ?? 0),
+                    vy: Math.sin(angle) * speed + (event.velocity?.y ?? 0),
+                    life: duration,
+                    duration,
+                    spin: dust ? 0 : (Math.random() - 0.5) * 8,
+                    dust,
                 });
             }
         }
+        const effectDt = Math.min(deltaMS / 1000, 0.1);
         for (let i = this.particles.length - 1; i >= 0; i--) {
-            const particle = this.particles[i];
-            particle.life -= deltaMS / 1000;
-            particle.view.x += (particle.vx * deltaMS) / 1000;
-            particle.view.y += (particle.vy * deltaMS) / 1000;
-            particle.view.alpha = Math.max(0, particle.life);
-            if (particle.life <= 0) {
-                particle.view.destroy();
+            const p = this.particles[i];
+            p.life -= effectDt;
+            p.view.x += p.vx * effectDt;
+            p.view.y += p.vy * effectDt;
+            p.vx *= Math.exp(-effectDt * (p.dust ? 2 : 1));
+            p.vy *= Math.exp(-effectDt * (p.dust ? 2 : 1));
+            p.view.rotation += p.spin * effectDt;
+            p.view.alpha = Math.max(0, p.life / p.duration);
+            if (p.dust) p.view.scale.set(1 + (1 - p.life / p.duration) * 1.8);
+            if (p.life <= 0) {
+                p.view.destroy();
                 this.particles.splice(i, 1);
             }
         }
@@ -206,6 +252,29 @@ export class MissionWorld extends Container {
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
             p = s.position;
+        this.shield.clear();
+        if (Math.hypot(p.x, p.y) < DRONES.safeRadius + 1100) {
+            const pulse = 0.8 + Math.sin(this.clock * 1.6) * 0.15;
+            this.shield.circle(0, 0, DRONES.safeRadius).fill({ color: 0x388fce, alpha: 0.018 });
+            for (const [width, opacity] of [
+                [46, 0.015],
+                [25, 0.035],
+                [11, 0.07],
+                [3, 0.3],
+                [1, 0.55],
+            ])
+                this.shield
+                    .beginPath()
+                    .circle(0, 0, DRONES.safeRadius)
+                    .stroke({ color: 0x7bcfff, width, alpha: opacity * pulse });
+            for (let i = 0; i < 32; i++) {
+                const a = (i * Math.PI) / 16;
+                this.shield
+                    .beginPath()
+                    .arc(0, 0, DRONES.safeRadius - 7, a + 0.015, a + 0.06)
+                    .stroke({ color: 0xc2eaff, width: 1.5, alpha: 0.3 });
+            }
+        }
         this.shipView.position.set(
             interpolate(s.previous.x, p.x, alpha),
             interpolate(s.previous.y, p.y, alpha),
@@ -393,7 +462,8 @@ export class MissionWorld extends Container {
         this.outpostView.visible = this.inView(outpost);
         this.outpostLabel.visible = this.outpostView.visible;
         this.terminalLabel.visible =
-            this.inView(outpost.terminal) && (!security.secured || !security.sabotaged);
+            this.inView(outpost.terminal) &&
+            (!security.secured || !security.sabotaged || !security.equipmentSecured);
         this.outpostLabel.rotation = -this.camera.rotation;
         this.outpostLabel.position.copyFrom(
             rotateVector({ x: -45, y: -134 }, -this.camera.rotation),
@@ -445,6 +515,22 @@ export class MissionWorld extends Container {
                             (security.sabotageProgress / OUTPOST.sabotageSeconds) * Math.PI * 2,
                     )
                     .stroke({ color: C.mint, width: 4 });
+            if (security.equipmentProgress > 0)
+                g.beginPath()
+                    .arc(
+                        tx,
+                        ty,
+                        48,
+                        -Math.PI / 2,
+                        -Math.PI / 2 +
+                            (security.equipmentProgress / OUTPOST.equipmentSeconds) * Math.PI * 2,
+                    )
+                    .stroke({ color: C.gold, width: 4 });
+            if (security.secured && !security.equipmentSecured)
+                g.beginPath()
+                    .roundRect(tx + 27, ty - 9, 16, 18, 3)
+                    .fill(0x9b8b6c)
+                    .stroke({ color: C.gold, width: 1 });
             if (security.download > 0)
                 g.beginPath()
                     .arc(
@@ -551,7 +637,15 @@ export class MissionWorld extends Container {
                         bullet.heavy ? 5 : 3,
                         1,
                     )
-                    .fill(bullet.heavy ? C.gold : bullet.team === 'enemy' ? C.red : C.mint);
+                    .fill(
+                        bullet.heavy
+                            ? bullet.team === 'player'
+                                ? C.cyan
+                                : C.gold
+                            : bullet.team === 'enemy'
+                              ? C.red
+                              : C.mint,
+                    );
                 this.bullets.set(bullet.id, view);
                 this.effectLayer.addChild(view);
             }
@@ -607,6 +701,8 @@ export class MissionWorld extends Container {
                 .stroke({ color: C.cyan, width: 1, alpha: 0.3 });
     }
     dispose() {
+        this.audio.pause();
+        SoundManager.stopGroup('gameplay');
         this.simulation.dispose();
         this.destroy({ children: true });
         this.shapes.dispose();

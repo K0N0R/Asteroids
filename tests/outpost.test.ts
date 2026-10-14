@@ -557,3 +557,131 @@ test('prototype menu freezes sabotage duration and a fresh mission has its own o
         sim.dispose();
     }
 });
+
+test('Cerber equipment requires a separate hold after data, reserves cargo and cannot be stolen twice', () => {
+    const c = campaign(),
+        sim = new MissionSimulation(c, 71);
+    try {
+        isolate(sim);
+        atTerminal(sim);
+        sim.cloakEnabled = true;
+        step(sim, 10, { ...idle, interact: true });
+        assert.ok(sim.outpost.secured);
+        assert.equal(sim.stolenEquipment, undefined);
+        sim.step(idle);
+        step(sim, 5, { ...idle, interact: true });
+        assert.equal(sim.stolenEquipment, sim.outpostEquipment);
+        assert.equal(sim.cargoUsed, sim.cargo.ore + sim.cargo.parts + OUTPOST.equipmentSlots);
+        assert.deepEqual(c.ship!.weapons, ['standard']);
+        const count = sim.events.filter((e) => e.sound === 'complete').length;
+        step(sim, 6, { ...idle, interact: true });
+        assert.equal(sim.events.filter((e) => e.sound === 'complete').length, count);
+    } finally {
+        sim.dispose();
+    }
+});
+
+test('equipment respects full cargo, in-flight gripper reservations and interruption', () => {
+    const sim = new MissionSimulation(campaign(), 71);
+    try {
+        isolate(sim);
+        atTerminal(sim);
+        sim.cloakEnabled = true;
+        sim.outpost.secured = true;
+        sim.outpost.equipmentArmed = true;
+        sim.cargo.ore = sim.cargoCapacity - 2;
+        step(sim, 5, { ...idle, interact: true });
+        assert.equal(sim.stolenEquipment, undefined);
+        sim.cargo.ore = sim.cargoCapacity - 3;
+        const arm = sim.grippers.arms[0];
+        arm.held = 'ore';
+        arm.phase = 'return';
+        arm.tip = { x: sim.position.x + 100, y: sim.position.y };
+        sim.outpost.equipmentProgress = OUTPOST.equipmentSeconds - GAME.step;
+        sim.step({ ...idle, interact: true });
+        assert.equal(sim.stolenEquipment, undefined);
+        assert.equal(sim.outpost.equipmentProgress, 0);
+        sim.grippers.clear();
+        sim.cargo.ore = 0;
+        step(sim, 2, { ...idle, interact: true });
+        assert.ok(sim.outpost.equipmentProgress > 0);
+        sim.step({ ...idle, interact: true, fire: true });
+        assert.equal(sim.outpost.equipmentProgress, 0);
+        step(sim, 5, { ...idle, interact: true });
+        assert.ok(sim.stolenEquipment);
+        step(sim, 2);
+        assert.ok(sim.cargoUsed <= sim.cargoCapacity);
+    } finally {
+        sim.dispose();
+    }
+});
+
+test('lethal damage on the final equipment frame grants no stolen mount', () => {
+    const sim = new MissionSimulation(campaign(), 71);
+    try {
+        isolate(sim);
+        atTerminal(sim);
+        sim.outpost.secured = true;
+        sim.outpost.equipmentArmed = true;
+        sim.outpost.equipmentProgress = OUTPOST.equipmentSeconds - GAME.step;
+        sim.hull = 1;
+        const p = sim.position;
+        sim.bullets.set(9999, {
+            id: 9999,
+            x: p.x - 80,
+            y: p.y,
+            vx: 10000,
+            vy: 0,
+            life: 1,
+            team: 'enemy',
+            damage: 12,
+        });
+        sim.step({ ...idle, interact: true });
+        assert.equal(sim.ended, 'destroyed');
+        assert.equal(sim.stolenEquipment, undefined);
+        assert.equal(sim.outpost.equipmentProgress, 0);
+    } finally {
+        sim.dispose();
+    }
+});
+
+test('stolen equipment unlocks only after safe return, leaves mounted weapon unchanged and duplicate pays once', () => {
+    const c = campaign();
+    c.contract = 0;
+    c.activeRun!.contract = 0; // Isolate the equipment payout from the data contract reward.
+    const bank = { ...c.bank };
+    const result = finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 0, {
+        data: ['outpost'],
+        equipment: 'rail',
+    })!;
+    assert.ok(c.ship!.weapons.includes('rail'));
+    assert.equal(c.ship!.weapon, 'standard');
+    assert.ok(result.equipmentText.includes('Kinetic'));
+    assert.equal(
+        finishRun(c, true, { ore: 0, parts: 0 }, 10, 'again', 0, {
+            data: ['outpost'],
+            equipment: 'rail',
+        }),
+        null,
+    );
+    beginRun(c, 72);
+    const duplicate = finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 0, {
+        data: ['outpost'],
+        equipment: 'rail',
+    })!;
+    assert.equal(duplicate.reward.ore, 12);
+    assert.equal(duplicate.reward.parts, 3);
+    assert.ok(duplicate.equipmentText.includes('Duplikat'));
+    assert.equal(c.ship!.weapons.filter((w) => w === 'rail').length, 1);
+    assert.equal(c.bank.ore, bank.ore + 12);
+    assert.equal(c.bank.parts, bank.parts + 3);
+    const lost = campaign();
+    finishRun(lost, false, { ore: 0, parts: 0 }, 10, 'death', 0, {
+        data: ['outpost'],
+        equipment: 'rail',
+    });
+    assert.ok(lost.recoverySignals.every((signal) => !signal.ship?.weapons.includes('rail')));
+    const noData = campaign();
+    finishRun(noData, true, { ore: 0, parts: 0 }, 10, 'dock', 0, { equipment: 'rail' });
+    assert.deepEqual(noData.ship!.weapons, ['standard']);
+});

@@ -31,7 +31,19 @@ Etap 0.14 dodaje ciężkiego strażnika Lancer z własną sylwetką, dystansem, 
 
 Etap 0.15 dodaje sabotaż skanera Cerbera: G przez 3 s, koszt jednego komponentu z ładowni, 20 s przerwy w skanowaniu. Aktywny alarm zostaje skasowany, ale drony pozostają zagrożeniem. Szczegóły: `implementation-v0.15.md`.
 
-Z większych elementów wizji pozostają załoga pokładowa z zadaniami w locie, wymienne rodzaje broni i części, kradzież sprzętu oraz kolejne placówki i misje. Praca offline i wznowienie wypraw pozostają późniejszymi etapami. Pierwsza pętla wydobywcza, progresja, walka, infiltracja oraz ratunek są już grywalne.
+Z większych elementów wizji pozostają załoga pokładowa z zadaniami w locie, kolejne wymienne części oraz placówki i misje. Praca offline i wznowienie wypraw pozostają późniejszymi etapami. Pierwsza pętla wydobywcza, progresja, walka, infiltracja oraz ratunek są już grywalne.
+
+
+Etap 0.16 to lifting modeli i efektów rozgrywki do wspólnego stylu floty gracza oraz działająca tarcza bezpieczeństwa Aurory. Drony i stacje mają nowe poszycie i szklane elementy, asteroidy są bardziej zróżnicowane, a zniszczenia, trafienia i naprawy emitują cząsteczki. Szczegóły: `implementation-v0.16.md`.
+
+
+Etap 0.17 dodaje pierwszy wybór wymiennego uzbrojenia: Autocannon, Impuls i Kinetic. Hangar ma osobny widok zakupu i montażu z podglądem działek, a broń jest przypisana do konkretnego kadłuba i zachowywana przy odzysku. Format zapisu 11 migruje starsze kampanie. Szczegóły: `implementation-v0.17.md`.
+
+
+Etap 0.18 wprowadza miks audio z 18 próbkami CC0 dostarczonymi przez użytkownika, osobne brzmienia broni, pętle napędu/lasera/naprawy, efekty trafień i interfejsu oraz ograniczenia nakładania dźwięków. Szczegóły: `implementation-v0.18.md`; źródła: `audio-credits.md`.
+
+
+Etap 0.19 dodaje opcjonalną kradzież broni z magazynu Cerbera po przejęciu danych. Sprzęt zajmuje trzy miejsca w ładowni i staje się wyposażeniem aktywnego kadłuba dopiero po bezpiecznym powrocie. Duplikat rozlicza się na materiały. Szczegóły: `implementation-v0.19.md`.
 
 ## Cel i ustalenia
 

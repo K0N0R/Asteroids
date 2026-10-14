@@ -1,6 +1,6 @@
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { C, ShipView, stationView, DroneView } from '../graphics/shapes';
-import { HullId } from '../config';
+import { HullId, WeaponId } from '../config';
 import type { ShipModules } from '../state/campaign';
 import type { RecoverySignal } from '../state/recovery';
 import { label } from './primitives';
@@ -170,7 +170,11 @@ export function stat(
     label(parent, value, left, y + 21, 22);
 }
 
-export function fittedShip(modules: ShipModules & { hull: HullId }, width: number, height: number) {
+export function fittedShip(
+    modules: ShipModules & { hull: HullId; weapon?: WeaponId },
+    width: number,
+    height: number,
+) {
     const root = new Container(),
         ship = new ShipView(modules),
         bounds = ship.getLocalBounds();
@@ -196,7 +200,7 @@ export function fittedScene(view: Container, width: number, height: number) {
     root.addChild(view);
     return root;
 }
-export function hullPreview(modules: ShipModules & { hull: HullId }) {
+export function hullPreview(modules: ShipModules & { hull: HullId; weapon?: WeaponId }) {
     const root = new Container(),
         g = new Graphics();
     g.ellipse(0, 25, 235, 115)
@@ -373,6 +377,6 @@ export function signalScene(
     }
     return root;
 }
-export function bareModules(hull: HullId): ShipModules & { hull: HullId } {
+export function bareModules(hull: HullId): ShipModules & { hull: HullId; weapon?: WeaponId } {
     return { hull, engine: 0, handling: 0, cargo: 0, drill: 0, armor: 0 };
 }

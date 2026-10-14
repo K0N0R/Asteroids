@@ -1,3 +1,5 @@
+import { uiCue } from './systems/audio';
+import { equipWeapon } from './state/weapons';
 import { Container, Graphics } from 'pixi.js';
 import { Background } from '../core/containers/entities/background';
 import { Bus } from '../core/systems/bus';
@@ -60,6 +62,8 @@ export class GameSession {
         this.saves.save(this.campaign);
         this.lobby = new LobbyView(this.campaign, {
             launch: (recoveryId) => this.launch(recoveryId),
+            equipWeapon: (weapon) =>
+                this.change(() => equipWeapon(this.campaign, weapon), 'Uzbrojenie zamontowane.'),
             upgrade: (upgrade) =>
                 this.change(() => buyUpgrade(this.campaign, upgrade), 'Ulepszenie zamontowane.'),
             hire: (archetype) =>
@@ -128,6 +132,11 @@ export class GameSession {
         Bus.subscribe(
             'input',
             (message) => {
+                if (
+                    message.name === 'focus-lost' ||
+                    (message.name === 'keydown' && ['escape', 'tab'].includes(message.data))
+                )
+                    this.mission?.audio.pause();
                 if (message.name === 'keydown' && message.data === 'tab') this.toggleMissionInfo();
                 if (
                     message.name === 'keydown' &&
@@ -167,6 +176,7 @@ export class GameSession {
     private change(action: () => boolean, message: string) {
         if (this.mission || this.hasOverlay) return;
         const success = action();
+        uiCue(success ? 'confirm' : 'error');
         this.saves.save(this.campaign);
         this.lobby.refresh(
             this.saves.warning || (success ? message : 'Brak surowców lub osiągnięty limit.'),
@@ -208,6 +218,7 @@ export class GameSession {
             this.lobby.visible = false;
             InputHandler.clear();
             GameState.goToGameplay();
+            uiCue('launch');
         } catch (error) {
             // Initialization failures are not gameplay deaths.
             this.campaign.repairKits += this.campaign.activeRun!.repairKits;
@@ -229,7 +240,11 @@ export class GameSession {
             this.lobby.update(deltaMS);
             return;
         }
-        if (this.hasOverlay || PopupContainer.hasActivePopup()) return;
+        if (this.hasOverlay || PopupContainer.hasActivePopup()) {
+            this.mission.audio.pause();
+            SoundManager.stopGroup('gameplay');
+            return;
+        }
         const local = this.mission.camera.toLocal(InputHandler.pointer);
         const elapsedBefore = this.mission.simulation.elapsed;
         this.mission.update(deltaMS, {
@@ -277,6 +292,7 @@ export class GameSession {
                     securedId: sim.recoverySecured ? sim.recoverySignal?.id : undefined,
                     data: [...sim.surveyData],
                     kills: sim.enemyKills,
+                    equipment: sim.stolenEquipment,
                 },
             );
             this.saves.save(this.campaign);
@@ -344,6 +360,7 @@ export class GameSession {
         button(this.overlay, 'POMIŃ SKRYTKĘ', 1070, 642, 250, () => choose(null));
     }
     private showResult(result: RunResult) {
+        uiCue(result.success ? 'complete' : 'destroy');
         clear(this.overlay);
         this.hasOverlay = true;
         const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.8 });
@@ -381,6 +398,8 @@ export class GameSession {
             );
         label(this.overlay, result.contractText, 450, result.success ? 470 : 435, 16, C.mint, 700);
         label(this.overlay, result.reason, 450, result.success ? 500 : 471, 17, C.muted, 700);
+        if (result.equipmentText)
+            label(this.overlay, result.equipmentText, 450, 615, 16, C.mint, 700);
         const progress = result.pilotProgress;
         if (progress)
             label(

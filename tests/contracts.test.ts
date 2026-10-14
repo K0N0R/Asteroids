@@ -189,7 +189,7 @@ test('v4 migration preserves campaign and recovery targets while starting a trut
     old.version = 4;
     delete old.contractCompletions;
     const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.equal(loaded.version, 10);
+    assert.equal(loaded.version, 11);
     assert.deepEqual(loaded.bank, c.bank);
     assert.deepEqual(loaded.ship, { ...c.ship, hull: 'fighter' });
     assert.deepEqual(loaded.crew, c.crew);

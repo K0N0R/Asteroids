@@ -91,7 +91,7 @@ export function generateSector(seed: number) {
             y,
             radius,
             rich,
-            variant: Math.floor(rng() * 8),
+            variant: Math.floor(rng() * 128),
             vx: moving ? (rng() - 0.5) * 85 : (rng() - 0.5) * 8,
             vy: moving ? (rng() - 0.5) * 85 : (rng() - 0.5) * 8,
         });

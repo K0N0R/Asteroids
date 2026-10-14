@@ -28,7 +28,7 @@ export function createRecoverySignal(
     const rng = random(seed ^ Math.imul(ship.id, 0x45d9f3b) ^ Math.imul(pilot.id, 0x119de1f3));
     const chances = recoveryChances(ship, pilot);
     const rescuedPilot = rng() < chances.pilot ? clonePilot(pilot) : null;
-    const salvagedShip = rng() < chances.ship ? { ...ship } : null;
+    const salvagedShip = rng() < chances.ship ? { ...ship, weapons: [...ship.weapons] } : null;
     if (!rescuedPilot && !salvagedShip) return null;
     // Keep beacons reachable even when the loss happened in the radiation zone or the dock.
     const distance = Math.hypot(position.x, position.y);

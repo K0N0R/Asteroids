@@ -108,7 +108,7 @@ test('v6 migration preserves identities and modules, converting old Prospectors 
     delete old.recoverySignals[0].ship.handling;
     const loaded = parseCampaign(JSON.stringify(old))!;
     assert.ok(loaded);
-    assert.equal(loaded.version, 10);
+    assert.equal(loaded.version, 11);
     assert.equal(loaded.ship!.hull, 'fighter');
     assert.equal(loaded.ship!.id, 1);
     assert.equal(loaded.ship!.engine, 2);

@@ -18,6 +18,7 @@ export interface Enemy extends EnemySpec {
     charge: number;
     lostSight: number;
     hitFlash: number;
+    impactCooldown: number;
     thrusting: boolean;
     lastSeen: Point;
 }
@@ -81,7 +82,8 @@ export class EnemyFleet {
                 RAPIER.ColliderDesc.ball(config.radius / P)
                     .setDensity(config.density)
                     .setRestitution(0.25)
-                    .setFriction(0.1),
+                    .setFriction(0.1)
+                    .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
                 body,
             );
             this.enemies.set(spec.id, {
@@ -99,6 +101,7 @@ export class EnemyFleet {
                 charge: 0,
                 lostSight: 0,
                 hitFlash: 0,
+                impactCooldown: 0,
                 thrusting: false,
                 lastSeen: { x: spec.x, y: spec.y },
             });
@@ -157,6 +160,7 @@ export class EnemyFleet {
             enemy.previous = p;
             enemy.previousAngle = enemy.body.rotation();
             enemy.cooldown = Math.max(0, enemy.cooldown - dt);
+            enemy.impactCooldown = Math.max(0, enemy.impactCooldown - dt);
             enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
             enemy.phase += dt * 0.35;
             if (enemy.state === 'chase') {

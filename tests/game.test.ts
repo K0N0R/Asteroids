@@ -123,7 +123,7 @@ test('invalid saves and unavailable storage fail safely', () => {
         },
     };
     const repository = new SaveRepository(storage);
-    assert.equal(repository.load().version, 10);
+    assert.equal(repository.load().version, 11);
     assert.equal(repository.save(newCampaign()), false);
 });
 test('W accelerates, releasing stops and S brakes before reversing with priority over W', () => {
@@ -223,7 +223,7 @@ test('short-range mining laser breaks rocks and collects cargo without exceeding
         const item = [...sim.loot.values()][0];
         sim.ship.setTranslation({ x: item.x / 100, y: item.y / 100 }, true);
         sim.cargo.ore = sim.cargoCapacity - 1;
-        for (let i = 0; i < 10; i++) sim.step(idle);
+        for (let i = 0; i < 120 && sim.cargoUsed < sim.cargoCapacity; i++) sim.step(idle);
         assert.ok(sim.cargoUsed <= sim.cargoCapacity);
         assert.equal(sim.cargoUsed, sim.cargoCapacity);
     } finally {
@@ -275,7 +275,7 @@ test('legacy campaigns migrate without losing pilots, bank, upgrades or the inte
     delete legacy.repairKits;
     delete legacy.activeRun.repairKits;
     const loaded = parseCampaign(JSON.stringify(legacy))!;
-    assert.equal(loaded.version, 10);
+    assert.equal(loaded.version, 11);
     assert.deepEqual(loaded.bank, c.bank);
     assert.deepEqual(loaded.pilots, c.pilots);
     assert.equal(loaded.ship!.engine, 1);

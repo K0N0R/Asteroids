@@ -10,6 +10,9 @@ export class OutpostSecurity {
     alarm = 0;
     download = 0;
     secured = false;
+    equipmentProgress = 0;
+    equipmentSecured = false;
+    equipmentArmed = false;
     reinforcementsCalled = false;
     constructor(readonly spec: OutpostSpec) {}
 

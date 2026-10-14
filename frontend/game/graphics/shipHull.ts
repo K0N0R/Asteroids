@@ -24,7 +24,7 @@ export const HULL_PALETTES = {
 const S = SHIP_COLORS;
 
 // Trim each corner and join it with a quadratic curve, preserving the silhouette.
-function roundedPanel(
+export function roundedPanel(
     g: Graphics,
     points: number[],
     radius = 3,
@@ -53,7 +53,7 @@ function roundedPanel(
     }
     g.closePath().fill(color).stroke({ color: edge, width: 1.2 });
 }
-function visor(g: Graphics, x: number, y: number, rx: number, ry: number) {
+export function visor(g: Graphics, x: number, y: number, rx: number, ry: number) {
     g.ellipse(x - 1, y + 1, rx + 2.5, ry + 2.5).fill(S.engine);
     g.ellipse(x, y, rx + 1, ry + 1).fill(S.reinforcement);
     g.ellipse(x, y, rx, ry).fill(0x639cbb).stroke({ color: 0xc3e0ee, width: 0.8 });

@@ -87,6 +87,8 @@ export const OUTPOST = {
     interactRadius: 100,
     interactSpeed: 60,
     downloadSeconds: 4,
+    equipmentSeconds: 5,
+    equipmentSlots: 3,
     sabotageSeconds: 3,
     disabledSeconds: 20,
     scanRange: 560,
@@ -509,3 +511,43 @@ export const CONTRACTS: readonly ContractDefinition[] = [
         unlock: 'combat',
     },
 ] as const;
+
+export const WEAPONS = {
+    standard: {
+        name: 'Autocannon',
+        detail: 'Uniwersalne działko · równy rytm ognia.',
+        damage: GAME.shotDamage,
+        interval: GAME.shotInterval,
+        speed: GAME.shotSpeed,
+        life: 1.15,
+        length: GAME.gunLength,
+        ore: 0,
+        parts: 0,
+        workshop: 0,
+    },
+    pulse: {
+        name: 'Impuls',
+        detail: 'Szybka seria · krótszy zasięg i lżejsze trafienia.',
+        damage: 9,
+        interval: 0.1,
+        speed: 1050,
+        life: 0.8,
+        length: 28,
+        ore: 16,
+        parts: 3,
+        workshop: 1,
+    },
+    rail: {
+        name: 'Kinetic',
+        detail: 'Mocny strzał z dystansu · długi odstęp między strzałami.',
+        damage: 42,
+        interval: 0.65,
+        speed: 1700,
+        life: 1.2,
+        length: 42,
+        ore: 24,
+        parts: 6,
+        workshop: 1,
+    },
+} as const;
+export type WeaponId = keyof typeof WEAPONS;
