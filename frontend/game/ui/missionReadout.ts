@@ -92,9 +92,10 @@ export function flightHint(s: MissionSimulation) {
         return `E  Przechwyt · ${percent(s.outpost.download, OUTPOST.downloadSeconds)}`;
     if (s.repairProgress > 0)
         return `R  Naprawa · ${percent(s.repairProgress, GAME.repairSeconds)}`;
-    if (s.salvageProgress > 0) return `E Holowanie wraku · ${percent(s.salvageProgress, 3)}`;
+    if (s.salvageProgress > 0)
+        return `E Holowanie wraku · ${percent(s.salvageProgress, s.salvageSeconds)}`;
     if (s.recoveryProgress > 0)
-        return `E  Odzysk · ${percent(s.recoveryProgress, RECOVERY.seconds)}`;
+        return `E  Odzysk · ${percent(s.recoveryProgress, s.recoverySeconds)}`;
     if (s.scanProgress > 0) return `E  Skan · ${percent(s.scanProgress, SCAN.seconds)}`;
     if (s.cacheProgress > 0) return `E  Skrytka · ${percent(s.cacheProgress, CACHE.seconds)}`;
     if (s.dockProgress > 0) return `E  Dokowanie · ${percent(s.dockProgress, 1.2)}`;
@@ -110,9 +111,11 @@ export function flightHint(s: MissionSimulation) {
             ? 'J Zwolnij wrak, aby podjąć cel ratunkowy'
             : s.speed > RECOVERY.speed
               ? 'S  Wyhamuj do odzysku · <80 m/s'
-              : 'E  Podejmij cel · przytrzymaj 4 s';
+              : `E  Podejmij cel · przytrzymaj ${s.recoverySeconds} s`;
     if (s.nearbyWreck)
-        return s.speed > 80 ? 'S Wyhamuj przy wraku · <80 m/s' : 'E Holuj wrak · przytrzymaj 3 s';
+        return s.speed > 80
+            ? 'S Wyhamuj przy wraku · <80 m/s'
+            : `E Holuj wrak · przytrzymaj ${s.salvageSeconds} s`;
     if (s.salvage.towed) {
         const item = s.salvage.towed;
         if (s.distanceHome > 350)

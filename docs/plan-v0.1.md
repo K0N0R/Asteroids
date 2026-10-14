@@ -221,3 +221,11 @@ Następna faza: eskorta statku badawczego AI. Tarcze kinetyczne pozostają kolej
 Eskorta Keplera: przyjazny statek AI, szukanie drogi między skałami, czekanie na gracza, zasadzka, 12 s badań anomalii i dane wymagające powrotu. N wskazuje eskortę, E rozpoczyna ją. Format zapisu 14 zachowuje kontrakty oraz dziennik dostaw. [Opis etapu](implementation-v0.25.md).
 
 Sześć propozycji kadłubów zapisano jako [referencję z uwagami do ról i balansu](fleet-concepts.md). Nie traktujemy obrazka jako obowiązkowej specyfikacji. Następny etap: tarcze kinetyczne, potem dalszy rozwój floty.
+
+## Etap 0.26 - wdrożony
+
+Tarcze kinetyczne gracza: indywidualne profile kadłubów, absorpcja przed poszyciem, regeneracja, ładowanie w doku Aurory, ulepszenia i niebieski pierścień heksów. HUD oraz panel pokładu pokazują stan tarczy. [Opis etapu](implementation-v0.26.md).
+
+## Etap 0.27 - wdrożony
+
+Atlas i Harpun według nowej referencji: ciężki transport i wyspecjalizowany odzysk, cztery długie chwytaki na obu modelach, szybsze podejmowanie holu przez Harpuna i warsztat II jako wymaganie. Katalog stoczni ma paginację, a limit floty pozostaje równy sześć. [Opis etapu](implementation-v0.27.md). Następny kierunek: kadłub obronny, później szybkie specjalizacje.

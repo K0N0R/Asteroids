@@ -1,4 +1,5 @@
 import { WEAPONS, type WeaponId } from '../config';
+import { HarpoonArms, HARPOON_ARMS } from '../systems/harpoonArms';
 import { Container, Graphics } from 'pixi.js';
 import {
     CONTRACTS,
@@ -14,6 +15,7 @@ import {
     PILOT_SKILLS,
     PilotSkillId,
     UPGRADES,
+    shipUpgradeDefinition,
     Upgrade,
 } from '../config';
 import {
@@ -91,6 +93,7 @@ export class LobbyView extends Container {
     private chosenShipId: number | null = null;
     private weaponFocus: WeaponId = 'standard';
     private shopHull: HullId = 'swift';
+    private shopPage = 0;
     private pilotMode: 'roster' | 'recruit' = 'roster';
     private chosenPilotId: number | null = null;
     private recruit = 0;
@@ -168,7 +171,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.26', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.27', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -399,7 +402,21 @@ export class LobbyView extends Container {
                 this.refresh();
             });
         }
-        const entries = this.hangarMode === 'shop' ? catalogue : ships;
+        const pages = Math.ceil(catalogue.length / FLEET_LIMIT);
+        if (this.hangarMode === 'shop' && pages > 1) {
+            const changePage = (direction: number) => {
+                this.shopPage = (this.shopPage + direction + pages) % pages;
+                this.shopHull = catalogue[this.shopPage * FLEET_LIMIT];
+                this.refresh();
+            };
+            button(ui, '←', 280, 548, 48, () => changePage(-1), false, true, 32);
+            label(ui, `${this.shopPage + 1} / ${pages}`, 614, 554, 15, C.muted);
+            button(ui, '→', 937, 548, 48, () => changePage(1), false, true, 32);
+        }
+        const entries =
+            this.hangarMode === 'shop'
+                ? catalogue.slice(this.shopPage * FLEET_LIMIT, (this.shopPage + 1) * FLEET_LIMIT)
+                : ships;
         entries.forEach((entry, i) => {
             const hull = typeof entry === 'string' ? entry : entry.hull,
                 config = HULLS[hull];
@@ -472,7 +489,9 @@ export class LobbyView extends Container {
         if (owned && ship) {
             label(
                 ui,
-                `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
+                modules.hull === 'harpoon'
+                    ? `Ramiona 2 · chwytaki ${config.grabbers.length} · zasięg ${Math.round(new HarpoonArms(modules.handling).reach * config.size)} m`
+                    : `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
                 1072,
                 421,
                 14,
@@ -512,7 +531,9 @@ export class LobbyView extends Container {
             );
             label(
                 ui,
-                `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
+                modules.hull === 'harpoon'
+                    ? '2 ramiona bojowe · 4 chwytaki'
+                    : `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
                 1072,
                 493,
                 16,
@@ -520,7 +541,9 @@ export class LobbyView extends Container {
             );
             label(
                 ui,
-                `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
+                modules.hull === 'harpoon'
+                    ? `Ramiona ${Math.round(HARPOON_ARMS.reach * config.size)} m · chwytaki ${config.grabberRange} m`
+                    : `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
                 1072,
                 522,
                 15,
@@ -532,7 +555,7 @@ export class LobbyView extends Container {
             label(
                 ui,
                 locked
-                    ? 'Wymagany warsztat I'
+                    ? `Wymagany warsztat ${config.workshop === 2 ? 'II' : 'I'}`
                     : full
                       ? 'Hangar pełny · zwolnij miejsce we flocie'
                       : 'KOSZT NOWEGO STATKU',
@@ -572,6 +595,61 @@ export class LobbyView extends Container {
             ship = c.ship;
         if (!ship) {
             label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
+            return;
+        }
+        if (ship.hull === 'harpoon') {
+            const arms = new HarpoonArms(ship.handling, ship.drill);
+            this.art(hullPreview(ship), 625, 430);
+            label(ui, 'RAMIONA / HARPUN', 1072, 244, 13, C.muted);
+            label(ui, 'Szczęki hydrauliczne', 1072, 279, 30, C.text, 456);
+            stat(
+                ui,
+                'SKAŁY / ZACISK',
+                `${HARPOON_ARMS.rockDamage * arms.damageMultiplier}`,
+                1072,
+                365,
+            );
+            stat(
+                ui,
+                'STATKI / ZACISK',
+                `${HARPOON_ARMS.shipDamage * arms.damageMultiplier}`,
+                1298,
+                365,
+            );
+            stat(ui, 'ZASIĘG', `${Math.round(arms.reach * HULLS.harpoon.size)} m`, 1072, 446);
+            stat(ui, 'CYKL SZCZĘK', `${HARPOON_ARMS.cycle} s`, 1298, 446);
+            label(
+                ui,
+                shipUpgradeDefinition('harpoon', 'handling').detail,
+                1072,
+                544,
+                16,
+                C.muted,
+                456,
+            );
+            label(
+                ui,
+                shipUpgradeDefinition('harpoon', 'drill').detail,
+                1072,
+                582,
+                16,
+                C.muted,
+                456,
+            );
+            button(
+                ui,
+                'MODUŁY RAMION →',
+                1072,
+                719,
+                456,
+                () => {
+                    this.hangarMode = 'owned';
+                    this.chosenShipId = ship.id;
+                    this.moduleFocus = 'drill';
+                    this.refresh();
+                },
+                true,
+            );
             return;
         }
         const id = this.weaponFocus,
@@ -660,11 +738,18 @@ export class LobbyView extends Container {
             12,
             C.muted,
         );
-        const hint = label(ui, UPGRADES[this.moduleFocus].detail, 1072, 733, 13, C.muted);
+        const hint = label(
+            ui,
+            shipUpgradeDefinition(ship.hull, this.moduleFocus).detail,
+            1072,
+            733,
+            13,
+            C.muted,
+        );
         (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).forEach((key, i) => {
             const level = ship[key],
                 price = upgradePrice({ ...c, ship }, key),
-                definition = UPGRADES[key],
+                definition = shipUpgradeDefinition(ship.hull, key),
                 y = 487 + i * 40;
             label(ui, definition.title, 1072, y, 16);
             segments(ui, level, 3, 1288, y + 5, 69);

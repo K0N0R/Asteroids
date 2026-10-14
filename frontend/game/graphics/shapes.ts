@@ -4,6 +4,8 @@ import { EnemyKind, HullId, ScanSiteId, WeaponId, WEAPONS } from '../config';
 import { ShipModules } from '../state/campaign';
 import { GAME, HULLS } from '../config';
 import { aimAngle, rotateVector } from '../systems/flight';
+import { HarpoonArms, type HarpoonArmPose } from '../systems/harpoonArms';
+import { drawHarpoonArms } from './harpoonArmsView';
 import type { Point } from '../worlds/sector';
 import {
     SHIP_COLORS,
@@ -32,6 +34,7 @@ export class ShipView extends Container {
     readonly lasers: Container[] = [];
     readonly flame = new Graphics();
     readonly retro = new Graphics();
+    readonly harpoonView = new Graphics();
     readonly config;
     constructor(
         modules: ShipModules & { hull?: HullId; weapon?: WeaponId } = {
@@ -49,6 +52,13 @@ export class ShipView extends Container {
             S = SHIP_COLORS,
             weapon = WEAPONS[modules.weapon ?? 'standard'];
         this.addChild(this.flame, this.retro, shipUnderbody(hull));
+        if (hull === 'harpoon') {
+            drawHarpoonArms(
+                this.harpoonView,
+                new HarpoonArms(modules.handling, modules.drill).poses,
+            );
+            this.addChild(this.harpoonView);
+        }
         for (const mount of config.guns) {
             const gun = new Container();
             gun.position.set(mount.x, mount.y);
@@ -123,6 +133,9 @@ export class ShipView extends Container {
         );
         for (const gun of [...this.guns, ...this.lasers])
             gun.rotation = aimAngle(gun.position, local, 0);
+    }
+    updateArms(poses: readonly HarpoonArmPose[]) {
+        drawHarpoonArms(this.harpoonView, poses);
     }
     updateDrive(forward: boolean, reverse: boolean, fault: boolean, boost: boolean, time: number) {
         this.flame.clear();

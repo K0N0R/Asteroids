@@ -46,8 +46,8 @@ export class ConfigurationPopup extends BasePopup<undefined> {
         const controls = [
             ['W / A / D', 'Przyspieszanie / skręt w lewo / skręt w prawo'],
             ['S / SHIFT', 'Hamowanie i wsteczny / boost podczas lotu W'],
-            ['MYSZ', 'Celowanie działkami niezależnie od kadłuba'],
-            ['LPM / PPM', 'Działka bojowe / krótki laser wydobywczy'],
+            ['MYSZ', 'Celowanie niezależnie od kadłuba'],
+            ['LPM / PPM', 'Broń / wydobycie; Harpun: zacisk / wysuw ramion'],
             ['E', 'Wrak / przytrzymaj: skrytka, skan, odzysk, dokowanie'],
             ['1–9', 'Nawigacja · 6 ratunek, 7/8 nauka, 9 skrytki'],
             ['R / C', 'Naprawa / kamuflaż na obsługiwanych kadłubach'],

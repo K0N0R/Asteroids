@@ -1,6 +1,6 @@
 # Kierunki rozwoju floty — sześć konceptów użytkownika
 
-Obraz jest inspiracją do sylwetek i ról, a nie specyfikacją obowiązkowych statystyk. Modele pozostają figurami Pixi, z materiałami obecnej floty, jasnoniebieskim szkłem i wyraźnymi mocowaniami wyposażenia. Ta paczka nie jest jeszcze wdrożona; kontynuujemy najpierw eskortę AI i tarcze kinetyczne.
+Obraz jest inspiracją do sylwetek i ról, a nie specyfikacją obowiązkowych statystyk. Modele pozostają figurami Pixi, z materiałami obecnej floty, jasnoniebieskim szkłem i wyraźnymi mocowaniami wyposażenia. Eskorta i tarcze kinetyczne są wdrożone. Pierwsze dwa kadłuby, Atlas i Harpun, dodano w [etapie 0.27](implementation-v0.27.md); pozostałe cztery są konceptami.
 
 | Koncept | Referencja liczbowa | Proponowana specjalizacja i uwagi |
 | --- | --- | --- |
@@ -12,3 +12,5 @@ Obraz jest inspiracją do sylwetek i ról, a nie specyfikacją obowiązkowych st
 | Feniks | HP 95, cargo 35, speed 540, turn 1.95, boost 1.70, cloak .45; 2 działa / 2 średnie lasery / 1 krótki chwytak | Ostre skrzydła i ciepłe akcenty, uniwersalny szturm. Do rozważenia umiejętność awaryjna po implementacji tarcz; unikać kadłuba lepszego od wszystkich obecnych. |
 
 Podane wartości służą do późniejszych porównań. Kolejna paczka kadłubów potrzebuje cen, wymagań progresji, statystyk tarcz, masy/kolizji i czytelnej przewagi oraz słabości każdej roli. Najpierw mogą wejść Atlas i Harpun jako wyraźne warianty użytkowe, następnie obrońca powiązany z tarczami, a na końcu wyspecjalizowane szybkie kadłuby.
+
+Aktualne ustalenie dla Harpuna zastępuje referencyjne działko i laser dwiema bojowymi szczękami: LPM zaciska, przytrzymanie PPM wysuwa ramiona ku celowi, a nieużywane ramiona składają się do kadłuba. Kontakt samych ramion nie uszkadza statku ani tarczy. Szczegóły obrażeń i specjalnych ulepszeń: [etap 0.27](implementation-v0.27.md).

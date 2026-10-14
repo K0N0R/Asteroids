@@ -351,6 +351,7 @@ export class MissionWorld extends Container {
             this.clock,
         );
         this.shipView.aimAt(s.aimTarget);
+        if (s.harpoonArms) this.shipView.updateArms(s.harpoonArms.poses);
         this.shipView.updateDrive(
             s.thrusting && !s.reversing,
             s.reversing || (s.braking && s.speed > 5),
@@ -674,7 +675,7 @@ export class MissionWorld extends Container {
                             signal.y,
                             65,
                             -Math.PI / 2,
-                            -Math.PI / 2 + (s.recoveryProgress / RECOVERY.seconds) * Math.PI * 2,
+                            -Math.PI / 2 + (s.recoveryProgress / s.recoverySeconds) * Math.PI * 2,
                         )
                         .stroke({ color: C.mint, width: 4 });
             }

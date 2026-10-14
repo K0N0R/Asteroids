@@ -20,6 +20,8 @@ export const HULL_PALETTES = {
     fighter: { hull: 0x4e5d70, panel: 0x6c7c8e, edge: 0x91a0ad, cargo: 0x887c6b },
     tug: { hull: 0x526f70, panel: 0x72918d, edge: 0x9ab2ac, cargo: 0x9e8970 },
     falcon: { hull: 0x7e7a72, panel: 0x98978f, edge: 0xb8b7a9, cargo: 0x918169 },
+    atlas: { hull: 0x72766e, panel: 0x949c8d, edge: 0xb7c0ad, cargo: 0xad8f55 },
+    harpoon: { hull: 0x586e79, panel: 0x7d959b, edge: 0xacc4c5, cargo: 0xaf8b4e },
 } as const satisfies Record<HullId, { hull: number; panel: number; edge: number; cargo: number }>;
 const S = SHIP_COLORS;
 
@@ -108,6 +110,9 @@ export function shipUnderbody(hull: HullId) {
     } else if (hull === 'mule') {
         tank(g, -25, -38, 47, 21);
         tank(g, -25, 17, 47, 21);
+    } else if (hull === 'atlas') {
+        for (const side of [-1, 1])
+            for (const x of [-33, 8]) tank(g, x, side < 0 ? -38 : 17, 27, 21);
     }
     return g;
 }
@@ -187,6 +192,40 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         seam(g, [-29, 0, -1, -13, 9, -31]);
         seam(g, [-29, 0, -1, 13, 9, 31]);
         visor(g, 20, 0, 12, 18);
+    } else if (hull === 'atlas') {
+        roundedHull(g, [-43, -14, 25, -14, 43, -9, 43, 9, 25, 14, -43, 14], 4);
+        g.roundRect(-35, -9, 57, 18, 3).fill(palette.panel);
+        for (const side of [-1, 1]) {
+            g.roundRect(-5, side < 0 ? -37 : 15, 11, 22, 2)
+                .fill(S.hull)
+                .stroke({ color: palette.edge, width: 1 });
+            for (const x of [-22, 21]) {
+                g.roundRect(x, side < 0 ? -41 : 35, 11, 5, 1).fill(S.engine);
+                g.roundRect(x + 2, side < 0 ? -40 : 36, 7, 2, 1).fill(S.reinforcement);
+            }
+        }
+        tank(g, 31, -7, 12, 14);
+        seam(g, [-32, -6, -11, -6, -11, 6, -32, 6], 2);
+        visor(g, 10, 0, 18, 9);
+    } else if (hull === 'harpoon') {
+        roundedHull(
+            g,
+            [-35, -8, -12, -12, -4, -18, 27, -18, 35, -9, 35, 9, 27, 18, -4, 18, -12, 12, -35, 8],
+            3,
+        );
+        tank(g, 28, -6, 12, 12);
+        tank(g, -12, -16, 13, 32);
+        g.roundRect(-31, -5, 18, 10, 2).fill(palette.panel);
+        for (const side of [-1, 1]) {
+            g.roundRect(2, side * 18 - 5, 12, 10, 2)
+                .fill(palette.panel)
+                .stroke({ color: palette.edge, width: 1 });
+            g.circle(8, side * 18, 4)
+                .fill(S.engine)
+                .stroke({ color: S.cargo, width: 1.5 });
+        }
+        g.circle(11, 0, 17).fill(palette.panel).stroke({ color: S.engine, width: 2 });
+        visor(g, 11, 0, 13, 13);
     } else {
         g.ellipse(-5, 0, 34, 34).fill(S.hull).stroke({ color: S.reinforcement, width: 1.8 });
         g.ellipse(-5, 0, 29, 29).fill(palette.panel);

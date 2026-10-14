@@ -134,6 +134,7 @@ export interface HullDefinition {
     laserRange: number;
     grabbers: readonly Mount[];
     grabberRange: number;
+    towPickupSpeed: number;
     hitbox: readonly [number, number];
 }
 export const HULLS = {
@@ -162,6 +163,7 @@ export const HULLS = {
         laserRange: 180,
         grabbers: [{ x: 8, y: 18 }],
         grabberRange: 140,
+        towPickupSpeed: 1,
         hitbox: [32, 20],
     },
     swift: {
@@ -189,6 +191,7 @@ export const HULLS = {
         laserRange: 180,
         grabbers: [{ x: 0, y: 18 }],
         grabberRange: 140,
+        towPickupSpeed: 1,
         hitbox: [35, 20],
     },
     mule: {
@@ -226,6 +229,7 @@ export const HULLS = {
             { x: 0, y: 30 },
         ],
         grabberRange: 300,
+        towPickupSpeed: 1,
         hitbox: [34, 34],
     },
     fighter: {
@@ -256,6 +260,7 @@ export const HULLS = {
         laserRange: 180,
         grabbers: [{ x: 0, y: 22 }],
         grabberRange: 220,
+        towPickupSpeed: 1,
         hitbox: [32, 23],
     },
     tug: {
@@ -289,6 +294,7 @@ export const HULLS = {
             { x: 0, y: 30 },
         ],
         grabberRange: 220,
+        towPickupSpeed: 1,
         hitbox: [35, 36],
     },
     falcon: {
@@ -322,7 +328,83 @@ export const HULLS = {
             { x: 0, y: 27 },
         ],
         grabberRange: 140,
+        towPickupSpeed: 1,
         hitbox: [36, 32],
+    },
+    atlas: {
+        name: 'Atlas',
+        role: 'Ciężki transport',
+        detail: 'Kontenery i cztery chwytaki; największy ładunek kosztem zwrotności i mocy wydobycia.',
+        health: 200,
+        shield: { capacity: 90, regen: 5, delay: 7 },
+        cargo: 150,
+        thrust: 420,
+        brake: 540,
+        turnSpeed: 0.75,
+        maxSpeed: 220,
+        size: 1.35,
+        miningPower: 0.85,
+        ore: 180,
+        parts: 16,
+        workshop: 2,
+        recovery: 0.25,
+        boost: 1.2,
+        cloak: 0,
+        guns: [{ x: 34, y: 0 }],
+        lasers: [
+            { x: 12, y: -24 },
+            { x: 12, y: 24 },
+        ],
+        engines: [
+            { x: -35, y: -20 },
+            { x: -35, y: 20 },
+        ],
+        laserRange: 320,
+        grabbers: [
+            { x: -18, y: -32 },
+            { x: 20, y: -32 },
+            { x: -18, y: 32 },
+            { x: 20, y: 32 },
+        ],
+        grabberRange: 300,
+        towPickupSpeed: 1,
+        hitbox: [43, 38],
+    },
+    harpoon: {
+        name: 'Harpun',
+        role: 'Specjalista odzysku',
+        detail: 'Przegubowe szczęki zamiast działek i lasera. LPM miażdży, PPM wysuwa ramiona ku celowi.',
+        health: 110,
+        shield: { capacity: 70, regen: 8.5, delay: 4 },
+        cargo: 75,
+        thrust: 850,
+        brake: 900,
+        turnSpeed: 1.55,
+        maxSpeed: 430,
+        size: 1.15,
+        miningPower: 1,
+        ore: 155,
+        parts: 14,
+        workshop: 2,
+        recovery: 0.3,
+        boost: 1.4,
+        cloak: 0.35,
+        guns: [],
+        lasers: [],
+        engines: [
+            { x: -30, y: -16 },
+            { x: -30, y: 16 },
+        ],
+        laserRange: 320,
+        grabbers: [
+            { x: -12, y: -12 },
+            { x: 8, y: -18 },
+            { x: -12, y: 12 },
+            { x: 8, y: 18 },
+        ],
+        grabberRange: 300,
+        towPickupSpeed: 2,
+        hitbox: [35, 18],
     },
 } as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
@@ -469,6 +551,23 @@ export const UPGRADES: Record<
     },
     storage: { title: 'Magazyn stacji', detail: 'Pojemność +100 / poziom', ore: 25, parts: 1 },
 };
+
+export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
+    const definition = UPGRADES[upgrade];
+    if (hull === 'harpoon' && upgrade === 'handling')
+        return {
+            ...definition,
+            title: 'Przeguby ramion',
+            detail: 'Zasięg +15%, wysuw i skręt +20% / poziom',
+        };
+    if (hull === 'harpoon' && upgrade === 'drill')
+        return {
+            ...definition,
+            title: 'Siłowniki szczęk',
+            detail: 'Obrażenia skał i statków +25% / poziom',
+        };
+    return definition;
+}
 
 export interface ContractDefinition {
     title: string;

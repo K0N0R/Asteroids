@@ -1,6 +1,10 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.25** dodaje kontrakt **Eskorta Keplera**: przyjazny statek AI omija skały, czeka na gracza i bada anomalię. **N** wskazuje statek, **E** rozpoczyna misję. Chroń Keplera przed zasadzką i ostrzałem, a po badaniach wróć z danymi po premię 36 rudy / 8 komponentów. Format zapisu 14 zachowuje wcześniejsze kontrakty i dostawy holu. [Szczegóły etapu](docs/implementation-v0.25.md).
+Aktualna wersja **0.27** dodaje dwa kadłuby użytkowe według referencji: **Atlas** z czterema kontenerami i ładownią 150 oraz **Harpun** z przegubowymi ramionami, czterema długimi chwytakami i dwukrotnie szybszym podejmowaniem holu. Harpun nie ma działka ani lasera: **LPM** zaciska szczęki, a przytrzymanie **PPM** wysuwa ramiona ku celowi. Przeguby i siłowniki mają własne ulepszenia. Oba kadłuby wymagają warsztatu II. Stocznia ma dwie strony katalogu; limit posiadanej floty pozostaje równy sześć. [Parametry i weryfikacja](docs/implementation-v0.27.md).
+
+Wersja **0.26** dodaje tarcze kinetyczne statków: absorpcję obrażeń przed kadłubem, regenerację po przerwie, szybkie ładowanie w doku Aurory oraz trzy poziomy ulepszeń. Niebieski pierścień heksów i HUD pokazują naładowanie. Promieniowanie poza sektorem omija tarczę. [Szczegóły etapu](docs/implementation-v0.26.md).
+
+Wersja **0.25** dodaje kontrakt **Eskorta Keplera**: przyjazny statek AI omija skały, czeka na gracza i bada anomalię. **N** wskazuje statek, **E** rozpoczyna misję. Chroń Keplera przed zasadzką i ostrzałem, a po badaniach wróć z danymi po premię 36 rudy / 8 komponentów. Format zapisu 14 zachowuje wcześniejsze kontrakty i dostawy holu. [Szczegóły etapu](docs/implementation-v0.25.md).
 
 Wersja **0.24** dodaje wraki przeciwników i fizyczne holowanie. **Z** wskazuje wrak, **E** podejmuje, **J** zwalnia. Przekazanie holu do doku Aurory daje recykling/odzysk i **nie kończy wyprawy**; zwykłe dokowanie E również rozlicza hol. Można dostarczyć kilka obiektów, zachowanych po późniejszej śmierci i widocznych w podsumowaniu. Wraki i kapsuły mogą zostać zniszczone przez skały lub ostrzał wroga; gracz nie ma z nimi kolizji ani friendly fire. [Szczegóły etapu](docs/implementation-v0.24.md).
 

@@ -39,9 +39,9 @@ function hit(sim: MissionSimulation, damage: number) {
     sim.step(idle);
 }
 
-test('six hulls have distinct shield profiles and modules improve capacity and recovery', () => {
+test('all hulls have distinct shield profiles and modules improve capacity and recovery', () => {
     const profiles = (Object.keys(HULLS) as HullId[]).map((h) => shieldProfile(h));
-    assert.equal(new Set(profiles.map((p) => p.capacity)).size, 6);
+    assert.equal(new Set(profiles.map((p) => p.capacity)).size, profiles.length);
     assert.ok(shieldProfile('fighter').capacity > shieldProfile('swift').capacity);
     assert.ok(shieldProfile('swift').delay < shieldProfile('mule').delay);
     for (const hull of Object.keys(HULLS) as HullId[]) {

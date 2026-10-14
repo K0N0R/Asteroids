@@ -63,28 +63,28 @@ export class InputHandlerBase {
             this.pointerInCanvas = evt.target instanceof HTMLCanvasElement;
             Bus.emit('input', { name: 'pointermove', data: this.pointer });
         });
-        window.addEventListener('pointerdown', (evt) => {
+        const updateButton = (evt: MouseEvent, pressed: boolean) => {
             this.pointer = { x: evt.clientX, y: evt.clientY };
             this.pointerInCanvas = evt.target instanceof HTMLCanvasElement;
             if (evt.button === 0) {
-                this.primaryPressed = this.pointerInCanvas;
-                Bus.emit('input', { name: 'pointerdown', data: this.primaryPressed });
+                const next = pressed && this.pointerInCanvas;
+                if (this.primaryPressed !== next) {
+                    this.primaryPressed = next;
+                    Bus.emit('input', { name: 'pointerdown', data: next });
+                }
             }
             if (evt.button === 2) {
-                this.secondaryPressed = this.pointerInCanvas;
-                Bus.emit('input', { name: 'contextmenu', data: this.secondaryPressed });
+                const next = pressed && this.pointerInCanvas;
+                if (this.secondaryPressed !== next) {
+                    this.secondaryPressed = next;
+                    Bus.emit('input', { name: 'contextmenu', data: next });
+                }
             }
-        });
-        window.addEventListener('pointerup', (evt) => {
-            if (evt.button === 0) {
-                this.primaryPressed = false;
-                Bus.emit('input', { name: 'pointerdown', data: false });
-            }
-            if (evt.button === 2) {
-                this.secondaryPressed = false;
-                Bus.emit('input', { name: 'contextmenu', data: false });
-            }
-        });
+        };
+        window.addEventListener('pointerdown', (evt) => updateButton(evt, true));
+        window.addEventListener('pointerup', (evt) => updateButton(evt, false));
+        window.addEventListener('mousedown', (evt) => updateButton(evt, true));
+        window.addEventListener('mouseup', (evt) => updateButton(evt, false));
         window.addEventListener('pointercancel', () => this.clear());
         document.addEventListener('pointerleave', () => {
             this.primaryPressed = false;

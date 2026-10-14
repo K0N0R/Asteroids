@@ -66,8 +66,8 @@ export class MissionHud extends Container {
         keyHint(this, 'WASD', 'lot', 40, 845, 54);
         keyHint(this, 'SHIFT', 'boost', 145, 845, 54);
         mouseHint(this, null, 'cel', 277, 845);
-        mouseHint(this, 'left', 'ogień', 355, 845);
-        mouseHint(this, 'right', 'laser', 453, 845);
+        mouseHint(this, 'left', sim.harpoonArms ? 'zacisk' : 'ogień', 355, 845);
+        mouseHint(this, 'right', sim.harpoonArms ? 'ramiona' : 'laser', 453, 845);
         keyHint(this, 'F/Z/N', 'cel', 552, 845, 52);
         keyHint(this, '0–9/T/H', 'cel', 644, 845, 66);
         keyHint(this, 'E', 'akcja', 752, 845);

@@ -1,4 +1,5 @@
 import { KineticShield, shieldProfile } from './kineticShield';
+import { HarpoonArms, HARPOON_ARMS } from './harpoonArms';
 import { ResearchEscort, ESCORT } from './escort';
 import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
 import type { SoundCue } from './audioPolicy';
@@ -10,7 +11,7 @@ import { generateSector, Point, random, RockSpec } from '../worlds/sector';
 import { RecoverySignal } from '../state/recovery';
 import { pilotProfile } from '../state/pilots';
 import { Enemy, EnemyFleet, enemyPosition } from './enemies';
-import { aimAngle, mountPosition } from './flight';
+import { aimAngle, mountPosition, rotateVector } from './flight';
 import { TowBody } from './tow';
 import { GripperSystem } from './grippers';
 import { OutpostSecurity } from './outpost';
@@ -71,6 +72,7 @@ export class MissionSimulation {
     readonly sector;
     readonly world = new RAPIER.World({ x: 0, y: 0 });
     readonly kineticShield: KineticShield;
+    readonly harpoonArms: HarpoonArms | null;
     readonly escort: ResearchEscort | null;
     readonly salvage = new SalvageFleet(this.world);
     salvageProgress = 0;
@@ -181,6 +183,10 @@ export class MissionSimulation {
         this.rng = random(seed ^ 0xa12d9b);
         this.modules = { ...campaign.ship! };
         this.hullConfig = HULLS[this.modules.hull];
+        this.harpoonArms =
+            this.modules.hull === 'harpoon'
+                ? new HarpoonArms(this.modules.handling, this.modules.drill)
+                : null;
         this.grippers = new GripperSystem(this.hullConfig.grabbers, this.hullConfig.grabberRange);
         this.pilot = pilotProfile(campaign.pilots.find((p) => p.id === campaign.selectedPilot)!);
         this.baseCargoCapacity = capacity(campaign);
@@ -290,6 +296,12 @@ export class MissionSimulation {
     }
     get gunDamage() {
         return this.weaponConfig.damage * (this.installed.includes('guns') ? 1.35 : 1);
+    }
+    get salvageSeconds() {
+        return SALVAGE.seconds / this.hullConfig.towPickupSpeed;
+    }
+    get recoverySeconds() {
+        return RECOVERY.seconds / this.hullConfig.towPickupSpeed;
     }
     get nearbyWreck() {
         if (this.salvage.towed) return undefined;
@@ -442,12 +454,12 @@ export class MissionSimulation {
             ) < RECOVERY.radius
         )
             return this.recoveryProgress > 0
-                ? `Podejmowanie celu · ${Math.floor((this.recoveryProgress / RECOVERY.seconds) * 100)}%`
-                : 'Przytrzymaj E · odzysk 4 s · bez ciągu i ognia, poniżej 80 m/s';
+                ? `Podejmowanie celu · ${Math.floor((this.recoveryProgress / this.recoverySeconds) * 100)}%`
+                : `Przytrzymaj E · odzysk ${this.recoverySeconds} s · bez ciągu i ognia, poniżej 80 m/s`;
         if (this.nearbyWreck)
             return this.salvageProgress > 0
                 ? 'Podłączanie holu · przytrzymaj E'
-                : 'E Holuj wrak · 3 s · poniżej 80 m/s';
+                : `E Holuj wrak · ${this.salvageSeconds} s · poniżej 80 m/s`;
         if (this.nearbyCache)
             return this.cacheProgress > 0
                 ? `Otwieranie skrytki · ${Math.floor((this.cacheProgress / CACHE.seconds) * 100)}%`
@@ -484,7 +496,9 @@ export class MissionSimulation {
         if (this.recoverySecured) return 'Cel zabezpieczony na holu · wróć do Aurory i zadokuj';
         return this.cargoUsed >= this.cargoCapacity
             ? 'Ładownia pełna · wróć do bazy'
-            : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
+            : this.harpoonArms
+              ? 'LPM · zacisk szczęk    /    PPM · wysuw ramion ku celowi'
+              : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
     }
     private addRock(spec: RockSpec) {
         if (this.rocks.size >= 600) return;
@@ -744,9 +758,10 @@ export class MissionSimulation {
             }
         });
         this.enforceShield();
-        if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) this.fire();
+        if (this.harpoonArms) this.updateHarpoon(input, dt);
+        else if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) this.fire();
         this.updateBullets(dt);
-        if (input.mine) this.mine(dt);
+        if (input.mine && !this.harpoonArms) this.mine(dt);
         if (this.salvage.towed) {
             const item = this.salvage.towed;
             this.tow ??= new TowBody(salvagePosition(item), { x: 0, y: 0 });
@@ -1125,7 +1140,7 @@ export class MissionSimulation {
         if (this.salvageTarget !== item.id) this.salvageProgress = 0;
         this.salvageTarget = item.id;
         this.salvageProgress += dt;
-        if (this.salvageProgress + 1e-8 < SALVAGE.seconds) return;
+        if (this.salvageProgress + 1e-8 < this.salvageSeconds) return;
         if (this.salvage.attach(item, this.ship)) {
             this.tow = new TowBody(salvagePosition(item), { x: 0, y: 0 });
             this.setNotice('Wrak na holu · wróć do Aurory · J zwolnij hol.');
@@ -1298,7 +1313,7 @@ export class MissionSimulation {
             return;
         }
         this.recoveryProgress += dt;
-        if (this.recoveryProgress + 1e-8 >= RECOVERY.seconds) {
+        if (this.recoveryProgress + 1e-8 >= this.recoverySeconds) {
             this.recoverySecured = true;
             this.tow = this.attachTow();
             const item = this.salvage.add(
@@ -1486,6 +1501,113 @@ export class MissionSimulation {
                 bullet.y += bullet.vy * dt;
                 bullet.life -= dt;
                 if (bullet.life <= 0) this.bullets.delete(bullet.id);
+            }
+        }
+    }
+    private updateHarpoon(input: FlightInput, dt: number) {
+        const arms = this.harpoonArms!;
+        const position = this.position,
+            angle = this.ship.rotation(),
+            size = this.hullConfig.size;
+        const local = rotateVector(
+            { x: input.target.x - position.x, y: input.target.y - position.y },
+            -angle,
+        );
+        const strike = arms.update(
+            dt,
+            { x: local.x / size, y: local.y / size },
+            !!input.mine,
+            input.fire,
+        );
+        const contacts = new Map<number, { collider: RAPIER.Collider; point: Point }>();
+        arms.poses.forEach((pose, index) => {
+            const shoulder = mountPosition(position, angle, size, pose.shoulder);
+            let tip = mountPosition(position, angle, size, pose.tip);
+            const ray = new RAPIER.Ray(
+                { x: shoulder.x / P, y: shoulder.y / P },
+                { x: (tip.x - shoulder.x) / P, y: (tip.y - shoulder.y) / P },
+            );
+            const obstruction = this.world.castRay(
+                ray,
+                1,
+                true,
+                undefined,
+                undefined,
+                this.shipCollider,
+                undefined,
+                (collider) =>
+                    this.isObstacle(collider) || this.enemies.colliders.has(collider.handle),
+            );
+            if (obstruction) {
+                tip = {
+                    x: shoulder.x + (tip.x - shoulder.x) * obstruction.timeOfImpact,
+                    y: shoulder.y + (tip.y - shoulder.y) * obstruction.timeOfImpact,
+                };
+                const clipped = rotateVector(
+                    { x: tip.x - position.x, y: tip.y - position.y },
+                    -angle,
+                );
+                arms.constrainTip(index, { x: clipped.x / size, y: clipped.y / size });
+            }
+            if (!strike) return;
+            if (obstruction && this.fortressColliders.has(obstruction.collider.handle)) {
+                this.events.push({ ...tip, kind: 'hit', strength: 8 });
+                return;
+            }
+            this.world.intersectionsWithShape(
+                { x: tip.x / P, y: tip.y / P },
+                0,
+                new RAPIER.Ball((HARPOON_ARMS.jawRadius * size) / P),
+                (collider) => {
+                    const end = collider.translation();
+                    const blocked = this.world.castRay(
+                        new RAPIER.Ray(
+                            { x: shoulder.x / P, y: shoulder.y / P },
+                            { x: end.x - shoulder.x / P, y: end.y - shoulder.y / P },
+                        ),
+                        1,
+                        true,
+                        undefined,
+                        undefined,
+                        this.shipCollider,
+                        undefined,
+                        (other) => other.handle !== collider.handle && this.isObstacle(other),
+                    );
+                    if (!blocked) contacts.set(collider.handle, { collider, point: { ...tip } });
+                    return true;
+                },
+                undefined,
+                undefined,
+                this.shipCollider,
+                undefined,
+                (collider) =>
+                    this.asteroidColliders.has(collider.handle) ||
+                    this.enemies.colliders.has(collider.handle),
+            );
+        });
+        for (const { collider, point } of contacts.values()) {
+            const rock = this.rocks.get(this.asteroidColliders.get(collider.handle)!);
+            if (rock) {
+                const damage =
+                    HARPOON_ARMS.rockDamage *
+                    arms.damageMultiplier *
+                    this.pilot.mining *
+                    this.laserPowerMultiplier;
+                rock.health -= damage;
+                this.events.push({ ...point, kind: 'hit', strength: damage, rich: rock.rich });
+                if (rock.health <= 0) this.breakRock(rock);
+            } else {
+                const enemy = this.enemies.enemies.get(
+                    this.enemies.colliders.get(collider.handle)!,
+                );
+                if (enemy)
+                    this.damageEnemy(
+                        enemy,
+                        HARPOON_ARMS.shipDamage *
+                            arms.damageMultiplier *
+                            (this.installed.includes('guns') ? 1.35 : 1),
+                        point,
+                    );
             }
         }
     }
