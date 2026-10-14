@@ -143,7 +143,7 @@ test('all weapon profiles drive actual damage, flight speed, muzzle and firing c
             const bullet = [...sim.bullets.values()][0];
             assert.ok(bullet);
             assert.equal(bullet.damage, WEAPONS[id].damage);
-            assert.equal(bullet.vx, WEAPONS[id].speed);
+            assert.ok(Math.abs(Math.hypot(bullet.vx, bullet.vy) - WEAPONS[id].speed) < 1e-6);
             assert.ok(Math.abs(bullet.life - (WEAPONS[id].life - GAME.step)) < 0.001);
             assert.equal(Boolean(bullet.heavy), id === 'rail');
             for (let i = 1; i < 60; i++) sim.step({ ...idle, fire: true });

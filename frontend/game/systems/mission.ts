@@ -4,7 +4,7 @@ import { AegisSupport } from './aegisSupport';
 import { ResearchEscort, ESCORT } from './escort';
 import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
 import type { SoundCue } from './audioPolicy';
-import { AEGIS, ATLAS_WEAPONS, WEAPONS, type WeaponId } from '../config';
+import { AEGIS, ATLAS_WEAPONS, JOBS, WIDMO, WEAPONS, type WeaponId } from '../config';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
 import { Campaign, Cargo, capacity, shipHealth, deliverSalvage } from '../state/campaign';
@@ -86,7 +86,7 @@ export class MissionSimulation {
         locked: null as number | null,
     };
     readonly escort: ResearchEscort | null;
-    readonly salvage = new SalvageFleet(this.world);
+    readonly salvage: SalvageFleet;
     salvageProgress = 0;
     salvageTarget: number | null = null;
     recoveryDestroyed = false;
@@ -130,6 +130,9 @@ export class MissionSimulation {
     laserBeam: { from: Point; to: Point } | null = null;
     readonly laserBeams: { from: Point; to: Point }[] = [];
     cloakEnabled = false;
+    opticalCloakTime = 0;
+    opticalCloakCooldown = 0;
+    private opticalCloakPressed = false;
     revealTime = 0;
     tow: TowBody | null = null;
     dockProgress = 0;
@@ -196,6 +199,7 @@ export class MissionSimulation {
         this.rng = random(seed ^ 0xa12d9b);
         this.modules = { ...campaign.ship! };
         this.hullConfig = HULLS[this.modules.hull];
+        this.salvage = new SalvageFleet(this.world, this.modules.hull === 'tug' ? 2 : 1);
         this.harpoonArms =
             this.modules.hull === 'harpoon'
                 ? new HarpoonArms(this.modules.handling, this.modules.drill)
@@ -321,12 +325,16 @@ export class MissionSimulation {
     get recoverySeconds() {
         return RECOVERY.seconds / this.hullConfig.towPickupSpeed;
     }
+    get repairKitCost() {
+        return { ore: JOBS.kit.ore * 2, parts: JOBS.kit.parts * 2 };
+    }
     get nearbyWreck() {
-        if (this.salvage.towed) return undefined;
+        if (this.salvage.full) return undefined;
         return [...this.salvage.items.values()]
             .filter(
                 (w) =>
                     w.source !== 'recovery' &&
+                    !this.salvage.towing.has(w.id) &&
                     Math.hypot(
                         salvagePosition(w).x - this.position.x,
                         salvagePosition(w).y - this.position.y,
@@ -349,9 +357,12 @@ export class MissionSimulation {
         return item && item.source !== 'recovery' && item.health > 0 ? item.source : undefined;
     }
     releaseWreck() {
-        if (this.salvage.towed?.source === 'recovery' || !this.salvage.towed) return;
-        this.salvage.detach();
-        this.tow = null;
+        const wrecks = [...this.salvage.towing.values()].filter(
+            (item) => item.source !== 'recovery',
+        );
+        if (!wrecks.length) return;
+        for (const item of wrecks) this.salvage.detach(item);
+        this.syncTow();
         this.salvageProgress = 0;
         this.setNotice('Hol zwolniony · wrak pozostaje w kosmosie.');
     }
@@ -406,10 +417,29 @@ export class MissionSimulation {
         );
     }
     get cloaked() {
-        return this.cloakEnabled && this.revealTime <= 0 && this.hullConfig.cloak > 0;
+        return (
+            this.opticalCloak ||
+            (this.modules.hull !== 'swift' &&
+                this.cloakEnabled &&
+                this.revealTime <= 0 &&
+                this.hullConfig.cloak > 0)
+        );
+    }
+    get opticalCloak() {
+        return this.opticalCloakTime > 1e-8;
+    }
+    get opticalCloakInterval() {
+        return WIDMO.cooldown / (1 + this.modules.drill * 0.2);
+    }
+    get enemySignature() {
+        return this.opticalCloak ? 0 : this.cloaked ? 1 - this.hullConfig.cloak : 1;
     }
     toggleCloak() {
         if (this.ended || this.disposed || this.choice) return;
+        if (this.modules.hull === 'swift') {
+            this.setNotice('Kamuflaż optyczny · PPM: 3 s / odnowienie 12 s.');
+            return;
+        }
         if (!this.hullConfig.cloak) {
             this.setNotice('Ten kadłub nie posiada kamuflażu.');
             return;
@@ -429,11 +459,9 @@ export class MissionSimulation {
         return (
             this.distanceHome < GAME.dockRadius &&
             this.speed < GAME.dockSpeed &&
-            (!this.salvage.towed ||
-                Math.hypot(
-                    salvagePosition(this.salvage.towed).x,
-                    salvagePosition(this.salvage.towed).y,
-                ) < 350) &&
+            [...this.salvage.towing.values()].every(
+                (item) => Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < 350,
+            ) &&
             !this.grippers.arms.some((arm) => arm.held)
         );
     }
@@ -528,7 +556,15 @@ export class MissionSimulation {
                       : 'LPM · rakieta    /    PPM · granaty'
                 : this.aegis
                   ? `LPM · energia    /    PPM · impuls ${this.aegis.cooldown > 0 ? `${Math.ceil(this.aegis.cooldown)} s` : 'gotowy'}`
-                  : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
+                  : this.hullId === 'swift'
+                    ? this.opticalCloak
+                        ? `Kamuflaż optyczny · ${this.opticalCloakTime.toFixed(1)} s`
+                        : `PPM · kamuflaż ${this.opticalCloakCooldown > 1e-8 ? `${Math.ceil(this.opticalCloakCooldown)} s` : 'gotowy'}`
+                    : this.hullId === 'mule'
+                      ? `LPM · lasery    /    PPM · zestaw ${this.repairKits ? 'zapas musi wynosić 0' : `${this.repairKitCost.ore} rudy / ${this.repairKitCost.parts} komponenty`}`
+                      : this.hullId === 'fighter'
+                        ? 'LPM · działka    /    PPM · granaty'
+                        : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
     }
     private addRock(spec: RockSpec) {
         if (this.rocks.size >= 600) return;
@@ -579,7 +615,35 @@ export class MissionSimulation {
         this.laserBeam = null;
         this.laserBeams.length = 0;
         this.revealTime = Math.max(0, this.revealTime - dt);
-        if (input.fire || input.mine || (input.boost && input.thrust)) this.revealTime = 3;
+        if (this.modules.hull === 'swift') {
+            this.opticalCloakTime = Math.max(0, this.opticalCloakTime - dt);
+            this.opticalCloakCooldown = Math.max(0, this.opticalCloakCooldown - dt);
+            if (input.mine && !this.opticalCloakPressed && this.opticalCloakCooldown <= 1e-8) {
+                this.opticalCloakTime = WIDMO.duration;
+                this.opticalCloakCooldown = this.opticalCloakInterval;
+                this.setNotice('Kamuflaż optyczny aktywny · 3 s.');
+            }
+            this.opticalCloakPressed = !!input.mine;
+        }
+        if (
+            input.fire ||
+            (input.mine && !this.opticalCloak && this.modules.hull !== 'mule') ||
+            (input.boost && input.thrust)
+        )
+            this.revealTime = 3;
+        if (
+            this.modules.hull === 'mule' &&
+            input.mine &&
+            this.repairKits === 0 &&
+            this.cargo.ore >= this.repairKitCost.ore &&
+            this.cargo.parts >= this.repairKitCost.parts
+        ) {
+            this.cargo.ore -= this.repairKitCost.ore;
+            this.cargo.parts -= this.repairKitCost.parts;
+            this.repairKits = 1;
+            this.setNotice('Utworzono zestaw naprawczy · przytrzymaj R, aby użyć.');
+            this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
+        }
         this.aimTarget = { ...input.target };
         if (this.aegis) {
             this.aegis.update(dt, this.position);
@@ -678,10 +742,14 @@ export class MissionSimulation {
         }
         const anchor = this.position,
             shipAngle = this.ship.rotation();
-        this.salvage.beforeStep(dt, {
-            x: anchor.x - Math.cos(shipAngle) * 28,
-            y: anchor.y - Math.sin(shipAngle) * 28,
-        });
+        this.salvage.beforeStep(
+            dt,
+            {
+                x: anchor.x - Math.cos(shipAngle) * 28,
+                y: anchor.y - Math.sin(shipAngle) * 28,
+            },
+            shipAngle,
+        );
         if (this.escort) {
             const obstacles = [...this.rocks.values()]
                 .map((r) => ({ ...r.body.translation(), radius: r.radius }))
@@ -715,7 +783,7 @@ export class MissionSimulation {
             beforeImpact,
             (collider) => this.isObstacle(collider),
             (enemy) => this.fireEnemy(enemy),
-            this.cloaked ? 1 - this.hullConfig.cloak : 1,
+            this.enemySignature,
             this.escort?.vulnerable
                 ? { position: this.escort.position, velocity: this.escort.velocity }
                 : undefined,
@@ -806,28 +874,22 @@ export class MissionSimulation {
         this.enforceShield();
         if (this.harpoonArms) this.updateHarpoon(input, dt);
         else if (this.modules.hull === 'atlas') this.updateAtlas(input, dt);
-        else if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) this.fire();
-        this.updateBullets(dt);
-        if (input.mine && !this.harpoonArms && !this.aegis && this.modules.hull !== 'atlas')
-            this.mine(dt);
-        if (this.salvage.towed) {
-            const item = this.salvage.towed;
-            this.tow ??= new TowBody(salvagePosition(item), { x: 0, y: 0 });
-            this.tow.previous = { ...item.previous };
-            this.tow.previousAngle = item.previousAngle;
-            this.tow.position = salvagePosition(item);
-            this.tow.angle = item.body.rotation();
-            const v = item.body.linvel();
-            this.tow.velocity = { x: v.x * P, y: v.y * P };
+        else {
+            if (this.modules.hull === 'fighter') this.updateGrenades(input, dt);
+            if (
+                input.fire &&
+                this.hullConfig.guns.length &&
+                this.shotCooldown <= 0 &&
+                this.bullets.size < 80
+            )
+                this.fire();
         }
-        if (
-            this.salvage.towed &&
-            Math.hypot(
-                salvagePosition(this.salvage.towed).x,
-                salvagePosition(this.salvage.towed).y,
-            ) < GAME.dockRadius
-        )
-            this.deliverTow();
+        this.updateBullets(dt);
+        if (this.modules.hull === 'mule' ? input.fire : input.mine) this.mine(dt);
+        this.syncTow();
+        for (const item of [...this.salvage.towing.values()])
+            if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < GAME.dockRadius)
+                this.deliverTow(item);
         this.collectLoot(dt);
         this.updateRepair(input, dt);
         this.updateEscort(input, dt);
@@ -995,7 +1057,7 @@ export class MissionSimulation {
         const exposed = this.outpost.sees(
             this.position,
             this.elapsed,
-            this.cloaked ? 1 - this.hullConfig.cloak : 1,
+            this.enemySignature,
             this.enemies.lineClear(spec, this.position, (collider) =>
                 this.asteroidColliders.has(collider.handle),
             ),
@@ -1102,11 +1164,11 @@ export class MissionSimulation {
         if (hit.hull) this.events.push({ ...point, kind: 'hit', strength: hit.hull });
         return hit.hull;
     }
-    private damageEnemy(enemy: Enemy, damage: number, point: Point) {
+    private damageEnemy(enemy: Enemy, damage: number, point: Point, interrupt = true) {
         this.events.push({ ...point, kind: 'hit', strength: damage });
         const velocity = enemy.body.linvel(),
             wreckAngle = enemy.body.rotation();
-        const wreck = this.enemies.damage(enemy.id, damage);
+        const wreck = this.enemies.damage(enemy.id, damage, interrupt);
         if (!wreck) return;
         this.aegis?.hostiles.delete(enemy.id);
         this.clearAtlasTarget(enemy.id);
@@ -1149,21 +1211,37 @@ export class MissionSimulation {
             this.recoverySecured = false;
             this.setNotice('Cel ratunkowy zniszczony · wrak i kapsuła zostały utracone.');
         } else this.setNotice('Wrak zniszczony · recykling niemożliwy.');
-        if (!this.salvage.towed) this.tow = null;
+        this.syncTow();
         this.events.push({ ...point, kind: 'break', sound: 'destroy', strength: item.radius });
     }
-    private deliverTow() {
-        const item = this.salvage.towed;
-        if (!item) return;
-        const record = deliverSalvage(this.campaign, item.id, item.source);
-        if (!record) return;
-        const p = salvagePosition(item);
-        if (item.source === 'recovery') this.recoveryDelivered = true;
-        this.salvage.remove(item);
-        this.tow = null;
-        this.deliveryRevision++;
-        this.setNotice('Hol przekazany Aurorze · możesz kontynuować wyprawę.');
-        this.events.push({ ...p, kind: 'collect', sound: 'complete', rich: true });
+    private syncTow() {
+        const item =
+            [...this.salvage.towing.values()].find((held) => held.source === 'recovery') ??
+            this.salvage.towed;
+        if (!item) {
+            this.tow = null;
+            return;
+        }
+        this.tow ??= new TowBody(salvagePosition(item), { x: 0, y: 0 });
+        this.tow.previous = { ...item.previous };
+        this.tow.previousAngle = item.previousAngle;
+        this.tow.position = salvagePosition(item);
+        this.tow.angle = item.body.rotation();
+        const velocity = item.body.linvel();
+        this.tow.velocity = { x: velocity.x * P, y: velocity.y * P };
+    }
+    private deliverTow(selected?: SalvageBody) {
+        for (const item of selected ? [selected] : [...this.salvage.towing.values()]) {
+            const record = deliverSalvage(this.campaign, item.id, item.source);
+            if (!record) continue;
+            const p = salvagePosition(item);
+            if (item.source === 'recovery') this.recoveryDelivered = true;
+            this.salvage.remove(item);
+            this.deliveryRevision++;
+            this.setNotice('Hol przekazany Aurorze · możesz kontynuować wyprawę.');
+            this.events.push({ ...p, kind: 'collect', sound: 'complete', rich: true });
+        }
+        this.syncTow();
     }
     private updateSalvage(input: FlightInput, dt: number) {
         const item = this.nearbyWreck;
@@ -1197,7 +1275,7 @@ export class MissionSimulation {
         this.salvageProgress += dt;
         if (this.salvageProgress + 1e-8 < this.salvageSeconds) return;
         if (this.salvage.attach(item, this.ship)) {
-            this.tow = new TowBody(salvagePosition(item), { x: 0, y: 0 });
+            this.syncTow();
             this.setNotice('Wrak na holu · wróć do Aurory · J zwolnij hol.');
             this.events.push({ ...salvagePosition(item), kind: 'collect', sound: 'complete' });
         }
@@ -1277,7 +1355,8 @@ export class MissionSimulation {
             (enemy.target === 'escort'
                 ? !this.escort?.vulnerable ||
                   Math.hypot(this.escort.position.x, this.escort.position.y) < DRONES.safeRadius
-                : Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius)
+                : this.opticalCloak ||
+                  Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius)
         )
             return false;
         if (enemy.target === 'player') this.aegis?.hostiles.add(enemy.id);
@@ -1355,7 +1434,7 @@ export class MissionSimulation {
             !signal ||
             this.recoverySecured ||
             this.recoveryDestroyed ||
-            !!this.salvage.towed ||
+            this.salvage.full ||
             !input.interact ||
             this.thrusting ||
             input.fire ||
@@ -1460,6 +1539,9 @@ export class MissionSimulation {
     get isAtlas() {
         return this.modules.hull === 'atlas';
     }
+    get hullId() {
+        return this.modules.hull;
+    }
     get grenadeCount() {
         return 1 + this.modules.drill;
     }
@@ -1496,11 +1578,14 @@ export class MissionSimulation {
             target === null ? 0 : Math.min(ATLAS_WEAPONS.lockTime, this.atlasLock.progress + dt);
         if (target !== null && this.atlasLock.progress >= ATLAS_WEAPONS.lockTime - 1e-8)
             this.atlasLock.locked = target;
-        this.grenadeCooldown -= dt;
         if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) {
             this.launchAtlas('rocket');
             this.shotCooldown = ATLAS_WEAPONS.rocket.interval;
         }
+        this.updateGrenades(input, dt);
+    }
+    private updateGrenades(input: FlightInput, dt: number) {
+        this.grenadeCooldown -= dt;
         const count = this.grenadeCount;
         if (input.mine && this.grenadeCooldown <= 0 && this.bullets.size + count <= 80) {
             for (let index = 0; index < count; index++)
@@ -2007,6 +2092,21 @@ export class MissionSimulation {
         this.laserBeam = { from, to };
         this.laserBeams.push({ from, to });
         if (!hit) return;
+        const enemy = this.enemies.enemies.get(this.enemies.colliders.get(hit.collider.handle)!);
+        if (enemy) {
+            this.damageEnemy(
+                enemy,
+                GAME.laserShipDamage *
+                    this.laserPowerMultiplier *
+                    dt *
+                    this.hullConfig.miningPower *
+                    this.pilot.mining *
+                    (1 + 0.25 * this.modules.drill),
+                to,
+                false,
+            );
+            return;
+        }
         const rock = this.rocks.get(this.asteroidColliders.get(hit.collider.handle)!);
         if (!rock) return;
         rock.health -=

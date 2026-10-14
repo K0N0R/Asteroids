@@ -63,15 +63,17 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                 `Tarcza ${Math.ceil(s.kineticShield.charge)}/${s.kineticShield.profile.capacity} · ${s.kineticShield.profile.regen.toFixed(1)}/s · przerwa ${Math.ceil(s.kineticShield.cooldown)} s`,
                 `Ruda ${s.cargo.ore} · komponenty ${s.cargo.parts} · kryształy ${s.cargo.crystals ?? 0}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
                 `Prędkość ${Math.round(s.speed)} / ${Math.round(s.hullConfig.maxSpeed * s.driveMultiplier * (s.engineFault ? GAME.damagedThrust : 1))} m/s`,
-                `Skręt ${s.turnSpeed.toFixed(2)} rad/s · ${s.harpoonArms ? `ramiona ${Math.round(s.harpoonArms.reach * s.hullConfig.size)} m` : s.isAtlas ? `rakieta ${ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life} m` : s.aegis ? `energia ${AEGIS.speed * AEGIS.life} m` : `laser ${Math.round(s.laserRange)} m`}`,
+                `Skręt ${s.turnSpeed.toFixed(2)} rad/s · ${s.harpoonArms ? `ramiona ${Math.round(s.harpoonArms.reach * s.hullConfig.size)} m` : s.isAtlas ? `rakieta ${ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life} m` : s.aegis ? `energia ${AEGIS.speed * AEGIS.life} m` : s.hullConfig.lasers.length ? `laser ${Math.round(s.laserRange)} m` : `broń ${Math.round(s.weaponConfig.speed * s.weaponConfig.life)} m`}`,
                 s.harpoonArms
                     ? `Szczęki · mnożnik siły ${s.harpoonArms.damageMultiplier.toFixed(2)} · zestawy ${s.repairKits}`
                     : s.isAtlas
                       ? `Rakieta ${s.rocketDamage} · granaty ${s.grenadeCount} × ${ATLAS_WEAPONS.grenade.damage} · zestawy ${s.repairKits}`
                       : s.aegis
                         ? `Energia ${s.energyDamage} · dron ${s.aegis.drone ? Math.ceil(s.aegis.drone.hull) : 0} HP · impuls ${Math.ceil(s.aegis.cooldown)} s`
-                        : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń · zestawy ${s.repairKits}`,
-                `Kamuflaż: ${!s.hullConfig.cloak ? 'brak' : s.cloaked ? 'aktywny' : s.cloakEnabled ? `ujawniony (${Math.ceil(s.revealTime)} s)` : 'wyłączony'}`,
+                        : s.hullId === 'mule'
+                          ? `Lasery ×2 · zestawy ${s.repairKits} · produkcja ${s.repairKitCost.ore}/${s.repairKitCost.parts}`
+                          : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń${s.hullId === 'fighter' ? ` · granaty ×${s.grenadeCount}` : ''} · zestawy ${s.repairKits}`,
+                `Kamuflaż: ${s.hullId === 'swift' ? (s.opticalCloak ? `${s.opticalCloakTime.toFixed(1)} s` : s.opticalCloakCooldown > 1e-8 ? `odnowienie ${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy / PPM') : !s.hullConfig.cloak ? 'brak' : s.cloaked ? 'aktywny' : s.cloakEnabled ? `ujawniony (${Math.ceil(s.revealTime)} s)` : 'wyłączony'}`,
             ].join('\n'),
             280,
             282,
@@ -188,7 +190,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             root,
             !s.recoverySignal
                 ? s.salvage.towed
-                    ? `Wrak na holu · ${Math.ceil(s.salvage.towed.health)}/${s.salvage.towed.maxHealth} HP · recykling po powrocie`
+                    ? `Hol ${s.salvage.towing.size}/${s.salvage.capacity} · ${[...s.salvage.towing.values()].map((item) => `${Math.ceil(item.health)}/${item.maxHealth} HP`).join(' · ')}`
                     : 'Brak akcji ratunkowej'
                 : s.recoveryDelivered
                   ? 'Cel ratunkowy przekazany Aurorze'

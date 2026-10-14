@@ -15,7 +15,7 @@ export const SHIP_COLORS = {
 } as const;
 export const HULL_PALETTES = {
     prospector: { hull: 0x727d83, panel: 0x89959a, edge: 0xa2afb3, cargo: 0xa08e73 },
-    swift: { hull: 0x536b7d, panel: 0x70889a, edge: 0x93a9b8, cargo: 0x788998 },
+    swift: { hull: 0x354a55, panel: 0x596b76, edge: 0x9bb5bd, cargo: 0x657b83 },
     mule: { hull: 0x6d7568, panel: 0x8d9585, edge: 0xaab09e, cargo: 0xa28f67 },
     fighter: { hull: 0x4e5d70, panel: 0x6c7c8e, edge: 0x91a0ad, cargo: 0x887c6b },
     tug: { hull: 0x526f70, panel: 0x72918d, edge: 0x9ab2ac, cargo: 0x9e8970 },
@@ -154,12 +154,53 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         g.roundRect(-7, -8, 8, 16, 3).fill(S.engine);
         visor(g, 17, 0, 12, 14);
     } else if (hull === 'swift') {
-        roundedHull(g, [-24, -12, -32, -35, 15, -17, 43, 0, 15, 17, -32, 35, -24, 12], 2.4);
-        roundedHull(g, [-29, -14, -9, -17, 45, 0, -9, 17, -29, 14, -23, 0], 4, palette.panel);
-        seam(g, [-24, -25, 15, -12, 34, 0, 15, 12, -24, 25], 2);
-        tank(g, -27, -9, 9, 18);
-        g.roundRect(-16, -6, 9, 12, 3).fill(S.engine);
-        visor(g, 8, 0, 16, 10);
+        for (const side of [-1, 1]) {
+            g.moveTo(36, side * 24)
+                .bezierCurveTo(19, side * 38, -5, side * 42, -25, side * 35)
+                .lineTo(-34, side * 28)
+                .quadraticCurveTo(-12, side * 34, -8, side * 24)
+                .lineTo(-3, side * 15)
+                .quadraticCurveTo(19, side * 16, 36, side * 24)
+                .closePath()
+                .fill(palette.hull)
+                .stroke({ color: palette.edge, width: 1.3 });
+            roundedHull(
+                g,
+                [25, side * 27, 8, side * 35, -13, side * 35, -8, side * 27, 4, side * 22],
+                2,
+                palette.panel,
+            );
+            seam(g, [19, side * 27, 7, side * 30, -3, side * 22], 1.5);
+            g.moveTo(33, side * 25)
+                .lineTo(27, side * 28)
+                .moveTo(9, side * 20)
+                .lineTo(-2, side * 20)
+                .moveTo(-25, side * 34)
+                .lineTo(-32, side * 29)
+                .stroke({ color: 0x76e3d4, width: 2 });
+            g.roundRect(-13, side * 27 - 1, 14, 2, 1).fill(0x76e3d4);
+            g.circle(-9, side * 37, 2).fill(S.engine);
+            g.circle(-9, side * 37, 0.9).fill(0x76e3d4);
+        }
+        roundedHull(
+            g,
+            [
+                -47, 0, -29, -5, -16, -12, 4, -10, 26, -6, 44, -3, 44, 3, 26, 6, 4, 10, -16, 12,
+                -29, 5,
+            ],
+            1.6,
+        );
+        roundedHull(g, [-33, 0, -19, -8, 3, -7, 30, 0, 3, 7, -19, 8], 2, palette.panel);
+        roundedHull(g, [0, -5, 14, -4, 33, 0, 14, 4, 0, 5], 1, S.engine);
+        g.moveTo(18, 0).lineTo(33, 0).stroke({ color: 0x76e3d4, width: 1.8 });
+        g.poly([4, -2.5, 9, 0, 4, 2.5]).fill(0x8ae6e0);
+        visor(g, -13, 0, 11, 7);
+        g.moveTo(40, -2)
+            .lineTo(46, -2)
+            .moveTo(40, 2)
+            .lineTo(46, 2)
+            .stroke({ color: 0x98eae3, width: 1.5 });
+        g.moveTo(-39, 0).lineTo(-46, 0).stroke({ color: palette.edge, width: 1.5 });
     } else if (hull === 'mule') {
         // Broad forward crossbar and a narrower rear spine read as a T from above.
         roundedHull(g, [-36, -12, 15, -12, 22, -32, 39, -32, 39, 32, 22, 32, 15, 12, -36, 12], 4);

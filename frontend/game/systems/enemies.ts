@@ -344,15 +344,15 @@ export class EnemyFleet {
             } else enemy.charge = 0;
         }
     }
-    damage(id: number, amount: number) {
+    damage(id: number, amount: number, interrupt = true) {
         const enemy = this.enemies.get(id);
         if (!enemy) return null;
         enemy.health = Math.max(0, enemy.health - amount);
         enemy.hitFlash = 0.15;
         if (enemy.route && enemy.state !== 'chase') enemy.home = enemyPosition(enemy);
+        if (interrupt || enemy.state !== 'chase') enemy.charge = 0;
         enemy.state = 'chase';
         enemy.lostSight = 0;
-        enemy.charge = 0;
         if (enemy.health > 0) return null;
         const p = enemyPosition(enemy);
         this.colliders.delete(enemy.collider.handle);

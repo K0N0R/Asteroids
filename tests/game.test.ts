@@ -619,7 +619,12 @@ test('the mining hull applies its laser bonus to actual asteroid hits', () => {
             // Keep every hull's emitters within range when comparing damage, not reach.
             sim.ship.setTranslation({ x: 8.5, y: 0 }, true);
             sim.ship.setRotation(0, true);
-            for (let i = 0; i < 20; i++) sim.step({ ...idle, mine: i === 0 });
+            for (let i = 0; i < 20; i++)
+                sim.step({
+                    ...idle,
+                    mine: hull !== 'mule' && i === 0,
+                    fire: hull === 'mule' && i === 0,
+                });
             return 1000 - rock.health;
         } finally {
             sim.dispose();

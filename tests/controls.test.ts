@@ -98,7 +98,6 @@ test('guns barely damage rocks while the laser is powerful, range-limited and st
         sim.ship.setTranslation({ x: 12, y: 0 }, true);
         for (let i = 0; i < 30; i++) sim.step({ ...idle, mine: true });
         assert.equal(rocks[0].health, before);
-        // Rear-mounted laser needs a closer approach than the old nose-mounted one.
         sim.ship.setTranslation({ x: 18.5, y: 0 }, true);
         for (let i = 0; i < 30; i++) sim.step({ ...idle, mine: true });
         assert.ok(before - rocks[0].health > 70);
@@ -136,7 +135,7 @@ test('mining laser cannot bypass an enemy hull to mine an asteroid behind it', (
         rock.body.setLinvel({ x: 20, y: 0 }, true);
         rock.health = 1000;
         sim.step({ ...idle, mine: true });
-        assert.equal(enemy.health, 54);
+        assert.ok(Math.abs(enemy.health - (54 - GAME.laserShipDamage * GAME.step)) < 1e-6);
         assert.equal(rock.health, 1000);
         assert.ok(sim.laserBeam!.to.x < 2130);
     } finally {

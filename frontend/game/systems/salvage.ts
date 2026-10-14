@@ -34,9 +34,21 @@ export function salvagePosition(item: SalvageBody): Point {
 export class SalvageFleet {
     readonly items = new Map<number, SalvageBody>();
     readonly colliders = new Map<number, number>();
-    towed: SalvageBody | null = null;
-    private rope: RAPIER.ImpulseJoint | null = null;
-    constructor(private world: RAPIER.World) {}
+    readonly towing = new Map<number, SalvageBody>();
+    private ropes = new Map<number, { joint: RAPIER.ImpulseJoint; anchor: Point }>();
+    constructor(
+        private world: RAPIER.World,
+        readonly capacity = 1,
+    ) {}
+    get towed() {
+        return this.towing.values().next().value ?? null;
+    }
+    get full() {
+        return this.towing.size >= this.capacity;
+    }
+    towAnchor(item: SalvageBody): Point {
+        return this.ropes.get(item.id)?.anchor ?? { x: -28, y: 0 };
+    }
     add(
         id: number,
         source: SalvageBody['source'],
@@ -91,43 +103,57 @@ export class SalvageFleet {
         return item;
     }
     attach(item: SalvageBody, ship: RAPIER.RigidBody) {
-        if (this.towed || !this.items.has(item.id)) return false;
-        this.rope = this.world.createImpulseJoint(
-            RAPIER.JointData.rope(2.3, { x: -0.28, y: 0 }, { x: 0, y: 0 }),
+        if (this.full || this.towing.has(item.id) || !this.items.has(item.id)) return false;
+        const anchor = {
+            x: -28,
+            y:
+                this.capacity === 1
+                    ? 0
+                    : [...this.ropes.values()].some((rope) => rope.anchor.y === -26)
+                      ? 26
+                      : -26,
+        };
+        const joint = this.world.createImpulseJoint(
+            RAPIER.JointData.rope(2.3, { x: anchor.x / P, y: anchor.y / P }, { x: 0, y: 0 }),
             ship,
             item.body,
             true,
         );
-        this.rope.setContactsEnabled(false);
-        this.towed = item;
+        joint.setContactsEnabled(false);
+        this.ropes.set(item.id, { joint, anchor });
+        this.towing.set(item.id, item);
         return true;
     }
-    detach() {
-        if (this.rope) this.world.removeImpulseJoint(this.rope, true);
-        this.rope = null;
-        this.towed = null;
+    detach(item?: SalvageBody) {
+        for (const [id, rope] of this.ropes) {
+            if (item && id !== item.id) continue;
+            this.world.removeImpulseJoint(rope.joint, true);
+            this.ropes.delete(id);
+            this.towing.delete(id);
+        }
     }
-    beforeStep(dt: number, anchor: Point) {
+    beforeStep(dt: number, anchor: Point, angle = 0) {
         for (const item of this.items.values()) {
             item.previous = salvagePosition(item);
             item.previousAngle = item.body.rotation();
             item.cooldown = Math.max(0, item.cooldown - dt);
         }
-        if (!this.towed) return;
-        const item = this.towed,
-            p = salvagePosition(item),
-            dx = anchor.x - p.x,
-            dy = anchor.y - p.y,
-            d = Math.hypot(dx, dy);
-        // Gentle tension leaves slack and swing; Rapier's rope sets the maximum length.
-        const pull = (Math.max(0, d - 110) * 12 * dt) / P;
-        item.body.applyImpulse(
-            {
-                x: (dx / Math.max(1, d)) * pull * item.body.mass(),
-                y: (dy / Math.max(1, d)) * pull * item.body.mass(),
-            },
-            true,
-        );
+        for (const item of this.towing.values()) {
+            const offset = this.towAnchor(item).y,
+                p = salvagePosition(item),
+                dx = anchor.x - Math.sin(angle) * offset - p.x,
+                dy = anchor.y + Math.cos(angle) * offset - p.y,
+                d = Math.hypot(dx, dy);
+            // Gentle tension leaves slack and swing; Rapier's rope sets the maximum length.
+            const pull = (Math.max(0, d - 110) * 12 * dt) / P;
+            item.body.applyImpulse(
+                {
+                    x: (dx / Math.max(1, d)) * pull * item.body.mass(),
+                    y: (dy / Math.max(1, d)) * pull * item.body.mass(),
+                },
+                true,
+            );
+        }
     }
     damage(item: SalvageBody, amount: number) {
         if (!this.items.has(item.id)) return false;
@@ -138,7 +164,7 @@ export class SalvageFleet {
     }
     remove(item: SalvageBody) {
         if (!this.items.has(item.id)) return;
-        if (this.towed === item) this.detach();
+        if (this.towing.has(item.id)) this.detach(item);
         this.colliders.delete(item.collider.handle);
         this.items.delete(item.id);
         this.world.removeRigidBody(item.body);

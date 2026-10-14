@@ -378,7 +378,6 @@ test('mining bonuses affect asteroids but do not amplify the weapon against enem
     const measure = (miningBuild: boolean) => {
         const c = newCampaign();
         if (miningBuild) {
-            c.ship!.hull = 'mule';
             c.ship!.drill = 3;
             c.pilots[0].xp = 50;
             trainPilot(c, 1, 'mining');

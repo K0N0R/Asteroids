@@ -778,7 +778,9 @@ export class MissionWorld extends Container {
                 this.recoveryView.position.set(x, y);
                 this.recoveryView.rotation =
                     s.tow.previousAngle + angleDifference(s.tow.angle, s.tow.previousAngle) * alpha;
-                const held = s.salvage.towed;
+                const held = [...s.salvage.towing.values()].find(
+                    (item) => item.source === 'recovery',
+                );
                 if (held)
                     this.holHealthBar(
                         this.recoveryRing,
@@ -788,9 +790,10 @@ export class MissionWorld extends Container {
                         C.mint,
                     );
                 const a = this.shipView.rotation;
+                const offset = rotateVector(held ? s.salvage.towAnchor(held) : { x: -28, y: 0 }, a);
                 const anchor = {
-                    x: this.shipView.x - Math.cos(a) * 28,
-                    y: this.shipView.y - Math.sin(a) * 28,
+                    x: this.shipView.x + offset.x,
+                    y: this.shipView.y + offset.y,
                 };
                 const dx = x - anchor.x,
                     dy = y - anchor.y,
@@ -886,11 +889,12 @@ export class MissionWorld extends Container {
                 item.previousAngle +
                 angleDifference(item.body.rotation(), item.previousAngle) * alpha;
             this.holHealthBar(this.salvageStatus, p, item.health, item.maxHealth, C.gold);
-            if (s.salvage.towed === item) {
+            if (s.salvage.towing.has(item.id)) {
                 const anchor = this.shipView.position,
                     a = this.shipView.rotation;
-                const x = anchor.x - Math.cos(a) * 28,
-                    y = anchor.y - Math.sin(a) * 28;
+                const offset = rotateVector(s.salvage.towAnchor(item), a);
+                const x = anchor.x + offset.x,
+                    y = anchor.y + offset.y;
                 const dx = p.x - x,
                     dy = p.y - y,
                     d = Math.max(1, Math.hypot(dx, dy)),

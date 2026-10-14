@@ -107,7 +107,7 @@ export function flightHint(s: MissionSimulation) {
         !s.recoveryDestroyed &&
         Math.hypot(p.x - signal.x, p.y - signal.y) < RECOVERY.radius
     )
-        return s.salvage.towed
+        return s.salvage.full
             ? 'J Zwolnij wrak, aby podjąć cel ratunkowy'
             : s.speed > RECOVERY.speed
               ? 'S  Wyhamuj do odzysku · <80 m/s'
@@ -119,7 +119,9 @@ export function flightHint(s: MissionSimulation) {
     if (s.salvage.towed) {
         const item = s.salvage.towed;
         if (s.distanceHome > 350)
-            return `Hol ${Math.ceil(item.health)}/${item.maxHealth} · 1 Aurora${item.source !== 'recovery' ? ' · J zwolnij' : ''}`;
+            return s.salvage.towing.size > 1
+                ? `Hol ${s.salvage.towing.size}/${s.salvage.capacity} · 1 Aurora · J zwolnij wraki`
+                : `Hol ${Math.ceil(item.health)}/${item.maxHealth} · 1 Aurora${item.source !== 'recovery' ? ' · J zwolnij' : ''}`;
     }
     if (s.nearbyCache)
         return s.speed > CACHE.speed

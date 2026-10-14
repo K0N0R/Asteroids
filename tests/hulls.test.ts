@@ -6,6 +6,8 @@ import {
     AEGIS,
     HULLS,
     GAME,
+    JOBS,
+    WIDMO,
     HullId,
     FLEET_LIMIT,
     shipUpgradeDefinition,
@@ -771,16 +773,21 @@ test('nine distinct hulls have the requested gun, laser and gripper layouts and 
         Object.values(HULLS).map((h) => [h.guns.length, h.lasers.length, h.grabbers.length]),
         [
             [1, 1, 1],
-            [1, 1, 1],
-            [1, 2, 3],
-            [2, 1, 1],
+            [1, 0, 1],
+            [0, 2, 3],
+            [2, 0, 1],
             [1, 1, 2],
             [2, 1, 2],
             [0, 0, 4],
             [0, 0, 4],
-            [1, 0, 2],
+            [1, 0, 1],
         ],
     );
+    assert.equal(HULLS.swift.name, 'Widmo');
+    for (const hull of [HULLS.prospector, HULLS.tug]) {
+        assert.ok(hull.guns[0].x > 0 && hull.guns[0].y < 0);
+        assert.ok(hull.lasers[0].x > 0 && hull.lasers[0].y > 0);
+    }
     assert.ok(
         HULLS.swift.turnSpeed > HULLS.fighter.turnSpeed &&
             HULLS.fighter.turnSpeed > HULLS.mule.turnSpeed,
@@ -1047,9 +1054,9 @@ test('loss or disposal cannot credit a resource still carried by a gripper', () 
         sim.dispose();
     }
 });
-test('cloak reduces actual AI detection, shooting reveals the ship and starter has no cloak', () => {
+test('passive cloak reduces actual AI detection, shooting reveals the ship and starter has no cloak', () => {
     const c = newCampaign();
-    c.ship!.hull = 'swift';
+    c.ship!.hull = 'falcon';
     const sim = new MissionSimulation(c, 7);
     try {
         for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
@@ -1058,8 +1065,8 @@ test('cloak reduces actual AI detection, shooting reveals the ship and starter h
         for (const other of sim.enemies.enemies.values())
             if (other !== enemy) sim.enemies.damage(other.id, 1000);
         sim.ship.setTranslation({ x: 20, y: 0 }, true);
-        enemy.body.setTranslation({ x: 26, y: 0 }, true);
-        enemy.home = { x: 2600, y: 0 };
+        enemy.body.setTranslation({ x: 27, y: 0 }, true);
+        enemy.home = { x: 2700, y: 0 };
         sim.toggleCloak();
         sim.step(idle);
         assert.ok(sim.cloaked);
@@ -1077,6 +1084,185 @@ test('cloak reduces actual AI detection, shooting reveals the ship and starter h
         assert.equal(starter.cloakEnabled, false);
     } finally {
         starter.dispose();
+    }
+});
+function roleArena(hull: HullId) {
+    const campaign = newCampaign();
+    campaign.ship!.hull = hull;
+    const sim = new MissionSimulation(campaign, 71);
+    clean(sim, true);
+    sim.ship.setTranslation({ x: 30, y: 0 }, true);
+    return sim;
+}
+test('mining lasers deal small ship damage without interrupting charge, respect cover and award kills', () => {
+    const sim = roleArena('prospector');
+    try {
+        const enemy = atlasEnemy(sim, 999, 3150, 0);
+        enemy.state = 'chase';
+        enemy.cooldown = 0;
+        enemy.charge = 0.4;
+        enemy.body.setRotation(Math.PI, true);
+        const input = { ...idle, target: enemyPosition(enemy), mine: true };
+        sim.step(input);
+        assert.ok(enemy.health < 500 && enemy.health > 499);
+        assert.ok(enemy.charge > 0.4);
+        enemy.cooldown = 999;
+        const wall = sim.world.createCollider(
+            RAPIER.ColliderDesc.cuboid(0.1, 1).setTranslation(30.9, 0),
+        );
+        sim.fortressColliders.add(wall.handle);
+        const health = enemy.health;
+        sim.step(input);
+        assert.equal(enemy.health, health);
+        sim.fortressColliders.delete(wall.handle);
+        sim.world.removeCollider(wall, true);
+        enemy.health = 0.1;
+        sim.step(input);
+        assert.equal(sim.enemies.enemies.has(enemy.id), false);
+        assert.equal(sim.enemyKills, 1);
+        assert.ok(sim.loot.size > 0);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Widmo optical cloak lasts three seconds, prevents targeting and cannot refresh while held', () => {
+    const sim = roleArena('swift');
+    try {
+        const enemy = atlasEnemy(sim, 999, 3300, 0);
+        enemy.cooldown = 0;
+        enemy.state = 'chase';
+        enemy.charge = 1;
+        enemy.lastSeen = { x: 3000, y: 0 };
+        enemy.body.setRotation(Math.PI, true);
+        const input = { ...idle, mine: true, target: { x: 3000, y: 1000 } };
+        sim.step(input);
+        assert.equal(sim.enemySignature, 0);
+        assert.ok(sim.cloaked);
+        assert.equal(enemy.charge, 0);
+        sim.ship.setTranslation({ x: 30, y: 1 }, true);
+        sim.step({ ...input, fire: true, thrust: true, boost: true });
+        assert.ok(sim.cloaked);
+        for (let frame = 0; frame < 120; frame++) sim.step(input);
+        assert.deepEqual(enemy.lastSeen, { x: 3000, y: 0 });
+        assert.equal(sim.laserBeams.length, 0);
+        assert.equal(
+            [...sim.bullets.values()].some((bullet) => bullet.team === 'enemy'),
+            false,
+        );
+        sim.step(idle);
+        assert.equal(sim.cloaked, true);
+        sim.step(input);
+        assert.ok(sim.opticalCloakTime < 1);
+        for (let frame = 0; frame < 60; frame++) sim.step(input);
+        assert.equal(sim.cloaked, false);
+        assert.equal(sim.enemySignature, 1);
+        assert.deepEqual(enemy.lastSeen, sim.previous);
+        enemy.body.setRotation(
+            Math.atan2(
+                sim.position.y - enemyPosition(enemy).y,
+                sim.position.x - enemyPosition(enemy).x,
+            ),
+            true,
+        );
+        for (let frame = 0; frame < 180; frame++) sim.step(idle);
+        assert.ok(sim.events.some((event) => event.kind === 'shot' && event.sound === 'lancer'));
+        for (let frame = 0; frame < Math.ceil(WIDMO.cooldown / GAME.step); frame++) sim.step(input);
+        assert.equal(sim.opticalCloak, false);
+        assert.equal(sim.opticalCloakCooldown, 0);
+        sim.step(idle);
+        sim.step(input);
+        assert.equal(sim.opticalCloakTime, WIDMO.duration);
+        assert.equal(sim.opticalCloakCooldown, WIDMO.cooldown);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Mule mines with LPM and repeatedly fabricates one kit at zero stock for twice the station cost', () => {
+    const sim = roleArena('mule');
+    try {
+        sim.repairKits = 0;
+        sim.step({ ...idle, fire: true });
+        assert.equal(sim.laserBeams.length, 2);
+        assert.equal(sim.bullets.size, 0);
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.repairKits, 0);
+        sim.cargo.ore = JOBS.kit.ore * 2 - 1;
+        sim.cargo.parts = JOBS.kit.parts * 2;
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.repairKits, 0);
+        assert.equal(sim.cargo.parts, JOBS.kit.parts * 2);
+        sim.cargo.ore = JOBS.kit.ore * 4;
+        sim.cargo.parts = JOBS.kit.parts * 2 - 1;
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.repairKits, 0);
+        assert.equal(sim.cargo.ore, JOBS.kit.ore * 4);
+        sim.cargo.parts = JOBS.kit.parts * 4;
+        sim.cargo.crystals = 1;
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.repairKits, 1);
+        assert.equal(sim.laserBeams.length, 0);
+        assert.equal(sim.cargo.ore, JOBS.kit.ore * 2);
+        assert.equal(sim.cargo.parts, JOBS.kit.parts * 2);
+        for (let frame = 0; frame < 60; frame++) sim.step({ ...idle, mine: true });
+        assert.equal(sim.repairKits, 1);
+        assert.equal(sim.cargo.ore, JOBS.kit.ore * 2);
+        assert.equal(sim.cargo.parts, JOBS.kit.parts * 2);
+        sim.hull -= GAME.repairHull;
+        for (let frame = 0; frame < 301; frame++) sim.step({ ...idle, repair: true });
+        assert.equal(sim.repairKits, 0);
+        assert.equal(sim.hull, sim.maxHull);
+        sim.step(idle);
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.repairKits, 1);
+        assert.equal(sim.cargo.ore, 0);
+        assert.equal(sim.cargo.parts, 0);
+        assert.equal(sim.cargo.crystals, 1);
+    } finally {
+        sim.dispose();
+    }
+    const next = roleArena('mule');
+    try {
+        next.repairKits = 1;
+        next.cargo.ore = JOBS.kit.ore * 2;
+        next.cargo.parts = JOBS.kit.parts * 2;
+        next.step({ ...idle, mine: true });
+        assert.equal(next.repairKits, 1);
+        assert.equal(next.cargo.ore, JOBS.kit.ore * 2);
+        assert.equal(next.cargo.parts, JOBS.kit.parts * 2);
+    } finally {
+        next.dispose();
+    }
+});
+test('Bastion retains guns while PPM throws timed splash grenades instead of mining', () => {
+    const sim = roleArena('fighter');
+    try {
+        const enemy = atlasEnemy(sim, 999, 3250, 0);
+        sim.step({ ...idle, target: enemyPosition(enemy), fire: true, mine: true });
+        assert.ok([...sim.bullets.values()].some((bullet) => bullet.explosive === 'grenade'));
+        assert.ok([...sim.bullets.values()].some((bullet) => !bullet.explosive));
+        assert.equal(sim.laserBeams.length, 0);
+        for (let frame = 0; frame < 60; frame++) sim.step(idle);
+        assert.ok(enemy.health <= 500 - ATLAS_WEAPONS.grenade.damage);
+        assert.ok(sim.events.some((event) => event.kind === 'explosion'));
+        assert.equal(shipUpgradeDefinition('fighter', 'drill').title, 'Salwa granatów');
+    } finally {
+        sim.dispose();
+    }
+});
+test('saved Widmo projector upgrades shorten cooldown without extending its three-second camouflage', () => {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'swift';
+    campaign.ship!.drill = 2;
+    const saved = parseCampaign(JSON.stringify(campaign))!;
+    assert.ok(saved);
+    const sim = new MissionSimulation(saved, 71);
+    try {
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.opticalCloakTime, 3);
+        assert.equal(sim.opticalCloakCooldown, WIDMO.cooldown / 1.4);
+        assert.equal(shipUpgradeDefinition('swift', 'drill').title, 'Projektor kamuflażu');
+    } finally {
+        sim.dispose();
     }
 });
 test('laser and boost reveal camouflage and returning to quiet flight restores it', () => {

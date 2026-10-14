@@ -1,4 +1,4 @@
-import { AEGIS, ATLAS_WEAPONS, WEAPONS, type WeaponId } from '../config';
+import { AEGIS, ATLAS_WEAPONS, GAME, WIDMO, WEAPONS, type WeaponId } from '../config';
 import { HarpoonArms, HARPOON_ARMS } from '../systems/harpoonArms';
 import { Container, Graphics } from 'pixi.js';
 import {
@@ -171,7 +171,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.28', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.29', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -494,8 +494,16 @@ export class LobbyView extends Container {
                     : modules.hull === 'atlas'
                       ? `Rakieta · salwa ${1 + modules.drill} granatów · 4 chwytaki`
                       : modules.hull === 'aegis'
-                        ? `Energia · dron ${AEGIS.droneHull * (1 + modules.handling * 0.25)} HP · impuls tarcz`
-                        : `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
+                        ? `Energia · dron ${AEGIS.droneHull * (1 + modules.handling * 0.25)} HP · impuls · 1 chwytak`
+                        : modules.hull === 'swift'
+                          ? `Działko · kamuflaż 3 s / ${(WIDMO.cooldown / (1 + modules.drill * 0.2)).toFixed(1)} s · 1 chwytak`
+                          : modules.hull === 'mule'
+                            ? `Lasery 2 · zestaw ${JOBS.kit.ore * 2}/${JOBS.kit.parts * 2} · chwytaki 3`
+                            : modules.hull === 'fighter'
+                              ? `Działa 2 · granaty ${1 + modules.drill} · 1 chwytak`
+                              : modules.hull === 'tug'
+                                ? 'Działko · laser · 2 hole · 2 chwytaki'
+                                : `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
                 1072,
                 421,
                 14,
@@ -523,13 +531,15 @@ export class LobbyView extends Container {
             stat(
                 ui,
                 'KAMUFLAŻ',
-                !config.cloak
-                    ? 'Brak'
-                    : config.cloak >= 0.5
-                      ? 'Dobry'
-                      : config.cloak >= 0.35
-                        ? 'Średni'
-                        : 'Słaby',
+                modules.hull === 'swift'
+                    ? '3 s / PPM'
+                    : !config.cloak
+                      ? 'Brak'
+                      : config.cloak >= 0.5
+                        ? 'Dobry'
+                        : config.cloak >= 0.35
+                          ? 'Średni'
+                          : 'Słaby',
                 1390,
                 427,
             );
@@ -540,7 +550,7 @@ export class LobbyView extends Container {
                     : modules.hull === 'atlas'
                       ? 'Rakieta · granaty · 4 chwytaki'
                       : modules.hull === 'aegis'
-                        ? 'Działko energetyczne · dron · 2 chwytaki'
+                        ? 'Działko energetyczne · dron · 1 chwytak'
                         : `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
                 1072,
                 493,
@@ -555,7 +565,13 @@ export class LobbyView extends Container {
                       ? 'Namierzanie 3 s · granaty 0,7 s'
                       : modules.hull === 'aegis'
                         ? 'Impuls tarcz 420 m · ochrona 6 s'
-                        : `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
+                        : modules.hull === 'swift'
+                          ? 'Kamuflaż 3 s · odnowienie 12 s'
+                          : modules.hull === 'fighter'
+                            ? 'Granaty: wybuch 65 m · zapalnik 0,7 s'
+                            : modules.hull === 'tug'
+                              ? 'Laser 320 m · dwa niezależne hole'
+                              : `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
                 1072,
                 522,
                 15,
@@ -607,6 +623,46 @@ export class LobbyView extends Container {
             ship = c.ship;
         if (!ship) {
             label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
+            return;
+        }
+        if (ship.hull === 'mule') {
+            this.art(hullPreview(ship), 625, 430);
+            label(ui, 'WYDOBYCIE / MULE', 1072, 244, 13, C.muted);
+            label(ui, 'Lasery i naprawy', 1072, 279, 30, C.text, 456);
+            stat(
+                ui,
+                'LASERY / MOC',
+                `2 × ${(GAME.laserDamage * HULLS.mule.miningPower * (1 + ship.drill * 0.25)).toFixed(0)}/s`,
+                1072,
+                365,
+            );
+            stat(ui, 'ZASIĘG', `${HULLS.mule.laserRange} m`, 1298, 365);
+            stat(ui, 'ZESTAW / RUDA', `${JOBS.kit.ore * 2}`, 1072, 446);
+            stat(ui, 'KOMPONENTY', `${JOBS.kit.parts * 2}`, 1298, 446);
+            label(ui, 'Produkcja przy zapasie 0 · surowce z ładowni', 1072, 526, 15, C.muted, 456);
+            label(
+                ui,
+                'Brak działek · lasery zadają małe obrażenia statkom',
+                1072,
+                570,
+                15,
+                C.muted,
+                456,
+            );
+            button(
+                ui,
+                'MODUŁY WYDOBYWCZE →',
+                1072,
+                719,
+                456,
+                () => {
+                    this.hangarMode = 'owned';
+                    this.chosenShipId = ship.id;
+                    this.moduleFocus = 'drill';
+                    this.refresh();
+                },
+                true,
+            );
             return;
         }
         if (ship.hull === 'aegis') {
@@ -814,7 +870,11 @@ export class LobbyView extends Container {
         stat(ui, 'POCISK', `${w.speed} m/s`, 1298, 516);
         label(
             ui,
-            'Zmienia wszystkie działka tego kadłuba.\nLaser nadal służy do wydobycia.',
+            ship.hull === 'fighter'
+                ? `Granaty: ${1 + ship.drill} × ${ATLAS_WEAPONS.grenade.damage} · wybuch ${ATLAS_WEAPONS.grenade.radius} m`
+                : ship.hull === 'swift'
+                  ? `Kamuflaż optyczny ${WIDMO.duration} s · odnowienie ${(WIDMO.cooldown / (1 + ship.drill * 0.2)).toFixed(1)} s`
+                  : 'Zmienia wszystkie działka kadłuba.\nLasery: wydobycie i małe obrażenia statkom.',
             1072,
             602,
             15,

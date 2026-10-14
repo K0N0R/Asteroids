@@ -1,7 +1,12 @@
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
-import { SALVAGE, leavesWreck, salvagePosition } from '../frontend/game/systems/salvage';
+import {
+    SalvageFleet,
+    SALVAGE,
+    leavesWreck,
+    salvagePosition,
+} from '../frontend/game/systems/salvage';
 import { MissionSimulation } from '../frontend/game/systems/mission';
 import {
     newCampaign,
@@ -13,8 +18,9 @@ import {
 
 before(async () => RAPIER.init());
 const idle = { target: { x: 0, y: 0 }, thrust: false, brake: false, fire: false, interact: false };
-function arena(seed = 71) {
+function arena(seed = 71, hull: 'prospector' | 'tug' = 'prospector') {
     const c = newCampaign();
+    c.ship!.hull = hull;
     beginRun(c, seed);
     const sim = new MissionSimulation(c, seed);
     sim.enemies.dispose();
@@ -34,6 +40,36 @@ test('wreck chance is stable per enemy, varies between seeds and stays near 35 p
         if (leavesWreck(seed, 1)) count++;
     }
     assert.ok(count > 300 && count < 400);
+});
+test('dual towing owns separate ropes and removing one leaves the other attached', () => {
+    const world = new RAPIER.World({ x: 0, y: 0 });
+    const fleet = new SalvageFleet(world, 2);
+    try {
+        const ship = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic());
+        world.createCollider(RAPIER.ColliderDesc.ball(0.3), ship);
+        const first = fleet.add(1, 'patrol', { x: -140, y: -50 }, { x: 0, y: 0 })!;
+        const second = fleet.add(2, 'lancer', { x: -140, y: 50 }, { x: 0, y: 0 })!;
+        const third = fleet.add(3, 'patrol', { x: -160, y: 0 }, { x: 0, y: 0 })!;
+        assert.ok(fleet.attach(first, ship));
+        assert.equal(fleet.attach(first, ship), false);
+        assert.ok(fleet.attach(second, ship));
+        assert.equal(fleet.attach(third, ship), false);
+        assert.equal(world.impulseJoints.len(), 2);
+        assert.notEqual(fleet.towAnchor(first).y, fleet.towAnchor(second).y);
+        fleet.damage(first, 1000);
+        assert.equal(fleet.towed, second);
+        assert.equal(world.impulseJoints.len(), 1);
+        assert.ok(fleet.attach(third, ship));
+        assert.notEqual(fleet.towAnchor(second).y, fleet.towAnchor(third).y);
+        fleet.detach(second);
+        assert.equal(fleet.towed, third);
+        fleet.dispose();
+        assert.equal(world.impulseJoints.len(), 0);
+        assert.equal(fleet.towing.size, 0);
+    } finally {
+        fleet.dispose();
+        world.free();
+    }
 });
 
 test('actual drone destruction gives either a wreck or loose resources, never both', () => {
@@ -87,6 +123,81 @@ test('pickup requires a calm continuous hold, permits full cargo and supports on
     }
 });
 
+test('Manta picks up two wrecks with E, rejects a third and delivers both only once', () => {
+    const { c, sim } = arena(71, 'tug');
+    try {
+        const first = sim.salvage.add(1, 'patrol', { x: 3120, y: -50 }, { x: 0, y: 0 })!;
+        const second = sim.salvage.add(2, 'lancer', { x: 3120, y: 50 }, { x: 0, y: 0 })!;
+        for (let frame = 0; frame < 361; frame++) sim.step({ ...idle, interact: true });
+        assert.equal(sim.salvage.towing.size, 2);
+        const third = sim.salvage.add(3, 'patrol', { x: 3000, y: 140 }, { x: 0, y: 0 })!;
+        assert.equal(sim.salvage.attach(third, sim.ship), false);
+        assert.equal(sim.nearbyWreck, undefined);
+        for (let frame = 0; frame < 60; frame++) sim.step({ ...idle, thrust: true, turn: 1 });
+        for (const item of [first, second])
+            assert.ok(
+                Math.hypot(
+                    salvagePosition(item).x - sim.position.x,
+                    salvagePosition(item).y - sim.position.y,
+                ) < 300,
+            );
+        sim.ship.setTranslation({ x: 0, y: 0 }, true);
+        sim.ship.setLinvel({ x: 0, y: 0 }, true);
+        first.body.setTranslation({ x: -1.4, y: -0.4 }, true);
+        second.body.setTranslation({ x: -1.4, y: 0.4 }, true);
+        for (const item of [first, second]) item.body.setLinvel({ x: 0, y: 0 }, true);
+        sim.step(idle);
+        assert.equal(sim.salvage.towing.size, 0);
+        assert.equal(sim.deliveryRevision, 2);
+        assert.deepEqual(c.bank, { ore: 20, parts: 11, crystals: 1 });
+        sim.step(idle);
+        assert.equal(c.activeRun!.deliveries!.length, 2);
+        assert.ok(parseCampaign(JSON.stringify(c)));
+    } finally {
+        sim.dispose();
+    }
+});
+test('Manta can tow a rescue and wreck together, releases only the wreck and waits for both at docking', () => {
+    const c = newCampaign();
+    c.ship!.hull = 'tug';
+    c.nextPilotId = 3;
+    c.recoverySignals = [
+        { id: 2, seed: 71, x: 3000, y: 0, ship: null, pilot: { ...c.pilots[0], id: 2 } },
+    ];
+    beginRun(c, 71, 2);
+    const sim = new MissionSimulation(c, 71);
+    try {
+        sim.enemies.dispose();
+        for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
+        sim.rocks.clear();
+        sim.ship.setTranslation({ x: 30, y: 0 }, true);
+        for (let frame = 0; frame < 241; frame++) sim.step({ ...idle, interact: true });
+        const rescue = sim.salvage.towed!;
+        const wreck = sim.salvage.add(10, 'patrol', { x: 3120, y: 80 }, { x: 0, y: 0 })!;
+        for (let frame = 0; frame < 181; frame++) sim.step({ ...idle, interact: true });
+        assert.equal(sim.salvage.towing.size, 2);
+        sim.releaseWreck();
+        assert.equal(sim.salvage.towed, rescue);
+        assert.ok(sim.salvage.items.has(wreck.id));
+        assert.ok(sim.recoverySecured);
+        assert.ok(sim.salvage.attach(wreck, sim.ship));
+        sim.ship.setTranslation({ x: 0, y: 0 }, true);
+        sim.ship.setLinvel({ x: 0, y: 0 }, true);
+        rescue.body.setTranslation({ x: -1.4, y: 0 }, true);
+        wreck.body.setTranslation({ x: -5, y: 0 }, true);
+        assert.equal(sim.dockable, false);
+        wreck.body.setTranslation({ x: -2.5, y: 0.5 }, true);
+        assert.equal(sim.dockable, true);
+        for (const item of [rescue, wreck]) item.body.setLinvel({ x: 0, y: 0 }, true);
+        for (let frame = 0; frame < 100; frame++) sim.step({ ...idle, interact: true });
+        assert.equal(sim.ended, 'returned');
+        assert.equal(c.activeRun!.deliveries!.length, 2);
+        assert.equal(sim.salvage.towing.size, 0);
+        assert.ok(c.pilots.some((pilot) => pilot.id === 2));
+    } finally {
+        sim.dispose();
+    }
+});
 test('player rounds and physical contacts ignore salvage while enemy rounds can destroy it', () => {
     const { sim } = arena();
     try {

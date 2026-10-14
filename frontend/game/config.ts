@@ -25,6 +25,7 @@ export const GAME = {
     gunLength: 36,
     laserRange: 230,
     laserDamage: 150,
+    laserShipDamage: 12,
     repairSeconds: 5,
     repairHull: 25,
     repairSpeed: 80,
@@ -157,8 +158,8 @@ export const HULLS = {
         recovery: 0.1,
         boost: 1.45,
         cloak: 0,
-        guns: [{ x: 25, y: 0 }],
-        lasers: [{ x: -25, y: 16 }],
+        guns: [{ x: 25, y: -14 }],
+        lasers: [{ x: 25, y: 14 }],
         engines: [{ x: -32, y: 0 }],
         laserRange: 180,
         grabbers: [{ x: 8, y: 18 }],
@@ -167,9 +168,9 @@ export const HULLS = {
         hitbox: [32, 20],
     },
     swift: {
-        name: 'Swift',
+        name: 'Widmo',
         role: 'Zwiadowca',
-        detail: 'Szybszy i zwinniejszy; mniejszy zapas kadłuba.',
+        detail: 'PPM: kamuflaż optyczny na 3 s uniemożliwia wrogom celowanie. Odnowienie 12 s.',
         health: 60,
         shield: { capacity: 35, regen: 9, delay: 3.5 },
         cargo: 24,
@@ -186,18 +187,18 @@ export const HULLS = {
         boost: 1.6,
         cloak: 0.6,
         guns: [{ x: 32, y: 0 }],
-        lasers: [{ x: -24, y: 17 }],
+        lasers: [],
         engines: [{ x: -32, y: 0 }],
-        laserRange: 180,
+        laserRange: 0,
         grabbers: [{ x: 0, y: 18 }],
         grabberRange: 140,
         towPickupSpeed: 1,
-        hitbox: [35, 20],
+        hitbox: [40, 34],
     },
     mule: {
         name: 'Mule',
         role: 'Statek wydobywczy',
-        detail: 'Duży ładunek, mocniejszy kadłub i laser; wolniejszy lot.',
+        detail: 'LPM: dwa lasery. PPM: zestaw za surowce z ładowni, koszt podwójny, tylko przy zapasie 0.',
         health: 150,
         shield: { capacity: 60, regen: 6, delay: 6 },
         cargo: 110,
@@ -213,7 +214,7 @@ export const HULLS = {
         recovery: 0.22,
         boost: 1.25,
         cloak: 0,
-        guns: [{ x: -30, y: 0 }],
+        guns: [],
         lasers: [
             { x: 10, y: -29 },
             { x: 10, y: 29 },
@@ -235,7 +236,7 @@ export const HULLS = {
     fighter: {
         name: 'Bastion',
         role: 'Bojowy',
-        detail: 'Dwa boczne działka, dawny kadłub Prospectora.',
+        detail: 'Dwa boczne działka i krótkodystansowe granaty na PPM.',
         health: 100,
         shield: { capacity: 100, regen: 10, delay: 4.5 },
         cargo: 30,
@@ -255,9 +256,9 @@ export const HULLS = {
             { x: 0, y: -23 },
             { x: 0, y: 23 },
         ],
-        lasers: [{ x: 25, y: 0 }],
+        lasers: [],
         engines: [{ x: -27, y: 0 }],
-        laserRange: 180,
+        laserRange: 0,
         grabbers: [{ x: 0, y: 22 }],
         grabberRange: 220,
         towPickupSpeed: 1,
@@ -266,7 +267,7 @@ export const HULLS = {
     tug: {
         name: 'Manta',
         role: 'Holowniczy',
-        detail: 'Wytrzymała płaszczka z dwoma silnikami na przednich skrzydłach.',
+        detail: 'Wytrzymała płaszczka z dwoma silnikami. Holuje dwie jednostki jednocześnie.',
         health: 230,
         shield: { capacity: 80, regen: 7, delay: 5.5 },
         cargo: 60,
@@ -282,8 +283,8 @@ export const HULLS = {
         recovery: 0.3,
         boost: 1.25,
         cloak: 0.25,
-        guns: [{ x: 28, y: 0 }],
-        lasers: [{ x: -30, y: 0 }],
+        guns: [{ x: 24, y: -20 }],
+        lasers: [{ x: 24, y: 20 }],
         engines: [
             { x: 12, y: -37 },
             { x: 12, y: 37 },
@@ -429,10 +430,7 @@ export const HULLS = {
             { x: -36, y: 24 },
         ],
         laserRange: 0,
-        grabbers: [
-            { x: -10, y: -37 },
-            { x: -10, y: 37 },
-        ],
+        grabbers: [{ x: -24, y: 0 }],
         grabberRange: 230,
         towPickupSpeed: 1,
         hitbox: [40, 37],
@@ -583,6 +581,8 @@ export const UPGRADES: Record<
     storage: { title: 'Magazyn stacji', detail: 'Pojemność +100 / poziom', ore: 25, parts: 1 },
 };
 
+export const WIDMO = { duration: 3, cooldown: 12 } as const;
+
 export const AEGIS = {
     damage: 36,
     rockDamage: 12,
@@ -610,6 +610,12 @@ export const ATLAS_WEAPONS = {
 
 export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
     const definition = UPGRADES[upgrade];
+    if (hull === 'swift' && upgrade === 'drill')
+        return {
+            ...definition,
+            title: 'Projektor kamuflażu',
+            detail: 'Szybkość odnowienia +20% / poziom; czas działania 3 s',
+        };
     if (hull === 'aegis' && upgrade === 'drill')
         return {
             ...definition,
@@ -628,7 +634,7 @@ export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
             title: 'Impuls ochronny',
             detail: 'Szybkość odnowienia +20%, tarcze +25% / poziom',
         };
-    if (hull === 'atlas' && upgrade === 'drill')
+    if ((hull === 'atlas' || hull === 'fighter') && upgrade === 'drill')
         return {
             ...definition,
             title: 'Salwa granatów',

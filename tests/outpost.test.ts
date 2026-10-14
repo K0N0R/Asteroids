@@ -191,17 +191,25 @@ test('real scanner alarm spawns two pursuing drones once and locks a download', 
     }
 });
 
-test('Swift camouflage allows downloading during a beam; firing, mining and boost reveal it', () => {
+test('Widmo optical camouflage hides from the scanner for three seconds even while firing or boosting', () => {
     const sim = new MissionSimulation(campaign(), 71);
     try {
         isolate(sim);
         atTerminal(sim);
-        sim.cloakEnabled = true;
         sim.elapsed = Math.PI / OUTPOST.scanSpeed;
-        step(sim, 4, { ...idle, interact: true });
+        sim.step({ ...idle, mine: true });
+        step(sim, 2.5, { ...idle, interact: true });
+        assert.ok(sim.cloaked);
+        assert.ok(sim.outpost.download > 2.4);
+        assert.equal(sim.outpost.detection, 0);
+        step(sim, 1.5, { ...idle, interact: true });
         assert.ok(sim.outpost.secured);
+        assert.equal(sim.cloaked, false);
         assert.equal(sim.outpost.alarm, 0);
         assert.equal(sim.enemies.enemies.size, 0);
+        sim.opticalCloakCooldown = 0;
+        sim.elapsed = Math.PI / OUTPOST.scanSpeed;
+        sim.step({ ...idle, mine: true });
         for (const input of [
             { ...idle, fire: true },
             { ...idle, mine: true },
@@ -211,9 +219,15 @@ test('Swift camouflage allows downloading during a beam; firing, mining and boos
             sim.elapsed = Math.PI / OUTPOST.scanSpeed;
             sim.revealTime = 0;
             sim.step(input);
-            assert.equal(sim.cloaked, false);
-            assert.ok(sim.outpost.detection > 0);
+            assert.equal(sim.cloaked, true);
+            assert.equal(sim.outpost.detection, 0);
         }
+        step(sim, 3.1);
+        atTerminal(sim);
+        sim.elapsed = Math.PI / OUTPOST.scanSpeed;
+        sim.step(idle);
+        assert.equal(sim.cloaked, false);
+        assert.ok(sim.outpost.detection > 0);
     } finally {
         sim.dispose();
     }
@@ -251,7 +265,7 @@ test('incoming shots reset a download and lethal damage on its final frame canno
 });
 
 test('station hull blocks bullets and mining rays and physically prevents flying through it', () => {
-    const sim = new MissionSimulation(campaign(), 71);
+    const sim = new MissionSimulation(campaign('prospector'), 71);
     try {
         isolate(sim);
         const p = sim.sector.outpost;
@@ -568,7 +582,7 @@ test('Cerber equipment requires a separate hold after data, reserves cargo and c
     try {
         isolate(sim);
         atTerminal(sim);
-        sim.cloakEnabled = true;
+        sim.outpost.disable();
         step(sim, 10, { ...idle, interact: true });
         assert.ok(sim.outpost.secured);
         assert.equal(sim.stolenEquipment, undefined);
@@ -590,7 +604,7 @@ test('equipment respects full cargo, in-flight gripper reservations and interrup
     try {
         isolate(sim);
         atTerminal(sim);
-        sim.cloakEnabled = true;
+        sim.outpost.disable();
         sim.outpost.secured = true;
         sim.outpost.equipmentArmed = true;
         sim.cargo.ore = sim.cargoCapacity - 2;

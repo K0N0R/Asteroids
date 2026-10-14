@@ -1,5 +1,7 @@
 # Wygląd statków — 2026-10-14
 
+Dokument zachowuje historię liftingów. Aktualne zmiany ról i mocowań opisuje [wersja 0.29](implementation-v0.29.md); galeria poniżej pokazuje wcześniejszy etap.
+
 Sylwetki nadal powstają z geometrii Pixi, bez bitmap. Wspólny `ShipView` pokazuje je podczas lotu, w hangarze, panelu pokładu i przy odzysku wraków.
 
 - **Prospector I:** owal z panelami, szklany wizjer i okrągłe refleksy; działko pod dziobem, laser pod tylną częścią kadłuba.
@@ -24,3 +26,9 @@ Manta ma teraz działko pod dziobem `(28, 0)` i laser pod tyłem `(-30, 0)`. Gra
 ![Aktualna paleta floty](screenshots/ship-palette-gallery.png)
 
 [Galeria pierwszego liftingu](screenshots/ship-visuals-gallery.png).
+
+## Lifting 0.29: Widmo i przednie mocowania
+
+Swift został zastąpiony Widmem o nowej sylwetce według referencji: smukły korpus, zakrzywione boczne skrzydła, długi ogon, grafitowe panele, turkusowe świetlne krawędzie i niebieski owalny kokpit. Nie ma lasera wydobywczego. Ten sam model jest używany w hangarze i misji; aktywny kamuflaż optyczny zmniejsza jego widoczność przez 3 s.
+
+Prospector ma działko `(25, -14)` i laser `(25, 14)`, Manta działko `(24, -20)` i laser `(24, 20)`. Przy dziobie do góry działko jest po lewej, laser po prawej. Mule nie ma działka, Bastion nie ma lasera, a Aegis ma jeden chwytak `(-24, 0)`. Obie liny Manty wychodzą z osobnych bocznych zaczepów fizycznego holu.

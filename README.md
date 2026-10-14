@@ -1,6 +1,8 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.28** dodaje **Aegisa**: **LPM** strzela długimi pociskami energetycznymi wyłączającymi broń wroga na 2,5 s, **PPM** natychmiast odnawia tarczę matki i osłania pobliskich sojuszników przez 6 s. Mini dron krąży przy statku i reaguje tylko na walkę matki; po zniszczeniu **R** i jeden zestaw naprawczy odbudowują pomocnika. Ogniwo, dron i impuls mają własne ulepszenia. Cena 210 rudy / 22 komponenty, warsztat II. [Parametry i weryfikacja](docs/implementation-v0.28.md).
+Aktualna wersja **0.29** rozwija specjalizacje floty: **Widmo** zastępuje Swifta nową sylwetką i kamuflażem optycznym na **PPM** przez **3 s**, z bazowym odnowieniem **12 s**. **Mule** wydobywa na **LPM**, a na **PPM** tworzy zestaw naprawczy za **12 rudy / 2 komponenty z ładowni**, wyłącznie przy zapasie zestawów równym zero; po zużyciu może tworzyć następne. **Manta** holuje dwie jednostki, **Bastion** otrzymuje granaty zamiast lasera, a **Aegis** ma jeden chwytak. Prospector i Manta mają działko z lewej i laser z prawej strony dziobu. Lasery zadają także niewielkie obrażenia wrogim statkom. [Parametry i weryfikacja](docs/implementation-v0.29.md).
+
+Wersja **0.28** dodaje **Aegisa**: **LPM** strzela długimi pociskami energetycznymi wyłączającymi broń wroga na 2,5 s, **PPM** natychmiast odnawia tarczę matki i osłania pobliskich sojuszników przez 6 s. Mini dron krąży przy statku i reaguje tylko na walkę matki; po zniszczeniu **R** i jeden zestaw naprawczy odbudowują pomocnika. Ogniwo, dron i impuls mają własne ulepszenia. Cena 210 rudy / 22 komponenty, warsztat II. [Parametry i weryfikacja](docs/implementation-v0.28.md).
 
 Wersja **0.27** dodaje dwa kadłuby według referencji: **Atlas**, grenadier z rakietami na **LPM**, granatami na **PPM**, czterema kontenerami i ładownią 150, oraz **Harpun** z przegubowymi ramionami i dwukrotnie szybszym podejmowaniem holu. Atlas namierza wroga po 3 s trzymania kursora; jego rakiety i granaty zadają obrażenia obszarowe, a ulepszenie granatów zwiększa salwę w stożku. Harpun zaciska szczęki na **LPM**, a przytrzymanie **PPM** wysuwa ramiona ku celowi. Oba kadłuby mają cztery długie chwytaki oraz własne ulepszenia broni, bez działek i laserów. Wymagają warsztatu II. Stocznia ma dwie strony katalogu; limit posiadanej floty pozostaje równy sześć. [Parametry i weryfikacja](docs/implementation-v0.27.md).
 
@@ -46,7 +48,7 @@ Wersja **0.9** dodaje sześć kadłubów według konceptów użytkownika: Prospe
 
 Prototyp gry 2D w PixiJS 8 i TypeScript, oparty na istniejącym boilerze. Zręcznościowy lot z fizyką Rapier 2D, wydobywanie rudy i komponentów, proceduralne sektory, baza, ulepszenia oraz piloci.
 
-Sylwetki floty mają wygładzone kontury, panele poszycia, jasnoniebieskie szklane wizjery z okrągłymi refleksami, stonowane kolory materiałów i trapezowe silniki. Każdy model ma własny odcień kadłuba. Mule ma kształt T, Manta zbiorniki pod skrzydłami, a Prospector i Swift tylne lasery pod kadłubem. Manta ma działko pod dziobem i laser pod tyłem. Galeria i szczegóły: [docs/ship-visuals.md](docs/ship-visuals.md).
+Sylwetki floty mają wygładzone kontury, panele poszycia, jasnoniebieskie szklane wizjery z okrągłymi refleksami, stonowane kolory materiałów i trapezowe silniki. Każdy model ma własny odcień kadłuba. Mule ma kształt T, Manta zbiorniki pod skrzydłami, a Widmo smukły korpus i zakrzywione skrzydła z turkusowymi akcentami. Prospector i Manta mają przednie mocowania: działko po lewej, laser po prawej. Galeria i historia zmian: [docs/ship-visuals.md](docs/ship-visuals.md).
 
 Wersja 0.2 dodaje mechanika stacji, kolejkę produkcji i naprawę uszkodzonego napędu podczas wyprawy.
 
@@ -90,9 +92,13 @@ Buduje i uruchamia wersję produkcyjną, bez automatycznego odświeżania. Sam b
 | Mysz                                   | Celowanie niezależnie od kierunku lotu                                                                                             |
 | Przytrzymany LPM                       | Obracane działka na mocowaniach kadłuba; bardzo słabe przeciw skałom                                                               |
 | Przytrzymany PPM                       | Laser wydobywczy: krótki zasięg 180 lub średni 320, duża moc przeciw skałom                                                        |
+| PPM na Widmie                          | Kamuflaż optyczny 3 s; bazowe odnowienie 12 s; przytrzymanie nie powtarza aktywacji                                                |
+| LPM / PPM na Mule                      | Dwa lasery / produkcja zestawu za 12 rudy i 2 komponenty z ładowni, wyłącznie przy zapasie zestawów 0                              |
+| PPM na Bastionie                       | Krótkodystansowe granaty obszarowe z zapalnikiem 0,7 s                                                                             |
+| LPM / PPM na Aegisie                   | Działko energetyczne / impuls tarcz                                                                                                |
 | LPM / PPM na Atlasie                   | Rakieta dalekiego zasięgu / granaty z zapalnikiem 0,7 s; obie bronie zadają obrażenia obszarowe                                    |
 | Kursor na wrogu przez 3 s na Atlasie   | Lock rakiet; pozostaje po przesunięciu kursora, znika po śmierci celu                                                              |
-| C                                      | Włączanie kamuflażu na obsługiwanych kadłubach; ogień, laser, boost i trafienia ujawniają statek na 3 s                            |
+| C                                      | Kamuflaż starszych kadłubów; Widmo korzysta zamiast niego z PPM                                                                    |
 | E                                      | Przeszukanie pobliskiego wraku                                                                                                     |
 | Przytrzymany E                         | Dokowanie w strefie bazy przy prędkości poniżej 65 m/s                                                                             |
 | Przytrzymany E przy sygnale ratunkowym | Podjęcie kapsuły/wraku: 4 s poniżej 80 m/s, bez ciągu, strzelania i naprawy                                                        |

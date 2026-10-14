@@ -22,7 +22,7 @@ export class MissionHud extends Container {
     private goals: Typography[] = [];
     private checks = new Graphics();
     private recoveryWasSecured = false;
-    private towedId: number | null = null;
+    private towedIds = '';
     private wreckId: number | null = null;
     private lastSurveyCount = 0;
     private combatComplete = false;
@@ -50,7 +50,8 @@ export class MissionHud extends Container {
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
-        if (sim.aegis) this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
+        if (sim.aegis || sim.hullId === 'swift' || sim.hullId === 'mule')
+            this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
         this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
         label(this, CONTRACTS[contract].title, 1320, 285, 16, C.text, 250);
         const count = missionObjectives(
@@ -71,14 +72,30 @@ export class MissionHud extends Container {
         mouseHint(
             this,
             'left',
-            sim.harpoonArms ? 'zacisk' : sim.isAtlas ? 'rakieta' : 'ogień',
+            sim.harpoonArms
+                ? 'zacisk'
+                : sim.isAtlas
+                  ? 'rakieta'
+                  : sim.hullId === 'mule'
+                    ? 'lasery'
+                    : 'ogień',
             355,
             845,
         );
         mouseHint(
             this,
             'right',
-            sim.harpoonArms ? 'ramiona' : sim.isAtlas ? 'granaty' : sim.aegis ? 'impuls' : 'laser',
+            sim.harpoonArms
+                ? 'ramiona'
+                : sim.isAtlas || sim.hullId === 'fighter'
+                  ? 'granaty'
+                  : sim.aegis
+                    ? 'impuls'
+                    : sim.hullId === 'swift'
+                      ? 'kamuflaż'
+                      : sim.hullId === 'mule'
+                        ? 'zestaw'
+                        : 'laser',
             453,
             845,
         );
@@ -86,7 +103,8 @@ export class MissionHud extends Container {
         keyHint(this, '0–9/T/H', 'cel', 644, 845, 66);
         keyHint(this, 'E', 'akcja', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
-        if (sim.hullConfig.cloak) keyHint(this, 'C', 'kamuflaż', 990, 845);
+        if (sim.hullConfig.cloak && sim.hullId !== 'swift')
+            keyHint(this, 'C', 'kamuflaż', 990, 845);
         const details = keyHint(this, 'TAB', 'pokład', 1170, 845, 40);
         details.eventMode = 'static';
         details.cursor = 'pointer';
@@ -102,7 +120,7 @@ export class MissionHud extends Container {
         const p = this.sim.position;
         this.wreckId =
             [...this.sim.salvage.items.values()]
-                .filter((w) => w.source !== 'recovery')
+                .filter((w) => w.source !== 'recovery' && !this.sim.salvage.towing.has(w.id))
                 .sort(
                     (a, b) =>
                         Math.hypot(salvagePosition(a).x - p.x, salvagePosition(a).y - p.y) -
@@ -158,6 +176,16 @@ export class MissionHud extends Container {
             this.supportStatus?.setText(
                 `Impuls ${s.aegis.cooldown > 0 ? `${Math.ceil(s.aegis.cooldown)} s` : 'gotowy'} · dron ${s.aegis.drone ? `${Math.ceil(s.aegis.drone.hull)}/${Math.round(s.aegis.droneHull)}` : 'zniszczony'}${!s.aegis.drone ? ` · zestawy ${s.repairKits}` : ''}`,
             );
+        else if (s.hullId === 'swift')
+            this.supportStatus?.setText(
+                s.opticalCloak
+                    ? `Kamuflaż ${s.opticalCloakTime.toFixed(1)} s`
+                    : `Kamuflaż ${s.opticalCloakCooldown > 1e-8 ? `odnowienie ${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy'}`,
+            );
+        else if (s.hullId === 'mule')
+            this.supportStatus?.setText(
+                `Zestawy ${s.repairKits} · produkcja ${s.repairKits ? 'zapas musi wynosić 0' : `${s.repairKitCost.ore} rudy / ${s.repairKitCost.parts} komponenty`}`,
+            );
         this.cargo.setText(`${s.cargoUsed} / ${s.cargoCapacity}`);
         this.cargo.setColor(s.cargoUsed >= s.cargoCapacity ? C.gold : C.text);
         this.meters
@@ -192,11 +220,11 @@ export class MissionHud extends Container {
                 .rect(80, 124, 190 * Math.min(1, s.cargoUsed / s.cargoCapacity), 5)
                 .fill(C.gold);
         this.context.setText(flightHint(s));
-        if (s.salvage.towed && this.towedId !== s.salvage.towed.id) {
-            this.towedId = s.salvage.towed.id;
-            this.target = 0;
+        const towedIds = [...s.salvage.towing.keys()].join(',');
+        if (this.towedIds !== towedIds) {
+            this.towedIds = towedIds;
+            if (towedIds) this.target = 0;
         }
-        if (!s.salvage.towed) this.towedId = null;
         if (s.recoverySecured && !this.recoveryWasSecured) {
             this.recoveryWasSecured = true;
             this.target = 0;
@@ -336,7 +364,7 @@ export class MissionHud extends Container {
             this.map
                 .beginPath()
                 .poly([mx, my - 4, mx + 4, my, mx, my + 4, mx - 4, my])
-                .stroke({ color: item === s.salvage.towed ? C.mint : C.gold, width: 1 });
+                .stroke({ color: s.salvage.towing.has(item.id) ? C.mint : C.gold, width: 1 });
         }
         if (s.escort) {
             const site = s.sector.researchSite,

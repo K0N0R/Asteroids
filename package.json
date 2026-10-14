@@ -1,6 +1,6 @@
 {
     "name": "orbit-asteroids",
-    "version": "0.28.0",
+    "version": "0.29.0",
     "scripts": {
         "start": "cross-env ENV=development node build.development.mjs",
         "build": "cross-env ENV=release node build.release.mjs",
