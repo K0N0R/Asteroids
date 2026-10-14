@@ -47,7 +47,7 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             ['W / A / D', 'Przyspieszanie / skręt w lewo / skręt w prawo'],
             ['S / SHIFT', 'Hamowanie i wsteczny / boost podczas lotu W'],
             ['MYSZ', 'Celowanie niezależnie od kadłuba'],
-            ['LPM / PPM', 'Broń / wydobycie; Harpun: zacisk / wysuw ramion'],
+            ['LPM / PPM', 'Broń / narzędzie; Aegis: energia / impuls tarcz'],
             ['E', 'Wrak / przytrzymaj: skrytka, skan, odzysk, dokowanie'],
             ['1–9', 'Nawigacja · 6 ratunek, 7/8 nauka, 9 skrytki'],
             ['R / C', 'Naprawa / kamuflaż na obsługiwanych kadłubach'],

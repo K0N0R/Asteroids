@@ -1,9 +1,10 @@
 import { KineticShield, shieldProfile } from './kineticShield';
 import { HarpoonArms, HARPOON_ARMS } from './harpoonArms';
+import { AegisSupport } from './aegisSupport';
 import { ResearchEscort, ESCORT } from './escort';
 import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
 import type { SoundCue } from './audioPolicy';
-import { WEAPONS, type WeaponId } from '../config';
+import { AEGIS, ATLAS_WEAPONS, WEAPONS, type WeaponId } from '../config';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
 import { Campaign, Cargo, capacity, shipHealth, deliverSalvage } from '../state/campaign';
@@ -52,6 +53,11 @@ export interface Projectile extends Point {
     team: 'player' | 'enemy';
     heavy?: boolean;
     damage: number;
+    explosive?: 'rocket' | 'grenade';
+    targetId?: number;
+    energy?: boolean;
+    source?: 'drone';
+    shooterId?: number;
 }
 export interface Loot extends Point {
     id: number;
@@ -60,7 +66,7 @@ export interface Loot extends Point {
 }
 export interface MissionEvent extends Point {
     sound?: SoundCue;
-    kind: 'break' | 'hit' | 'collect' | 'shot' | 'weld' | 'shield';
+    kind: 'break' | 'hit' | 'collect' | 'shot' | 'weld' | 'shield' | 'explosion';
     strength?: number;
     velocity?: Point;
     rich?: boolean;
@@ -73,6 +79,12 @@ export class MissionSimulation {
     readonly world = new RAPIER.World({ x: 0, y: 0 });
     readonly kineticShield: KineticShield;
     readonly harpoonArms: HarpoonArms | null;
+    readonly aegis: AegisSupport | null;
+    readonly atlasLock = {
+        target: null as number | null,
+        progress: 0,
+        locked: null as number | null,
+    };
     readonly escort: ResearchEscort | null;
     readonly salvage = new SalvageFleet(this.world);
     salvageProgress = 0;
@@ -134,6 +146,7 @@ export class MissionSimulation {
     private choice: { cacheId: number; offers: readonly PrototypeId[] } | null = null;
     private ids = 0;
     private shotCooldown = 0;
+    private grenadeCooldown = 0;
     private laserEffectCooldown = 0;
     private gunIndex = 0;
     private damageCooldown = 0;
@@ -217,6 +230,11 @@ export class MissionSimulation {
                 .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
             this.ship,
         );
+        this.aegis =
+            this.modules.hull === 'aegis'
+                ? new AegisSupport(this.world, this.modules.handling, this.modules.shield)
+                : null;
+        this.aegis?.rebuild(this.position);
         for (const rock of this.sector.rocks) {
             const signal = this.recoverySignal;
             // A clear initial approach; moving rocks can still drift into the salvage zone.
@@ -472,7 +490,11 @@ export class MissionSimulation {
                 ? `Skanowanie · ${Math.floor((this.scanProgress / SCAN.seconds) * 100)}%`
                 : 'Przytrzymaj E · skan 3 s · bez ciągu i ognia, poniżej 60 m/s';
         if (this.repairProgress > 0)
-            return `Naprawa napędu / kadłuba · ${Math.ceil((this.repairProgress / GAME.repairSeconds) * 100)}%`;
+            return `${this.aegis && !this.aegis.drone ? 'Odbudowa drona' : 'Naprawa napędu / kadłuba'} · ${Math.ceil((this.repairProgress / GAME.repairSeconds) * 100)}%`;
+        if (this.aegis && !this.aegis.drone)
+            return this.repairKits > 0
+                ? 'Dron zniszczony · przytrzymaj R, aby odbudować'
+                : 'Dron zniszczony · brak zestawu naprawczego';
         if (this.engineFault)
             return this.repairKits > 0
                 ? 'AWARIA NAPĘDU · zwolnij poniżej 80 m/s i przytrzymaj R'
@@ -498,7 +520,15 @@ export class MissionSimulation {
             ? 'Ładownia pełna · wróć do bazy'
             : this.harpoonArms
               ? 'LPM · zacisk szczęk    /    PPM · wysuw ramion ku celowi'
-              : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
+              : this.isAtlas
+                ? this.atlasLock.locked !== null
+                    ? 'Rakieta · cel zablokowany'
+                    : this.atlasLock.target !== null
+                      ? `Namierzanie · ${this.atlasLock.progress.toFixed(1)} / 3 s`
+                      : 'LPM · rakieta    /    PPM · granaty'
+                : this.aegis
+                  ? `LPM · energia    /    PPM · impuls ${this.aegis.cooldown > 0 ? `${Math.ceil(this.aegis.cooldown)} s` : 'gotowy'}`
+                  : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
     }
     private addRock(spec: RockSpec) {
         if (this.rocks.size >= 600) return;
@@ -551,6 +581,10 @@ export class MissionSimulation {
         this.revealTime = Math.max(0, this.revealTime - dt);
         if (input.fire || input.mine || (input.boost && input.thrust)) this.revealTime = 3;
         this.aimTarget = { ...input.target };
+        if (this.aegis) {
+            this.aegis.update(dt, this.position);
+            this.updateAegis(input);
+        }
         this.damageCooldown -= dt;
         this.noticeTime -= dt;
         this.previous = this.position;
@@ -705,6 +739,13 @@ export class MissionSimulation {
             velocities.set(item.collider.handle, { x: v.x * P, y: v.y * P });
         }
         if (this.escort) velocities.set(this.escort.collider.handle, this.escort.velocity);
+        if (this.aegis?.drone) {
+            const velocity = this.aegis.drone.body.linvel();
+            velocities.set(this.aegis.drone.collider.handle, {
+                x: velocity.x * P,
+                y: velocity.y * P,
+            });
+        }
         this.world.step(this.queue);
         this.queue.drainCollisionEvents((a, b, started) => {
             if (!started) return;
@@ -744,6 +785,11 @@ export class MissionSimulation {
                 }
                 if (this.escort?.collider.handle === handle && this.escort.cooldown <= 0)
                     this.damageEscort(damage, point);
+                if (
+                    this.aegis?.drone?.collider.handle === handle &&
+                    this.distanceHome >= DRONES.safeRadius
+                )
+                    this.damageSupportDrone(damage, point);
                 const item = this.salvage.items.get(this.salvage.colliders.get(handle)!);
                 if (item && item.cooldown <= 0) {
                     item.cooldown = 0.5;
@@ -759,9 +805,11 @@ export class MissionSimulation {
         });
         this.enforceShield();
         if (this.harpoonArms) this.updateHarpoon(input, dt);
+        else if (this.modules.hull === 'atlas') this.updateAtlas(input, dt);
         else if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) this.fire();
         this.updateBullets(dt);
-        if (input.mine && !this.harpoonArms) this.mine(dt);
+        if (input.mine && !this.harpoonArms && !this.aegis && this.modules.hull !== 'atlas')
+            this.mine(dt);
         if (this.salvage.towed) {
             const item = this.salvage.towed;
             this.tow ??= new TowBody(salvagePosition(item), { x: 0, y: 0 });
@@ -830,6 +878,8 @@ export class MissionSimulation {
             Math.hypot(this.escort.position.x, this.escort.position.y) < DRONES.safeRadius
         )
             return;
+        damage = this.absorbSupport('escort', damage, point);
+        if (damage <= 0) return;
         this.events.push({ ...point, kind: 'hit', strength: damage });
         if (this.escort.damage(damage)) {
             this.setNotice('Kepler zniszczony · kontrakt eskorty nie został wykonany.');
@@ -1034,6 +1084,7 @@ export class MissionSimulation {
     }
     private takeDamage(damage: number, reason: string, point: Point = this.position) {
         if (this.hull <= 0) return 0;
+        damage = this.absorbSupport('player', damage, point);
         const hit = this.kineticShield.absorb(damage);
         if (hit.absorbed) this.events.push({ ...point, kind: 'shield', strength: hit.absorbed });
         this.hull = Math.max(0, this.hull - hit.hull);
@@ -1057,6 +1108,8 @@ export class MissionSimulation {
             wreckAngle = enemy.body.rotation();
         const wreck = this.enemies.damage(enemy.id, damage);
         if (!wreck) return;
+        this.aegis?.hostiles.delete(enemy.id);
+        this.clearAtlasTarget(enemy.id);
         this.enemyKills++;
         this.events.push({
             ...wreck,
@@ -1086,6 +1139,8 @@ export class MissionSimulation {
     private damageSalvage(item: SalvageBody, damage: number, point: Point) {
         if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < DRONES.safeRadius)
             return;
+        damage = this.absorbSupport(`salvage:${item.id}`, damage, point);
+        if (damage <= 0) return;
         this.events.push({ ...point, kind: 'hit', strength: damage });
         const destroyed = this.salvage.damage(item, damage);
         if (!destroyed) return;
@@ -1217,6 +1272,7 @@ export class MissionSimulation {
     }
     private fireEnemy(enemy: Enemy) {
         if (
+            enemy.weaponDisabled ||
             this.bullets.size >= 80 ||
             (enemy.target === 'escort'
                 ? !this.escort?.vulnerable ||
@@ -1224,6 +1280,7 @@ export class MissionSimulation {
                 : Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius)
         )
             return false;
+        if (enemy.target === 'player') this.aegis?.hostiles.add(enemy.id);
         const p = enemyPosition(enemy),
             a = enemy.body.rotation(),
             v = enemy.body.linvel(),
@@ -1238,6 +1295,7 @@ export class MissionSimulation {
             team: 'enemy',
             heavy: enemy.kind === 'lancer',
             damage: enemy.config.shotDamage,
+            shooterId: enemy.id,
         });
         this.events.push({
             ...p,
@@ -1354,7 +1412,7 @@ export class MissionSimulation {
             this.speed > GAME.repairSpeed ||
             this.repairKits <= 0 ||
             this.hull <= 0 ||
-            (!this.engineFault && this.hull >= this.maxHull)
+            (!this.engineFault && this.hull >= this.maxHull && (!this.aegis || this.aegis.drone))
         ) {
             this.repairProgress = 0;
             return;
@@ -1381,7 +1439,12 @@ export class MissionSimulation {
             this.engineFault = false;
             this.repairProgress = 0;
             this.hull = Math.min(this.maxHull, this.hull + GAME.repairHull);
-            this.setNotice('Naprawa zakończona · pełny ciąg przywrócony');
+            const rebuilt = this.aegis?.rebuild(this.position);
+            this.setNotice(
+                rebuilt
+                    ? 'Naprawa zakończona · dron odbudowany'
+                    : 'Naprawa zakończona · pełny ciąg przywrócony',
+            );
             this.events.push({ ...this.position, kind: 'collect', rich: true, sound: 'complete' });
         }
     }
@@ -1394,7 +1457,267 @@ export class MissionSimulation {
             this.recoverySignal?.ship ? (this.recoverySignal.pilot ? 130 : 85) : 50,
         );
     }
+    get isAtlas() {
+        return this.modules.hull === 'atlas';
+    }
+    get grenadeCount() {
+        return 1 + this.modules.drill;
+    }
+    get rocketDamage() {
+        return ATLAS_WEAPONS.rocket.damage * (1 + this.modules.handling * 0.25);
+    }
+    private clearAtlasTarget(id: number) {
+        if (this.atlasLock.target === id) {
+            this.atlasLock.target = null;
+            this.atlasLock.progress = 0;
+        }
+        if (this.atlasLock.locked === id) this.atlasLock.locked = null;
+        for (const bullet of this.bullets.values())
+            if (bullet.targetId === id) delete bullet.targetId;
+    }
+    private updateAtlas(input: FlightInput, dt: number) {
+        for (const id of [this.atlasLock.target, this.atlasLock.locked])
+            if (id !== null && !this.enemies.enemies.has(id)) this.clearAtlasTarget(id);
+        const candidate = [...this.enemies.enemies.values()].find((enemy) => {
+            const position = enemyPosition(enemy);
+            return (
+                Math.hypot(position.x - input.target.x, position.y - input.target.y) <=
+                    enemy.config.radius + 8 &&
+                Math.hypot(position.x - this.position.x, position.y - this.position.y) <=
+                    ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life
+            );
+        });
+        const target = candidate?.id ?? null;
+        if (target !== this.atlasLock.target) {
+            this.atlasLock.target = target;
+            this.atlasLock.progress = 0;
+        }
+        this.atlasLock.progress =
+            target === null ? 0 : Math.min(ATLAS_WEAPONS.lockTime, this.atlasLock.progress + dt);
+        if (target !== null && this.atlasLock.progress >= ATLAS_WEAPONS.lockTime - 1e-8)
+            this.atlasLock.locked = target;
+        this.grenadeCooldown -= dt;
+        if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) {
+            this.launchAtlas('rocket');
+            this.shotCooldown = ATLAS_WEAPONS.rocket.interval;
+        }
+        const count = this.grenadeCount;
+        if (input.mine && this.grenadeCooldown <= 0 && this.bullets.size + count <= 80) {
+            for (let index = 0; index < count; index++)
+                this.launchAtlas(
+                    'grenade',
+                    (index - (count - 1) / 2) * ATLAS_WEAPONS.grenade.spread,
+                );
+            this.grenadeCooldown = ATLAS_WEAPONS.grenade.interval;
+        }
+    }
+    private launchAtlas(kind: 'rocket' | 'grenade', offset = 0) {
+        const config = ATLAS_WEAPONS[kind];
+        const position = this.position;
+        const angle = aimAngle(position, this.aimTarget, this.ship.rotation()) + offset;
+        const id = ++this.ids;
+        const muzzle = 65 * this.hullConfig.size;
+        this.bullets.set(id, {
+            id,
+            x: position.x + Math.cos(angle) * muzzle,
+            y: position.y + Math.sin(angle) * muzzle,
+            vx: Math.cos(angle) * config.speed,
+            vy: Math.sin(angle) * config.speed,
+            life: config.life,
+            team: 'player',
+            explosive: kind,
+            damage: kind === 'rocket' ? this.rocketDamage : config.damage,
+            ...(kind === 'rocket' && this.atlasLock.locked !== null
+                ? { targetId: this.atlasLock.locked }
+                : {}),
+        });
+        this.events.push({ ...position, kind: 'shot', sound: 'standard' });
+    }
+    private explodeAtlas(bullet: Projectile, position: Point, source?: number) {
+        const config = ATLAS_WEAPONS[bullet.explosive!];
+        this.events.push({
+            ...position,
+            kind: 'explosion',
+            strength: config.radius,
+            sound: 'destroy',
+        });
+        const targets: { collider: RAPIER.Collider; rock?: Rock; enemy?: Enemy }[] = [];
+        this.world.intersectionsWithShape(
+            { x: position.x / P, y: position.y / P },
+            0,
+            new RAPIER.Ball(config.radius / P),
+            (collider) => {
+                const rock = this.rocks.get(this.asteroidColliders.get(collider.handle)!);
+                const enemy = this.enemies.enemies.get(
+                    this.enemies.colliders.get(collider.handle)!,
+                );
+                if (rock || enemy) targets.push({ collider, rock, enemy });
+                return true;
+            },
+        );
+        for (const { collider, rock, enemy } of targets) {
+            const center = collider.translation();
+            const obstruction = this.world.castRay(
+                new RAPIER.Ray(
+                    { x: position.x / P, y: position.y / P },
+                    { x: center.x - position.x / P, y: center.y - position.y / P },
+                ),
+                1,
+                true,
+                undefined,
+                undefined,
+                collider,
+                undefined,
+                (other) =>
+                    !(other.handle === source && this.asteroidColliders.has(other.handle)) &&
+                    this.isObstacle(other),
+            );
+            if (obstruction) continue;
+            if (rock && this.rocks.has(rock.id)) {
+                const damage = bullet.damage * this.pilot.mining;
+                rock.health -= damage;
+                this.events.push({
+                    x: center.x * P,
+                    y: center.y * P,
+                    kind: 'hit',
+                    strength: damage,
+                });
+                if (rock.health <= 0) this.breakRock(rock);
+            }
+            if (enemy && this.enemies.enemies.has(enemy.id))
+                this.damageEnemy(enemy, bullet.damage, { x: center.x * P, y: center.y * P });
+        }
+    }
+    get energyDamage() {
+        return (
+            AEGIS.damage *
+            (1 + this.modules.drill * 0.25) *
+            (this.installed.includes('guns') ? 1.35 : 1)
+        );
+    }
+    private absorbSupport(id: string, damage: number, point: Point) {
+        const remaining = this.aegis?.absorb(id, damage) ?? damage;
+        if (remaining < damage)
+            this.events.push({ ...point, kind: 'shield', strength: damage - remaining });
+        return remaining;
+    }
+    private damageSupportDrone(damage: number, point: Point) {
+        const support = this.aegis;
+        if (!support?.drone) return;
+        const remaining = this.absorbSupport('drone', damage, point);
+        this.events.push({ ...point, kind: 'hit', strength: remaining });
+        if (support.damageDrone(remaining)) {
+            this.setNotice('Dron zniszczony · R i zestaw naprawczy odbudują pomocnika');
+            this.events.push({
+                ...point,
+                kind: 'break',
+                sound: 'destroy',
+                strength: AEGIS.droneRadius,
+            });
+        }
+    }
+    private updateAegis(input: FlightInput) {
+        const support = this.aegis!;
+        if (input.mine && !support.pulsePressed) {
+            const allies: (Point & { id: string })[] = [];
+            if (support.dronePosition) allies.push({ ...support.dronePosition, id: 'drone' });
+            if (this.escort && this.escort.state !== 'destroyed')
+                allies.push({ ...this.escort.position, id: 'escort' });
+            for (const item of this.salvage.items.values())
+                allies.push({ ...salvagePosition(item), id: `salvage:${item.id}` });
+            if (support.pulse(this.position, allies)) {
+                this.kineticShield.charge = this.kineticShield.profile.capacity;
+                this.kineticShield.cooldown = 0;
+                this.kineticShield.flash = 0.35;
+                this.events.push({
+                    ...this.position,
+                    kind: 'shield',
+                    strength: this.kineticShield.charge,
+                });
+                this.setNotice('Impuls Aegisa · tarcza odnowiona, sojusznicy osłonięci');
+            }
+        }
+        support.pulsePressed = !!input.mine;
+        for (const id of support.hostiles)
+            if (!this.enemies.enemies.has(id)) support.hostiles.delete(id);
+        const drone = support.drone,
+            position = support.dronePosition;
+        if (!drone || !position || drone.cooldown > 0 || this.bullets.size >= 80) return;
+        const targets = [...support.hostiles]
+            .map((id) => this.enemies.enemies.get(id)!)
+            .filter(
+                (enemy) =>
+                    enemy &&
+                    Math.hypot(
+                        enemyPosition(enemy).x - position.x,
+                        enemyPosition(enemy).y - position.y,
+                    ) < AEGIS.droneRange,
+            )
+            .sort(
+                (a, b) =>
+                    Math.hypot(enemyPosition(a).x - position.x, enemyPosition(a).y - position.y) -
+                    Math.hypot(enemyPosition(b).x - position.x, enemyPosition(b).y - position.y),
+            );
+        const target = targets.find((enemy) => {
+            const p = enemyPosition(enemy);
+            return !this.world.castRay(
+                new RAPIER.Ray(
+                    { x: position.x / P, y: position.y / P },
+                    { x: (p.x - position.x) / P, y: (p.y - position.y) / P },
+                ),
+                1,
+                true,
+                undefined,
+                undefined,
+                drone.collider,
+                undefined,
+                (collider) =>
+                    collider.handle === this.shipCollider.handle || this.isObstacle(collider),
+            );
+        });
+        if (!target) return;
+        const angle = aimAngle(position, enemyPosition(target), this.ship.rotation());
+        const id = ++this.ids;
+        this.bullets.set(id, {
+            id,
+            x: position.x + Math.cos(angle) * 16,
+            y: position.y + Math.sin(angle) * 16,
+            vx: Math.cos(angle) * 650,
+            vy: Math.sin(angle) * 650,
+            life: 1,
+            team: 'player',
+            source: 'drone',
+            damage: support.droneDamage,
+        });
+        drone.cooldown = AEGIS.droneInterval;
+        drone.body.setRotation(angle, true);
+        this.events.push({ ...position, kind: 'shot', sound: 'standard' });
+    }
     private fire() {
+        if (this.aegis) {
+            const position = mountPosition(
+                this.position,
+                this.ship.rotation(),
+                this.hullConfig.size,
+                HULLS.aegis.guns[0],
+            );
+            const angle = aimAngle(position, this.aimTarget, this.ship.rotation());
+            const id = ++this.ids;
+            this.bullets.set(id, {
+                id,
+                x: position.x + Math.cos(angle) * 24,
+                y: position.y + Math.sin(angle) * 24,
+                vx: this.velocity.x + Math.cos(angle) * AEGIS.speed,
+                vy: this.velocity.y + Math.sin(angle) * AEGIS.speed,
+                life: AEGIS.life,
+                team: 'player',
+                energy: true,
+                damage: this.energyDamage,
+            });
+            this.shotCooldown = AEGIS.interval;
+            this.events.push({ ...position, kind: 'shot', sound: 'pulse' });
+            return;
+        }
         const p = mountPosition(
                 this.position,
                 this.ship.rotation(),
@@ -1421,6 +1744,23 @@ export class MissionSimulation {
     }
     private updateBullets(dt: number) {
         for (const bullet of this.bullets.values()) {
+            if (bullet.explosive === 'rocket' && bullet.targetId !== undefined) {
+                const target = this.enemies.enemies.get(bullet.targetId);
+                if (!target) delete bullet.targetId;
+                else {
+                    const position = enemyPosition(target);
+                    const current = Math.atan2(bullet.vy, bullet.vx);
+                    const desired = Math.atan2(position.y - bullet.y, position.x - bullet.x);
+                    const difference = Math.atan2(
+                        Math.sin(desired - current),
+                        Math.cos(desired - current),
+                    );
+                    const turn = ATLAS_WEAPONS.rocket.turn * (1 + this.modules.handling * 0.2) * dt;
+                    const angle = current + clamp(difference, -turn, turn);
+                    bullet.vx = Math.cos(angle) * ATLAS_WEAPONS.rocket.speed;
+                    bullet.vy = Math.sin(angle) * ATLAS_WEAPONS.rocket.speed;
+                }
+            }
             const ray = new RAPIER.Ray(
                 { x: bullet.x / P, y: bullet.y / P },
                 { x: (bullet.vx * dt) / P, y: (bullet.vy * dt) / P },
@@ -1437,6 +1777,7 @@ export class MissionSimulation {
                     this.isObstacle(collider) ||
                     (bullet.team === 'enemy' &&
                         (this.salvage.colliders.has(collider.handle) ||
+                            collider.handle === this.aegis?.drone?.collider.handle ||
                             (this.escort?.vulnerable &&
                                 collider.handle === this.escort.collider.handle))) ||
                     (bullet.team === 'player'
@@ -1460,10 +1801,28 @@ export class MissionSimulation {
                     x: bullet.x + bullet.vx * dt * hit.timeOfImpact,
                     y: bullet.y + bullet.vy * dt * hit.timeOfImpact,
                 };
+                if (bullet.explosive) {
+                    const speed = Math.max(1, Math.hypot(bullet.vx, bullet.vy));
+                    this.explodeAtlas(
+                        bullet,
+                        {
+                            x: contact.x - bullet.vx / speed,
+                            y: contact.y - bullet.vy / speed,
+                        },
+                        hit.collider.handle,
+                    );
+                    this.bullets.delete(bullet.id);
+                    continue;
+                }
                 if (this.fortressColliders.has(hit.collider.handle))
                     this.events.push({ ...contact, kind: 'hit', strength: bullet.damage });
                 if (bullet.team === 'enemy' && this.escort?.collider.handle === hit.collider.handle)
                     this.damageEscort(bullet.damage, contact);
+                if (
+                    bullet.team === 'enemy' &&
+                    this.aegis?.drone?.collider.handle === hit.collider.handle
+                )
+                    this.damageSupportDrone(bullet.damage, contact);
                 const salvage = this.salvage.items.get(
                     this.salvage.colliders.get(hit.collider.handle)!,
                 );
@@ -1471,21 +1830,30 @@ export class MissionSimulation {
                     this.damageSalvage(salvage, bullet.damage, contact);
                 const rock = this.rocks.get(this.asteroidColliders.get(hit.collider.handle)!);
                 if (rock && bullet.team === 'player') {
-                    rock.health -= GAME.shotRockDamage;
+                    const damage = bullet.energy
+                        ? AEGIS.rockDamage * (1 + this.modules.drill * 0.25) * this.pilot.mining
+                        : GAME.shotRockDamage;
+                    rock.health -= damage;
                     this.events.push({
                         ...contact,
                         kind: 'hit',
                         rich: rock.rich,
-                        strength: GAME.shotRockDamage,
+                        strength: damage,
                     });
                     if (rock.health <= 0) this.breakRock(rock);
                 } else if (bullet.team === 'player') {
                     const enemyId = this.enemies.colliders.get(hit.collider.handle);
                     if (enemyId !== undefined) {
                         const enemy = this.enemies.enemies.get(enemyId)!;
+                        if (bullet.energy) {
+                            enemy.weaponDisabled = AEGIS.disable;
+                            enemy.charge = 0;
+                            this.aegis?.hostiles.add(enemy.id);
+                        }
                         this.damageEnemy(enemy, bullet.damage, contact);
                     }
                 } else if (hit.collider.handle === this.shipCollider.handle) {
+                    if (bullet.shooterId !== undefined) this.aegis?.hostiles.add(bullet.shooterId);
                     if (this.distanceHome >= DRONES.safeRadius)
                         this.takeDamage(
                             bullet.damage,
@@ -1500,7 +1868,10 @@ export class MissionSimulation {
                 bullet.x += bullet.vx * dt;
                 bullet.y += bullet.vy * dt;
                 bullet.life -= dt;
-                if (bullet.life <= 0) this.bullets.delete(bullet.id);
+                if (bullet.life <= 0) {
+                    if (bullet.explosive) this.explodeAtlas(bullet, bullet);
+                    this.bullets.delete(bullet.id);
+                }
             }
         }
     }
@@ -1749,6 +2120,7 @@ export class MissionSimulation {
         if (this.disposed) return;
         this.disposed = true;
         this.choice = null;
+        this.aegis?.dispose();
         this.escort?.dispose();
         this.salvage.dispose();
         this.enemies.dispose();

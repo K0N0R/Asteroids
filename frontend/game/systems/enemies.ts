@@ -19,6 +19,7 @@ export interface Enemy extends EnemySpec {
     lostSight: number;
     hitFlash: number;
     impactCooldown: number;
+    weaponDisabled?: number;
     thrusting: boolean;
     lastSeen: Point;
     routeIndex: number;
@@ -187,6 +188,7 @@ export class EnemyFleet {
             enemy.previous = p;
             enemy.previousAngle = enemy.body.rotation();
             enemy.cooldown = Math.max(0, enemy.cooldown - dt);
+            enemy.weaponDisabled = Math.max(0, (enemy.weaponDisabled ?? 0) - dt);
             enemy.impactCooldown = Math.max(0, enemy.impactCooldown - dt);
             enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
             enemy.phase += dt * 0.35;
@@ -324,6 +326,7 @@ export class EnemyFleet {
             if (
                 enemy.state === 'chase' &&
                 visible &&
+                !enemy.weaponDisabled &&
                 distance < config.fireRange &&
                 Math.abs(error) < 0.2 &&
                 enemy.cooldown <= 0 &&

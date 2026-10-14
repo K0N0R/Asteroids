@@ -1,6 +1,6 @@
 # Kierunki rozwoju floty — sześć konceptów użytkownika
 
-Obraz jest inspiracją do sylwetek i ról, a nie specyfikacją obowiązkowych statystyk. Modele pozostają figurami Pixi, z materiałami obecnej floty, jasnoniebieskim szkłem i wyraźnymi mocowaniami wyposażenia. Eskorta i tarcze kinetyczne są wdrożone. Pierwsze dwa kadłuby, Atlas i Harpun, dodano w [etapie 0.27](implementation-v0.27.md); pozostałe cztery są konceptami.
+Obraz jest inspiracją do sylwetek i ról, a nie specyfikacją obowiązkowych statystyk. Modele pozostają figurami Pixi, z materiałami obecnej floty, jasnoniebieskim szkłem i wyraźnymi mocowaniami wyposażenia. Eskorta i tarcze kinetyczne są wdrożone. Atlas i Harpun weszły w [etapie 0.27](implementation-v0.27.md), Aegis w [0.28](implementation-v0.28.md); Widmo, Żądło i Feniks pozostają konceptami.
 
 | Koncept | Referencja liczbowa                                                                                             | Proponowana specjalizacja i uwagi                                                                                                                                                          |
 | ------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -14,3 +14,7 @@ Obraz jest inspiracją do sylwetek i ról, a nie specyfikacją obowiązkowych st
 Podane wartości służą do późniejszych porównań. Kolejna paczka kadłubów potrzebuje cen, wymagań progresji, statystyk tarcz, masy/kolizji i czytelnej przewagi oraz słabości każdej roli. Najpierw mogą wejść Atlas i Harpun jako wyraźne warianty użytkowe, następnie obrońca powiązany z tarczami, a na końcu wyspecjalizowane szybkie kadłuby.
 
 Aktualne ustalenie dla Harpuna zastępuje referencyjne działko i laser dwiema bojowymi szczękami: LPM zaciska, przytrzymanie PPM wysuwa ramiona ku celowi, a nieużywane ramiona składają się do kadłuba. Kontakt samych ramion nie uszkadza statku ani tarczy. Szczegóły obrażeń i specjalnych ulepszeń: [etap 0.27](implementation-v0.27.md).
+
+Aktualne ustalenie dla Atlasa zastępuje referencyjne działko i lasery klasą grenadier: LPM wystrzeliwuje wolną rakietę o dużym zasięgu i wybuchu, PPM krótkodystansowe granaty z szybkim zapalnikiem. Trzymanie kursora na wrogu przez 3 s przypisuje lock rakiet; śmierć celu przerywa lock i naprowadzanie. Ulepszenie granatów zwiększa liczbę pocisków w stożku. Szczegóły: [etap 0.27](implementation-v0.27.md).
+
+Aktualne ustalenie dla Aegisa zastępuje referencyjne działa i lasery jednym działkiem energetycznym na szpicy, impulsem tarcz na PPM i reaktywnym mini dronem. Ulepszenia rozwijają działko, atak oraz HP drona i odnowienie impulsu. Nazwa statku pozostaje Aegis zgodnie z decyzją użytkownika, niezależnie od twierdzy o tej samej nazwie. Szczegóły: [etap 0.28](implementation-v0.28.md).

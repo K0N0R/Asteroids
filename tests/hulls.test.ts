@@ -1,7 +1,15 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
-import { HULLS, GAME, HullId, FLEET_LIMIT, shipUpgradeDefinition } from '../frontend/game/config';
+import {
+    ATLAS_WEAPONS,
+    AEGIS,
+    HULLS,
+    GAME,
+    HullId,
+    FLEET_LIMIT,
+    shipUpgradeDefinition,
+} from '../frontend/game/config';
 import {
     newCampaign,
     newShip,
@@ -17,8 +25,40 @@ import { enemyPosition } from '../frontend/game/systems/enemies';
 import { flightHint } from '../frontend/game/ui/missionReadout';
 import { HarpoonArms, HARPOON_ARMS } from '../frontend/game/systems/harpoonArms';
 import { equipWeapon } from '../frontend/game/state/weapons';
+import { AegisSupport } from '../frontend/game/systems/aegisSupport';
+import { selectContract } from '../frontend/game/state/contracts';
+import { salvagePosition } from '../frontend/game/systems/salvage';
 before(async () => {
     await RAPIER.init();
+});
+test('Aegis support shields absorb damage temporarily, enforce cooldown and rebuild a destroyed drone', () => {
+    const world = new RAPIER.World({ x: 0, y: 0 });
+    try {
+        const support = new AegisSupport(world, 1, 1);
+        support.rebuild({ x: 3000, y: 0 });
+        assert.equal(support.drone!.hull, 62.5);
+        assert.equal(support.droneDamage, 15);
+        assert.ok(
+            support.pulse({ x: 3000, y: 0 }, [
+                { id: 'drone', x: 3110, y: 0 },
+                { id: 'far', x: 4000, y: 0 },
+            ]),
+        );
+        assert.equal(support.absorb('drone', 50), 0);
+        assert.equal(support.absorb('far', 50), 50);
+        assert.equal(support.pulse({ x: 3000, y: 0 }, []), false);
+        support.update(6.1, { x: 3000, y: 0 });
+        assert.equal(support.shields.size, 0);
+        assert.equal(support.damageDrone(100), true);
+        assert.equal(support.drone, null);
+        assert.equal(support.rebuild({ x: 3000, y: 0 }), true);
+        assert.equal(support.rebuild({ x: 3000, y: 0 }), false);
+        support.dispose();
+        assert.equal(support.drone, null);
+        assert.equal(world.colliders.len(), 0);
+    } finally {
+        world.free();
+    }
 });
 test('Harpoon articulated jaws extend toward aim, fold to attached shoulders and strike once per click', () => {
     const arms = new HarpoonArms();
@@ -118,6 +158,464 @@ function harpoonArena() {
     return sim;
 }
 const armInput: FlightInput = { ...idle, target: { x: 3200, y: 0 }, mine: true };
+function aegisArena(escort = false) {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'aegis';
+    if (escort) {
+        campaign.contractCompletions[2] = 1;
+        campaign.station.workshop = 2;
+        campaign.recovered = 1;
+        assert.ok(selectContract(campaign, 7));
+        beginRun(campaign, 71);
+    }
+    const sim = new MissionSimulation(campaign, 71);
+    clean(sim, true);
+    sim.ship.setTranslation({ x: 30, y: 0 }, true);
+    sim.aegis!.drone!.body.setTranslation({ x: 31.1, y: 0 }, true);
+    return sim;
+}
+test('Aegis drone stays neutral, then retaliates only against a target hit by the energy cannon', () => {
+    const sim = aegisArena();
+    try {
+        const target = atlasEnemy(sim, 999, 3400, 0);
+        const neutral = atlasEnemy(sim, 998, 3400, 180);
+        for (let frame = 0; frame < 60; frame++) sim.step(idle);
+        assert.equal(sim.bullets.size, 0);
+        assert.equal(sim.aegis!.hostiles.size, 0);
+        sim.step({ ...idle, target: { x: 3400, y: 0 }, fire: true });
+        assert.ok([...sim.bullets.values()].some((bullet) => bullet.energy));
+        for (let frame = 0; frame < 35; frame++) sim.step(idle);
+        assert.ok(target.weaponDisabled! > 0);
+        assert.equal(target.health, 500 - AEGIS.damage);
+        assert.ok(sim.aegis!.hostiles.has(999));
+        assert.equal(sim.aegis!.hostiles.has(998), false);
+        assert.equal(neutral.health, 500);
+        assert.ok([...sim.bullets.values()].some((bullet) => bullet.source === 'drone'));
+        assert.equal(sim.laserBeams.length, 0);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Aegis suppression stops actual enemy firing temporarily and hostile fire engages the helper', () => {
+    const sim = aegisArena();
+    try {
+        const enemy = atlasEnemy(sim, 999, 3300, 0);
+        enemy.cooldown = 0;
+        enemy.body.setRotation(Math.PI, true);
+        enemy.weaponDisabled = 0.6;
+        for (let frame = 0; frame < 25; frame++) sim.step(idle);
+        assert.equal(
+            [...sim.bullets.values()].filter((bullet) => bullet.team === 'enemy').length,
+            0,
+        );
+        assert.equal(sim.aegis!.hostiles.size, 0);
+        for (let frame = 0; frame < Math.ceil((enemy.config.windup + 1) / GAME.step); frame++)
+            sim.step(idle);
+        assert.ok(sim.aegis!.hostiles.has(999));
+        assert.ok(
+            enemy.health < 500 ||
+                [...sim.bullets.values()].some((bullet) => bullet.source === 'drone'),
+        );
+    } finally {
+        sim.dispose();
+    }
+});
+test('Aegis pulse refills the mother, shields allies in range, expires and cannot repeat while held', () => {
+    const sim = aegisArena(true);
+    try {
+        const escort = sim.escort!;
+        escort.state = 'travel';
+        escort.ambushed = true;
+        escort.body.setTranslation({ x: 30, y: 2 }, true);
+        const wreck = sim.salvage.add(999, 'patrol', { x: 3000, y: -200 }, { x: 0, y: 0 })!;
+        sim.salvage.attach(wreck, sim.ship);
+        const far = sim.salvage.add(998, 'patrol', { x: 4000, y: 0 }, { x: 0, y: 0 })!;
+        sim.kineticShield.charge = 0;
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.kineticShield.charge, sim.kineticShield.profile.capacity);
+        for (const id of ['player', 'drone', 'escort', `salvage:${wreck.id}`])
+            assert.ok(sim.aegis!.shields.has(id));
+        assert.equal(sim.aegis!.shields.has(`salvage:${far.id}`), false);
+        const escortHull = escort.health,
+            wreckHull = wreck.health;
+        for (const [id, position] of [
+            [910, escort.position],
+            [911, salvagePosition(wreck)],
+        ] as const)
+            sim.bullets.set(id, {
+                id,
+                ...position,
+                vx: 0,
+                vy: 0,
+                life: 1,
+                team: 'enemy',
+                damage: 30,
+            });
+        sim.step({ ...idle, mine: true });
+        assert.equal(escort.health, escortHull);
+        assert.equal(wreck.health, wreckHull);
+        sim.kineticShield.charge = 30;
+        sim.step({ ...idle, mine: true });
+        assert.ok(sim.kineticShield.charge < 31);
+        for (let frame = 0; frame < 365; frame++) sim.step(idle);
+        assert.equal(sim.aegis!.shields.size, 0);
+        assert.ok(sim.aegis!.cooldown > 0);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Aegis helper takes real projectile damage, temporary shields protect it and repair kits rebuild it', () => {
+    const sim = aegisArena();
+    try {
+        sim.step({ ...idle, mine: true });
+        let position = sim.aegis!.dronePosition!;
+        sim.bullets.set(910, {
+            id: 910,
+            ...position,
+            vx: 0,
+            vy: 0,
+            life: 1,
+            team: 'enemy',
+            damage: 30,
+        });
+        sim.step(idle);
+        assert.equal(sim.aegis!.drone!.hull, AEGIS.droneHull);
+        position = sim.aegis!.dronePosition!;
+        sim.bullets.set(911, {
+            id: 911,
+            ...position,
+            vx: 0,
+            vy: 0,
+            life: 1,
+            team: 'enemy',
+            damage: 200,
+        });
+        sim.step(idle);
+        assert.equal(sim.aegis!.drone, null);
+        assert.equal(sim.aegis!.shields.has('drone'), false);
+        for (let frame = 0; frame < 310; frame++) sim.step({ ...idle, repair: true });
+        assert.equal(sim.aegis!.drone, null);
+        sim.repairKits = 1;
+        for (let frame = 0; frame < 100; frame++) sim.step({ ...idle, repair: true });
+        sim.step({ ...idle, repair: true, fire: true });
+        assert.equal(sim.repairProgress, 0);
+        for (let frame = 0; frame < 310; frame++) sim.step({ ...idle, repair: true });
+        assert.equal(sim.repairKits, 0);
+        assert.equal(sim.aegis!.drone!.hull, AEGIS.droneHull);
+        assert.equal(sim.hull, sim.maxHull);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Aegis specialized upgrades survive saves and strengthen energy shots, drone and pulse', () => {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'aegis';
+    campaign.station.workshop = 2;
+    campaign.station.storage = 3;
+    campaign.bank = { ore: 350, parts: 40, crystals: 20 };
+    for (const upgrade of ['drill', 'handling', 'shield'] as const)
+        assert.ok(buyUpgrade(campaign, upgrade));
+    assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
+    assert.equal(equipWeapon(campaign, 'rail'), false);
+    const sim = new MissionSimulation(campaign, 71);
+    try {
+        assert.equal(sim.energyDamage, AEGIS.damage * 1.25);
+        assert.equal(sim.aegis!.droneDamage, AEGIS.droneDamage * 1.25);
+        assert.equal(sim.aegis!.drone!.hull, AEGIS.droneHull * 1.25);
+        assert.equal(sim.aegis!.pulseCooldown, AEGIS.cooldown / 1.2);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Aegis energy cannon damages rocks more than ordinary bullets and collects normal loot', () => {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'aegis';
+    campaign.ship!.drill = 1;
+    const sim = new MissionSimulation(campaign, 71);
+    try {
+        sim.ship.setTranslation({ x: 30, y: 0 }, true);
+        sim.aegis!.drone!.body.setTranslation({ x: 31.1, y: 0 }, true);
+        sim.enemies.dispose();
+        const rock = [...sim.rocks.values()].find((rock) => rock.radius > 25 && rock.radius < 40)!;
+        for (const other of [...sim.rocks.values()])
+            if (other !== rock) {
+                sim.world.removeRigidBody(other.body);
+                sim.rocks.delete(other.id);
+            }
+        rock.orbit = undefined;
+        rock.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+        rock.body.setTranslation({ x: 34, y: 0 }, true);
+        rock.health = 100;
+        const fire = { ...idle, target: { x: 3400, y: 0 }, fire: true };
+        sim.step(fire);
+        for (let frame = 0; frame < 40; frame++) sim.step(idle);
+        const damage = AEGIS.rockDamage * 1.25 * sim.pilot.mining;
+        assert.ok(damage > GAME.shotRockDamage);
+        assert.ok(Math.abs(rock.health - (100 - damage)) < 1e-8);
+        rock.health = 1;
+        sim.step(fire);
+        for (let frame = 0; frame < 100; frame++) sim.step(idle);
+        assert.equal(sim.rocks.has(rock.id), false);
+        assert.ok(
+            sim.cargoUsed > 0 || sim.loot.size > 0 || sim.grippers.arms.some((arm) => arm.held),
+        );
+    } finally {
+        sim.dispose();
+    }
+});
+test('Aegis pulse absorbs mother damage, pauses with the mission and is reusable after cooldown', () => {
+    const sim = aegisArena();
+    try {
+        sim.kineticShield.charge = 20;
+        sim.step({ ...idle, mine: true });
+        const full = sim.kineticShield.charge;
+        sim.bullets.set(910, {
+            id: 910,
+            x: 3060,
+            y: 0,
+            vx: -300,
+            vy: 0,
+            life: 1,
+            team: 'enemy',
+            damage: 40,
+        });
+        for (let frame = 0; frame < 5; frame++) sim.step(idle);
+        assert.equal(sim.kineticShield.charge, full);
+        assert.equal(sim.hull, sim.maxHull);
+        assert.equal(sim.aegis!.shields.get('player')!.charge, AEGIS.buffer - 40);
+        const cooldown = sim.aegis!.cooldown,
+            position = sim.aegis!.dronePosition;
+        sim.ended = 'returned';
+        for (let frame = 0; frame < 60; frame++) sim.step(idle);
+        assert.equal(sim.aegis!.cooldown, cooldown);
+        assert.deepEqual(sim.aegis!.dronePosition, position);
+        sim.ended = null;
+        for (let frame = 0; frame < 1100; frame++) sim.step(idle);
+        assert.equal(sim.aegis!.cooldown, 0);
+        sim.kineticShield.charge = 0;
+        sim.step({ ...idle, mine: true });
+        assert.equal(sim.kineticShield.charge, full);
+        assert.ok(sim.aegis!.cooldown > 0);
+    } finally {
+        sim.dispose();
+    }
+});
+function atlasArena() {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'atlas';
+    const sim = new MissionSimulation(campaign, 71);
+    clean(sim, true);
+    sim.ship.setTranslation({ x: 30, y: 0 }, true);
+    return sim;
+}
+function atlasEnemy(sim: MissionSimulation, id: number, x: number, y: number) {
+    sim.enemies.add([{ id, x, y, kind: 'lancer', home: { x, y }, phase: 0 }]);
+    const enemy = sim.enemies.enemies.get(id)!;
+    enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+    enemy.cooldown = 999;
+    enemy.health = 500;
+    return enemy;
+}
+test('Atlas locks after continuous three-second hover and steers a rocket launched away from the target', () => {
+    const sim = atlasArena();
+    try {
+        atlasEnemy(sim, 999, 3500, 0);
+        const target = { x: 3500, y: 0 };
+        for (let frame = 0; frame < 179; frame++) sim.step({ ...idle, target });
+        assert.equal(sim.atlasLock.locked, null);
+        sim.step({ ...idle, target });
+        assert.equal(sim.atlasLock.locked, 999);
+        sim.step({ ...idle, target: { x: 3000, y: -1000 }, fire: true });
+        const rocket = [...sim.bullets.values()].find((bullet) => bullet.explosive === 'rocket')!;
+        assert.equal(rocket.targetId, 999);
+        for (let frame = 0; frame < 70; frame++) sim.step(idle);
+        assert.ok(rocket.vx > 0);
+        assert.ok(rocket.vy > 0);
+        sim.enemies.damage(999, 10000);
+        sim.step(idle);
+        assert.equal(sim.atlasLock.locked, null);
+        assert.equal(sim.atlasLock.target, null);
+        assert.equal(sim.atlasLock.progress, 0);
+        assert.equal(rocket.targetId, undefined);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Atlas rockets launched backwards reach the lock and its death clears other guided rockets', () => {
+    const sim = atlasArena();
+    try {
+        const target = atlasEnemy(sim, 999, 3500, 0);
+        target.health = ATLAS_WEAPONS.rocket.damage;
+        const hover = { ...idle, target: { x: 3500, y: 0 } };
+        for (let frame = 0; frame < 180; frame++) sim.step(hover);
+        sim.step({ ...idle, target: { x: 2000, y: 0 }, fire: true });
+        for (let frame = 0; frame < 110; frame++) sim.step(idle);
+        assert.equal(sim.enemies.enemies.has(999), true);
+        sim.step({ ...idle, target: { x: 2000, y: 0 }, fire: true });
+        const rockets = [...sim.bullets.values()].filter((bullet) => bullet.explosive === 'rocket');
+        assert.equal(rockets.length, 2);
+        for (let frame = 0; frame < 600 && sim.enemies.enemies.has(999); frame++) sim.step(idle);
+        assert.equal(sim.enemyKills, 1);
+        assert.equal(sim.atlasLock.locked, null);
+        assert.ok([...sim.bullets.values()].every((bullet) => bullet.targetId === undefined));
+    } finally {
+        sim.dispose();
+    }
+});
+test('Atlas rockets apply splash once to nearby ships and grenades detonate quickly without laser beams', () => {
+    const sim = atlasArena();
+    try {
+        const direct = atlasEnemy(sim, 999, 3400, 0);
+        const nearby = atlasEnemy(sim, 998, 3400, 100);
+        const distant = atlasEnemy(sim, 997, 3400, 300);
+        sim.step({ ...idle, target: { x: 4000, y: 0 }, fire: true });
+        for (let frame = 0; frame < 100; frame++) sim.step(idle);
+        assert.equal(direct.health, 500 - ATLAS_WEAPONS.rocket.damage);
+        assert.equal(nearby.health, 500 - ATLAS_WEAPONS.rocket.damage);
+        assert.equal(distant.health, 500);
+        sim.step({ ...idle, target: { x: 4000, y: 0 }, mine: true });
+        assert.equal(sim.laserBeams.length, 0);
+        for (let frame = 0; frame < 45; frame++) sim.step(idle);
+        assert.equal(
+            [...sim.bullets.values()].filter((bullet) => bullet.explosive === 'grenade').length,
+            0,
+        );
+        assert.ok(
+            sim.events.some(
+                (event) =>
+                    event.kind === 'explosion' && event.strength === ATLAS_WEAPONS.grenade.radius,
+            ),
+        );
+    } finally {
+        sim.dispose();
+    }
+});
+test('Atlas hover interruptions and target death reset incomplete locks without granting guidance', () => {
+    const sim = atlasArena();
+    try {
+        atlasEnemy(sim, 999, 3500, 0);
+        atlasEnemy(sim, 998, 3500, 200);
+        for (let frame = 0; frame < 100; frame++) sim.step({ ...idle, target: { x: 3500, y: 0 } });
+        sim.step(idle);
+        assert.equal(sim.atlasLock.progress, 0);
+        for (let frame = 0; frame < 100; frame++) sim.step({ ...idle, target: { x: 3500, y: 0 } });
+        sim.step({ ...idle, target: { x: 3500, y: 200 } });
+        assert.equal(sim.atlasLock.target, 998);
+        assert.equal(sim.atlasLock.progress, GAME.step);
+        assert.equal(sim.atlasLock.locked, null);
+        sim.enemies.damage(998, 10000);
+        sim.step({ ...idle, target: { x: 3500, y: 200 }, fire: true });
+        assert.equal(sim.atlasLock.progress, 0);
+        const rocket = [...sim.bullets.values()].find((bullet) => bullet.explosive === 'rocket')!;
+        assert.equal(rocket.targetId, undefined);
+        assert.ok(rocket.life > 10);
+        assert.ok(Math.abs(Math.hypot(rocket.vx, rocket.vy) - ATLAS_WEAPONS.rocket.speed) < 1e-8);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Atlas saved grenade upgrades launch symmetric cone salvos and block ordinary gun fitting', () => {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'atlas';
+    campaign.station.workshop = 2;
+    campaign.station.storage = 3;
+    campaign.bank = { ore: 350, parts: 40, crystals: 20 };
+    for (let level = 0; level < 3; level++) assert.ok(buyUpgrade(campaign, 'drill'));
+    assert.ok(buyUpgrade(campaign, 'handling'));
+    assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
+    const bank = { ...campaign.bank };
+    assert.equal(equipWeapon(campaign, 'rail'), false);
+    assert.deepEqual(campaign.bank, bank);
+    const sim = new MissionSimulation(campaign, 71);
+    try {
+        clean(sim, true);
+        sim.ship.setTranslation({ x: 30, y: 0 }, true);
+        sim.step({ ...idle, target: { x: 4000, y: 0 }, mine: true, fire: true });
+        const grenades = [...sim.bullets.values()].filter(
+            (bullet) => bullet.explosive === 'grenade',
+        );
+        assert.equal(grenades.length, 4);
+        assert.ok(
+            grenades[0].vy < grenades[1].vy &&
+                grenades[1].vy < grenades[2].vy &&
+                grenades[2].vy < grenades[3].vy,
+        );
+        assert.ok(Math.abs(grenades[0].vy + grenades[3].vy) < 1e-8);
+        assert.equal(sim.rocketDamage, ATLAS_WEAPONS.rocket.damage * 1.25);
+        assert.equal(sim.laserBeams.length, 0);
+        assert.equal(sim.hull, sim.maxHull);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Atlas splash damages rocks and preserves normal breakup and resource collection', () => {
+    for (const kind of ['rocket', 'grenade'] as const) {
+        const campaign = newCampaign();
+        campaign.ship!.hull = 'atlas';
+        const sim = new MissionSimulation(campaign, 71);
+        try {
+            sim.ship.setTranslation({ x: 30, y: 0 }, true);
+            sim.enemies.dispose();
+            const rocks = [...sim.rocks.values()]
+                .filter((rock) => rock.radius > 25 && rock.radius < 40)
+                .slice(0, 2);
+            assert.equal(rocks.length, 2);
+            for (const rock of [...sim.rocks.values()])
+                if (!rocks.includes(rock)) {
+                    sim.world.removeRigidBody(rock.body);
+                    sim.rocks.delete(rock.id);
+                }
+            for (const [index, rock] of rocks.entries()) {
+                rock.orbit = undefined;
+                rock.health = 1000;
+                rock.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+                rock.body.setTranslation(
+                    { x: kind === 'rocket' ? 34 : 33, y: index * (kind === 'rocket' ? 1 : 0.6) },
+                    true,
+                );
+            }
+            const input = {
+                ...idle,
+                target: { x: 4000, y: 0 },
+                fire: kind === 'rocket',
+                mine: kind === 'grenade',
+            };
+            sim.step(input);
+            for (let frame = 0; frame < 120; frame++) sim.step(idle);
+            for (const rock of rocks)
+                assert.ok(
+                    Math.abs(rock.health - (1000 - ATLAS_WEAPONS[kind].damage * sim.pilot.mining)) <
+                        1e-8,
+                );
+            rocks[0].health = 1;
+            sim.step(input);
+            for (let frame = 0; frame < 120; frame++) sim.step(idle);
+            assert.equal(sim.rocks.has(rocks[0].id), false);
+            assert.ok(
+                sim.cargoUsed > 0 || sim.loot.size > 0 || sim.grippers.arms.some((arm) => arm.held),
+            );
+        } finally {
+            sim.dispose();
+        }
+    }
+});
+test('Atlas explosions are blocked by fortress walls and do not damage friendly hull or shield', () => {
+    const sim = atlasArena();
+    try {
+        const enemy = atlasEnemy(sim, 999, 3220, 0);
+        const wall = sim.world.createCollider(
+            RAPIER.ColliderDesc.cuboid(0.1, 2).setTranslation(31.8, 0),
+        );
+        sim.fortressColliders.add(wall.handle);
+        sim.step({ ...idle, target: { x: 4000, y: 0 }, mine: true });
+        for (let frame = 0; frame < 45; frame++) sim.step(idle);
+        assert.equal(enemy.health, 500);
+        assert.equal(sim.hull, sim.maxHull);
+        assert.equal(sim.kineticShield.charge, sim.kineticShield.profile.capacity);
+    } finally {
+        sim.dispose();
+    }
+});
 function squeeze(sim: MissionSimulation) {
     sim.step(armInput);
     for (let frame = 0; frame < 34; frame++) sim.step({ ...armInput, fire: true });
@@ -267,8 +765,8 @@ test('Harpoon joint and jaw upgrades persist and improve actual reach and crushi
     assert.equal(shipUpgradeDefinition('harpoon', 'drill').title, 'Siłowniki szczęk');
     assert.equal(shipUpgradeDefinition('prospector', 'drill').title, 'Laser wydobywczy');
 });
-test('eight distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
-    assert.equal(Object.keys(HULLS).length, 8);
+test('nine distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
+    assert.equal(Object.keys(HULLS).length, 9);
     assert.deepEqual(
         Object.values(HULLS).map((h) => [h.guns.length, h.lasers.length, h.grabbers.length]),
         [
@@ -278,8 +776,9 @@ test('eight distinct hulls have the requested gun, laser and gripper layouts and
             [2, 1, 1],
             [1, 1, 2],
             [2, 1, 2],
-            [1, 2, 4],
             [0, 0, 4],
+            [0, 0, 4],
+            [1, 0, 2],
         ],
     );
     assert.ok(

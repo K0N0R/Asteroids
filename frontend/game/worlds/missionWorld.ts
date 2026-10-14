@@ -15,7 +15,17 @@ import {
     DroneView,
     cacheView,
 } from '../graphics/shapes';
-import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
+import {
+    AEGIS,
+    ATLAS_WEAPONS,
+    DRONES,
+    GAME,
+    HULLS,
+    OUTPOST,
+    RECOVERY,
+    SCAN,
+    ScanSiteId,
+} from '../config';
 import { SoundManager } from '../../core/systems/soundManager';
 import { Ship } from '../state/campaign';
 import { label } from '../ui/primitives';
@@ -54,9 +64,13 @@ export class MissionWorld extends Container {
         duration: number;
         spin: number;
         dust: boolean;
+        blast?: boolean;
     }[] = [];
     private shield = new Graphics();
     private kineticView = new Graphics();
+    private atlasLockView = new Graphics();
+    private supportShields = new Graphics();
+    private supportDrone = new Container();
     private rockLayer = new Container();
     private effectLayer = new Container();
     private shapes = new ShapeLibrary();
@@ -93,6 +107,20 @@ export class MissionWorld extends Container {
         wreck.position.set(w.x, w.y);
         this.camera.addChild(wreck, this.rockLayer, this.effectLayer, this.shipView);
         this.camera.addChild(this.enemyStatus, this.effectLayer, this.salvageStatus);
+        this.camera.addChild(this.atlasLockView);
+        this.supportDrone.addChild(
+            new Graphics()
+                .poly([-14, -6, -5, -11, 7, -7, 15, 0, 7, 7, -5, 11, -14, 6])
+                .fill(0x889da7)
+                .stroke({ color: 0xc3d9e0, width: 1 })
+                .ellipse(2, 0, 5, 4)
+                .fill(0x94d4ed)
+                .roundRect(11, -2, 14, 4, 1)
+                .fill(0xcee7e8)
+                .rect(-15, -6, 3, 12)
+                .fill(0x83d4f0),
+        );
+        this.camera.addChild(this.supportDrone, this.supportShields);
         this.camera.addChildAt(this.kineticView, this.camera.getChildIndex(this.shipView) + 1);
         this.camera.addChildAt(this.laser, this.camera.getChildIndex(this.shipView));
         this.camera.addChildAt(this.grabberLines, this.camera.getChildIndex(this.shipView));
@@ -218,23 +246,50 @@ export class MissionWorld extends Container {
         for (const event of this.simulation.events.splice(0)) {
             this.audio.event(event, this.simulation.position, this.simulation.elapsed);
             if (event.kind === 'shot' || !this.inView(event)) continue;
+            if (event.kind === 'explosion') {
+                const radius = event.strength ?? ATLAS_WEAPONS.grenade.radius;
+                const ring = new Graphics()
+                    .circle(0, 0, radius)
+                    .fill({ color: 0xf0a64e, alpha: 0.08 })
+                    .stroke({ color: 0xffcc76, width: 3 })
+                    .circle(0, 0, radius * 0.6)
+                    .stroke({ color: 0xffefbc, width: 2, alpha: 0.6 });
+                ring.position.set(event.x, event.y);
+                ring.scale.set(0.2);
+                ring.blendMode = 'add';
+                this.effectLayer.addChild(ring);
+                this.particles.push({
+                    view: ring,
+                    vx: 0,
+                    vy: 0,
+                    life: 0.45,
+                    duration: 0.45,
+                    spin: 0,
+                    dust: false,
+                    blast: true,
+                });
+            }
             const count = impactParticleCount(event.kind, event.strength);
             for (let i = 0; i < count && this.particles.length < 800; i++) {
                 const dust = event.kind === 'break' && i % 3 === 0;
                 const color =
-                    event.kind === 'weld'
+                    event.kind === 'explosion'
                         ? i % 2
-                            ? 0xffcb79
-                            : 0xeaf5ff
-                        : event.kind === 'shield'
-                          ? 0x80d5ff
-                          : event.kind === 'collect'
-                            ? C.mint
-                            : dust
-                              ? 0x8b8171
-                              : i % 3 === 0
-                                ? 0xe5bc84
-                                : 0xacc0ca;
+                            ? 0xffb54f
+                            : 0xffebae
+                        : event.kind === 'weld'
+                          ? i % 2
+                              ? 0xffcb79
+                              : 0xeaf5ff
+                          : event.kind === 'shield'
+                            ? 0x80d5ff
+                            : event.kind === 'collect'
+                              ? C.mint
+                              : dust
+                                ? 0x8b8171
+                                : i % 3 === 0
+                                  ? 0xe5bc84
+                                  : 0xacc0ca;
                 const view = new Graphics();
                 const size = dust
                     ? 4 + Math.random() * 7
@@ -291,6 +346,7 @@ export class MissionWorld extends Container {
             p.vy *= Math.exp(-effectDt * (p.dust ? 2 : 1));
             p.view.rotation += p.spin * effectDt;
             p.view.alpha = Math.max(0, p.life / p.duration);
+            if (p.blast) p.view.scale.set(0.2 + (1 - p.life / p.duration) * 0.8);
             if (p.dust) p.view.scale.set(1 + (1 - p.life / p.duration) * 1.8);
             if (p.life <= 0) {
                 p.view.destroy();
@@ -311,6 +367,40 @@ export class MissionWorld extends Container {
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
             p = s.position;
+        this.atlasLockView.clear();
+        if (s.isAtlas) {
+            for (const id of new Set([s.atlasLock.target, s.atlasLock.locked])) {
+                const enemy = id === null ? undefined : s.enemies.enemies.get(id);
+                if (!enemy) continue;
+                const position = enemyPosition(enemy);
+                const locked = id === s.atlasLock.locked;
+                const radius = enemy.config.radius + 16;
+                const color = locked ? C.red : C.gold;
+                this.atlasLockView
+                    .circle(position.x, position.y, radius)
+                    .stroke({ color, width: 1, alpha: 0.4 });
+                const fraction = locked ? 1 : s.atlasLock.progress / ATLAS_WEAPONS.lockTime;
+                if (fraction > 0)
+                    this.atlasLockView
+                        .beginPath()
+                        .moveTo(position.x, position.y - radius)
+                        .arc(
+                            position.x,
+                            position.y,
+                            radius,
+                            -Math.PI / 2,
+                            -Math.PI / 2 + Math.PI * 2 * fraction,
+                        )
+                        .stroke({ color, width: 3 });
+                for (const side of [-1, 1])
+                    this.atlasLockView
+                        .moveTo(position.x + side * (radius + 8), position.y)
+                        .lineTo(position.x + side * (radius - 5), position.y)
+                        .moveTo(position.x, position.y + side * (radius + 8))
+                        .lineTo(position.x, position.y + side * (radius - 5))
+                        .stroke({ color, width: 2 });
+            }
+        }
         this.shield.clear();
         if (Math.hypot(p.x, p.y) < DRONES.safeRadius + 1100) {
             const pulse = 0.8 + Math.sin(this.clock * 1.6) * 0.15;
@@ -347,7 +437,9 @@ export class MissionWorld extends Container {
         drawKineticShield(
             this.kineticView,
             s.kineticShield,
-            (Math.hypot(...s.hullConfig.hitbox) + 18) * s.hullConfig.size,
+            (Math.hypot(...s.hullConfig.hitbox) + 18) *
+                s.hullConfig.size *
+                (1 + (0.35 * (s.aegis?.shields.get('player')?.time ?? 0)) / AEGIS.duration),
             this.clock,
         );
         this.shipView.aimAt(s.aimTarget);
@@ -360,6 +452,55 @@ export class MissionWorld extends Container {
             this.clock,
         );
         this.shipView.alpha = s.cloaked ? 0.4 : 1;
+        this.supportShields.clear();
+        this.supportDrone.visible = !!s.aegis?.drone;
+        if (s.aegis) {
+            const dronePosition = s.aegis.dronePosition;
+            if (dronePosition && s.aegis.drone) {
+                this.supportDrone.position.set(dronePosition.x, dronePosition.y);
+                this.supportDrone.rotation = s.aegis.drone.body.rotation();
+            }
+            for (const [id, shield] of s.aegis.shields) {
+                if (id === 'player' || shield.charge <= 0) continue;
+                let position: Point | null = null,
+                    radius = 30;
+                if (id === 'drone') position = dronePosition;
+                else if (id === 'escort') {
+                    position = s.escort?.position ?? null;
+                    radius = 46;
+                } else {
+                    const item = s.salvage.items.get(Number(id.split(':')[1]));
+                    if (item) {
+                        position = salvagePosition(item);
+                        radius = item.radius + 18;
+                    }
+                }
+                if (!position) continue;
+                radius *= 1.2 + (0.15 * shield.time) / AEGIS.duration;
+                const opacity =
+                    Math.min(1, shield.time) * (0.25 + (shield.charge / shield.capacity) * 0.4);
+                this.supportShields
+                    .circle(position.x, position.y, radius)
+                    .fill({ color: 0x71bfe9, alpha: opacity * 0.08 })
+                    .stroke({ color: 0x9cdeff, width: 2, alpha: opacity })
+                    .circle(position.x, position.y, radius + 4)
+                    .stroke({ color: 0x639bce, width: 4, alpha: opacity * 0.2 });
+            }
+            for (const enemy of s.enemies.enemies.values()) {
+                if (!enemy.weaponDisabled) continue;
+                const position = enemyPosition(enemy);
+                const offset = rotateVector(
+                    { x: 0, y: -enemy.config.radius - 14 },
+                    -this.camera.rotation,
+                );
+                this.supportShields
+                    .moveTo(position.x + offset.x - 7, position.y + offset.y - 3)
+                    .lineTo(position.x + offset.x + 7, position.y + offset.y + 3)
+                    .moveTo(position.x + offset.x - 7, position.y + offset.y + 3)
+                    .lineTo(position.x + offset.x + 7, position.y + offset.y - 3)
+                    .stroke({ color: C.cyan, width: 2 });
+            }
+        }
         this.camera.rotation = followCameraAngle(this.camera.rotation, this.shipView.rotation, dt);
         this.camera.scale.set(followCameraZoom(this.camera.scale.x, s.speed, dt));
         this.camera.pivot.copyFrom(this.shipView.position);
@@ -811,28 +952,57 @@ export class MissionWorld extends Container {
         for (const bullet of s.bullets.values()) {
             let view = this.bullets.get(bullet.id);
             if (!view) {
-                view = new Graphics()
-                    .roundRect(
-                        bullet.heavy ? -16 : -11,
-                        bullet.heavy ? -2.5 : -1.5,
-                        bullet.heavy ? 32 : 22,
-                        bullet.heavy ? 5 : 3,
-                        1,
-                    )
-                    .fill(
-                        bullet.heavy
-                            ? bullet.team === 'player'
-                                ? C.cyan
-                                : C.gold
-                            : bullet.team === 'enemy'
-                              ? C.red
-                              : C.mint,
-                    );
+                view = bullet.energy
+                    ? new Graphics()
+                          .roundRect(-28, -3, 56, 6, 3)
+                          .fill({ color: 0x67d7f3, alpha: 0.5 })
+                          .roundRect(-24, -1, 48, 2, 1)
+                          .fill(0xd5faff)
+                    : bullet.explosive === 'rocket'
+                      ? new Graphics()
+                            .poly([-17, -3, -29, 0, -17, 3])
+                            .fill(0xffb75f)
+                            .poly([-13, -4, 8, -4, 16, 0, 8, 4, -13, 4])
+                            .fill(0xc7d4cf)
+                            .rect(-6, -4, 4, 8)
+                            .fill(0xad8150)
+                            .poly([-13, -4, -17, -8, -6, -4, -6, 4, -17, 8, -13, 4])
+                            .fill(0x859996)
+                      : bullet.explosive === 'grenade'
+                        ? new Graphics()
+                              .circle(0, 0, 6)
+                              .fill(0x839b81)
+                              .stroke({ color: 0xd4ddbb, width: 1.5 })
+                              .rect(-2, -8, 4, 4)
+                              .fill(0xb28b50)
+                              .circle(2, -4, 2)
+                              .fill(0xffba62)
+                        : new Graphics()
+                              .roundRect(
+                                  bullet.heavy ? -16 : -11,
+                                  bullet.heavy ? -2.5 : -1.5,
+                                  bullet.heavy ? 32 : 22,
+                                  bullet.heavy ? 5 : 3,
+                                  1,
+                              )
+                              .fill(
+                                  bullet.heavy
+                                      ? bullet.team === 'player'
+                                          ? C.cyan
+                                          : C.gold
+                                      : bullet.team === 'enemy'
+                                        ? C.red
+                                        : C.mint,
+                              );
                 this.bullets.set(bullet.id, view);
                 this.effectLayer.addChild(view);
             }
             view.position.set(bullet.x, bullet.y);
             view.rotation = Math.atan2(bullet.vy, bullet.vx);
+            if (bullet.explosive === 'grenade') {
+                view.rotation += (ATLAS_WEAPONS.grenade.life - bullet.life) * 12;
+                view.alpha = 0.7 + Math.abs(Math.sin(bullet.life * 28)) * 0.3;
+            }
         }
         for (const [id, view] of this.loot)
             if (!s.loot.has(id)) {

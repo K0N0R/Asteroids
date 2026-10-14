@@ -1,4 +1,4 @@
-import { WEAPONS } from '../config';
+import { AEGIS, ATLAS_WEAPONS, WEAPONS } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import { BasePopup } from '../../core/containers/popup/basePopup';
 import { Campaign } from '../state/campaign';
@@ -63,10 +63,14 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                 `Tarcza ${Math.ceil(s.kineticShield.charge)}/${s.kineticShield.profile.capacity} · ${s.kineticShield.profile.regen.toFixed(1)}/s · przerwa ${Math.ceil(s.kineticShield.cooldown)} s`,
                 `Ruda ${s.cargo.ore} · komponenty ${s.cargo.parts} · kryształy ${s.cargo.crystals ?? 0}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
                 `Prędkość ${Math.round(s.speed)} / ${Math.round(s.hullConfig.maxSpeed * s.driveMultiplier * (s.engineFault ? GAME.damagedThrust : 1))} m/s`,
-                `Skręt ${s.turnSpeed.toFixed(2)} rad/s · ${s.harpoonArms ? `ramiona ${Math.round(s.harpoonArms.reach * s.hullConfig.size)}` : `laser ${Math.round(s.laserRange)}`} m`,
+                `Skręt ${s.turnSpeed.toFixed(2)} rad/s · ${s.harpoonArms ? `ramiona ${Math.round(s.harpoonArms.reach * s.hullConfig.size)} m` : s.isAtlas ? `rakieta ${ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life} m` : s.aegis ? `energia ${AEGIS.speed * AEGIS.life} m` : `laser ${Math.round(s.laserRange)} m`}`,
                 s.harpoonArms
                     ? `Szczęki · mnożnik siły ${s.harpoonArms.damageMultiplier.toFixed(2)} · zestawy ${s.repairKits}`
-                    : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń · zestawy ${s.repairKits}`,
+                    : s.isAtlas
+                      ? `Rakieta ${s.rocketDamage} · granaty ${s.grenadeCount} × ${ATLAS_WEAPONS.grenade.damage} · zestawy ${s.repairKits}`
+                      : s.aegis
+                        ? `Energia ${s.energyDamage} · dron ${s.aegis.drone ? Math.ceil(s.aegis.drone.hull) : 0} HP · impuls ${Math.ceil(s.aegis.cooldown)} s`
+                        : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń · zestawy ${s.repairKits}`,
                 `Kamuflaż: ${!s.hullConfig.cloak ? 'brak' : s.cloaked ? 'aktywny' : s.cloakEnabled ? `ujawniony (${Math.ceil(s.revealTime)} s)` : 'wyłączony'}`,
             ].join('\n'),
             280,

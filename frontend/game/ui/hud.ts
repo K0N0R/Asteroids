@@ -32,6 +32,7 @@ export class MissionHud extends Container {
     private meters = new Graphics();
     private arrow = new Graphics();
     private throttle = 0;
+    private supportStatus: Typography | null = null;
     constructor(
         readonly sim: MissionSimulation,
         private contract: number,
@@ -49,6 +50,7 @@ export class MissionHud extends Container {
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
+        if (sim.aegis) this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
         this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
         label(this, CONTRACTS[contract].title, 1320, 285, 16, C.text, 250);
         const count = missionObjectives(
@@ -66,8 +68,20 @@ export class MissionHud extends Container {
         keyHint(this, 'WASD', 'lot', 40, 845, 54);
         keyHint(this, 'SHIFT', 'boost', 145, 845, 54);
         mouseHint(this, null, 'cel', 277, 845);
-        mouseHint(this, 'left', sim.harpoonArms ? 'zacisk' : 'ogień', 355, 845);
-        mouseHint(this, 'right', sim.harpoonArms ? 'ramiona' : 'laser', 453, 845);
+        mouseHint(
+            this,
+            'left',
+            sim.harpoonArms ? 'zacisk' : sim.isAtlas ? 'rakieta' : 'ogień',
+            355,
+            845,
+        );
+        mouseHint(
+            this,
+            'right',
+            sim.harpoonArms ? 'ramiona' : sim.isAtlas ? 'granaty' : sim.aegis ? 'impuls' : 'laser',
+            453,
+            845,
+        );
         keyHint(this, 'F/Z/N', 'cel', 552, 845, 52);
         keyHint(this, '0–9/T/H', 'cel', 644, 845, 66);
         keyHint(this, 'E', 'akcja', 752, 845);
@@ -140,6 +154,10 @@ export class MissionHud extends Container {
         );
         this.health.setText(`${Math.ceil(s.hull)} / ${s.maxHull}`);
         this.health.setColor(lowHull ? C.red : C.text);
+        if (s.aegis)
+            this.supportStatus?.setText(
+                `Impuls ${s.aegis.cooldown > 0 ? `${Math.ceil(s.aegis.cooldown)} s` : 'gotowy'} · dron ${s.aegis.drone ? `${Math.ceil(s.aegis.drone.hull)}/${Math.round(s.aegis.droneHull)}` : 'zniszczony'}${!s.aegis.drone ? ` · zestawy ${s.repairKits}` : ''}`,
+            );
         this.cargo.setText(`${s.cargoUsed} / ${s.cargoCapacity}`);
         this.cargo.setColor(s.cargoUsed >= s.cargoCapacity ? C.gold : C.text);
         this.meters

@@ -64,18 +64,27 @@ export class ShipView extends Container {
             gun.position.set(mount.x, mount.y);
             gun.rotation = mount.x < 0 ? Math.PI : 0;
             gun.addChild(
-                new Graphics()
-                    .circle(0, 0, 7)
-                    .fill(S.engine)
-                    .stroke({ color: S.gunInset, width: 1 })
-                    .roundRect(-7, -4, weapon.length + 7, 8, 2)
-                    .fill(S.gun)
-                    .rect(6, -2, 23, 4)
-                    .fill(S.gunInset)
-                    .roundRect(weapon.length - 4, -3, 4, 6, 1)
-                    .fill(S.engine),
+                hull === 'aegis'
+                    ? new Graphics()
+                          .roundRect(-7, -5, 25, 10, 2)
+                          .fill(S.engine)
+                          .stroke({ color: 0xa3c8d9, width: 1 })
+                          .roundRect(0, -3, 24, 6, 2)
+                          .fill(0x528ead)
+                          .rect(5, -1, 22, 2)
+                          .fill(0xc7f4ff)
+                    : new Graphics()
+                          .circle(0, 0, 7)
+                          .fill(S.engine)
+                          .stroke({ color: S.gunInset, width: 1 })
+                          .roundRect(-7, -4, weapon.length + 7, 8, 2)
+                          .fill(S.gun)
+                          .rect(6, -2, 23, 4)
+                          .fill(S.gunInset)
+                          .roundRect(weapon.length - 4, -3, 4, 6, 1)
+                          .fill(S.engine),
             );
-            if (modules.weapon === 'rail')
+            if (hull !== 'aegis' && modules.weapon === 'rail')
                 gun.addChild(
                     new Graphics()
                         .roundRect(10, -7, weapon.length - 9, 3, 1)
@@ -85,7 +94,7 @@ export class ShipView extends Container {
                         .rect(14, 3, 13, 2)
                         .fill({ color: C.cyan, alpha: 0.7 }),
                 );
-            if (modules.weapon === 'pulse')
+            if (hull !== 'aegis' && modules.weapon === 'pulse')
                 gun.addChild(
                     new Graphics()
                         .roundRect(3, -7, 13, 14, 3)

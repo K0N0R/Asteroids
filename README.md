@@ -1,6 +1,8 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.27** dodaje dwa kadłuby użytkowe według referencji: **Atlas** z czterema kontenerami i ładownią 150 oraz **Harpun** z przegubowymi ramionami, czterema długimi chwytakami i dwukrotnie szybszym podejmowaniem holu. Harpun nie ma działka ani lasera: **LPM** zaciska szczęki, a przytrzymanie **PPM** wysuwa ramiona ku celowi. Przeguby i siłowniki mają własne ulepszenia. Oba kadłuby wymagają warsztatu II. Stocznia ma dwie strony katalogu; limit posiadanej floty pozostaje równy sześć. [Parametry i weryfikacja](docs/implementation-v0.27.md).
+Aktualna wersja **0.28** dodaje **Aegisa**: **LPM** strzela długimi pociskami energetycznymi wyłączającymi broń wroga na 2,5 s, **PPM** natychmiast odnawia tarczę matki i osłania pobliskich sojuszników przez 6 s. Mini dron krąży przy statku i reaguje tylko na walkę matki; po zniszczeniu **R** i jeden zestaw naprawczy odbudowują pomocnika. Ogniwo, dron i impuls mają własne ulepszenia. Cena 210 rudy / 22 komponenty, warsztat II. [Parametry i weryfikacja](docs/implementation-v0.28.md).
+
+Wersja **0.27** dodaje dwa kadłuby według referencji: **Atlas**, grenadier z rakietami na **LPM**, granatami na **PPM**, czterema kontenerami i ładownią 150, oraz **Harpun** z przegubowymi ramionami i dwukrotnie szybszym podejmowaniem holu. Atlas namierza wroga po 3 s trzymania kursora; jego rakiety i granaty zadają obrażenia obszarowe, a ulepszenie granatów zwiększa salwę w stożku. Harpun zaciska szczęki na **LPM**, a przytrzymanie **PPM** wysuwa ramiona ku celowi. Oba kadłuby mają cztery długie chwytaki oraz własne ulepszenia broni, bez działek i laserów. Wymagają warsztatu II. Stocznia ma dwie strony katalogu; limit posiadanej floty pozostaje równy sześć. [Parametry i weryfikacja](docs/implementation-v0.27.md).
 
 Wersja **0.26** dodaje tarcze kinetyczne statków: absorpcję obrażeń przed kadłubem, regenerację po przerwie, szybkie ładowanie w doku Aurory oraz trzy poziomy ulepszeń. Niebieski pierścień heksów i HUD pokazują naładowanie. Promieniowanie poza sektorem omija tarczę. [Szczegóły etapu](docs/implementation-v0.26.md).
 
@@ -88,6 +90,8 @@ Buduje i uruchamia wersję produkcyjną, bez automatycznego odświeżania. Sam b
 | Mysz                                   | Celowanie niezależnie od kierunku lotu                                                                                             |
 | Przytrzymany LPM                       | Obracane działka na mocowaniach kadłuba; bardzo słabe przeciw skałom                                                               |
 | Przytrzymany PPM                       | Laser wydobywczy: krótki zasięg 180 lub średni 320, duża moc przeciw skałom                                                        |
+| LPM / PPM na Atlasie                   | Rakieta dalekiego zasięgu / granaty z zapalnikiem 0,7 s; obie bronie zadają obrażenia obszarowe                                    |
+| Kursor na wrogu przez 3 s na Atlasie   | Lock rakiet; pozostaje po przesunięciu kursora, znika po śmierci celu                                                              |
 | C                                      | Włączanie kamuflażu na obsługiwanych kadłubach; ogień, laser, boost i trafienia ujawniają statek na 3 s                            |
 | E                                      | Przeszukanie pobliskiego wraku                                                                                                     |
 | Przytrzymany E                         | Dokowanie w strefie bazy przy prędkości poniżej 65 m/s                                                                             |

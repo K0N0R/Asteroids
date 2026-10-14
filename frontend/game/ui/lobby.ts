@@ -1,4 +1,4 @@
-import { WEAPONS, type WeaponId } from '../config';
+import { AEGIS, ATLAS_WEAPONS, WEAPONS, type WeaponId } from '../config';
 import { HarpoonArms, HARPOON_ARMS } from '../systems/harpoonArms';
 import { Container, Graphics } from 'pixi.js';
 import {
@@ -171,7 +171,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.27', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.28', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -491,7 +491,11 @@ export class LobbyView extends Container {
                 ui,
                 modules.hull === 'harpoon'
                     ? `Ramiona 2 · chwytaki ${config.grabbers.length} · zasięg ${Math.round(new HarpoonArms(modules.handling).reach * config.size)} m`
-                    : `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
+                    : modules.hull === 'atlas'
+                      ? `Rakieta · salwa ${1 + modules.drill} granatów · 4 chwytaki`
+                      : modules.hull === 'aegis'
+                        ? `Energia · dron ${AEGIS.droneHull * (1 + modules.handling * 0.25)} HP · impuls tarcz`
+                        : `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
                 1072,
                 421,
                 14,
@@ -533,7 +537,11 @@ export class LobbyView extends Container {
                 ui,
                 modules.hull === 'harpoon'
                     ? '2 ramiona bojowe · 4 chwytaki'
-                    : `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
+                    : modules.hull === 'atlas'
+                      ? 'Rakieta · granaty · 4 chwytaki'
+                      : modules.hull === 'aegis'
+                        ? 'Działko energetyczne · dron · 2 chwytaki'
+                        : `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
                 1072,
                 493,
                 16,
@@ -543,7 +551,11 @@ export class LobbyView extends Container {
                 ui,
                 modules.hull === 'harpoon'
                     ? `Ramiona ${Math.round(HARPOON_ARMS.reach * config.size)} m · chwytaki ${config.grabberRange} m`
-                    : `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
+                    : modules.hull === 'atlas'
+                      ? 'Namierzanie 3 s · granaty 0,7 s'
+                      : modules.hull === 'aegis'
+                        ? 'Impuls tarcz 420 m · ochrona 6 s'
+                        : `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
                 1072,
                 522,
                 15,
@@ -595,6 +607,113 @@ export class LobbyView extends Container {
             ship = c.ship;
         if (!ship) {
             label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
+            return;
+        }
+        if (ship.hull === 'aegis') {
+            this.art(hullPreview(ship), 625, 430);
+            label(ui, 'OBROŃCA / AEGIS', 1072, 244, 13, C.muted);
+            label(ui, 'Energia i osłony', 1072, 279, 30, C.text, 456);
+            stat(ui, 'DZIAŁKO / OBRAŻENIA', `${AEGIS.damage * (1 + ship.drill * 0.25)}`, 1072, 365);
+            stat(ui, 'BLOKADA BRONI', `${AEGIS.disable} s`, 1298, 365);
+            stat(
+                ui,
+                'DRON / ATAK / HP',
+                `${AEGIS.droneDamage * (1 + ship.handling * 0.25)} / ${AEGIS.droneHull * (1 + ship.handling * 0.25)}`,
+                1072,
+                446,
+            );
+            stat(
+                ui,
+                'ODNOWIENIE IMPULSU',
+                `${(AEGIS.cooldown / (1 + ship.shield * 0.2)).toFixed(1)} s`,
+                1298,
+                446,
+            );
+            label(
+                ui,
+                `Osłony ${AEGIS.range} m · ${AEGIS.duration} s · bufor ${AEGIS.buffer * (1 + ship.shield * 0.25)}`,
+                1072,
+                526,
+                15,
+                C.muted,
+                456,
+            );
+            label(
+                ui,
+                'Ogniwo: obrażenia · system drona: atak i kadłub\nImpuls: szybsze odnowienie i mocniejsze tarcze',
+                1072,
+                570,
+                15,
+                C.muted,
+                456,
+            );
+            button(
+                ui,
+                'MODUŁY WSPARCIA →',
+                1072,
+                719,
+                456,
+                () => {
+                    this.hangarMode = 'owned';
+                    this.chosenShipId = ship.id;
+                    this.moduleFocus = 'drill';
+                    this.refresh();
+                },
+                true,
+            );
+            return;
+        }
+        if (ship.hull === 'atlas') {
+            this.art(hullPreview(ship), 625, 430);
+            label(ui, 'GRENADIER / ATLAS', 1072, 244, 13, C.muted);
+            label(ui, 'Rakiety i granaty', 1072, 279, 30, C.text, 456);
+            stat(
+                ui,
+                'RAKIETA / OBRAŻENIA',
+                `${ATLAS_WEAPONS.rocket.damage * (1 + ship.handling * 0.25)}`,
+                1072,
+                365,
+            );
+            stat(ui, 'PROMIEŃ WYBUCHU', `${ATLAS_WEAPONS.rocket.radius} m`, 1298, 365);
+            stat(
+                ui,
+                'GRANATY / SALWA',
+                `${1 + ship.drill} × ${ATLAS_WEAPONS.grenade.damage}`,
+                1072,
+                446,
+            );
+            stat(
+                ui,
+                'PROMIEŃ / ZAPALNIK',
+                `${ATLAS_WEAPONS.grenade.radius} m / ${ATLAS_WEAPONS.grenade.life} s`,
+                1298,
+                446,
+            );
+            label(ui, 'Rakieta · namierzanie 3 s · zasięg 2880 m', 1072, 526, 15, C.muted, 456);
+            label(
+                ui,
+                shipUpgradeDefinition('atlas', 'handling').detail,
+                1072,
+                565,
+                15,
+                C.muted,
+                456,
+            );
+            label(ui, shipUpgradeDefinition('atlas', 'drill').detail, 1072, 617, 15, C.muted, 456);
+            button(
+                ui,
+                'MODUŁY UZBROJENIA →',
+                1072,
+                719,
+                456,
+                () => {
+                    this.hangarMode = 'owned';
+                    this.chosenShipId = ship.id;
+                    this.moduleFocus = 'drill';
+                    this.refresh();
+                },
+                true,
+            );
             return;
         }
         if (ship.hull === 'harpoon') {

@@ -22,6 +22,7 @@ export const HULL_PALETTES = {
     falcon: { hull: 0x7e7a72, panel: 0x98978f, edge: 0xb8b7a9, cargo: 0x918169 },
     atlas: { hull: 0x72766e, panel: 0x949c8d, edge: 0xb7c0ad, cargo: 0xad8f55 },
     harpoon: { hull: 0x586e79, panel: 0x7d959b, edge: 0xacc4c5, cargo: 0xaf8b4e },
+    aegis: { hull: 0x788b98, panel: 0xa8b9c2, edge: 0xc8d8de, cargo: 0x749baf },
 } as const satisfies Record<HullId, { hull: number; panel: number; edge: number; cargo: number }>;
 const S = SHIP_COLORS;
 
@@ -205,8 +206,92 @@ export function shipHull(hull: HullId, modules: ShipModules) {
             }
         }
         tank(g, 31, -7, 12, 14);
+        for (const side of [-1, 1]) {
+            g.roundRect(28, side * 12 - 4, 18, 8, 2)
+                .fill(S.engine)
+                .stroke({ color: palette.edge, width: 1 });
+            g.circle(43, side * 12, 2.5).fill(0xb99052);
+        }
         seam(g, [-32, -6, -11, -6, -11, 6, -32, 6], 2);
         visor(g, 10, 0, 18, 9);
+    } else if (hull === 'aegis') {
+        g.ellipse(0, 0, 42, 39).fill(S.engine).stroke({ color: palette.edge, width: 1.5 });
+        for (const side of [-1, 1]) {
+            roundedHull(
+                g,
+                [
+                    -31,
+                    side * 13,
+                    -36,
+                    side * 25,
+                    -20,
+                    side * 39,
+                    20,
+                    side * 39,
+                    36,
+                    side * 25,
+                    31,
+                    side * 13,
+                ],
+                4,
+            );
+            roundedHull(
+                g,
+                [
+                    -23,
+                    side * 19,
+                    -28,
+                    side * 28,
+                    -12,
+                    side * 35,
+                    29,
+                    side * 28,
+                    35,
+                    side * 12,
+                    18,
+                    side * 15,
+                ],
+                3,
+                palette.panel,
+            );
+            roundedHull(
+                g,
+                [
+                    -27,
+                    side * 23,
+                    -17,
+                    side * 34,
+                    -2,
+                    side * 31,
+                    23,
+                    side * 25,
+                    25,
+                    side * 19,
+                    6,
+                    side * 22,
+                ],
+                2,
+                0x497c9c,
+            );
+            g.circle(0, side * 30, 7)
+                .fill(S.engine)
+                .stroke({ color: palette.edge, width: 1.3 });
+            visor(g, 0, side * 30, 4, 4);
+            g.roundRect(2, side * 43 - 1.5, 12, 3, 1).fill(0x79d6f1);
+            for (const x of [-29, 29]) g.circle(x, side * 23, 1.5).fill(S.engine);
+        }
+        roundedHull(
+            g,
+            [-39, -10, -23, -14, 21, -12, 38, -7, 42, 0, 38, 7, 21, 12, -23, 14, -39, 10],
+            4,
+            palette.panel,
+        );
+        roundedHull(g, [-32, -9, 26, -8, 35, 0, 26, 8, -32, 9], 3);
+        g.roundRect(-30, -6, 17, 12, 2).fill(palette.edge).stroke({ color: S.engine, width: 1 });
+        for (const x of [-27, -23, -19]) g.rect(x, -4, 2, 8).fill(S.engine);
+        visor(g, 12, 0, 13, 8);
+        g.rect(34, -3, 9, 6).fill(S.engine);
+        g.rect(37, -1, 8, 2).fill(0x91e0f7);
     } else if (hull === 'harpoon') {
         roundedHull(
             g,

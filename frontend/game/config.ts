@@ -333,8 +333,8 @@ export const HULLS = {
     },
     atlas: {
         name: 'Atlas',
-        role: 'Ciężki transport',
-        detail: 'Kontenery i cztery chwytaki; największy ładunek kosztem zwrotności i mocy wydobycia.',
+        role: 'Grenadier',
+        detail: 'LPM: rakieta z namierzaniem celu po 3 s. PPM: krótkodystansowe granaty obszarowe.',
         health: 200,
         shield: { capacity: 90, regen: 5, delay: 7 },
         cargo: 150,
@@ -350,11 +350,8 @@ export const HULLS = {
         recovery: 0.25,
         boost: 1.2,
         cloak: 0,
-        guns: [{ x: 34, y: 0 }],
-        lasers: [
-            { x: 12, y: -24 },
-            { x: 12, y: 24 },
-        ],
+        guns: [],
+        lasers: [],
         engines: [
             { x: -35, y: -20 },
             { x: -35, y: 20 },
@@ -405,6 +402,40 @@ export const HULLS = {
         grabberRange: 300,
         towPickupSpeed: 2,
         hitbox: [35, 18],
+    },
+    aegis: {
+        name: 'Aegis',
+        role: 'Obrońca eskorty',
+        detail: 'Energetyczne działko wyłącza broń wroga. Impuls tarcz i reaktywny dron osłaniają sojuszników.',
+        health: 145,
+        shield: { capacity: 120, regen: 8, delay: 5 },
+        cargo: 60,
+        thrust: 750,
+        brake: 850,
+        turnSpeed: 1.25,
+        maxSpeed: 340,
+        size: 1.15,
+        miningPower: 1,
+        ore: 210,
+        parts: 22,
+        workshop: 2,
+        recovery: 0.3,
+        boost: 1.35,
+        cloak: 0,
+        guns: [{ x: 45, y: 0 }],
+        lasers: [],
+        engines: [
+            { x: -36, y: -24 },
+            { x: -36, y: 24 },
+        ],
+        laserRange: 0,
+        grabbers: [
+            { x: -10, y: -37 },
+            { x: -10, y: 37 },
+        ],
+        grabberRange: 230,
+        towPickupSpeed: 1,
+        hitbox: [40, 37],
     },
 } as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
@@ -552,8 +583,63 @@ export const UPGRADES: Record<
     storage: { title: 'Magazyn stacji', detail: 'Pojemność +100 / poziom', ore: 25, parts: 1 },
 };
 
+export const AEGIS = {
+    damage: 36,
+    rockDamage: 12,
+    speed: 780,
+    life: 1.5,
+    interval: 0.5,
+    disable: 2.5,
+    range: 420,
+    duration: 6,
+    cooldown: 18,
+    buffer: 80,
+    droneHull: 50,
+    droneDamage: 12,
+    droneRadius: 11,
+    droneRange: 550,
+    droneInterval: 0.6,
+    orbit: 110,
+} as const;
+
+export const ATLAS_WEAPONS = {
+    lockTime: 3,
+    rocket: { speed: 240, life: 12, radius: 180, damage: 160, interval: 1.8, turn: 2.8 },
+    grenade: { speed: 320, life: 0.7, radius: 65, damage: 45, interval: 0.55, spread: 0.16 },
+} as const;
+
 export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
     const definition = UPGRADES[upgrade];
+    if (hull === 'aegis' && upgrade === 'drill')
+        return {
+            ...definition,
+            title: 'Ogniwo energetyczne',
+            detail: 'Obrażenia działka +25% / poziom',
+        };
+    if (hull === 'aegis' && upgrade === 'handling')
+        return {
+            ...definition,
+            title: 'System drona',
+            detail: 'Atak i kadłub drona +25%, manewry +20% / poziom',
+        };
+    if (hull === 'aegis' && upgrade === 'shield')
+        return {
+            ...definition,
+            title: 'Impuls ochronny',
+            detail: 'Szybkość odnowienia +20%, tarcze +25% / poziom',
+        };
+    if (hull === 'atlas' && upgrade === 'drill')
+        return {
+            ...definition,
+            title: 'Salwa granatów',
+            detail: '+1 granat w stożku / poziom',
+        };
+    if (hull === 'atlas' && upgrade === 'handling')
+        return {
+            ...definition,
+            title: 'Układ rakietowy',
+            detail: 'Rakiety: obrażenia +25%, skręt i manewry +20% / poziom',
+        };
     if (hull === 'harpoon' && upgrade === 'handling')
         return {
             ...definition,

@@ -216,4 +216,8 @@ Tarcze kinetyczne gracza: indywidualne profile kadłubów, absorpcja przed poszy
 
 ## Etap 0.27 - wdrożony
 
-Atlas i Harpun według nowej referencji: ciężki transport i wyspecjalizowany odzysk, cztery długie chwytaki na obu modelach, szybsze podejmowanie holu przez Harpuna i warsztat II jako wymaganie. Katalog stoczni ma paginację, a limit floty pozostaje równy sześć. [Opis etapu](implementation-v0.27.md). Następny kierunek: kadłub obronny, później szybkie specjalizacje.
+Atlas i Harpun według nowej referencji: grenadier z rakietami namierzanymi po 3 s i granatami obszarowymi oraz wyspecjalizowany odzysk i walka szczękami, cztery długie chwytaki na obu modelach, szybsze podejmowanie holu przez Harpuna i warsztat II jako wymaganie. Katalog stoczni ma paginację, a limit floty pozostaje równy sześć. [Opis etapu](implementation-v0.27.md). Następny kierunek: kadłub obronny, później szybkie specjalizacje.
+
+## Etap 0.28 - wdrożony
+
+Aegis: działko energetyczne blokujące strzelanie wroga, impuls odnawiający tarczę matki i czasowo osłaniający sojuszników oraz reaktywny dron odbudowywany za zestaw naprawczy. Specjalne moduły rozwijają działko, drona i impuls. Katalog ma dziewięć typów, bez zmiany limitu floty i formatu zapisu. [Opis etapu](implementation-v0.28.md).
