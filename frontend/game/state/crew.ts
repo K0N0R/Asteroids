@@ -1,5 +1,5 @@
-import { CREW, JOBS, JobKind } from '../config';
-import type { Campaign } from './campaign';
+import { CREW, JOBS, JobKind, CrewRole } from '../config';
+import { storageCapacity, storageUsed, type Campaign } from './campaign';
 
 export interface CrewJob {
     id: number;
@@ -8,15 +8,29 @@ export interface CrewJob {
 }
 export interface CrewState {
     mechanic: boolean;
+    quartermaster: boolean;
     jobs: CrewJob[];
     nextJobId: number;
     completed: number;
 }
-export const newCrew = (): CrewState => ({ mechanic: false, jobs: [], nextJobId: 1, completed: 0 });
+export const newCrew = (): CrewState => ({
+    mechanic: false,
+    quartermaster: false,
+    jobs: [],
+    nextJobId: 1,
+    completed: 0,
+});
 
-// Queued inputs retain their storage space, so cancelling can always return them.
+export function jobStorage(kind: JobKind) {
+    const recipe = JOBS[kind];
+    return Math.max(recipe.ore + recipe.parts, recipe.output === 'kit' ? 0 : recipe.amount);
+}
+export function workerJobs(c: Campaign, role: CrewRole) {
+    return c.crew.jobs.filter((job) => JOBS[job.kind].worker === role);
+}
+// Reserve enough room for either a refund or the finished output.
 export function reservedResources(c: Campaign) {
-    return c.crew.jobs.reduce((sum, job) => sum + JOBS[job.kind].ore + JOBS[job.kind].parts, 0);
+    return c.crew.jobs.reduce((sum, job) => sum + jobStorage(job.kind), 0);
 }
 export function hireMechanic(c: Campaign) {
     if (c.activeRun || c.crew.mechanic || c.bank.ore < CREW.hireOre) return false;
@@ -24,15 +38,27 @@ export function hireMechanic(c: Campaign) {
     c.crew.mechanic = true;
     return true;
 }
-export function queueJob(c: Campaign, kind: JobKind) {
+export function hireQuartermaster(c: Campaign) {
     if (
         c.activeRun ||
-        !c.crew.mechanic ||
-        !Object.hasOwn(JOBS, kind) ||
-        c.crew.jobs.length >= CREW.queueLimit
+        c.crew.quartermaster ||
+        c.station.workshop < 1 ||
+        c.bank.ore < CREW.quartermasterOre ||
+        c.bank.parts < CREW.quartermasterParts
     )
         return false;
+    c.bank.ore -= CREW.quartermasterOre;
+    c.bank.parts -= CREW.quartermasterParts;
+    c.crew.quartermaster = true;
+    return true;
+}
+export function queueJob(c: Campaign, kind: JobKind) {
+    if (c.activeRun || !Object.hasOwn(JOBS, kind)) return false;
     const recipe = JOBS[kind];
+    if (!c.crew[recipe.worker] || workerJobs(c, recipe.worker).length >= CREW.queueLimit)
+        return false;
+    if (storageUsed(c) + jobStorage(kind) - recipe.ore - recipe.parts > storageCapacity(c))
+        return false;
     if (c.bank.ore < recipe.ore || c.bank.parts < recipe.parts) return false;
     if (
         kind === 'kit' &&
@@ -54,20 +80,25 @@ export function cancelJob(c: Campaign, id: number) {
     return true;
 }
 export function advanceCrew(c: Campaign, seconds: number): number {
-    if (!c.activeRun || !c.crew.mechanic || !Number.isFinite(seconds) || seconds <= 0) return 0;
+    if (!c.activeRun || !Number.isFinite(seconds) || seconds <= 0) return 0;
     let completed = 0;
-    while (seconds > 0 && c.crew.jobs.length) {
-        const job = c.crew.jobs[0];
-        if (job.kind === 'kit' && c.repairKits + c.activeRun.repairKits >= CREW.kitLimit) break;
-        const work = Math.min(seconds, job.remaining);
-        job.remaining -= work;
-        seconds -= work;
-        if (job.remaining > 1e-8) break;
-        if (job.kind === 'kit') c.repairKits++;
-        else c.bank.parts++;
-        c.crew.jobs.shift();
-        c.crew.completed++;
-        completed++;
+    for (const role of ['mechanic', 'quartermaster'] as const) {
+        if (!c.crew[role]) continue;
+        let available = seconds;
+        for (const job of workerJobs(c, role)) {
+            if (available <= 0) break;
+            if (job.kind === 'kit' && c.repairKits + c.activeRun.repairKits >= CREW.kitLimit) break;
+            const work = Math.min(available, job.remaining);
+            job.remaining -= work;
+            available -= work;
+            if (job.remaining > 1e-8) break;
+            const recipe = JOBS[job.kind];
+            if (recipe.output === 'kit') c.repairKits += recipe.amount;
+            else c.bank[recipe.output] += recipe.amount;
+            c.crew.jobs = c.crew.jobs.filter((other) => other.id !== job.id);
+            c.crew.completed++;
+            completed++;
+        }
     }
     return completed;
 }

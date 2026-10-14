@@ -1,5 +1,5 @@
 import { Container, Graphics, Rectangle } from 'pixi.js';
-import { C, ShipView, stationView } from '../graphics/shapes';
+import { C, ShipView, stationView, DroneView } from '../graphics/shapes';
 import { HullId } from '../config';
 import type { ShipModules } from '../state/campaign';
 import type { RecoverySignal } from '../state/recovery';
@@ -260,7 +260,7 @@ export function stationScene(level: number, selected: 'workshop' | 'storage') {
     return root;
 }
 
-export function workshopScene(kind: 'refine' | 'kit') {
+export function workshopScene(kind: 'refine' | 'kit' | 'recycle') {
     const root = new Container(),
         g = new Graphics();
     g.poly([-265, 76, -215, 128, 215, 128, 265, 76, 215, -115, -215, -115])
@@ -274,10 +274,13 @@ export function workshopScene(kind: 'refine' | 'kit') {
         .lineTo(80, 80)
         .stroke({ color: C.cyan, width: 5, alpha: 0.55 });
     for (let i = 0; i < 4; i++) g.rect(-180 + i * 120, 117, 50, 7).fill(C.gold);
-    const input = lobbyIcon('ore', C.gold);
+    const input = lobbyIcon(kind === 'recycle' ? 'parts' : 'ore', C.gold);
     input.scale.set(3);
     input.position.set(-135, 0);
-    const output = lobbyIcon(kind === 'refine' ? 'parts' : 'health', C.mint);
+    const output = lobbyIcon(
+        kind === 'recycle' ? 'ore' : kind === 'refine' ? 'parts' : 'health',
+        C.mint,
+    );
     output.scale.set(3.5);
     output.position.set(130, 0);
     g.moveTo(-45, 0)
@@ -287,12 +290,26 @@ export function workshopScene(kind: 'refine' | 'kit') {
         .lineTo(29, 13)
         .stroke({ color: C.mint, width: 3 });
     root.addChild(g, input, output);
-    label(root, kind === 'refine' ? '8 rudy' : '6 rudy + 1 komponent', -190, 56, 15, C.gold);
-    label(root, kind === 'refine' ? '1 komponent' : '1 zestaw', 77, 56, 15, C.mint);
+    label(
+        root,
+        kind === 'recycle' ? '1 komponent' : kind === 'refine' ? '8 rudy' : '6 rudy + 1 komponent',
+        -190,
+        56,
+        15,
+        C.gold,
+    );
+    label(
+        root,
+        kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw',
+        77,
+        56,
+        15,
+        C.mint,
+    );
     return root;
 }
 
-export function operationScene(research: boolean) {
+export function operationScene(research: boolean, combat = false) {
     const root = new Container(),
         g = new Graphics(),
         home = stationView();
@@ -301,15 +318,26 @@ export function operationScene(research: boolean) {
     g.moveTo(-85, 0)
         .bezierCurveTo(0, -70, 65, 75, 170, 0)
         .stroke({ color: C.gold, width: 2, alpha: 0.5 });
-    const goal = research ? lobbyIcon('signal', C.cyan) : lobbyIcon('ore', C.gold);
-    goal.scale.set(3);
+    const goal = combat
+        ? new DroneView()
+        : research
+          ? lobbyIcon('signal', C.cyan)
+          : lobbyIcon('ore', C.gold);
+    goal.scale.set(combat ? 1.8 : 3);
     goal.position.set(215, 0);
     g.beginPath()
         .circle(215, 0, 66)
-        .stroke({ color: research ? C.cyan : C.gold, alpha: 0.25, width: 1 });
+        .stroke({ color: combat ? C.red : research ? C.cyan : C.gold, alpha: 0.25, width: 1 });
     root.addChild(g, home, goal);
     label(root, 'Aurora', -189, 91, 15, C.muted);
-    label(root, research ? 'Dane sektora' : 'Złoża surowców', 155, 91, 15, C.muted);
+    label(
+        root,
+        combat ? 'Wrogi patrol' : research ? 'Dane sektora' : 'Złoża surowców',
+        155,
+        91,
+        15,
+        C.muted,
+    );
     return root;
 }
 

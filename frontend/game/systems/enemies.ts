@@ -1,11 +1,13 @@
 import RAPIER from '@dimforge/rapier2d-compat';
-import { DRONES, GAME } from '../config';
+import { DRONES, ENEMY_PROFILES, EnemyKind, GAME } from '../config';
 import type { EnemySpec, Point } from '../worlds/sector';
 
 const P = GAME.pixelsPerMeter;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export type EnemyState = 'patrol' | 'chase' | 'return';
 export interface Enemy extends EnemySpec {
+    kind: EnemyKind;
+    config: (typeof ENEMY_PROFILES)[EnemyKind];
     body: RAPIER.RigidBody;
     collider: RAPIER.Collider;
     health: number;
@@ -24,11 +26,18 @@ export const enemyPosition = (enemy: Enemy): Point => {
     return { x: p.x * P, y: p.y * P };
 };
 
-function interceptTime(dx: number, dy: number, vx: number, vy: number) {
-    const a = vx * vx + vy * vy - DRONES.shotSpeed * DRONES.shotSpeed,
+function interceptTime(
+    dx: number,
+    dy: number,
+    vx: number,
+    vy: number,
+    shotSpeed: number,
+    shotLife: number,
+) {
+    const a = vx * vx + vy * vy - shotSpeed * shotSpeed,
         b = 2 * (dx * vx + dy * vy),
         c = dx * dx + dy * dy;
-    let time = Math.sqrt(c) / DRONES.shotSpeed;
+    let time = Math.sqrt(c) / shotSpeed;
     if (Math.abs(a) < 1e-6) {
         if (Math.abs(b) > 1e-6 && -c / b > 0) time = -c / b;
     } else {
@@ -41,7 +50,7 @@ function interceptTime(dx: number, dy: number, vx: number, vy: number) {
             if (times.length) time = Math.min(...times);
         }
     }
-    return Math.min(DRONES.shotLife, time);
+    return Math.min(shotLife, time);
 }
 
 export class EnemyFleet {
@@ -58,6 +67,8 @@ export class EnemyFleet {
         if (this.disposed) return;
         for (const spec of specs) {
             if (this.enemies.has(spec.id)) continue;
+            const kind = spec.kind ?? 'patrol',
+                config = ENEMY_PROFILES[kind];
             const body = this.world.createRigidBody(
                 RAPIER.RigidBodyDesc.dynamic()
                     .setTranslation(spec.x / P, spec.y / P)
@@ -67,18 +78,20 @@ export class EnemyFleet {
                     .setCcdEnabled(true),
             );
             const collider = this.world.createCollider(
-                RAPIER.ColliderDesc.ball(DRONES.radius / P)
-                    .setDensity(4)
+                RAPIER.ColliderDesc.ball(config.radius / P)
+                    .setDensity(config.density)
                     .setRestitution(0.25)
                     .setFriction(0.1),
                 body,
             );
             this.enemies.set(spec.id, {
                 ...spec,
+                kind,
+                config,
                 home: { ...spec.home },
                 body,
                 collider,
-                health: DRONES.hull,
+                health: config.hull,
                 state: 'patrol',
                 previous: { x: spec.x, y: spec.y },
                 previousAngle: spec.phase,
@@ -129,6 +142,7 @@ export class EnemyFleet {
     ) {
         if (this.disposed) return;
         for (const enemy of this.enemies.values()) {
+            const config = enemy.config;
             const p = enemyPosition(enemy),
                 dx = player.x - p.x,
                 dy = player.y - p.y;
@@ -137,7 +151,7 @@ export class EnemyFleet {
             const safe = Math.hypot(player.x, player.y) < DRONES.safeRadius;
             const visible =
                 !safe &&
-                distance < DRONES.loseRange * signature &&
+                distance < config.loseRange * signature &&
                 this.lineClear(p, player, isRock);
             if (visible) enemy.lastSeen = { ...player };
             enemy.previous = p;
@@ -149,8 +163,8 @@ export class EnemyFleet {
                 enemy.lostSight = visible ? 0 : enemy.lostSight + dt;
                 if (
                     safe ||
-                    distance > DRONES.loseRange ||
-                    homeDistance > DRONES.leash ||
+                    distance > config.loseRange ||
+                    homeDistance > config.leash ||
                     enemy.lostSight > 2.5
                 ) {
                     enemy.state = 'return';
@@ -158,19 +172,19 @@ export class EnemyFleet {
                 }
             } else if (enemy.state === 'return') {
                 if (homeDistance < 210) enemy.state = 'patrol';
-            } else if (visible && distance < DRONES.detectRange * signature) {
+            } else if (visible && distance < config.detectRange * signature) {
                 enemy.state = 'chase';
                 enemy.lostSight = 0;
             }
             let vx: number, vy: number;
-            const speed = enemy.state === 'chase' ? DRONES.chaseSpeed : DRONES.patrolSpeed;
+            const speed = enemy.state === 'chase' ? config.chaseSpeed : config.patrolSpeed;
             const tracked = visible ? player : enemy.lastSeen;
             const tx = tracked.x - p.x,
                 ty = tracked.y - p.y,
                 trackedDistance = Math.hypot(tx, ty);
             if (enemy.state === 'chase') {
-                const radial = clamp((trackedDistance - DRONES.preferredRange) / 140, -1, 1);
-                const tangent = (enemy.id % 2 ? 1 : -1) * 0.35;
+                const radial = clamp((trackedDistance - config.preferredRange) / 140, -1, 1);
+                const tangent = (enemy.id % 2 ? 1 : -1) * config.strafe;
                 vx =
                     ((tx / Math.max(1, trackedDistance)) * radial -
                         (ty / Math.max(1, trackedDistance)) * tangent) *
@@ -239,7 +253,14 @@ export class EnemyFleet {
             };
             const lead =
                 enemy.state === 'chase' && visible
-                    ? interceptTime(tx, ty, relative.x, relative.y)
+                    ? interceptTime(
+                          tx,
+                          ty,
+                          relative.x,
+                          relative.y,
+                          config.shotSpeed,
+                          config.shotLife,
+                      )
                     : 0;
             const angle =
                 enemy.state === 'chase'
@@ -249,7 +270,7 @@ export class EnemyFleet {
                 Math.sin(angle - enemy.body.rotation()),
                 Math.cos(angle - enemy.body.rotation()),
             );
-            const angular = clamp(error * 12, -DRONES.turnSpeed, DRONES.turnSpeed);
+            const angular = clamp(error * 12, -config.turnSpeed, config.turnSpeed);
             enemy.body.applyTorqueImpulse(
                 (angular - enemy.body.angvel()) * enemy.body.effectiveAngularInertia(),
                 true,
@@ -260,13 +281,13 @@ export class EnemyFleet {
                 ey = vy / P - current.y,
                 difference = Math.hypot(ex, ey);
             const fraction =
-                difference > 0 ? Math.min(1, ((DRONES.acceleration / P) * dt) / difference) : 0;
+                difference > 0 ? Math.min(1, ((config.acceleration / P) * dt) / difference) : 0;
             enemy.body.applyImpulse({ x: ex * mass * fraction, y: ey * mass * fraction }, true);
             enemy.thrusting = targetLength > 10;
             if (
                 enemy.state === 'chase' &&
                 visible &&
-                distance < DRONES.fireRange &&
+                distance < config.fireRange &&
                 Math.abs(error) < 0.2 &&
                 enemy.cooldown <= 0 &&
                 this.lineClear(
@@ -275,10 +296,10 @@ export class EnemyFleet {
                     isRock,
                 )
             ) {
-                enemy.charge = Math.min(DRONES.windup, enemy.charge + dt);
-                if (enemy.charge + 1e-8 >= DRONES.windup && fire(enemy)) {
+                enemy.charge = Math.min(config.windup, enemy.charge + dt);
+                if (enemy.charge + 1e-8 >= config.windup && fire(enemy)) {
                     enemy.charge = 0;
-                    enemy.cooldown = DRONES.shotInterval;
+                    enemy.cooldown = config.shotInterval;
                 }
             } else enemy.charge = 0;
         }

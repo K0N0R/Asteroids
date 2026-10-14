@@ -10,6 +10,7 @@ const defaultKeysConfiguration = {
     BOOST: 'shift',
     INTERACT: 'e',
     REPAIR: 'r',
+    SABOTAGE: 'g',
 };
 export type TInputKeys = keyof typeof defaultKeysConfiguration;
 
@@ -46,7 +47,8 @@ export class InputHandlerBase {
         });
         window.addEventListener('keydown', (evt) => {
             const key = evt.code === 'Space' ? 'space' : evt.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'shift', 'e', 'r', 'c'].includes(key)) evt.preventDefault();
+            if (['w', 'a', 's', 'd', 'shift', 'e', 'r', 'c', 'g'].includes(key))
+                evt.preventDefault();
             if (key === 'tab' && GameState.state === 'gameplay') evt.preventDefault();
             this.pressedKeys.add(key);
             if (!evt.repeat) Bus.emit('input', { name: 'keydown', data: key });

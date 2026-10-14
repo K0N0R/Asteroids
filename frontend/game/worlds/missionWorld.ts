@@ -9,7 +9,7 @@ import {
     surveySiteView,
     DroneView,
 } from '../graphics/shapes';
-import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
+import { GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
 import { SoundManager } from '../../core/systems/soundManager';
 import { Ship } from '../state/campaign';
 import { label } from '../ui/primitives';
@@ -281,7 +281,7 @@ export class MissionWorld extends Container {
         for (const enemy of s.enemies.enemies.values()) {
             let view = this.enemyViews.get(enemy.id);
             if (!view) {
-                view = new DroneView();
+                view = new DroneView(enemy.kind);
                 this.enemyViews.set(enemy.id, view);
                 this.effectLayer.addChild(view);
             }
@@ -303,7 +303,7 @@ export class MissionWorld extends Container {
             this.enemyStatus
                 .rect(pos.x - 24, pos.y - 47, 48, 4)
                 .fill(C.line)
-                .rect(pos.x - 24, pos.y - 47, (48 * enemy.health) / DRONES.hull, 4)
+                .rect(pos.x - 24, pos.y - 47, (48 * enemy.health) / enemy.config.hull, 4)
                 .fill(C.red);
             if (enemy.charge > 0) {
                 const a = enemy.body.rotation();
@@ -312,14 +312,17 @@ export class MissionWorld extends Container {
                     .arc(
                         pos.x,
                         pos.y,
-                        39,
+                        enemy.config.radius + 13,
                         -Math.PI / 2,
-                        -Math.PI / 2 + (enemy.charge / DRONES.windup) * Math.PI * 2,
+                        -Math.PI / 2 + (enemy.charge / enemy.config.windup) * Math.PI * 2,
                     )
                     .stroke({ color: C.red, width: 3 });
                 this.enemyStatus
                     .moveTo(pos.x + Math.cos(a) * 35, pos.y + Math.sin(a) * 35)
-                    .lineTo(pos.x + Math.cos(a) * 100, pos.y + Math.sin(a) * 100)
+                    .lineTo(
+                        pos.x + Math.cos(a) * (enemy.kind === 'lancer' ? 350 : 100),
+                        pos.y + Math.sin(a) * (enemy.kind === 'lancer' ? 350 : 100),
+                    )
                     .stroke({ color: C.red, width: 1, alpha: 0.5 });
             }
         }
@@ -389,11 +392,13 @@ export class MissionWorld extends Container {
         this.outpostScanner.clear();
         this.outpostView.visible = this.inView(outpost);
         this.outpostLabel.visible = this.outpostView.visible;
-        this.terminalLabel.visible = this.inView(outpost.terminal) && !security.secured;
+        this.terminalLabel.visible =
+            this.inView(outpost.terminal) && (!security.secured || !security.sabotaged);
         this.outpostLabel.rotation = -this.camera.rotation;
         this.outpostLabel.position.copyFrom(
             rotateVector({ x: -45, y: -134 }, -this.camera.rotation),
         );
+        this.terminalLabel.setText(security.sabotageProgress > 0 ? 'G' : 'E');
         this.terminalLabel.rotation = -this.camera.rotation;
         const terminalOffset = rotateVector({ x: -6, y: 36 }, -this.camera.rotation);
         this.terminalLabel.position.set(
@@ -403,27 +408,43 @@ export class MissionWorld extends Container {
         if (this.outpostView.visible) {
             const angle = security.scannerAngle(s.elapsed),
                 half = OUTPOST.scanHalfAngle;
-            const color = security.alarm > 0 ? C.red : C.gold;
+            const color = security.disabledTime > 0 ? C.muted : security.alarm > 0 ? C.red : C.gold;
             const g = this.outpostScanner;
-            g.poly([
-                Math.cos(angle - half) * OUTPOST.radius,
-                Math.sin(angle - half) * OUTPOST.radius,
-                Math.cos(angle - half) * OUTPOST.scanRange,
-                Math.sin(angle - half) * OUTPOST.scanRange,
-                Math.cos(angle + half) * OUTPOST.scanRange,
-                Math.sin(angle + half) * OUTPOST.scanRange,
-                Math.cos(angle + half) * OUTPOST.radius,
-                Math.sin(angle + half) * OUTPOST.radius,
-            ]).fill({ color, alpha: 0.09 });
-            g.moveTo(Math.cos(angle) * OUTPOST.radius, Math.sin(angle) * OUTPOST.radius)
-                .lineTo(Math.cos(angle) * OUTPOST.scanRange, Math.sin(angle) * OUTPOST.scanRange)
-                .stroke({ color, width: 2, alpha: 0.55 });
+            if (security.disabledTime <= 0) {
+                g.poly([
+                    Math.cos(angle - half) * OUTPOST.radius,
+                    Math.sin(angle - half) * OUTPOST.radius,
+                    Math.cos(angle - half) * OUTPOST.scanRange,
+                    Math.sin(angle - half) * OUTPOST.scanRange,
+                    Math.cos(angle + half) * OUTPOST.scanRange,
+                    Math.sin(angle + half) * OUTPOST.scanRange,
+                    Math.cos(angle + half) * OUTPOST.radius,
+                    Math.sin(angle + half) * OUTPOST.radius,
+                ]).fill({ color, alpha: 0.09 });
+                g.moveTo(Math.cos(angle) * OUTPOST.radius, Math.sin(angle) * OUTPOST.radius)
+                    .lineTo(
+                        Math.cos(angle) * OUTPOST.scanRange,
+                        Math.sin(angle) * OUTPOST.scanRange,
+                    )
+                    .stroke({ color, width: 2, alpha: 0.55 });
+            }
             g.beginPath().circle(0, 0, OUTPOST.scanRange).stroke({ color, width: 1, alpha: 0.08 });
             const tx = outpost.terminal.x - outpost.x,
                 ty = outpost.terminal.y - outpost.y;
             g.beginPath()
                 .circle(tx, ty, OUTPOST.interactRadius)
                 .stroke({ color: security.secured ? C.mint : color, width: 1, alpha: 0.3 });
+            if (security.sabotageProgress > 0)
+                g.beginPath()
+                    .arc(
+                        tx,
+                        ty,
+                        48,
+                        -Math.PI / 2,
+                        -Math.PI / 2 +
+                            (security.sabotageProgress / OUTPOST.sabotageSeconds) * Math.PI * 2,
+                    )
+                    .stroke({ color: C.mint, width: 4 });
             if (security.download > 0)
                 g.beginPath()
                     .arc(
@@ -523,8 +544,14 @@ export class MissionWorld extends Container {
             let view = this.bullets.get(bullet.id);
             if (!view) {
                 view = new Graphics()
-                    .roundRect(-11, -1.5, 22, 3, 1)
-                    .fill(bullet.team === 'enemy' ? C.red : C.mint);
+                    .roundRect(
+                        bullet.heavy ? -16 : -11,
+                        bullet.heavy ? -2.5 : -1.5,
+                        bullet.heavy ? 32 : 22,
+                        bullet.heavy ? 5 : 3,
+                        1,
+                    )
+                    .fill(bullet.heavy ? C.gold : bullet.team === 'enemy' ? C.red : C.mint);
                 this.bullets.set(bullet.id, view);
                 this.effectLayer.addChild(view);
             }

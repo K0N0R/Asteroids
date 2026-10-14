@@ -22,6 +22,17 @@ Etap 0.10 dodaje dwie skrytki na sektor, wybór jednego z trzech tymczasowych pr
 
 Etap 0.11 dodaje pierwszą infiltrację placówki Cerber: obrotowy skaner, kamuflaż, alarm z dwoma dronami, przechwyt danych i skrzyń oraz kontrakt Cichy przechwyt. Nawigacja pod 0 zachowuje dotychczasowe klawisze. Szczegóły: `implementation-v0.11.md`.
 
+Etap 0.12 dodaje kontrakt Ochrona szlaku, licznik zniszczonych dronów, nawigację do ruchomego przeciwnika pod F oraz doświadczenie bojowe przyznawane po powrocie. Historia migruje do formatu 9. Szczegóły: `implementation-v0.12.md`.
+
+Etap 0.13 dodaje intendenta, odzysk rudy z komponentów, równoległe kolejki pracowników, kontekstowe stanowiska w Załodze i rezerwację miejsca na produkty. Szczegóły: `implementation-v0.13.md`.
+
+Etap 0.14 dodaje ciężkiego strażnika Lancer z własną sylwetką, dystansem, ładowaniem, pociskiem i łupem. Profile przeciwników współdzielą istniejącą fizykę i AI. Szczegóły: `implementation-v0.14.md`.
+
+
+Etap 0.15 dodaje sabotaż skanera Cerbera: G przez 3 s, koszt jednego komponentu z ładowni, 20 s przerwy w skanowaniu. Aktywny alarm zostaje skasowany, ale drony pozostają zagrożeniem. Szczegóły: `implementation-v0.15.md`.
+
+Z większych elementów wizji pozostają załoga pokładowa z zadaniami w locie, wymienne rodzaje broni i części, kradzież sprzętu oraz kolejne placówki i misje. Praca offline i wznowienie wypraw pozostają późniejszymi etapami. Pierwsza pętla wydobywcza, progresja, walka, infiltracja oraz ratunek są już grywalne.
+
 ## Cel i ustalenia
 
 Gra 2D z widokiem z góry, kamerą śledzącą statek i dwiema fazami: spokojna baza oraz niebezpieczna wyprawa do proceduralnego sektora. Pierwsza wersja ma pozwolić wielokrotnie przejść pełną pętlę: przygotowanie → start → eksploracja/wydobycie/walka → powrót lub śmierć → rozliczenie → rozwój bazy → kolejny start.
@@ -83,7 +94,7 @@ Cel balansu: typowa wyprawa trwa około 8–12 minut, ale bez obowiązkowego tim
 
 Pełne zatrudnianie załogi, kolejki zadań i produkcja, naliczanie pracy przy zamkniętej grze, wiele klas statków, rozbudowany crafting, walka, tymczasowe modyfikacje wyprawy, kamuflaż i infiltracja, naprawianie podsystemów podczas lotu, odzyskiwanie wraków i ratunek pilotów, frakcje, rozbudowana kampania i multiplayer.
 
-Zrealizowane rozszerzenia: v0.2 — mechanik i kolejka zadań oraz naprawa awarii; v0.3 — flota i nowe kadłuby; v0.4 — ratunek pilotów i odzysk wraków; v0.5 — badania i kontrakty eksploracyjne; v0.6 — rozwój pilotów; v0.7 — walka i wykrywanie przez patrole AI; v0.8 — WASD, niezależne celowanie i hol; v0.9 — sześć kadłubów, chwytaki i kamuflaż; v0.10 — skrytki z tymczasowymi prototypami; v0.11 — infiltracja wrogiej placówki. Dalszy kierunek to więcej typów przeciwników i uzbrojenia, kontrakty bojowe, profesje załogi i gospodarka. Rozwinięcie infiltracji może objąć sabotaż i kradzież wyposażenia.
+Zrealizowane rozszerzenia: v0.2 — mechanik i kolejka zadań oraz naprawa awarii; v0.3 — flota i nowe kadłuby; v0.4 — ratunek pilotów i odzysk wraków; v0.5 — badania i kontrakty eksploracyjne; v0.6 — rozwój pilotów; v0.7 — walka i wykrywanie przez patrole AI; v0.8 — WASD, niezależne celowanie i hol; v0.9 — sześć kadłubów, chwytaki i kamuflaż; v0.10 — skrytki z tymczasowymi prototypami; v0.11 — infiltracja wrogiej placówki; v0.12 — kontrakt bojowy, nawigacja do dronów i doświadczenie za walkę; v0.13 — druga profesja bazy i równoległe kolejki; v0.14 — ciężki strażnik i profile przeciwników. Dalszy kierunek to więcej typów przeciwników i uzbrojenia, profesje załogi i gospodarka. Rozwinięcie infiltracji może objąć sabotaż i kradzież wyposażenia.
 
 ## Grafika i fizyka
 

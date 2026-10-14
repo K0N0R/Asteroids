@@ -18,6 +18,7 @@ export interface FlightInput {
     fire: boolean;
     interact: boolean;
     repair?: boolean;
+    sabotage?: boolean;
     turn?: number;
     boost?: boolean;
     mine?: boolean;
@@ -40,6 +41,7 @@ export interface Projectile extends Point {
     vy: number;
     life: number;
     team: 'player' | 'enemy';
+    heavy?: boolean;
     damage: number;
 }
 export interface Loot extends Point {
@@ -531,6 +533,7 @@ export class MissionSimulation {
         if (
             input.interact &&
             !input.repair &&
+            !input.sabotage &&
             !this.thrusting &&
             !input.fire &&
             !input.mine &&
@@ -556,6 +559,34 @@ export class MissionSimulation {
     }
     private updateOutpost(input: FlightInput, dt: number) {
         const spec = this.sector.outpost;
+        const signal = this.recoverySignal;
+        const recovering =
+            signal &&
+            !this.recoverySecured &&
+            Math.hypot(this.position.x - signal.x, this.position.y - signal.y) < RECOVERY.radius;
+        const canSabotage =
+            input.sabotage &&
+            !input.interact &&
+            !input.repair &&
+            !input.fire &&
+            !input.mine &&
+            !this.thrusting &&
+            this.speed <= OUTPOST.interactSpeed &&
+            this.damageCooldown <= 0 &&
+            this.nearbyOutpost &&
+            !recovering &&
+            !this.nearbyCache &&
+            !this.outpost.sabotaged &&
+            this.cargo.parts >= 1;
+        if (canSabotage) this.outpost.sabotageProgress += dt;
+        else this.outpost.sabotageProgress = 0;
+        if (this.outpost.sabotageProgress + 1e-8 >= OUTPOST.sabotageSeconds) {
+            if (this.outpost.disable()) {
+                this.cargo.parts--;
+                this.setNotice('Skaner wyłączony na 20 s · drony nadal mogą ścigać statek.');
+                this.events.push({ ...spec.terminal, kind: 'collect', rich: true });
+            }
+        }
         const exposed = this.outpost.sees(
             this.position,
             this.elapsed,
@@ -564,17 +595,13 @@ export class MissionSimulation {
                 this.asteroidColliders.has(collider.handle),
             ),
         );
-        const signal = this.recoverySignal;
-        const recovering =
-            signal &&
-            !this.recoverySecured &&
-            Math.hypot(this.position.x - signal.x, this.position.y - signal.y) < RECOVERY.radius;
         const calm =
             input.interact &&
             !this.thrusting &&
             !input.fire &&
             !input.mine &&
             !input.repair &&
+            !input.sabotage &&
             this.speed <= OUTPOST.interactSpeed &&
             this.damageCooldown <= 0;
         const outcome = this.outpost.update(
@@ -607,6 +634,7 @@ export class MissionSimulation {
             input.fire ||
             input.mine ||
             input.repair ||
+            input.sabotage ||
             this.speed > CACHE.speed ||
             this.damageCooldown > 0
         ) {
@@ -639,6 +667,7 @@ export class MissionSimulation {
         this.cacheProgress = 0;
         this.cacheTarget = null;
         this.outpost.download = 0;
+        this.outpost.sabotageProgress = 0;
         this.revealTime = 3;
         this.events.push({ ...this.position, kind: 'hit' });
     }
@@ -654,13 +683,14 @@ export class MissionSimulation {
             id = ++this.ids;
         this.bullets.set(id, {
             id,
-            x: p.x + Math.cos(a) * 37,
-            y: p.y + Math.sin(a) * 37,
-            vx: v.x * P + Math.cos(a) * DRONES.shotSpeed,
-            vy: v.y * P + Math.sin(a) * DRONES.shotSpeed,
-            life: DRONES.shotLife,
+            x: p.x + Math.cos(a) * (enemy.config.radius + 11),
+            y: p.y + Math.sin(a) * (enemy.config.radius + 11),
+            vx: v.x * P + Math.cos(a) * enemy.config.shotSpeed,
+            vy: v.y * P + Math.sin(a) * enemy.config.shotSpeed,
+            life: enemy.config.shotLife,
             team: 'enemy',
-            damage: DRONES.shotDamage,
+            heavy: enemy.kind === 'lancer',
+            damage: enemy.config.shotDamage,
         });
         this.events.push({ ...p, kind: 'shot' });
         return true;
@@ -680,6 +710,7 @@ export class MissionSimulation {
             input.fire ||
             input.mine ||
             input.repair ||
+            input.sabotage ||
             this.speed > SCAN.speed ||
             this.hull <= 0 ||
             this.damageCooldown > 0 ||
@@ -711,6 +742,7 @@ export class MissionSimulation {
             input.fire ||
             input.mine ||
             input.repair ||
+            input.sabotage ||
             this.speed > RECOVERY.speed ||
             this.hull <= 0 ||
             this.damageCooldown > 0 ||
@@ -737,6 +769,7 @@ export class MissionSimulation {
             input.fire ||
             input.mine ||
             input.interact ||
+            input.sabotage ||
             this.speed > GAME.repairSpeed ||
             this.repairKits <= 0 ||
             this.hull <= 0 ||
@@ -824,8 +857,8 @@ export class MissionSimulation {
                         if (wreck) {
                             this.enemyKills++;
                             this.events.push({ ...wreck, kind: 'break', rich: true });
-                            this.addLoot(wreck.x - 20, wreck.y, 'ore', 3);
-                            this.addLoot(wreck.x + 20, wreck.y, 'parts', 2);
+                            this.addLoot(wreck.x - 20, wreck.y, 'ore', enemy.config.oreLoot);
+                            this.addLoot(wreck.x + 20, wreck.y, 'parts', enemy.config.partsLoot);
                             this.setNotice('Dron zniszczony · odzyskaj komponenty i rudę.');
                         }
                     }

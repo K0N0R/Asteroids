@@ -44,7 +44,7 @@ export interface Ship extends ShipModules {
     hull: HullId;
 }
 export interface Campaign {
-    version: 8;
+    version: 10;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
@@ -97,7 +97,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 8,
+        version: 10,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
@@ -130,7 +130,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         const p: unknown = JSON.parse(json ?? 'null');
         if (
             !object(p) ||
-            ![1, 2, 3, 4, 5, 6, 7, 8].includes(p.version as number) ||
+            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(p.version as number) ||
             !cargo(p.bank) ||
             !object(p.station)
         )
@@ -185,21 +185,18 @@ export function parseCampaign(json: string | null): Campaign | null {
             p.repairKits = p.sorties === 0 ? 1 : 0;
             if (object(p.activeRun)) p.activeRun.repairKits = 0;
         }
+        if ((p.version as number) < 10 && object(p.crew)) p.crew.quartermaster = false;
         if (
             !object(p.crew) ||
             typeof p.crew.mechanic !== 'boolean' ||
+            typeof p.crew.quartermaster !== 'boolean' ||
             !integer(p.repairKits, CREW.kitLimit) ||
             !integer(p.crew.completed) ||
             !integer(p.crew.nextJobId) ||
             p.crew.nextJobId < 1
         )
             return null;
-        if (
-            !Array.isArray(p.crew.jobs) ||
-            p.crew.jobs.length > CREW.queueLimit ||
-            (p.crew.jobs.length > 0 && !p.crew.mechanic)
-        )
-            return null;
+        if (!Array.isArray(p.crew.jobs) || p.crew.jobs.length > CREW.queueLimit * 2) return null;
         for (const job of p.crew.jobs) {
             if (
                 !object(job) ||
@@ -211,6 +208,7 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
                 return null;
             const recipe = JOBS[job.kind as keyof typeof JOBS];
+            if (!p.crew[recipe.worker]) return null;
             if (
                 typeof job.remaining !== 'number' ||
                 !Number.isFinite(job.remaining) ||
@@ -219,6 +217,12 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
                 return null;
         }
+        for (const role of ['mechanic', 'quartermaster'] as const)
+            if (
+                p.crew.jobs.filter((job) => JOBS[job.kind as keyof typeof JOBS].worker === role)
+                    .length > CREW.queueLimit
+            )
+                return null;
         if (new Set(p.crew.jobs.map((job) => job.id)).size !== p.crew.jobs.length) return null;
         if (
             p.activeRun !== null &&
@@ -333,6 +337,13 @@ export function parseCampaign(json: string | null): Campaign | null {
         )
             p.contractCompletions.push(0);
         if (
+            (p.version as number) < 9 &&
+            Array.isArray(p.contractCompletions) &&
+            p.contractCompletions.length === 5 &&
+            p.contractCompletions.every((count) => integer(count))
+        )
+            p.contractCompletions.push(0);
+        if (
             !Array.isArray(p.contractCompletions) ||
             p.contractCompletions.length !== CONTRACTS.length ||
             !p.contractCompletions.every((count) => integer(count))
@@ -360,7 +371,7 @@ export function parseCampaign(json: string | null): Campaign | null {
             p.recoverySignals.forEach((signal) => migrate(signal.ship));
             p.version = 7;
         }
-        p.version = 8;
+        p.version = 10;
         const campaign = p as unknown as Campaign;
         if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
             return null;
@@ -509,7 +520,12 @@ export function finishRun(
     duration: number,
     reason: string,
     unusedRepairKits = 0,
-    recovery: { securedId?: number; lossPosition?: Point; data?: readonly ScanSiteId[] } = {},
+    recovery: {
+        securedId?: number;
+        lossPosition?: Point;
+        data?: readonly ScanSiteId[];
+        kills?: number;
+    } = {},
 ): RunResult | null {
     const active = c.activeRun;
     if (!active) return null;
@@ -550,7 +566,9 @@ export function finishRun(
             result.recoveryText = 'Nie podjęto celu ratunkowego. Sygnał pozostaje dostępny.';
         const contract = CONTRACTS[active.contract];
         const data = (recovery.data ?? []).filter((site) => Object.hasOwn(SCAN_SITES, site));
-        if (contractReady(active.contract, collected, data)) {
+        const kills =
+            Number.isInteger(recovery.kills) && (recovery.kills ?? 0) >= 0 ? recovery.kills! : 0;
+        if (contractReady(active.contract, collected, data, kills)) {
             result.reward.ore += contract.rewardOre;
             result.reward.parts += contract.rewardParts;
             c.contractCompletions[active.contract]++;
@@ -561,8 +579,9 @@ export function finishRun(
             expeditionXp(
                 collected,
                 data,
-                contractReady(active.contract, collected, data),
+                contractReady(active.contract, collected, data, kills),
                 signal && recovery.securedId === signal.id ? signal : null,
+                kills,
             ),
         );
         const free = Math.max(0, storageCapacity(c) - storageUsed(c));

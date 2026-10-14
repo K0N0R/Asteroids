@@ -322,7 +322,7 @@ test('infiltration contract requires stolen data and safe return, pays once, and
 test('v7 save migration preserves fleet, skills, history and interrupted marker while appending one empty contract', () => {
     const c = campaign();
     c.ship!.handling = 1;
-    c.contractCompletions = [2, 3, 4, 5, 0];
+    c.contractCompletions = [2, 3, 4, 5, 0, 0];
     c.nextShipId = 3;
     c.reserveShips = [newShip(2, 'mule')];
     c.bank = { ore: 20, parts: 3 };
@@ -333,7 +333,7 @@ test('v7 save migration preserves fleet, skills, history and interrupted marker 
     assert.deepEqual(loaded, c);
     assert.ok(loaded);
     finishRun(loaded, false, { ore: 0, parts: 0 }, 0, 'refresh', 0, { data: ['outpost'] });
-    assert.deepEqual(loaded.contractCompletions, [2, 3, 4, 5, 0]);
+    assert.deepEqual(loaded.contractCompletions, [2, 3, 4, 5, 0, 0]);
     assert.deepEqual(loaded.bank, { ore: 20, parts: 3 });
     const malformed = JSON.parse(JSON.stringify(old));
     delete malformed.ship.handling;
@@ -356,6 +356,10 @@ test('an overlapping rescue takes priority over the terminal and data can be tak
         isolate(sim);
         atTerminal(sim);
         sim.cloakEnabled = true;
+        sim.cargo.parts = 1;
+        step(sim, 3, { ...idle, sabotage: true });
+        assert.equal(sim.outpost.sabotageProgress, 0);
+        assert.equal(sim.cargo.parts, 1);
         step(sim, 3, { ...idle, interact: true });
         assert.ok(sim.recoveryProgress > 0);
         assert.equal(sim.outpost.download, 0);
@@ -390,6 +394,165 @@ test('prototype choice freezes detection, alarm and scanner time; resuming advan
         assert.ok(sim.outpost.alarm < 3);
         assert.ok(sim.outpost.detection < 1);
         assert.ok(sim.elapsed > time);
+    } finally {
+        sim.dispose();
+    }
+});
+
+test('sabotage spends mission cargo once, clears alarm, enables theft but leaves launched guards alive', () => {
+    const c = campaign(),
+        sim = new MissionSimulation(c, 71);
+    try {
+        isolate(sim);
+        atTerminal(sim);
+        sim.cloakEnabled = true;
+        c.bank.parts = 8;
+        sim.cargo.parts = 2;
+        sim.enemies.add(sim.sector.outpost.guards);
+        sim.outpost.reinforcementsCalled = true;
+        sim.outpost.alarm = 8;
+        sim.outpost.detection = 2;
+        // Prevent already launched guards from hitting us while testing the terminal.
+        for (const e of sim.enemies.enemies.values()) {
+            e.home = { x: 0, y: 0 };
+            e.body.setTranslation({ x: 0, y: 0 }, true);
+        }
+        step(sim, 2, { ...idle, sabotage: true });
+        assert.equal(sim.cargo.parts, 2);
+        assert.equal(sim.outpost.sabotaged, false);
+        step(sim, 1, { ...idle, sabotage: true });
+        assert.equal(sim.cargo.parts, 1);
+        assert.equal(c.bank.parts, 8);
+        assert.ok(sim.outpost.sabotaged);
+        assert.ok(sim.outpost.disabledTime > 19.9);
+        assert.equal(sim.outpost.alarm, 0);
+        assert.equal(sim.outpost.detection, 0);
+        assert.equal(sim.enemies.enemies.size, 2);
+        assert.equal(sim.surveyData.size, 0);
+        step(sim, 4, { ...idle, interact: true });
+        assert.ok(sim.surveyData.has('outpost'));
+        step(sim, 3); // Finish collecting the freshly spawned data crates first.
+        const parts = sim.cargo.parts;
+        step(sim, 3, { ...idle, sabotage: true });
+        assert.equal(sim.cargo.parts, parts);
+        assert.ok(sim.outpost.disabledTime < 13.1);
+    } finally {
+        sim.dispose();
+    }
+});
+
+test('sabotage requires a component on board, calm flight and uninterrupted G', () => {
+    const sim = new MissionSimulation(campaign(), 71);
+    try {
+        isolate(sim);
+        atTerminal(sim);
+        sim.cloakEnabled = true;
+        step(sim, 3, { ...idle, sabotage: true });
+        assert.equal(sim.outpost.sabotageProgress, 0);
+        sim.cargo.parts = 1;
+        for (const interruption of [
+            idle,
+            { ...idle, fire: true },
+            { ...idle, mine: true },
+            { ...idle, thrust: true },
+            { ...idle, repair: true },
+            { ...idle, interact: true },
+        ]) {
+            atTerminal(sim);
+            step(sim, 1, { ...idle, sabotage: true });
+            assert.ok(sim.outpost.sabotageProgress > 0);
+            sim.step({ ...interruption, sabotage: interruption === idle ? false : true });
+            assert.equal(sim.outpost.sabotageProgress, 0);
+            assert.equal(sim.cargo.parts, 1);
+        }
+        atTerminal(sim);
+        step(sim, 1, { ...idle, sabotage: true });
+        sim.ship.setTranslation({ x: 0, y: 0 }, true);
+        sim.step({ ...idle, sabotage: true });
+        assert.equal(sim.outpost.sabotageProgress, 0);
+        atTerminal(sim);
+        sim.ship.setLinvel({ x: 5, y: 0 }, true);
+        sim.step({ ...idle, sabotage: true });
+        assert.equal(sim.outpost.sabotageProgress, 0);
+        assert.equal(sim.outpost.sabotaged, false);
+    } finally {
+        sim.dispose();
+    }
+});
+
+test('damage interrupts sabotage; lethal final-frame damage cannot spend its component', () => {
+    for (const hp of [1, 60]) {
+        const sim = new MissionSimulation(campaign(), 71);
+        try {
+            isolate(sim);
+            atTerminal(sim);
+            sim.cargo.parts = 1;
+            sim.hull = hp;
+            sim.outpost.sabotageProgress = OUTPOST.sabotageSeconds - GAME.step;
+            const p = sim.position;
+            sim.bullets.set(9999, {
+                id: 9999,
+                x: p.x - 80,
+                y: p.y,
+                vx: 10000,
+                vy: 0,
+                life: 1,
+                team: 'enemy',
+                damage: 12,
+            });
+            sim.step({ ...idle, sabotage: true });
+            assert.equal(sim.outpost.sabotageProgress, 0);
+            assert.equal(sim.outpost.sabotaged, false);
+            assert.equal(sim.cargo.parts, 1);
+            assert.equal(sim.ended, hp === 1 ? 'destroyed' : null);
+        } finally {
+            sim.dispose();
+        }
+    }
+});
+
+test('scanner resumes detection after the timed shutdown and cannot be sabotaged twice', () => {
+    const security = new OutpostSecurity(generateSector(71).outpost);
+    assert.ok(security.disable());
+    const p = {
+        x: security.spec.x + 200 * Math.cos(security.spec.phase),
+        y: security.spec.y + 200 * Math.sin(security.spec.phase),
+    };
+    assert.equal(security.sees(p, 0, 1, true), false);
+    security.update(19, true, false);
+    assert.equal(security.detection, 0);
+    security.update(1, true, false);
+    assert.equal(security.disabledTime, 0);
+    assert.ok(security.sees(p, 0, 1, true));
+    assert.equal(security.disable(), false);
+    security.update(2, true, false);
+    assert.equal(security.alarm, OUTPOST.alarmSeconds);
+    assert.ok(security.reinforcementsCalled);
+});
+
+test('prototype menu freezes sabotage duration and a fresh mission has its own opportunity', () => {
+    const c = campaign(),
+        sim = new MissionSimulation(c, 71);
+    try {
+        isolate(sim);
+        sim.outpost.disable();
+        const cache = sim.sector.caches[0];
+        sim.ship.setTranslation({ x: cache.x / 100, y: cache.y / 100 }, true);
+        step(sim, 2.6, { ...idle, interact: true });
+        assert.ok(sim.pendingChoice);
+        const remaining = sim.outpost.disabledTime;
+        step(sim, 10);
+        assert.equal(sim.outpost.disabledTime, remaining);
+        sim.choosePrototype(null);
+        sim.step(idle);
+        assert.ok(sim.outpost.disabledTime < remaining);
+        const fresh = new MissionSimulation(c, 71);
+        try {
+            assert.equal(fresh.outpost.sabotaged, false);
+            assert.equal(fresh.outpost.disabledTime, 0);
+        } finally {
+            fresh.dispose();
+        }
     } finally {
         sim.dispose();
     }

@@ -123,7 +123,7 @@ test('invalid saves and unavailable storage fail safely', () => {
         },
     };
     const repository = new SaveRepository(storage);
-    assert.equal(repository.load().version, 8);
+    assert.equal(repository.load().version, 10);
     assert.equal(repository.save(newCampaign()), false);
 });
 test('W accelerates, releasing stops and S brakes before reversing with priority over W', () => {
@@ -275,7 +275,7 @@ test('legacy campaigns migrate without losing pilots, bank, upgrades or the inte
     delete legacy.repairKits;
     delete legacy.activeRun.repairKits;
     const loaded = parseCampaign(JSON.stringify(legacy))!;
-    assert.equal(loaded.version, 8);
+    assert.equal(loaded.version, 10);
     assert.deepEqual(loaded.bank, c.bank);
     assert.deepEqual(loaded.pilots, c.pilots);
     assert.equal(loaded.ship!.engine, 1);

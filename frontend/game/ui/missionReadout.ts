@@ -17,6 +17,7 @@ export function missionObjectives(
     recovery: boolean,
     secured: boolean,
     returned = false,
+    kills = 0,
 ): MissionObjective[] {
     const contract = CONTRACTS[contractId];
     const goals: MissionObjective[] = [];
@@ -33,6 +34,13 @@ export function missionObjectives(
             title: 'Komponenty',
             progress: `${cargo.parts}/${contract.parts}`,
             complete: cargo.parts >= contract.parts,
+        });
+    if (contract.kills)
+        goals.push({
+            id: 'kills',
+            title: 'Drony',
+            progress: `${kills}/${contract.kills}`,
+            complete: kills >= contract.kills,
         });
     for (const site of contract.sites)
         goals.push({
@@ -57,6 +65,8 @@ export function flightHint(s: MissionSimulation) {
     const percent = (progress: number, seconds: number) =>
         `${Math.min(100, Math.floor((progress / seconds) * 100))}%`;
     if (s.pendingChoice) return '';
+    if (s.outpost.sabotageProgress > 0)
+        return `G  Sabotaż · ${percent(s.outpost.sabotageProgress, OUTPOST.sabotageSeconds)}`;
     if (s.outpost.download > 0)
         return `E  Przechwyt · ${percent(s.outpost.download, OUTPOST.downloadSeconds)}`;
     if (s.repairProgress > 0)
@@ -81,12 +91,18 @@ export function flightHint(s: MissionSimulation) {
             ? 'S  Wyhamuj przy skrytce · <60 m/s'
             : 'E  Otwórz skrytkę · przytrzymaj 2,5 s';
     if (s.nearbyOutpost) {
+        if (s.speed > OUTPOST.interactSpeed) return 'S  Wyhamuj przy terminalu · <60 m/s';
+        const sabotage = s.outpost.sabotaged
+            ? ''
+            : s.cargo.parts >= 1
+              ? ' · G  Sabotaż: 3 s / 1 komponent'
+              : ' · Sabotaż wymaga 1 komponentu w ładowni';
+        if (s.outpost.disabledTime > 0)
+            return `${s.outpost.secured ? '1  Baza' : 'E  Wykradnij dane · 4 s'} · skaner wyłączony ${Math.ceil(s.outpost.disabledTime)} s`;
         if (s.outpost.alarm > 0)
-            return `Alarm · terminal zablokowany ${Math.ceil(s.outpost.alarm)} s`;
-        if (s.outpost.secured) return 'Dane zabezpieczone · 1  Baza';
-        return s.speed > OUTPOST.interactSpeed
-            ? 'S  Wyhamuj przy terminalu · <60 m/s'
-            : 'E  Wykradnij dane · przytrzymaj 4 s';
+            return `Alarm · terminal zablokowany ${Math.ceil(s.outpost.alarm)} s${sabotage}`;
+        if (s.outpost.secured) return `Dane zabezpieczone · 1  Baza${sabotage}`;
+        return `E  Wykradnij dane · 4 s${sabotage}`;
     }
     if (s.outpost.detection > 0)
         return `Skaner wykrywa statek · ${percent(s.outpost.detection, OUTPOST.detectSeconds)}`;

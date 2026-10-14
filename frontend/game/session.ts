@@ -24,7 +24,7 @@ import { MissionHud } from './ui/hud';
 import { button, clear, label, panel } from './ui/primitives';
 import { C } from './graphics/shapes';
 import { SoundManager } from '../core/systems/soundManager';
-import { advanceCrew, cancelJob, hireMechanic, queueJob } from './state/crew';
+import { advanceCrew, cancelJob, hireMechanic, hireQuartermaster, queueJob } from './state/crew';
 import { selectContract } from './state/contracts';
 import { trainPilot } from './state/pilots';
 import { PROTOTYPES, PrototypeId } from './systems/prototypes';
@@ -97,6 +97,11 @@ export class GameSession {
                 ),
             hireMechanic: () =>
                 this.change(() => hireMechanic(this.campaign), 'Mechanik stacji gotowy do pracy.'),
+            hireQuartermaster: () =>
+                this.change(
+                    () => hireQuartermaster(this.campaign),
+                    'Intendent uruchomił stanowisko odzysku.',
+                ),
             queueJob: (kind) =>
                 this.change(
                     () => queueJob(this.campaign, kind),
@@ -132,6 +137,14 @@ export class GameSession {
                     /^[0-9]$/.test(message.data)
                 )
                     this.hud.target = Number(message.data) - 1;
+                if (
+                    message.name === 'keydown' &&
+                    message.data === 'f' &&
+                    this.hud &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup()
+                )
+                    this.hud.trackEnemy();
                 if (
                     message.name === 'keydown' &&
                     message.data === 'c' &&
@@ -231,6 +244,7 @@ export class GameSession {
             mine: InputHandler.secondaryPressed && InputHandler.pointerInCanvas,
             interact: InputHandler.isKeyPressed('INTERACT'),
             repair: InputHandler.isKeyPressed('REPAIR'),
+            sabotage: InputHandler.isKeyPressed('SABOTAGE'),
         });
         const elapsed = this.mission.simulation.elapsed - elapsedBefore;
         const completed = advanceCrew(this.campaign, elapsed);
@@ -240,7 +254,7 @@ export class GameSession {
                 this.campaign.activeRun.lastPosition = this.mission.simulation.position;
             this.saves.save(this.campaign);
             this.crewSaveSeconds = 0;
-            if (completed) this.mission.simulation.setNotice('Mechanik zakończył zadanie w bazie.');
+            if (completed) this.mission.simulation.setNotice('Załoga zakończyła zadanie w bazie.');
         }
         this.background.camera = this.mission.simulation.position;
         this.background.cameraAngle = this.mission.camera.rotation;
@@ -262,6 +276,7 @@ export class GameSession {
                     lossPosition: sim.position,
                     securedId: sim.recoverySecured ? sim.recoverySignal?.id : undefined,
                     data: [...sim.surveyData],
+                    kills: sim.enemyKills,
                 },
             );
             this.saves.save(this.campaign);

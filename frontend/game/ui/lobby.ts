@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import {
     CONTRACTS,
+    CrewRole,
     CREW,
     FLEET_LIMIT,
     HULLS,
@@ -26,6 +27,7 @@ import {
     scrapRefund,
     pilotSlots,
 } from '../state/campaign';
+import { workerJobs, jobStorage } from '../state/crew';
 import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
 import { MAX_PILOT_XP, pilotLevel, pilotPoints } from '../state/pilots';
@@ -62,6 +64,7 @@ export interface LobbyActions {
     scrapShip: (id: number) => void;
     rescue: () => void;
     hireMechanic: () => void;
+    hireQuartermaster: () => void;
     queueJob: (kind: JobKind) => void;
     cancelJob: (id: number) => void;
 }
@@ -90,6 +93,7 @@ export class LobbyView extends Container {
     private recruit = 0;
     private stationPart: 'workshop' | 'storage' = 'workshop';
     private recipe: JobKind = 'refine';
+    private crewRole: CrewRole = 'mechanic';
     private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' = 'engine';
     private scrapCandidate: number | null = null;
     private recoveryId: number | null = null;
@@ -161,7 +165,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.10', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.15', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1230, 37, true);
         if (this.tab === 'overview') this.overview(ui);
@@ -242,11 +246,13 @@ export class LobbyView extends Container {
             label(
                 card,
                 lock ||
-                    (entry.sites.includes('outpost')
-                        ? 'Przechwyt danych'
-                        : entry.sites.length
-                          ? `${entry.sites.length} ${entry.sites.length === 1 ? 'skan' : 'skany'}`
-                          : `${entry.ore} rudy${entry.parts ? ` · ${entry.parts} komponenty` : ''}`),
+                    (entry.kills
+                        ? `${entry.kills} drony`
+                        : entry.sites.includes('outpost')
+                          ? 'Przechwyt danych'
+                          : entry.sites.length
+                            ? `${entry.sites.length} ${entry.sites.length === 1 ? 'skan' : 'skany'}`
+                            : `${entry.ore} rudy${entry.parts ? ` · ${entry.parts} komponenty` : ''}`),
                 16,
                 61,
                 14,
@@ -262,7 +268,7 @@ export class LobbyView extends Container {
                 lock ? C.muted : C.gold,
             );
         });
-        this.art(operationScene(!!contract.sites.length), 625, 650);
+        this.art(operationScene(!!contract.sites.length, !!contract.kills), 625, 650);
         label(ui, 'WYBRANY KONTRAKT', 1072, 244, 13, C.muted);
         label(ui, contract.title, 1072, 276, 29, C.text, 456);
         label(ui, contract.detail, 1072, 328, 18, C.muted, 456);
@@ -305,7 +311,16 @@ export class LobbyView extends Container {
             15,
             C.muted,
         );
-        label(ui, 'Dostarcz ładunek i dane do Aurory.', 1072, 675, 15, C.muted);
+        label(
+            ui,
+            contract.kills
+                ? 'Wróć do Aurory, aby rozliczyć zwycięstwa.'
+                : 'Dostarcz ładunek i dane do Aurory.',
+            1072,
+            675,
+            15,
+            C.muted,
+        );
         this.departure(ui);
     }
     private hangar(ui: Container) {
@@ -867,14 +882,42 @@ export class LobbyView extends Container {
     }
     private crew(ui: Container) {
         const c = this.campaign,
-            recipe = JOBS[this.recipe];
+            recipe = JOBS[this.recipe],
+            role = this.crewRole,
+            hired = c.crew[role],
+            jobs = workerJobs(c, role),
+            quartermaster = role === 'quartermaster';
         this.section(
             'Załoga trzyma wszystko w ruchu.',
             'Zaplanuj pracę warsztatu na czas swojej wyprawy.',
         );
+        (['mechanic', 'quartermaster'] as const).forEach((worker, i) => {
+            button(
+                ui,
+                worker === 'mechanic' ? 'Mechanik' : 'Intendent',
+                280 + i * 240,
+                218,
+                225,
+                () => {
+                    this.crewRole = worker;
+                    this.recipe = worker === 'mechanic' ? 'refine' : 'recycle';
+                    this.refresh();
+                },
+                role === worker,
+                true,
+                38,
+            );
+        });
         this.art(workshopScene(this.recipe), 625, 441);
-        label(ui, 'ADA VALE / MECHANIK STACJI', 388, 286, 16, c.crew.mechanic ? C.mint : C.muted);
-        (['refine', 'kit'] as JobKind[]).forEach((kind, i) => {
+        label(
+            ui,
+            quartermaster ? 'NIKO RELL / INTENDENT BAZY' : 'ADA VALE / MECHANIK STACJI',
+            388,
+            286,
+            16,
+            hired ? C.mint : C.muted,
+        );
+        ((quartermaster ? ['recycle'] : ['refine', 'kit']) as JobKind[]).forEach((kind, i) => {
             const job = JOBS[kind],
                 card = choiceCard(ui, 280 + i * 364, 650, 345, 141, this.recipe === kind, () => {
                     this.recipe = kind;
@@ -883,7 +926,7 @@ export class LobbyView extends Container {
             label(card, job.title, 20, 23, 23);
             label(
                 card,
-                `${job.seconds} s · ${kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
+                `${job.seconds} s · ${kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
                 20,
                 64,
                 15,
@@ -893,7 +936,13 @@ export class LobbyView extends Container {
         });
         label(
             ui,
-            c.crew.mechanic ? 'WARSZTAT / KOLEJKA' : 'ZAŁOGA / MECHANIK',
+            hired
+                ? quartermaster
+                    ? 'ODZYSK / KOLEJKA'
+                    : 'WARSZTAT / KOLEJKA'
+                : quartermaster
+                  ? 'ZAŁOGA / INTENDENT'
+                  : 'ZAŁOGA / MECHANIK',
             1072,
             244,
             13,
@@ -901,35 +950,72 @@ export class LobbyView extends Container {
         );
         label(
             ui,
-            c.crew.mechanic ? `Zadania ${c.crew.jobs.length}/${CREW.queueLimit}` : 'Ada Vale',
+            hired
+                ? `Zadania ${jobs.length}/${CREW.queueLimit}`
+                : quartermaster
+                  ? 'Niko Rell'
+                  : 'Ada Vale',
             1072,
             276,
             31,
         );
-        if (!c.crew.mechanic) {
-            const portrait = pilotPortrait(0, true);
+        if (!hired) {
+            const portrait = pilotPortrait(quartermaster ? 2 : 0, !quartermaster);
             portrait.scale.set(0.6);
             portrait.position.set(1300, 447);
             ui.addChild(portrait);
-            label(ui, 'Uruchomi rafinację i produkcję zestawów.', 1072, 567, 17, C.muted, 456);
+            label(
+                ui,
+                quartermaster
+                    ? 'Odzyska rudę z nadmiarowych komponentów.'
+                    : 'Uruchomi rafinację i produkcję zestawów.',
+                1072,
+                567,
+                17,
+                C.muted,
+                456,
+            );
             label(ui, 'KOSZT ZATRUDNIENIA', 1072, 649, 12, C.muted);
-            cost(ui, CREW.hireOre, 0, 1072, 674);
+            cost(
+                ui,
+                quartermaster ? CREW.quartermasterOre : CREW.hireOre,
+                quartermaster ? CREW.quartermasterParts : 0,
+                1072,
+                674,
+            );
             button(
                 ui,
-                'ZATRUDNIJ MECHANIKA →',
+                quartermaster && c.station.workshop < 1
+                    ? 'WYMAGANY WARSZTAT I'
+                    : quartermaster
+                      ? 'ZATRUDNIJ INTENDENTA →'
+                      : 'ZATRUDNIJ MECHANIKA →',
                 1072,
                 719,
                 456,
-                this.actions.hireMechanic,
+                quartermaster ? this.actions.hireQuartermaster : this.actions.hireMechanic,
                 true,
-                c.bank.ore >= CREW.hireOre,
+                quartermaster
+                    ? c.station.workshop >= 1 &&
+                          c.bank.ore >= CREW.quartermasterOre &&
+                          c.bank.parts >= CREW.quartermasterParts
+                    : c.bank.ore >= CREW.hireOre,
                 52,
             );
             return;
         }
-        label(ui, `Zestawy w bazie ${c.repairKits}/${CREW.kitLimit}`, 1072, 326, 16, C.muted);
-        if (!c.crew.jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
-        c.crew.jobs.forEach((job, i) => {
+        label(
+            ui,
+            quartermaster
+                ? 'Recykling · 1 komponent → 5 rudy'
+                : `Zestawy w bazie ${c.repairKits}/${CREW.kitLimit}`,
+            1072,
+            326,
+            16,
+            C.muted,
+        );
+        if (!jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
+        jobs.forEach((job, i) => {
             const y = 370 + i * 77;
             label(ui, `${i + 1}. ${JOBS[job.kind].title}`, 1072, y, 18);
             label(
@@ -954,23 +1040,37 @@ export class LobbyView extends Container {
             );
             button(ui, '×', 1468, y + 4, 60, () => this.actions.cancelJob(job.id), false, true, 36);
         });
-        label(ui, 'Praca ruszy po starcie wyprawy.', 1072, 615, 14, C.muted);
+        label(ui, 'Praca podczas lotu · stanowiska działają równolegle.', 1072, 615, 14, C.muted);
         label(ui, recipe.title, 1072, 654, 17);
         cost(ui, recipe.ore, recipe.parts, 1072, 680);
-        const full = c.crew.jobs.length >= CREW.queueLimit,
+        const noStorage =
+            storageUsed(c) + jobStorage(this.recipe) - recipe.ore - recipe.parts >
+            storageCapacity(c);
+        const full = jobs.length >= CREW.queueLimit,
             kitsFull =
                 this.recipe === 'kit' &&
                 c.repairKits + c.crew.jobs.filter((job) => job.kind === 'kit').length >=
                     CREW.kitLimit;
         button(
             ui,
-            full ? 'KOLEJKA PEŁNA' : kitsFull ? 'LIMIT ZESTAWÓW' : 'DODAJ ZADANIE →',
+            full
+                ? 'KOLEJKA PEŁNA'
+                : kitsFull
+                  ? 'LIMIT ZESTAWÓW'
+                  : noStorage
+                    ? 'MAGAZYN PEŁNY'
+                    : 'DODAJ ZADANIE →',
             1072,
             728,
             456,
             () => this.actions.queueJob(this.recipe),
             true,
-            !full && !kitsFull && c.bank.ore >= recipe.ore && c.bank.parts >= recipe.parts,
+            !full &&
+                !kitsFull &&
+                c.bank.ore >= recipe.ore &&
+                c.bank.parts >= recipe.parts &&
+                storageUsed(c) + jobStorage(this.recipe) - recipe.ore - recipe.parts <=
+                    storageCapacity(c),
             48,
         );
     }

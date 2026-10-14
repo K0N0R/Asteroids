@@ -1,6 +1,14 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.11** dodaje infiltrację placówki Cerber. **0** wskazuje jej terminal. Omijaj obrotową wiązkę skanera albo wykorzystaj kamuflaż pod **C**, a przy terminalu spokojnie przytrzymaj **E** przez 4 s. Pełne wykrycie blokuje terminal na 8 s i wzywa dwa drony. Przechwyt zapewnia dane oraz skrzynie z 6 komponentami i 4 jednostkami rudy, zbierane zwykłymi chwytakami. Kontrakt **Cichy przechwyt** odblokowuje Nasłuch sektora i warsztat I; premia 32 rudy / 8 komponentów wymaga bezpiecznego powrotu. Szczegóły: [docs/implementation-v0.11.md](docs/implementation-v0.11.md).
+Aktualna wersja **0.15** dodaje sabotaż skanera Cerbera. Przy terminalu przytrzymaj **G** przez 3 s: jeden komponent z ładowni wyłączy skaner na 20 s i skasuje alarm. Możesz potem przejąć dane pod E albo uciec; wezwane drony pozostają aktywne. Sabotaż działa raz na wyprawę. Szczegóły: [docs/implementation-v0.15.md](docs/implementation-v0.15.md).
+
+Wersja **0.14** dodaje **Lancera**, ciężkiego strażnika obserwatorium: 90 HP, wolniejszy lot, utrzymywanie dystansu i pocisk za 18 HP po dłuższym ładowaniu. Widać go po szerokiej sylwetce, długiej lufie, większym pocisku i rombie na radarze; F pokazuje nazwę. Zastępuje jednego strażnika bez zwiększania liczby patroli. Pozostawia 4 rudy oraz 4 komponenty. Szczegóły: [docs/implementation-v0.14.md](docs/implementation-v0.14.md).
+
+Wersja **0.13** rozwija załogę bazy: **intendent Niko Rell** odzyskuje 5 rudy z 1 komponentu w 60 s lotu. Zatrudnienie wymaga warsztatu I oraz 20 rudy / 2 komponentów. Mechanik i intendent mają niezależne kolejki po trzy zadania i pracują równolegle. Zakładka Załoga pokazuje wybrane stanowisko; Tab pokazuje oba bieżące zadania. Gotowe produkty mają zarezerwowane miejsce w magazynie. Szczegóły: [docs/implementation-v0.13.md](docs/implementation-v0.13.md).
+
+Wersja **0.12** dodaje kontrakt bojowy **Ochrona szlaku**: zniszcz trzy drony i wróć do bazy po 24 rudy oraz 6 komponentów. Odblokowanie wymaga udanego powrotu i warsztatu I. **F** wskazuje najbliższego drona, śledzi go podczas lotu i wybiera kolejnego po jego zniszczeniu. HUD pokazuje licznik celu oraz konieczność powrotu. Pilot zdobywa 2 PD za drona (maksymalnie 10 na wyprawę), wyłącznie po bezpiecznym dokowaniu. Szczegóły: [docs/implementation-v0.12.md](docs/implementation-v0.12.md).
+
+Wersja **0.11** dodaje infiltrację placówki Cerber. **0** wskazuje jej terminal. Omijaj obrotową wiązkę skanera albo wykorzystaj kamuflaż pod **C**, a przy terminalu spokojnie przytrzymaj **E** przez 4 s. Pełne wykrycie blokuje terminal na 8 s i wzywa dwa drony. Przechwyt zapewnia dane oraz skrzynie z 6 komponentami i 4 jednostkami rudy, zbierane zwykłymi chwytakami. Kontrakt **Cichy przechwyt** odblokowuje Nasłuch sektora i warsztat I; premia 32 rudy / 8 komponentów wymaga bezpiecznego powrotu. Szczegóły: [docs/implementation-v0.11.md](docs/implementation-v0.11.md).
 
 Wersja **0.10** dodaje dwie proceduralne skrytki z wyborem jednego z trzech prototypów. Klawisz **9** wskazuje najbliższą nieotwartą skrytkę; spokojne przytrzymanie **E** przez 2,5 s otwiera ekran wyboru i zatrzymuje wyprawę oraz pracę załogi. Siedem prototypów wzmacnia napęd, manewrowanie, laser, działka, ładownię, chwytaki lub kadłub. Premie działają tylko do końca wyprawy i nie zostają na odzyskanym wraku. Łup zachowujesz po bezpiecznym dokowaniu.
 
@@ -12,7 +20,7 @@ Wersja **0.9** dodaje sześć kadłubów według konceptów użytkownika: Prospe
 
 Prototyp gry 2D w PixiJS 8 i TypeScript, oparty na istniejącym boilerze. Zręcznościowy lot z fizyką Rapier 2D, wydobywanie rudy i komponentów, proceduralne sektory, baza, ulepszenia oraz piloci.
 
-Sylwetki floty mają wygładzone kontury, panele poszycia, szklane wizjery z okrągłymi refleksami i szare trapezowe silniki. Mule ma kształt T, Manta zbiorniki pod skrzydłami, a Prospector i Swift tylne lasery pod kadłubem. Galeria i szczegóły: [docs/ship-visuals.md](docs/ship-visuals.md).
+Sylwetki floty mają wygładzone kontury, panele poszycia, jasnoniebieskie szklane wizjery z okrągłymi refleksami, stonowane kolory materiałów i trapezowe silniki. Każdy model ma własny odcień kadłuba. Mule ma kształt T, Manta zbiorniki pod skrzydłami, a Prospector i Swift tylne lasery pod kadłubem. Manta ma działko pod dziobem i laser pod tyłem. Galeria i szczegóły: [docs/ship-visuals.md](docs/ship-visuals.md).
 
 Wersja 0.2 dodaje mechanika stacji, kolejkę produkcji i naprawę uszkodzonego napędu podczas wyprawy.
 
@@ -65,6 +73,8 @@ Buduje i uruchamia wersję produkcyjną, bez automatycznego odświeżania. Sam b
 | Przytrzymany R | Naprawa napędu i 25 punktów kadłuba: 5 s lotu poniżej 80 m/s, bez ciągu, strzelania i interakcji; zużywa zestaw |
 | 1–9 | Cel nawigacji: baza, pole rudy, pas, wrak, bogata żyła, sygnał ratunkowy, przekaźnik, obserwatorium, najbliższa nieotwarta skrytka |
 | 0 | Terminal wrogiej placówki Cerber |
+| F | Wskaż najbliższego drona; śledź go do zniszczenia |
+| Przytrzymany G przy terminalu Cerbera | Sabotaż: 3 s spokojnego lotu do 60 m/s; 1 komponent z ładowni; skaner nieaktywny przez 20 s, raz na wyprawę |
 | Przytrzymany E przy terminalu Cerbera | Przechwyt danych: 4 s, do 60 m/s, bez ciągu, ognia, lasera, naprawy i aktywnego alarmu |
 | Esc | Pauza, sterowanie i głośność efektów |
 | Tab | Panel pokładu: szczegóły statku, pilot, prototypy, załoga i odzysk; pauzuje wyprawę |
@@ -83,7 +93,7 @@ Doświadczenie zdobywa pilot lecący na misję, po bezpiecznym dokowaniu: za prz
 
 W **Hangar → Moje statki / Stocznia** możesz obejrzeć kadłuby, kupić statek i świadomie ustawić aktywny model. Moduły kupujesz w szczegółach aktywnego statku. Swift jest szybszym, lżejszym zwiadowcą, a Mule ma większy kadłub, ładownię i moc wydobycia przy wolniejszym locie. Oba wymagają warsztatu I. Zakup nie kasuje poprzedniego kadłuba — pozostaje on w rezerwie z własnymi modułami. Zapasowe statki przetrwają stratę aktywnego statku. Złomowanie rezerwy wymaga potwierdzenia i miejsca w magazynie na zwrot materiałów.
 
-W zakładce **Załoga** zatrudniasz mechanika za 12 rudy. Kolejka mieści trzy zadania: rafinacja 8 rudy w 1 komponent (45 s) lub produkcja zestawu naprawczego z 6 rudy i 1 komponentu (30 s). Praca postępuje podczas wyprawy; pauza, pobyt w bazie i zamknięta gra zatrzymują postęp. Materiały są rezerwowane od razu; anulowanie zadania zwraca je w całości.
+W zakładce **Załoga** zatrudniasz mechanika za 12 rudy. Jego kolejka mieści trzy zadania: rafinacja 8 rudy w 1 komponent (45 s) lub produkcja zestawu naprawczego z 6 rudy i 1 komponentu (30 s). Praca postępuje podczas wyprawy; pauza, pobyt w bazie i zamknięta gra zatrzymują postęp. Intendent Niko Rell ma drugą, niezależną kolejkę odzysku: 1 komponent w 5 rudy (60 s), po zatrudnieniu za 20 rudy i 2 komponenty przy warsztacie I. Oba stanowiska pracują równolegle. Materiały i miejsce na produkty są rezerwowane od razu; anulowanie zadania zwraca materiały w całości.
 
 Przed startem automatycznie zabierasz maksymalnie dwa zestawy z zapasu bazy. Nowa kampania dostaje jeden zestaw. Mocne zderzenie może uszkodzić napęd i ograniczyć ciąg do 45%; hamulec nadal działa. Naprawa przywraca pełny ciąg. Niewykorzystane zestawy wracają po dokowaniu, a zestawy na utraconym statku przepadają. Mechanik i ukończona produkcja pozostają w bazie po porażce.
 
@@ -95,7 +105,7 @@ W **Ratunek → wybierz sygnał → Wyrusz na ratunek** wracasz do początkowego
 
 Nieudana akcja lub odświeżenie podczas niej traci jej pierwotny cel. Udany powrót bez podjęcia celu zachowuje sygnał na później. Baza pamięta do trzech sygnałów; czwarty wypiera najstarszy. Piloci w kapsułach rezerwują miejsce w limicie załogi, a licznik utraconych pilotów obejmuje straty trwałe.
 
-Zapisy v0.1–v0.10 są automatycznie migrowane do formatu 8, z zachowaniem kampanii. Historia kontraktów jest naliczana od v0.5; wcześniejsze powroty nadal odblokowują Nasłuch sektora. Piloci z zapisów sprzed v0.6, także w kapsułach, zaczynają rozwój z 0 PD i zachowują tożsamość oraz cechę. Znacznik aktywnej wyprawy zachowuje swoją politykę straty także podczas migracji. Postęp pracy mechanika i ostatnia pozycja statku są zapisywane co 5 s lotu i natychmiast po ukończeniu zadania; nie naliczamy pracy offline ani nie wznawiamy stanu fizyki. Odzysku nie losujemy ponownie przy odświeżaniu.
+Zapisy v0.1–v0.12 są automatycznie migrowane do formatu 10, z zachowaniem kampanii. Historia kontraktów jest naliczana od v0.5; wcześniejsze powroty nadal odblokowują Nasłuch sektora. Piloci z zapisów sprzed v0.6, także w kapsułach, zaczynają rozwój z 0 PD i zachowują tożsamość oraz cechę. Znacznik aktywnej wyprawy zachowuje swoją politykę straty także podczas migracji. Postęp pracy załogi i ostatnia pozycja statku są zapisywane co 5 s lotu i natychmiast po ukończeniu zadania; nie naliczamy pracy offline ani nie wznawiamy stanu fizyki. Odzysku nie losujemy ponownie przy odświeżaniu.
 
 ## Sprawdzenie kodu
 

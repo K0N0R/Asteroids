@@ -6,6 +6,7 @@ import { CONTRACTS, GAME, JOBS } from '../config';
 import { C, ShipView } from '../graphics/shapes';
 import { PROTOTYPES } from '../systems/prototypes';
 import { button, clear, label, panel } from './primitives';
+import { workerJobs } from '../state/crew';
 import { missionObjectives } from './missionReadout';
 import { objectiveMark } from './hudIcons';
 
@@ -131,6 +132,8 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             [...s.surveyData],
             !!s.recoverySignal,
             s.recoverySecured,
+            false,
+            s.enemyKills,
         ).forEach((goal, i) => {
             objectiveMark(checks, 867, 322 + i * 30, goal.complete);
             label(
@@ -153,18 +156,17 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             460,
         );
         label(root, 'ZAŁOGA W BAZIE', 860, 503, 13, C.muted);
-        if (!c.crew.mechanic) label(root, 'Brak mechanika', 860, 532, 17, C.muted);
-        else if (!c.crew.jobs.length) label(root, 'Brak zadań w kolejce', 860, 532, 17, C.muted);
-        c.crew.jobs.forEach((job, i) =>
-            label(
-                root,
-                `${i + 1}. ${JOBS[job.kind].title} · ${Math.ceil(job.remaining)} s${i ? ' · w kolejce' : ''}`,
-                860,
-                532 + i * 26,
-                16,
-                i ? C.muted : C.mint,
-            ),
-        );
+        (['mechanic', 'quartermaster'] as const).forEach((role, i) => {
+            const jobs = workerJobs(c, role),
+                head = jobs[0];
+            const title = role === 'mechanic' ? 'Mechanik' : 'Intendent';
+            const state = !c.crew[role]
+                ? 'niezatrudniony'
+                : !head
+                  ? 'brak zadań'
+                  : `${JOBS[head.kind].title} · ${Math.ceil(head.remaining)} s${jobs.length > 1 ? ` · +${jobs.length - 1} w kolejce` : ''}`;
+            label(root, `${title}: ${state}`, 860, 532 + i * 36, 15, head ? C.mint : C.muted, 460);
+        });
         label(root, 'ODZYSK', 860, 635, 13, C.muted);
         label(
             root,
@@ -181,11 +183,13 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         );
         label(
             root,
-            s.outpost.secured
-                ? 'Cerber: dane zabezpieczone'
-                : s.outpost.alarm > 0
-                  ? `Cerber: alarm · ${Math.ceil(s.outpost.alarm)} s`
-                  : 'Cerber: E przez 4 s · omijaj wiązkę lub użyj C',
+            s.outpost.disabledTime > 0
+                ? `Cerber: skaner wyłączony · ${Math.ceil(s.outpost.disabledTime)} s`
+                : s.outpost.secured
+                  ? 'Cerber: dane zabezpieczone'
+                  : s.outpost.alarm > 0
+                    ? `Cerber: alarm · ${Math.ceil(s.outpost.alarm)} s`
+                    : 'Cerber: E dane · G sabotaż: 3 s / 1 komponent',
             860,
             697,
             13,
@@ -194,7 +198,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         );
         label(
             root,
-            '1 Baza · 2 Ruda · 3 Pas · 4 Wrak · 5 Żyła · 6 Ratunek · 7 Lumen · 8 Mnemos · 9 Skrytki · 0 Cerber',
+            '1 Baza · 2 Ruda · 3 Pas · 4 Wrak · 5 Żyła · 6 Ratunek · 7 Lumen · 8 Mnemos · 9 Skrytki · 0 Cerber · F Dron',
             280,
             753,
             15,

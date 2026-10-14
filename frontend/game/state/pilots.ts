@@ -52,13 +52,16 @@ export function expeditionXp(
     data: readonly ScanSiteId[],
     completedContract: boolean,
     recovery: RecoverySignal | null,
+    kills = 0,
 ) {
     const load = cargo.ore + cargo.parts * 2;
     const cargoXp = Number.isFinite(load) ? Math.max(0, Math.min(20, Math.floor(load))) : 0;
+    const combatXp = Number.isInteger(kills) && kills >= 0 ? Math.min(10, kills * 2) : 0;
     const scans = new Set(data.filter((site) => Object.hasOwn(SCAN_SITES, site))).size;
     return Math.min(
         PILOT_PROGRESSION.maxXpPerRun,
         cargoXp +
+            combatXp +
             scans * 5 +
             (completedContract ? 10 : 0) +
             (recovery?.pilot ? 15 : 0) +

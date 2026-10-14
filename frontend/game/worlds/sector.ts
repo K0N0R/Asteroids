@@ -1,4 +1,4 @@
-import { DRONES, GAME, OUTPOST, SCAN_SITES, ScanSiteId } from '../config';
+import { DRONES, EnemyKind, GAME, OUTPOST, SCAN_SITES, ScanSiteId } from '../config';
 
 export interface Point {
     x: number;
@@ -19,6 +19,7 @@ export interface Landmark extends Point {
     radius: number;
 }
 export interface EnemySpec extends Point {
+    kind?: EnemyKind;
     id: number;
     home: Point;
     phase: number;
@@ -149,6 +150,7 @@ export function generateSector(seed: number) {
                 enemies.push({
                     ...point,
                     id: enemies.length + 1,
+                    kind: index === 5 && i === 1 ? 'lancer' : 'patrol',
                     home: { x: home.x, y: home.y },
                     phase: angle,
                 });

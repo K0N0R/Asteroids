@@ -1,6 +1,6 @@
 import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { random } from '../worlds/sector';
-import { HullId, ScanSiteId } from '../config';
+import { EnemyKind, HullId, ScanSiteId } from '../config';
 import { ShipModules } from '../state/campaign';
 import { GAME, HULLS } from '../config';
 import { aimAngle, rotateVector } from '../systems/flight';
@@ -47,11 +47,14 @@ export class ShipView extends Container {
             gun.addChild(
                 new Graphics()
                     .circle(0, 0, 7)
-                    .fill(S.gunInset)
+                    .fill(S.engine)
+                    .stroke({ color: S.gunInset, width: 1 })
                     .roundRect(-7, -4, GAME.gunLength + 7, 8, 2)
                     .fill(S.gun)
                     .rect(6, -2, 23, 4)
-                    .fill(S.gunInset),
+                    .fill(S.gunInset)
+                    .roundRect(31, -3, 4, 6, 1)
+                    .fill(S.engine),
             );
             this.guns.push(gun);
             this.addChild(gun);
@@ -64,6 +67,9 @@ export class ShipView extends Container {
                 new Graphics()
                     .roundRect(-5, -4, 24 + modules.drill, 8, 3)
                     .fill(S.laser)
+                    .stroke({ color: S.gunInset, width: 0.7 })
+                    .roundRect(3, -1.5, 13 + modules.drill, 3, 1)
+                    .fill(S.visor)
                     .circle(0, 0, 4)
                     .fill(S.engine),
             );
@@ -73,7 +79,13 @@ export class ShipView extends Container {
         for (const engine of config.engines) this.addChild(engineHousing(engine.x, engine.y));
         this.addChild(shipHull(hull, modules));
         for (const mount of config.grabbers)
-            this.addChild(new Graphics().circle(mount.x, mount.y, 3).fill(S.reinforcement));
+            this.addChild(
+                new Graphics()
+                    .circle(mount.x, mount.y, 3)
+                    .fill(S.engine)
+                    .circle(mount.x, mount.y, 1.4)
+                    .fill(S.reinforcement),
+            );
         this.updateDrive(false, false, false, false, 0);
     }
     aimAt(target: Point) {
@@ -98,7 +110,7 @@ export class ShipView extends Container {
                     engine.x - 14,
                     engine.y + 7,
                 ])
-                .fill(fault ? C.red : SHIP_COLORS.flame);
+                .fill({ color: fault ? C.red : SHIP_COLORS.flame, alpha: 0.8 });
             this.retro
                 .poly([
                     engine.x + 8,
@@ -108,7 +120,7 @@ export class ShipView extends Container {
                     engine.x + 8,
                     engine.y + 6,
                 ])
-                .fill(C.gold);
+                .fill(0xc4ac88);
         }
         this.flame.visible = forward;
         this.retro.visible = reverse;
@@ -118,9 +130,24 @@ export class ShipView extends Container {
 
 export class DroneView extends Container {
     readonly flame = new Graphics().poly([-23, -6, -48, 0, -23, 6]).fill(C.red);
-    constructor() {
+    constructor(kind: EnemyKind = 'patrol') {
         super();
         this.addChild(this.flame);
+        if (kind === 'lancer') {
+            this.flame.scale.y = 1.25;
+            const g = new Graphics();
+            g.roundRect(-28, -17, 59, 34, 7).fill(0x494250).stroke({ color: 0xc5a7af, width: 2 });
+            g.poly([-20, -16, -10, -35, 12, -29, 24, -15, 24, 15, 12, 29, -10, 35, -20, 16])
+                .fill(0x665362)
+                .stroke({ color: 0xc58a95, width: 1.5 });
+            g.roundRect(-8, -7, 54, 14, 3).fill(0xa79791);
+            g.roundRect(0, -3, 43, 6, 2).fill(0x372932);
+            g.roundRect(35, -5, 8, 10, 2).fill(0xe5b7a1);
+            g.ellipse(-8, 0, 9, 10).fill(0x412d38).stroke({ color: C.red, width: 1.5 });
+            for (const y of [-24, 24]) g.roundRect(-9, y - 2, 19, 4, 1).fill(0xbb938c);
+            this.addChild(g);
+            return;
+        }
         const hull = new Graphics()
             .poly([-24, -12, -9, -29, 15, -15, 32, 0, 15, 15, -9, 29, -24, 12])
             .fill(0x3e222b)

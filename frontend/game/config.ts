@@ -52,6 +52,33 @@ export const DRONES = {
     shotLife: 1.6,
     shotDamage: 12,
 } as const;
+export const ENEMY_PROFILES = {
+    patrol: { ...DRONES, name: 'Dron', oreLoot: 3, partsLoot: 2, density: 4, strafe: 0.35 },
+    lancer: {
+        ...DRONES,
+        name: 'Lancer',
+        hull: 90,
+        radius: 32,
+        patrolSpeed: 75,
+        chaseSpeed: 165,
+        acceleration: 260,
+        turnSpeed: 3,
+        detectRange: 950,
+        loseRange: 1300,
+        fireRange: 900,
+        preferredRange: 400,
+        windup: 1.2,
+        shotInterval: 2.5,
+        shotSpeed: 900,
+        shotLife: 1.5,
+        shotDamage: 18,
+        oreLoot: 4,
+        partsLoot: 4,
+        density: 5,
+        strafe: 0.12,
+    },
+} as const;
+export type EnemyKind = keyof typeof ENEMY_PROFILES;
 export const RECOVERY = { signalLimit: 3, radius: 160, speed: 80, seconds: 4 } as const;
 export const SCAN = { radius: 180, speed: 60, seconds: 3 } as const;
 export const OUTPOST = {
@@ -60,6 +87,8 @@ export const OUTPOST = {
     interactRadius: 100,
     interactSpeed: 60,
     downloadSeconds: 4,
+    sabotageSeconds: 3,
+    disabledSeconds: 20,
     scanRange: 560,
     scanHalfAngle: 0.38,
     scanSpeed: 0.28,
@@ -238,8 +267,8 @@ export const HULLS = {
         recovery: 0.3,
         boost: 1.25,
         cloak: 0.25,
-        guns: [{ x: -30, y: 0 }],
-        lasers: [{ x: 28, y: 0 }],
+        guns: [{ x: 28, y: 0 }],
+        lasers: [{ x: -30, y: 0 }],
         engines: [
             { x: 12, y: -37 },
             { x: 12, y: 37 },
@@ -287,7 +316,14 @@ export const HULLS = {
 } as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
 
-export const CREW = { hireOre: 12, queueLimit: 3, kitLimit: 10, embarkKits: 2 } as const;
+export const CREW = {
+    hireOre: 12,
+    quartermasterOre: 20,
+    quartermasterParts: 2,
+    queueLimit: 3,
+    kitLimit: 10,
+    embarkKits: 2,
+} as const;
 export const PILOT_PROGRESSION = {
     thresholds: [0, 20, 50, 90, 140],
     skillLimit: 2,
@@ -304,10 +340,36 @@ export const PILOT_SKILLS = {
 } as const;
 export type PilotSkillId = keyof typeof PILOT_SKILLS;
 export const JOBS = {
-    refine: { title: 'Rafinacja rudy', ore: 8, parts: 0, seconds: 45, output: 'parts' },
-    kit: { title: 'Zestaw naprawczy', ore: 6, parts: 1, seconds: 30, output: 'kit' },
+    refine: {
+        title: 'Rafinacja rudy',
+        ore: 8,
+        parts: 0,
+        seconds: 45,
+        output: 'parts',
+        amount: 1,
+        worker: 'mechanic',
+    },
+    kit: {
+        title: 'Zestaw naprawczy',
+        ore: 6,
+        parts: 1,
+        seconds: 30,
+        output: 'kit',
+        amount: 1,
+        worker: 'mechanic',
+    },
+    recycle: {
+        title: 'Odzysk rudy',
+        ore: 0,
+        parts: 1,
+        seconds: 60,
+        output: 'ore',
+        amount: 5,
+        worker: 'quartermaster',
+    },
 } as const;
 export type JobKind = keyof typeof JOBS;
+export type CrewRole = 'mechanic' | 'quartermaster';
 
 export const PILOTS = [
     {
@@ -381,7 +443,8 @@ export interface ContractDefinition {
     rewardOre: number;
     rewardParts: number;
     sites: readonly ScanSiteId[];
-    unlock: 'always' | 'return' | 'research';
+    kills?: number;
+    unlock: 'always' | 'return' | 'research' | 'combat';
 }
 export const CONTRACTS: readonly ContractDefinition[] = [
     {
@@ -433,5 +496,16 @@ export const CONTRACTS: readonly ContractDefinition[] = [
         rewardParts: 8,
         sites: ['outpost'],
         unlock: 'research',
+    },
+    {
+        title: 'Ochrona szlaku',
+        detail: 'Zniszcz 3 drony w jednej wyprawie i wróć do Aurory. F wskazuje najbliższego drona.',
+        ore: 0,
+        parts: 0,
+        rewardOre: 24,
+        rewardParts: 6,
+        sites: [],
+        kills: 3,
+        unlock: 'combat',
     },
 ] as const;

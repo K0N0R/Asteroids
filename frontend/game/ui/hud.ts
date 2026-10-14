@@ -4,6 +4,7 @@ import { CONTRACTS, GAME, SCAN_SITES } from '../config';
 import { C } from '../graphics/shapes';
 import { MissionSimulation } from '../systems/mission';
 import { navigationWaypoint } from '../worlds/sector';
+import { EnemyNavigation } from '../systems/enemyNavigation';
 import { enemyPosition } from '../systems/enemies';
 import { flightHint, missionObjectives } from './missionReadout';
 import { hudLabel as label, keyHint, mouseHint, objectiveMark } from './hudIcons';
@@ -19,6 +20,8 @@ export class MissionHud extends Container {
     private checks = new Graphics();
     private recoveryWasSecured = false;
     private lastSurveyCount = 0;
+    private combatComplete = false;
+    private enemyNavigation = new EnemyNavigation();
     private map = new Graphics();
     private meters = new Graphics();
     private arrow = new Graphics();
@@ -32,6 +35,7 @@ export class MissionHud extends Container {
         this.eventMode = 'passive';
         const firstSite = CONTRACTS[contract].sites[0];
         if (firstSite) this.target = SCAN_SITES[firstSite].key - 1;
+        if (CONTRACTS[contract].kills) this.trackEnemy();
         if (sim.recoverySignal) this.target = 5;
         this.addChild(this.meters, this.map, this.checks, this.arrow);
         for (const graphic of [this.meters, this.map, this.checks, this.arrow])
@@ -46,6 +50,8 @@ export class MissionHud extends Container {
             [...sim.surveyData],
             !!sim.recoverySignal,
             sim.recoverySecured,
+            false,
+            sim.enemyKills,
         ).length;
         for (let i = 0; i < count; i++)
             this.goals.push(label(this, '', 1343, 320 + i * 28, 15, C.muted, 228));
@@ -55,6 +61,7 @@ export class MissionHud extends Container {
         mouseHint(this, null, 'cel', 277, 845);
         mouseHint(this, 'left', 'ogień', 355, 845);
         mouseHint(this, 'right', 'laser', 453, 845);
+        keyHint(this, 'F', 'dron', 552, 845);
         keyHint(this, '0–9', 'cel', 644, 845, 43);
         keyHint(this, 'E', 'akcja', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
@@ -66,7 +73,13 @@ export class MissionHud extends Container {
         keyHint(this, 'ESC', 'pauza', 1400, 845, 40);
         this.refresh();
     }
+    trackEnemy() {
+        this.enemyNavigation.select(this.sim.enemies, this.sim.position);
+        this.target = 10;
+    }
     get waypoint() {
+        if (this.target === 10)
+            return this.enemyNavigation.waypoint(this.sim.enemies, this.sim.position);
         if (this.target === -1)
             return { ...this.sim.sector.outpost.terminal, name: this.sim.sector.outpost.name };
         if (this.target === 8)
@@ -126,6 +139,11 @@ export class MissionHud extends Container {
             if (CONTRACTS[this.contract].sites.length && (!s.recoverySignal || s.recoverySecured))
                 this.target = nextSite ? SCAN_SITES[nextSite].key - 1 : 0;
         }
+        const kills = CONTRACTS[this.contract].kills;
+        if (kills && !this.combatComplete && s.enemyKills >= kills) {
+            this.combatComplete = true;
+            this.target = s.recoverySignal && !s.recoverySecured ? 5 : 0;
+        }
         this.checks.clear();
         missionObjectives(
             this.contract,
@@ -133,6 +151,8 @@ export class MissionHud extends Container {
             [...s.surveyData],
             !!s.recoverySignal,
             s.recoverySecured,
+            false,
+            s.enemyKills,
         ).forEach((goal, i) => {
             this.goals[i].setText(`${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`);
             this.goals[i].setColor(goal.complete ? C.mint : C.muted);
@@ -212,7 +232,11 @@ export class MissionHud extends Container {
                 mx = x + e.x * scale,
                 my = y + e.y * scale;
             this.map
-                .poly([mx + 3, my, mx - 2, my - 2, mx - 2, my + 2])
+                .poly(
+                    enemy.kind === 'lancer'
+                        ? [mx + 4, my, mx, my - 3, mx - 4, my, mx, my + 3]
+                        : [mx + 3, my, mx - 2, my - 2, mx - 2, my + 2],
+                )
                 .fill(enemy.state === 'chase' ? C.red : 0xb3696c);
         }
         if (distance > 1 && this.target !== 0)

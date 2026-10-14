@@ -14,7 +14,7 @@ Wybranie miniatury pozwala obejrzeć szczegóły. Przy przeglądaniu posiadanej 
 | Hangar | Duży, dopasowany model wybranego statku i miniatury floty | Ustawienie aktywnego kadłuba, moduły, zakup w stoczni, złomowanie rezerwy |
 | Stacja | Aurora z wyróżnionym warsztatem lub magazynem | Rozbudowa wybranego modułu i podgląd pojemności |
 | Piloci | Portret wybranego pilota, doświadczenie i umiejętności | Wybór aktywnego pilota, rozwój, nabór |
-| Załoga | Stanowisko rafinacji lub produkcji zestawów | Zatrudnienie mechanika, dodawanie i anulowanie zadań |
+| Załoga | Wybrane stanowisko mechanika lub intendenta | Zatrudnienie pracownika i jego osobna kolejka zadań |
 | Ratunek | Mapa sygnałów i podgląd kapsuły lub wraku | Wybór sygnału i start akcji ratunkowej |
 
 Każdy widok ma własną scenę Pixi, a nie wspólny podgląd stacji. Modele statków są dopasowywane do dostępnego miejsca z uwzględnieniem działek i laserów. Portrety i ilustracje produkcji również powstają z figur, bez nowych grafik z internetu.

@@ -5,6 +5,10 @@ export function contractLockReason(c: Campaign, id: number): string {
     if (!Number.isInteger(id) || !CONTRACTS[id]) return 'Nieznany kontrakt';
     const contract = CONTRACTS[id];
     if (contract.unlock === 'return' && c.recovered < 1) return 'Wróć raz do bazy';
+    if (contract.unlock === 'combat') {
+        if (c.recovered < 1) return 'Wróć raz do bazy';
+        if (c.station.workshop < 1) return 'Wymagany warsztat I';
+    }
     if (contract.unlock === 'research') {
         if (!c.contractCompletions[2]) return 'Wykonaj Nasłuch sektora';
         if (c.station.workshop < 1) return 'Wymagany warsztat I';
@@ -18,19 +22,26 @@ export function selectContract(c: Campaign, id: number): boolean {
     return true;
 }
 
-export function contractReady(id: number, cargo: Cargo, data: readonly ScanSiteId[] = []) {
+export function contractReady(
+    id: number,
+    cargo: Cargo,
+    data: readonly ScanSiteId[] = [],
+    kills = 0,
+) {
     const contract = CONTRACTS[id];
     return (
         !!contract &&
         cargo.ore >= contract.ore &&
         cargo.parts >= contract.parts &&
-        contract.sites.every((site) => data.includes(site))
+        contract.sites.every((site) => data.includes(site)) &&
+        (!contract.kills || (Number.isInteger(kills) && kills >= contract.kills))
     );
 }
 
-export function contractProgress(id: number, cargo: Cargo, data: readonly ScanSiteId[]) {
+export function contractProgress(id: number, cargo: Cargo, data: readonly ScanSiteId[], kills = 0) {
     const contract = CONTRACTS[id];
-    if (contractReady(id, cargo, data)) return '✓ Cel wykonany · wróć do bazy';
+    if (contractReady(id, cargo, data, kills)) return '✓ Cel wykonany · wróć do bazy';
+    if (contract.kills) return `Drony ${kills}/${contract.kills}`;
     if (contract.sites.length)
         return contract.sites
             .map((site) => `${data.includes(site) ? '✓' : '○'} ${SCAN_SITES[site].name}`)
