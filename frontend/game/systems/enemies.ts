@@ -52,8 +52,13 @@ export class EnemyFleet {
         private world: RAPIER.World,
         specs: readonly EnemySpec[],
     ) {
+        this.add(specs);
+    }
+    add(specs: readonly EnemySpec[]) {
+        if (this.disposed) return;
         for (const spec of specs) {
-            const body = world.createRigidBody(
+            if (this.enemies.has(spec.id)) continue;
+            const body = this.world.createRigidBody(
                 RAPIER.RigidBodyDesc.dynamic()
                     .setTranslation(spec.x / P, spec.y / P)
                     .setRotation(spec.phase)
@@ -61,7 +66,7 @@ export class EnemyFleet {
                     .setAngularDamping(0)
                     .setCcdEnabled(true),
             );
-            const collider = world.createCollider(
+            const collider = this.world.createCollider(
                 RAPIER.ColliderDesc.ball(DRONES.radius / P)
                     .setDensity(4)
                     .setRestitution(0.25)
@@ -87,6 +92,17 @@ export class EnemyFleet {
             this.colliders.set(collider.handle, spec.id);
         }
     }
+    alert(ids: readonly number[], player: Point) {
+        if (this.disposed) return;
+        for (const id of ids) {
+            const enemy = this.enemies.get(id);
+            if (!enemy) continue;
+            enemy.state = 'chase';
+            enemy.lastSeen = { ...player };
+            enemy.lostSight = 0;
+            enemy.charge = 0;
+        }
+    }
     lineClear(from: Point, to: Point, isRock: (collider: RAPIER.Collider) => boolean) {
         const ray = new RAPIER.Ray(
             { x: from.x / P, y: from.y / P },
@@ -109,6 +125,7 @@ export class EnemyFleet {
         velocity: Point,
         isRock: (collider: RAPIER.Collider) => boolean,
         fire: (enemy: Enemy) => boolean,
+        signature = 1,
     ) {
         if (this.disposed) return;
         for (const enemy of this.enemies.values()) {
@@ -119,7 +136,9 @@ export class EnemyFleet {
                 homeDistance = Math.hypot(p.x - enemy.home.x, p.y - enemy.home.y);
             const safe = Math.hypot(player.x, player.y) < DRONES.safeRadius;
             const visible =
-                !safe && distance < DRONES.loseRange && this.lineClear(p, player, isRock);
+                !safe &&
+                distance < DRONES.loseRange * signature &&
+                this.lineClear(p, player, isRock);
             if (visible) enemy.lastSeen = { ...player };
             enemy.previous = p;
             enemy.previousAngle = enemy.body.rotation();
@@ -139,7 +158,7 @@ export class EnemyFleet {
                 }
             } else if (enemy.state === 'return') {
                 if (homeDistance < 210) enemy.state = 'patrol';
-            } else if (visible && distance < DRONES.detectRange) {
+            } else if (visible && distance < DRONES.detectRange * signature) {
                 enemy.state = 'chase';
                 enemy.lostSight = 0;
             }

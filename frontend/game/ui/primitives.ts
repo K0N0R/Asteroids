@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, TextStyle } from 'pixi.js';
 import { Typography } from '../../core/containers/components/typography';
 import { Button } from '../../core/containers/components/button';
 import { C } from '../graphics/shapes';
@@ -11,6 +11,7 @@ export function label(
     size = 20,
     color: number = C.text,
     wrapWidth?: number,
+    styleProps?: Partial<TextStyle>,
 ) {
     const view = new Typography({
         text,
@@ -19,7 +20,10 @@ export function label(
         fontFamily: 'Segoe UI',
         horizontalAlign: 'left',
         verticalAlign: 'top',
-        styleProps: wrapWidth ? { wordWrap: true, wordWrapWidth: wrapWidth * 2 } : undefined,
+        styleProps: {
+            ...(wrapWidth ? { wordWrap: true, wordWrapWidth: wrapWidth * 2 } : {}),
+            ...styleProps,
+        },
     });
     view.position.set(x, y);
     view.eventMode = 'none';

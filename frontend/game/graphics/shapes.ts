@@ -2,6 +2,9 @@ import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { random } from '../worlds/sector';
 import { HullId, ScanSiteId } from '../config';
 import { ShipModules } from '../state/campaign';
+import { GAME, HULLS } from '../config';
+import { aimAngle, rotateVector } from '../systems/flight';
+import type { Point } from '../worlds/sector';
 
 export const C = {
     ink: 0x07121e,
@@ -15,66 +18,169 @@ export const C = {
     red: 0xf07879,
 } as const;
 
+export const SHIP_COLORS = {
+    hull: 0x4c545b,
+    visor: 0x22dd7b,
+    gun: 0xffffff,
+    gunInset: 0xc3c3c3,
+    cargo: 0xca9229,
+    engine: 0x33373a,
+    flame: 0x465aca,
+    reinforcement: 0x737373,
+    laser: 0x2ddecb,
+} as const;
 export class ShipView extends Container {
-    readonly flame = new Graphics().poly([-25, -7, -62, 0, -25, 7]).fill(C.cyan);
-    readonly retro = new Graphics()
-        .poly([25, -7, 45, -5, 25, -2])
-        .fill(C.gold)
-        .poly([25, 7, 45, 5, 25, 2])
-        .fill(C.gold);
+    readonly guns: Container[] = [];
+    readonly lasers: Container[] = [];
+    readonly flame = new Graphics();
+    readonly retro = new Graphics();
+    readonly config;
     constructor(
-        modules: ShipModules & { hull?: HullId } = { engine: 0, cargo: 0, drill: 0, armor: 0 },
+        modules: ShipModules & { hull?: HullId } = {
+            engine: 0,
+            handling: 0,
+            cargo: 0,
+            drill: 0,
+            armor: 0,
+        },
     ) {
         super();
+        const hull = modules.hull ?? 'prospector',
+            config = (this.config = HULLS[hull]),
+            S = SHIP_COLORS;
+        for (const mount of config.guns) {
+            const gun = new Container();
+            gun.position.set(mount.x, mount.y);
+            gun.rotation = mount.x < 0 ? Math.PI : 0;
+            gun.addChild(
+                new Graphics()
+                    .circle(0, 0, 7)
+                    .fill(S.gunInset)
+                    .roundRect(-7, -4, GAME.gunLength + 7, 8, 2)
+                    .fill(S.gun)
+                    .rect(6, -2, 23, 4)
+                    .fill(S.gunInset),
+            );
+            this.guns.push(gun);
+            this.addChild(gun);
+        }
         this.addChild(this.flame, this.retro);
-        if (modules.hull === 'swift') {
+        for (const engine of config.engines)
             this.addChild(
                 new Graphics()
-                    .poly([-20, -12, -30, -35, 24, -9])
-                    .poly([-20, 12, -30, 35, 24, 9])
-                    .fill(0x24465c)
-                    .stroke({ color: C.cyan, width: 1.4 }),
+                    .roundRect(engine.x - 8, engine.y - 9, 16, 18, 3)
+                    .fill(S.engine)
+                    .rect(engine.x - 7, engine.y - 7, 4, 14)
+                    .fill(S.flame),
             );
-        }
-        if (modules.hull === 'mule') {
-            this.addChild(
-                new Graphics()
-                    .roundRect(-25, -39, 46, 18, 3)
-                    .roundRect(-25, 21, 46, 18, 3)
-                    .fill(0x3d3b33)
-                    .stroke({ color: C.gold, width: 1.4 })
-                    .rect(-17, -33, 30, 4)
-                    .rect(-17, 28, 30, 4)
-                    .fill(C.gold),
-            );
-        }
         const g = new Graphics();
-        g.poly([-22, -10, -8, -25, 8, -22, 20, -9, 34, 0, 20, 9, 8, 22, -8, 25, -22, 10])
-            .fill(0x152e40)
-            .stroke({ color: C.cyan, width: 1.4 });
-        g.poly([-17, -9, 15, -9, 28, 0, 15, 9, -17, 9]).fill(0x467082);
-        g.poly([-8, -5, 12, -5, 20, 0, 12, 5, -8, 5]).fill(C.mint);
-        g.rect(-24, -14, 8, 9)
-            .rect(-24, 5, 8, 9)
-            .fill(0x1e3c4e)
-            .stroke({ color: C.cyan, width: 1 });
-        g.rect(3, -22, 24 + modules.drill * 3, 4)
-            .rect(3, 18, 24 + modules.drill * 3, 4)
-            .fill(C.text);
-        g.moveTo(-4, -18)
-            .lineTo(9, -15)
-            .moveTo(-4, 18)
-            .lineTo(9, 15)
-            .stroke({ color: C.gold, width: 2 });
-        for (let i = 0; i < modules.cargo; i++)
-            g.rect(-15 + i * 8, -32, 6, 7)
-                .rect(-15 + i * 8, 25, 6, 7)
-                .fill(C.gold);
+        const body = (points: number[]) =>
+            g.poly(points).fill(S.hull).stroke({ color: S.reinforcement, width: 1.3 });
+        if (hull === 'prospector') {
+            g.ellipse(0, 0, 37, 22).fill(S.hull).stroke({ color: S.reinforcement, width: 1.2 });
+            g.ellipse(18, 0, 11, 12).fill(S.visor);
+            g.roundRect(-26, -13, 12, 26, 5).fill(S.cargo);
+        } else if (hull === 'swift') {
+            body([-29, -17, -9, -19, 45, 0, -9, 19, -29, 17, -22, 0]);
+            body([-19, -14, -32, -35, 21, -11, 38, 0, 21, 11, -32, 35, -19, 14]);
+            g.poly([-3, -8, 25, 0, -3, 8, -14, 0]).fill(S.visor);
+            g.rect(-25, -10, 8, 20).fill(S.cargo);
+            g.moveTo(-16, -19)
+                .lineTo(31, 0)
+                .lineTo(-16, 19)
+                .stroke({ color: S.reinforcement, width: 3 });
+        } else if (hull === 'mule') {
+            body([-36, -28, -18, -13, 18, -13, 36, -27, 36, 27, 18, 13, -18, 13, -36, 28]);
+            g.roundRect(-25, -38, 48, 20, 3).roundRect(-25, 18, 48, 20, 3).fill(S.cargo);
+            g.rect(-28, -4, 57, 8).fill(S.reinforcement);
+            g.rect(22, -15, 9, 10).rect(22, 5, 9, 10).fill(S.visor);
+        } else if (hull === 'fighter') {
+            body([-22, -10, -8, -25, 8, -22, 20, -9, 34, 0, 20, 9, 8, 22, -8, 25, -22, 10]);
+            g.poly([-17, -9, 15, -9, 28, 0, 15, 9, -17, 9]).fill(S.reinforcement);
+            g.poly([-8, -5, 12, -5, 20, 0, 12, 5, -8, 5]).fill(S.visor);
+            g.rect(-18, -19, 13, 6).rect(-18, 13, 13, 6).fill(S.cargo);
+        } else if (hull === 'tug') {
+            body([
+                -40, 0, -6, -17, 10, -42, 28, -34, 38, -19, 42, 0, 38, 19, 28, 34, 10, 42, -6, 17,
+            ]);
+            g.poly([10, -29, 29, -18, 35, 0, 29, 18, 10, 29, 1, 0]).fill(S.reinforcement);
+            g.poly([13, -19, 27, -12, 31, 0, 27, 12, 13, 19, 8, 0]).fill(S.visor);
+            g.poly([-3, -30, -15, -20, -22, -8, 2, -17])
+                .poly([-3, 30, -15, 20, -22, 8, 2, 17])
+                .fill(S.cargo);
+        } else {
+            g.ellipse(-5, 0, 34, 34).fill(S.hull).stroke({ color: S.reinforcement, width: 1.8 });
+            body([10, -28, 44, -17, 44, -8, 17, -7, 17, 7, 44, 8, 44, 17, 10, 28]);
+            g.poly([-29, -19, -36, 0, -29, 19, -12, 16, -12, -16]).fill(S.cargo);
+            g.moveTo(-25, -24)
+                .lineTo(7, 0)
+                .lineTo(-25, 24)
+                .stroke({ color: S.reinforcement, width: 3 });
+            g.circle(2, 0, 9).fill(S.reinforcement);
+            g.roundRect(2, -32, 18, 10, 4).fill(S.visor);
+        }
+        for (let i = 0; i < modules.cargo; i++) g.rect(-21 + i * 9, -9, 6, 18).fill(S.cargo);
         if (modules.armor)
-            g.poly([-22, -11, -11, -29, 11, -25, 30, -8]).stroke({ color: C.mint, width: 2 });
+            g.beginPath()
+                .arc(0, 0, 28, Math.PI * 0.65, Math.PI * 1.35)
+                .stroke({ color: S.reinforcement, width: 2 + modules.armor });
         this.addChild(g);
-        this.flame.visible = false;
-        this.retro.visible = false;
+        // The starter's central turret is exposed; wing-mounted guns stay below the hull.
+        if (hull === 'prospector') this.addChild(this.guns[0]);
+        for (const mount of config.lasers) {
+            const laser = new Container();
+            laser.position.set(mount.x, mount.y);
+            laser.addChild(
+                new Graphics()
+                    .roundRect(-4, -3, 15 + modules.drill, 6, 2)
+                    .fill(S.laser)
+                    .circle(0, 0, 4)
+                    .fill(S.engine),
+            );
+            this.lasers.push(laser);
+            this.addChild(laser);
+        }
+        for (const mount of config.grabbers)
+            this.addChild(new Graphics().circle(mount.x, mount.y, 3).fill(S.reinforcement));
+        this.updateDrive(false, false, false, false, 0);
+    }
+    aimAt(target: Point) {
+        const local = rotateVector(
+            { x: (target.x - this.x) / this.scale.x, y: (target.y - this.y) / this.scale.y },
+            -this.rotation,
+        );
+        for (const gun of [...this.guns, ...this.lasers])
+            gun.rotation = aimAngle(gun.position, local, 0);
+    }
+    updateDrive(forward: boolean, reverse: boolean, fault: boolean, boost: boolean, time: number) {
+        this.flame.clear();
+        this.retro.clear();
+        const length = (boost ? 48 : 27) * (0.85 + Math.sin(time * 37) * 0.12);
+        for (const engine of this.config.engines) {
+            this.flame
+                .poly([
+                    engine.x - 8,
+                    engine.y - 7,
+                    engine.x - 8 - length,
+                    engine.y,
+                    engine.x - 8,
+                    engine.y + 7,
+                ])
+                .fill(fault ? C.red : SHIP_COLORS.flame);
+            this.retro
+                .poly([
+                    engine.x + 8,
+                    engine.y - 6,
+                    engine.x + 24,
+                    engine.y,
+                    engine.x + 8,
+                    engine.y + 6,
+                ])
+                .fill(C.gold);
+        }
+        this.flame.visible = forward;
+        this.retro.visible = reverse;
+        this.flame.alpha = fault ? 0.45 + Math.abs(Math.sin(time * 19)) * 0.3 : 1;
     }
 }
 
@@ -162,18 +268,26 @@ export function surveySiteView(site: ScanSiteId) {
         g.circle(0, 0, 19).fill(C.ink).stroke({ color: C.mint, width: 2 });
         g.circle(0, 0, 7).fill(C.mint);
         g.moveTo(0, -30).lineTo(0, -65).stroke({ color: C.cyan, width: 3 });
-        g.arc(0, -65, 22, Math.PI, Math.PI * 2).stroke({ color: C.cyan, width: 3 });
-        g.arc(0, -65, 38, Math.PI * 1.2, Math.PI * 1.8).stroke({
-            color: C.mint,
-            width: 1,
-            alpha: 0.5,
-        });
+        g.beginPath()
+            .arc(0, -65, 22, Math.PI, Math.PI * 2)
+            .stroke({ color: C.cyan, width: 3 });
+        g.beginPath()
+            .arc(0, -65, 38, Math.PI * 1.2, Math.PI * 1.8)
+            .stroke({
+                color: C.mint,
+                width: 1,
+                alpha: 0.5,
+            });
     } else {
         g.circle(0, 0, 83).stroke({ color: C.gold, width: 2, alpha: 0.4 });
         for (let i = 0; i < 5; i++) {
             const a = (i * Math.PI * 2) / 6;
-            g.arc(0, 0, 67, a + 0.1, a + 0.7).stroke({ color: C.line, width: 14 });
-            g.arc(0, 0, 67, a + 0.1, a + 0.7).stroke({ color: C.gold, width: 2 });
+            g.beginPath()
+                .arc(0, 0, 67, a + 0.1, a + 0.7)
+                .stroke({ color: C.line, width: 14 });
+            g.beginPath()
+                .arc(0, 0, 67, a + 0.1, a + 0.7)
+                .stroke({ color: C.gold, width: 2 });
         }
         g.poly([0, -40, 38, -10, 24, 34, -25, 34, -38, -10])
             .fill(0x293a43)

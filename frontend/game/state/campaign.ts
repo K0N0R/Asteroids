@@ -38,13 +38,13 @@ export interface Pilot {
     xp: number;
     skills: Record<PilotSkillId, number>;
 }
-export type ShipModules = Record<'engine' | 'cargo' | 'drill' | 'armor', number>;
+export type ShipModules = Record<'engine' | 'handling' | 'cargo' | 'drill' | 'armor', number>;
 export interface Ship extends ShipModules {
     id: number;
     hull: HullId;
 }
 export interface Campaign {
-    version: 6;
+    version: 8;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
@@ -90,13 +90,14 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
     id,
     hull,
     engine: 0,
+    handling: 0,
     cargo: 0,
     drill: 0,
     armor: 0,
 });
 export function newCampaign(): Campaign {
     return {
-        version: 6,
+        version: 8,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
@@ -129,7 +130,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         const p: unknown = JSON.parse(json ?? 'null');
         if (
             !object(p) ||
-            ![1, 2, 3, 4, 5, 6].includes(p.version as number) ||
+            ![1, 2, 3, 4, 5, 6, 7, 8].includes(p.version as number) ||
             !cargo(p.bank) ||
             !object(p.station)
         )
@@ -236,7 +237,8 @@ export function parseCampaign(json: string | null): Campaign | null {
             ship.id > 0 &&
             typeof ship.hull === 'string' &&
             Object.hasOwn(HULLS, ship.hull) &&
-            ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3));
+            ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
+            ((p.version as number) < 7 || integer(ship.handling, 3));
         if (
             (p.ship !== null && !validShip(p.ship)) ||
             !Array.isArray(p.reserveShips) ||
@@ -322,6 +324,14 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
         )
             return null;
+        // v5-v7 had four contracts. Pad only a valid legacy journal, preserving all progress.
+        if (
+            (p.version as number) < 8 &&
+            Array.isArray(p.contractCompletions) &&
+            p.contractCompletions.length === 4 &&
+            p.contractCompletions.every((count) => integer(count))
+        )
+            p.contractCompletions.push(0);
         if (
             !Array.isArray(p.contractCompletions) ||
             p.contractCompletions.length !== CONTRACTS.length ||
@@ -339,6 +349,18 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
                 return null;
         }
+        if (p.version === 6) {
+            const migrate = (ship: any) => {
+                if (!ship) return;
+                ship.handling = 0;
+                if (ship.hull === 'prospector') ship.hull = 'fighter';
+            };
+            migrate(p.ship);
+            p.reserveShips.forEach(migrate);
+            p.recoverySignals.forEach((signal) => migrate(signal.ship));
+            p.version = 7;
+        }
+        p.version = 8;
         const campaign = p as unknown as Campaign;
         if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
             return null;
@@ -365,7 +387,7 @@ export function ownedShips(c: Campaign) {
 export function scrapRefund(ship: Ship): Cargo {
     let ore = HULLS[ship.hull].ore,
         parts = HULLS[ship.hull].parts;
-    for (const key of ['engine', 'cargo', 'drill', 'armor'] as const) {
+    for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor'] as const) {
         const levels = (ship[key] * (ship[key] + 1)) / 2;
         ore += UPGRADES[key].ore * levels;
         parts += UPGRADES[key].parts * levels;

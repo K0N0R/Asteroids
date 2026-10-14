@@ -27,6 +27,7 @@ import { SoundManager } from '../core/systems/soundManager';
 import { advanceCrew, cancelJob, hireMechanic, queueJob } from './state/crew';
 import { selectContract } from './state/contracts';
 import { trainPilot } from './state/pilots';
+import { PROTOTYPES, PrototypeId } from './systems/prototypes';
 
 export class GameSession {
     readonly saves = new SaveRepository({
@@ -122,8 +123,23 @@ export class GameSession {
         Bus.subscribe(
             'input',
             (message) => {
-                if (message.name === 'keydown' && this.hud && /^[1-8]$/.test(message.data))
+                if (message.name === 'keydown' && message.data === 'tab') this.toggleMissionInfo();
+                if (
+                    message.name === 'keydown' &&
+                    this.hud &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup() &&
+                    /^[0-9]$/.test(message.data)
+                )
                     this.hud.target = Number(message.data) - 1;
+                if (
+                    message.name === 'keydown' &&
+                    message.data === 'c' &&
+                    this.mission &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup()
+                )
+                    this.mission.simulation.toggleCloak();
                 if (
                     message.name === 'focus-lost' &&
                     this.mission &&
@@ -143,6 +159,19 @@ export class GameSession {
             this.saves.warning || (success ? message : 'Brak surowców lub osiągnięty limit.'),
         );
     }
+    private toggleMissionInfo() {
+        if (!this.mission || this.hasOverlay) return;
+        if (PopupContainer.instance.popupPromises.missionInfo) {
+            PopupContainer.hide('missionInfo');
+            return;
+        }
+        if (PopupContainer.hasActivePopup()) return;
+        PopupContainer.show('missionInfo', {
+            simulation: this.mission.simulation,
+            campaign: this.campaign,
+            contract: this.campaign.contract,
+        });
+    }
     launch(recoveryId: number | null = null) {
         if (this.launching || this.mission || this.hasOverlay) return;
         this.launching = true;
@@ -157,7 +186,10 @@ export class GameSession {
             const seed = this.campaign.activeRun!.seed;
             const simulation = new MissionSimulation(this.campaign, seed);
             this.mission = new MissionWorld(simulation, this.campaign.ship!);
-            this.hud = new MissionHud(simulation, this.campaign.contract, this.campaign);
+            this.hud = new MissionHud(simulation, this.campaign.contract, () =>
+                this.toggleMissionInfo(),
+            );
+            this.hud.cameraAngle = this.mission.camera.rotation;
             this.worldHost.addChild(this.mission);
             this.uiHost.addChildAt(this.hud, 0);
             this.lobby.visible = false;
@@ -191,7 +223,12 @@ export class GameSession {
             target: local,
             thrust: InputHandler.isKeyPressed('THRUST'),
             brake: InputHandler.isKeyPressed('BRAKE'),
+            turn:
+                Number(InputHandler.isKeyPressed('RIGHT')) -
+                Number(InputHandler.isKeyPressed('LEFT')),
+            boost: InputHandler.isKeyPressed('BOOST'),
             fire: InputHandler.primaryPressed && InputHandler.pointerInCanvas,
+            mine: InputHandler.secondaryPressed && InputHandler.pointerInCanvas,
             interact: InputHandler.isKeyPressed('INTERACT'),
             repair: InputHandler.isKeyPressed('REPAIR'),
         });
@@ -206,8 +243,11 @@ export class GameSession {
             if (completed) this.mission.simulation.setNotice('Mechanik zakończył zadanie w bazie.');
         }
         this.background.camera = this.mission.simulation.position;
+        this.background.cameraAngle = this.mission.camera.rotation;
+        if (this.hud) this.hud.cameraAngle = this.mission.camera.rotation;
         this.hud?.update(deltaMS);
         const sim = this.mission.simulation;
+        if (sim.pendingChoice && !sim.ended) this.showPrototypeChoice();
         if (sim.ended) {
             const result = finishRun(
                 this.campaign,
@@ -231,12 +271,62 @@ export class GameSession {
             this.hud?.destroy({ children: true });
             this.hud = null;
             this.background.camera = { x: 0, y: 0 };
+            this.background.cameraAngle = 0;
             this.lobby.visible = true;
             this.lobby.refresh('');
             GameState.goToLobby();
             InputHandler.clear();
             if (result) this.showResult(result);
         }
+    }
+    private showPrototypeChoice() {
+        const sim = this.mission?.simulation;
+        const choice = sim?.pendingChoice;
+        if (!sim || !choice || this.hasOverlay) return;
+        this.hud?.update(101);
+        this.hasOverlay = true;
+        InputHandler.clear();
+        clear(this.overlay);
+        const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.88 });
+        shade.eventMode = 'static';
+        this.overlay.addChild(shade);
+        panel(this.overlay, 240, 180, 1120, 540);
+        label(this.overlay, 'ODZYSK / TECHNOLOGIA EKSPERYMENTALNA', 280, 213, 15, C.mint);
+        label(this.overlay, 'Wybierz prototyp.', 280, 248, 38);
+        label(
+            this.overlay,
+            'Jeden moduł ze skrytki. Działa do końca tej wyprawy; baza i załoga czekają.',
+            280,
+            305,
+            18,
+            C.muted,
+        );
+        const choose = (id: PrototypeId | null) => {
+            if (!sim.choosePrototype(id)) return;
+            clear(this.overlay);
+            this.hasOverlay = false;
+            InputHandler.clear();
+            this.hud?.update(101);
+        };
+        choice.offers.forEach((id, index) => {
+            const x = 280 + index * 350;
+            const prototype = PROTOTYPES[id];
+            panel(this.overlay, x, 357, 330, 257);
+            label(this.overlay, `PROTOTYP 0${index + 1}`, x + 20, 380, 13, C.mint);
+            label(this.overlay, prototype.name, x + 20, 416, 23, C.text, 285);
+            label(this.overlay, prototype.detail, x + 20, 480, 17, C.muted, 280);
+            button(this.overlay, 'ZAMONTUJ →', x + 20, 552, 290, () => choose(id), true);
+        });
+        label(
+            this.overlay,
+            'Montaż jest bezpłatny. Nie można zmienić wyboru ani otworzyć skrytki ponownie.',
+            280,
+            650,
+            15,
+            C.muted,
+            730,
+        );
+        button(this.overlay, 'POMIŃ SKRYTKĘ', 1070, 642, 250, () => choose(null));
     }
     private showResult(result: RunResult) {
         clear(this.overlay);

@@ -1,4 +1,4 @@
-import { DRONES, GAME, SCAN_SITES, ScanSiteId } from '../config';
+import { DRONES, GAME, OUTPOST, SCAN_SITES, ScanSiteId } from '../config';
 
 export interface Point {
     x: number;
@@ -22,6 +22,16 @@ export interface EnemySpec extends Point {
     id: number;
     home: Point;
     phase: number;
+}
+export interface CacheSpec extends Point {
+    id: number;
+    name: string;
+}
+export interface OutpostSpec extends Point {
+    name: string;
+    phase: number;
+    terminal: Point;
+    guards: EnemySpec[];
 }
 export function random(seed: number) {
     let state = seed >>> 0;
@@ -146,7 +156,71 @@ export function generateSector(seed: number) {
             }
         }
     }
-    return { seed, landmarks, rocks, enemies };
+    const cacheRng = random(seed ^ 0x3c61a9),
+        caches: CacheSpec[] = [];
+    for (let id = 1; id <= 2; id++) {
+        for (let attempt = 0; attempt < 1000; attempt++) {
+            const angle = cacheRng() * Math.PI * 2;
+            const distance = id === 1 ? 1100 + cacheRng() * 400 : 3200 + cacheRng() * 700;
+            const point = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+            if (
+                rocks.some(
+                    (rock) => Math.hypot(point.x - rock.x, point.y - rock.y) < rock.radius + 220,
+                ) ||
+                landmarks.some(
+                    (site) =>
+                        (site.siteId || site.kind === 'wreck') &&
+                        Math.hypot(point.x - site.x, point.y - site.y) < 450,
+                ) ||
+                enemies.some(
+                    (enemy) => Math.hypot(point.x - enemy.home.x, point.y - enemy.home.y) < 1100,
+                ) ||
+                caches.some((cache) => Math.hypot(point.x - cache.x, point.y - cache.y) < 700)
+            )
+                continue;
+            caches.push({ ...point, id, name: `Skrytka ${id === 1 ? 'Kurier' : 'Nomada'}` });
+            break;
+        }
+    }
+    // Separate stream preserves existing sectors, salvage locations, patrols and caches.
+    const outpostRng = random(seed ^ 0x1cb371);
+    let location: Point | null = null;
+    let bestClearance = -Infinity;
+    for (let attempt = 0; attempt < 4000; attempt++) {
+        const angle = outpostRng() * Math.PI * 2,
+            distance = 2800 + outpostRng() * 1700;
+        const point = { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+        const clearance = Math.min(
+            ...rocks.map((r) => Math.hypot(point.x - r.x, point.y - r.y) - r.radius - 440),
+            ...landmarks.map((l) => Math.hypot(point.x - l.x, point.y - l.y) - 800),
+            ...caches.map((c) => Math.hypot(point.x - c.x, point.y - c.y) - 700),
+            ...enemies.map((e) => Math.hypot(point.x - e.home.x, point.y - e.home.y) - 1200),
+        );
+        if (clearance > bestClearance) {
+            location = point;
+            bestClearance = clearance;
+        }
+        if (clearance >= 0) break;
+    }
+    const phase = outpostRng() * Math.PI * 2,
+        center = location!;
+    const outpost: OutpostSpec = {
+        ...center,
+        name: 'Placówka Cerber',
+        phase,
+        terminal: {
+            x: center.x - Math.cos(phase) * OUTPOST.terminalDistance,
+            y: center.y - Math.sin(phase) * OUTPOST.terminalDistance,
+        },
+        guards: [-1, 1].map((side, index) => ({
+            id: 101 + index,
+            x: center.x + Math.cos(phase + side * 1.4) * 330,
+            y: center.y + Math.sin(phase + side * 1.4) * 330,
+            home: { ...center },
+            phase: phase + side * 1.4,
+        })),
+    };
+    return { seed, landmarks, rocks, enemies, caches, outpost };
 }
 
 export function navigationWaypoint(

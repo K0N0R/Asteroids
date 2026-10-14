@@ -1,9 +1,13 @@
 import { Bus } from './bus';
+import { GameState } from './gameState';
 
 const defaultKeysConfiguration = {
     PAUSE: 'escape',
-    THRUST: 'space',
-    BRAKE: 'shift',
+    THRUST: 'w',
+    LEFT: 'a',
+    RIGHT: 'd',
+    BRAKE: 's',
+    BOOST: 'shift',
     INTERACT: 'e',
     REPAIR: 'r',
 };
@@ -14,6 +18,7 @@ export class InputHandlerBase {
     pressedKeys = new Set<string>();
     pointer = { x: window.innerWidth / 2 + 100, y: window.innerHeight / 2 };
     primaryPressed = false;
+    secondaryPressed = false;
     pointerInCanvas = false;
     isKeyPressed(key: TInputKeys) {
         return this.pressedKeys.has(this.keyConfiguration[key]);
@@ -26,6 +31,7 @@ export class InputHandlerBase {
             if (key !== 'escape') Bus.emit('input', { name: 'keyup', data: key });
         this.pressedKeys.clear();
         this.primaryPressed = false;
+        this.secondaryPressed = false;
         Bus.emit('input', { name: 'pointerdown', data: false });
         Bus.emit('input', { name: 'contextmenu', data: false });
     }
@@ -40,7 +46,8 @@ export class InputHandlerBase {
         });
         window.addEventListener('keydown', (evt) => {
             const key = evt.code === 'Space' ? 'space' : evt.key.toLowerCase();
-            if (['space', 'shift', 'e', 'r'].includes(key)) evt.preventDefault();
+            if (['w', 'a', 's', 'd', 'shift', 'e', 'r', 'c'].includes(key)) evt.preventDefault();
+            if (key === 'tab' && GameState.state === 'gameplay') evt.preventDefault();
             this.pressedKeys.add(key);
             if (!evt.repeat) Bus.emit('input', { name: 'keydown', data: key });
         });
@@ -61,18 +68,25 @@ export class InputHandlerBase {
                 this.primaryPressed = this.pointerInCanvas;
                 Bus.emit('input', { name: 'pointerdown', data: this.primaryPressed });
             }
-            if (evt.button === 2) Bus.emit('input', { name: 'contextmenu', data: true });
+            if (evt.button === 2) {
+                this.secondaryPressed = this.pointerInCanvas;
+                Bus.emit('input', { name: 'contextmenu', data: this.secondaryPressed });
+            }
         });
         window.addEventListener('pointerup', (evt) => {
             if (evt.button === 0) {
                 this.primaryPressed = false;
                 Bus.emit('input', { name: 'pointerdown', data: false });
             }
-            if (evt.button === 2) Bus.emit('input', { name: 'contextmenu', data: false });
+            if (evt.button === 2) {
+                this.secondaryPressed = false;
+                Bus.emit('input', { name: 'contextmenu', data: false });
+            }
         });
         window.addEventListener('pointercancel', () => this.clear());
         document.addEventListener('pointerleave', () => {
             this.primaryPressed = false;
+            this.secondaryPressed = false;
             this.pointerInCanvas = false;
         });
         window.addEventListener('wheel', (evt) =>

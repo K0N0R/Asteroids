@@ -123,10 +123,10 @@ test('invalid saves and unavailable storage fail safely', () => {
         },
     };
     const repository = new SaveRepository(storage);
-    assert.equal(repository.load().version, 6);
+    assert.equal(repository.load().version, 8);
     assert.equal(repository.save(newCampaign()), false);
 });
-test('arcade flight accelerates quickly, stops on release and prioritizes the brake', () => {
+test('W accelerates, releasing stops and S brakes before reversing with priority over W', () => {
     const sim = new MissionSimulation(newCampaign(), 7);
     try {
         for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
@@ -135,46 +135,71 @@ test('arcade flight accelerates quickly, stops on release and prioritizes the br
         for (let i = 0; i < 60; i++)
             sim.step({ ...idle, target: { x: 10000, y: -1000 }, thrust: true });
         const speed = sim.speed;
-        assert.ok(speed > 460 && speed <= GAME.maxSpeed + 1);
+        assert.ok(speed > GAME.maxSpeed * 0.96 && speed <= GAME.maxSpeed + 1);
         for (let i = 0; i < 60; i++) sim.step({ ...idle, target: { x: 10000, y: -1000 } });
-        assert.ok(sim.speed < 5, 'release should eliminate long drift within one second');
+        assert.ok(
+            sim.speed > 25 && sim.speed < 45,
+            'release retains noticeable momentum after one second',
+        );
+        for (let i = 0; i < 120; i++) sim.step(idle);
+        assert.ok(
+            sim.speed < 1,
+            'automatic stabilization still brings the ship to a complete stop',
+        );
         for (let i = 0; i < 40; i++)
             sim.step({ ...idle, target: { x: 10000, y: -1000 }, thrust: true });
         sim.step({ ...idle, thrust: true, brake: true });
-        assert.ok(sim.speed > 0 && sim.speed < 460);
+        assert.ok(sim.speed > 0 && sim.speed < GAME.maxSpeed);
         assert.equal(sim.thrusting, false);
-        for (let i = 0; i < 20; i++) sim.step({ ...idle, thrust: true, brake: true });
+        for (let i = 0; i < 11; i++) sim.step({ ...idle, thrust: true, brake: true });
+        assert.ok(
+            sim.velocity.x > 100,
+            'S decelerates gradually instead of stopping almost immediately',
+        );
+        for (let i = 0; i < 120; i++) sim.step({ ...idle, thrust: true, brake: true });
+        assert.ok(sim.velocity.x < -GAME.maxSpeed * 0.33);
+        assert.ok(sim.speed <= GAME.maxSpeed * GAME.reverseSpeed + 1);
+        assert.equal(sim.reversing, true);
+        for (let i = 0; i < 180; i++) sim.step(idle);
         assert.ok(sim.speed < 1);
     } finally {
         sim.dispose();
     }
 });
 
-test('arcade steering redirects momentum through a 90 degree turn without prolonged sideways drift', () => {
+test('keyboard steering redirects arcade momentum while mouse aim remains independent', () => {
     const sim = new MissionSimulation(newCampaign(), 7);
     try {
         for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
         sim.rocks.clear();
         for (let i = 0; i < 40; i++) sim.step({ ...idle, thrust: true });
-        const p = sim.position;
-        for (let i = 0; i < 42; i++)
-            sim.step({ ...idle, target: { x: p.x, y: p.y + 10000 }, thrust: true });
-        assert.ok(Math.abs(sim.velocity.x) < 70);
-        assert.ok(sim.velocity.y > 400);
-        assert.ok(Math.abs(sim.ship.rotation() - Math.PI / 2) < 0.04);
+        for (let i = 0; i < 75; i++) sim.step({ ...idle, turn: 1, thrust: true });
+        for (let i = 0; i < 60; i++) sim.step({ ...idle, thrust: true });
+        const angle = sim.ship.rotation();
+        assert.ok(angle > 1.5 && angle < 1.9);
+        const along = sim.velocity.x * Math.cos(angle) + sim.velocity.y * Math.sin(angle);
+        const sideways = -sim.velocity.x * Math.sin(angle) + sim.velocity.y * Math.cos(angle);
+        assert.ok(along > GAME.maxSpeed * 0.95);
+        assert.ok(Math.abs(sideways) < 5);
     } finally {
         sim.dispose();
     }
 });
 
-test('cursor crossing the angle boundary takes the short turn and remains stable near the ship', () => {
+test('keyboard turns across the angle boundary and mouse movement cannot steer the hull', () => {
     const sim = new MissionSimulation(newCampaign(), 7);
     try {
         sim.ship.setRotation(Math.PI - 0.02, true);
         const p = sim.position;
-        sim.step({ ...idle, target: { x: p.x - 10000, y: p.y - 100 } });
-        const turned = sim.ship.rotation() - (Math.PI - 0.02);
-        assert.ok(turned > 0 && turned < 0.03);
+        for (let i = 0; i < 20; i++)
+            sim.step({ ...idle, turn: 1, target: { x: p.x - 10000, y: p.y - 100 } });
+        const releaseAngle = sim.ship.rotation();
+        for (let i = 0; i < 30; i++) sim.step(idle);
+        assert.ok(
+            sim.ship.rotation() - releaseAngle > 0.18,
+            'hull keeps rotating after the steering key is released',
+        );
+        for (let i = 0; i < 150; i++) sim.step(idle);
         const angle = sim.ship.rotation();
         for (let i = 0; i < 20; i++) sim.step({ ...idle, target: sim.position });
         assert.ok(Math.abs(sim.ship.rotation() - angle) < 0.001);
@@ -182,15 +207,17 @@ test('cursor crossing the angle boundary takes the short turn and remains stable
         sim.dispose();
     }
 });
-test('mining uses swept shots, breaks rocks and collects cargo without exceeding capacity', () => {
+test('short-range mining laser breaks rocks and collects cargo without exceeding capacity', () => {
     const sim = new MissionSimulation(newCampaign(), 91);
     try {
         const rock = [...sim.rocks.values()].find((r) => r.radius < 44)!;
         const p = rock.body.translation();
-        sim.ship.setTranslation({ x: p.x - 3, y: p.y }, true);
+        sim.ship.setTranslation({ x: p.x - 2, y: p.y }, true);
         sim.ship.setRotation(0, true);
-        for (let i = 0; i < 240; i++)
-            sim.step({ ...idle, target: { x: p.x * 100, y: p.y * 100 }, fire: true });
+        for (let i = 0; i < 240; i++) {
+            sim.step({ ...idle, target: { x: p.x * 100, y: p.y * 100 }, mine: true });
+            if (sim.events.some((event) => event.kind === 'break')) break;
+        }
         assert.ok(sim.events.some((event) => event.kind === 'break'));
         assert.ok(sim.loot.size > 0);
         const item = [...sim.loot.values()][0];
@@ -248,7 +275,7 @@ test('legacy campaigns migrate without losing pilots, bank, upgrades or the inte
     delete legacy.repairKits;
     delete legacy.activeRun.repairKits;
     const loaded = parseCampaign(JSON.stringify(legacy))!;
-    assert.equal(loaded.version, 6);
+    assert.equal(loaded.version, 8);
     assert.deepEqual(loaded.bank, c.bank);
     assert.deepEqual(loaded.pilots, c.pilots);
     assert.equal(loaded.ship!.engine, 1);
@@ -348,7 +375,7 @@ test('field repair requires uninterrupted calm flight, consumes one kit and rest
     beginRun(c, 7);
     const sim = new MissionSimulation(c, 7);
     try {
-        sim.hull = 60;
+        sim.hull = sim.maxHull - 40;
         sim.engineFault = true;
         for (let i = 0; i < 120; i++) sim.step({ ...idle, repair: true });
         assert.equal(sim.repairKits, 1);
@@ -358,9 +385,9 @@ test('field repair requires uninterrupted calm flight, consumes one kit and rest
         for (let i = 0; i < 300; i++) sim.step({ ...idle, repair: true });
         assert.equal(sim.engineFault, false);
         assert.equal(sim.repairKits, 0);
-        assert.equal(sim.hull, 85);
+        assert.equal(sim.hull, sim.maxHull - 15);
         for (let i = 0; i < 360; i++) sim.step({ ...idle, repair: true });
-        assert.equal(sim.hull, 85);
+        assert.equal(sim.hull, sim.maxHull - 15);
     } finally {
         sim.dispose();
     }
@@ -429,7 +456,7 @@ test('buying and selecting hulls keeps each ship loadout and charges exactly onc
     assert.equal(capacity(c), 55);
     assert.ok(selectShip(c, swift));
     assert.equal(c.ship!.cargo, 0);
-    assert.equal(capacity(c), 35);
+    assert.equal(capacity(c), HULLS.swift.cargo);
     assert.equal(ownedShips(c).length, 2);
     assert.equal(selectShip(c, swift), false);
     assert.equal(selectShip(c, 999), false);
@@ -442,7 +469,7 @@ test('ship purchases enforce workshop, bank, fleet capacity and active-run locks
     assert.equal(c.bank.ore, 140);
     c.station.workshop = 1;
     assert.ok(buyShip(c, 'swift'));
-    assert.ok(buyShip(c, 'prospector'));
+    while (ownedShips(c).length < 6) assert.ok(buyShip(c, 'prospector'));
     const bank = { ...c.bank };
     assert.equal(buyShip(c), false);
     assert.deepEqual(c.bank, bank);
@@ -499,7 +526,7 @@ test('v2 migration preserves modules, crew and resources, assigning the current 
     delete old.ship.hull;
     const migrated = parseCampaign(JSON.stringify(old))!;
     assert.ok(migrated);
-    assert.equal(migrated.ship!.hull, 'prospector');
+    assert.equal(migrated.ship!.hull, 'fighter');
     assert.equal(migrated.ship!.drill, 2);
     assert.equal(migrated.ship!.id, 1);
     assert.deepEqual(migrated.bank, c.bank);
@@ -574,7 +601,7 @@ test('scrapping rejects full storage and active missions without removing ships 
     assert.equal(c.bank.ore, 10);
 });
 
-test('the mining hull applies its weapon bonus to actual asteroid hits', () => {
+test('the mining hull applies its laser bonus to actual asteroid hits', () => {
     const damage = (hull: HullId) => {
         const c = newCampaign();
         c.ship!.hull = hull;
@@ -591,12 +618,12 @@ test('the mining hull applies its weapon bonus to actual asteroid hits', () => {
             rock.health = 1000;
             sim.ship.setTranslation({ x: 8, y: 0 }, true);
             sim.ship.setRotation(0, true);
-            for (let i = 0; i < 20; i++) sim.step({ ...idle, fire: i === 0 });
+            for (let i = 0; i < 20; i++) sim.step({ ...idle, mine: i === 0 });
             return 1000 - rock.health;
         } finally {
             sim.dispose();
         }
     };
-    assert.ok(Math.abs(damage('prospector') - GAME.shotDamage) < 1e-6);
-    assert.ok(Math.abs(damage('mule') - GAME.shotDamage * 1.3) < 1e-6);
+    assert.ok(Math.abs(damage('prospector') - GAME.laserDamage * GAME.step) < 1e-6);
+    assert.ok(Math.abs(damage('mule') - GAME.laserDamage * GAME.step * 1.3 * 2) < 1e-6);
 });

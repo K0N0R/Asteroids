@@ -14,6 +14,14 @@ Etap 0.6 dodaje doświadczenie pilotów i wybór umiejętności po awansie: mane
 
 Etap 0.7 wprowadza pierwszą walkę: patrole dronów przy cennych miejscach, wykrywanie z osłoną asteroid, pościg, ostrzał i łup po zniszczeniu. Strefa bazy jest chroniona, a lot gracza zachowuje obecny balans. Szczegóły: `implementation-v0.7.md`.
 
+Etap 0.8 zastępuje sterowanie myszą i spacją przez WASD, obracane działka pod kadłubem, laser wydobywczy PPM oraz boost Shift. Kamera obraca świat z easingiem, a hol ma luźną linę i bezwładność. Szczegóły: `implementation-v0.8.md`.
+
+Etap 0.9 (2026-10-14) dodaje sześć kadłubów zgodnych z konceptami użytkownika, łagodniejszy skręt i kamerę, rozwijalne dysze manewrowe, automatyczne chwytaki zbierające po jednej jednostce oraz kamuflaż pod C. Dotychczasowy Prospector przechodzi w zapisach na kadłub bojowy Bastion. Szczegóły: `implementation-v0.9.md`.
+
+Etap 0.10 dodaje dwie skrytki na sektor, wybór jednego z trzech tymczasowych prototypów i nawigację pod 9. Siedem modułów daje różne kierunki rozwoju konfiguracji podczas wyprawy; premie wygasają po powrocie lub stracie, a wybór zatrzymuje symulację i załogę. Szczegóły: `implementation-v0.10.md`.
+
+Etap 0.11 dodaje pierwszą infiltrację placówki Cerber: obrotowy skaner, kamuflaż, alarm z dwoma dronami, przechwyt danych i skrzyń oraz kontrakt Cichy przechwyt. Nawigacja pod 0 zachowuje dotychczasowe klawisze. Szczegóły: `implementation-v0.11.md`.
+
 ## Cel i ustalenia
 
 Gra 2D z widokiem z góry, kamerą śledzącą statek i dwiema fazami: spokojna baza oraz niebezpieczna wyprawa do proceduralnego sektora. Pierwsza wersja ma pozwolić wielokrotnie przejść pełną pętlę: przygotowanie → start → eksploracja/wydobycie/walka → powrót lub śmierć → rozliczenie → rozwój bazy → kolejny start.
@@ -23,7 +31,7 @@ Potwierdzone przez użytkownika:
 - Docelowy projekt to `E:/Projects/asteroids`, oparty na znajdującym się tam boilerze Pixi.
 - `Asteroids_old` jest punktem odniesienia dla perspektywy i sterowania. `astedroid` jest wcześniejszą próbą, z której można odzyskać użyteczne pomysły.
 - Śmierć oznacza również trwałą utratę pilota; baza i jej rozwój pozostają.
-- Aktualne sterowanie jest arcade, zgodnie z późniejszą decyzją użytkownika: szybkie kierowanie myszą, spacja do lotu i automatyczne hamowanie po jej puszczeniu. To zastępuje początkową decyzję o długim dryfie.
+- Aktualne sterowanie jest arcade: W przyspiesza, A/D skręcają, S hamuje i uruchamia wsteczny, Shift daje boost. Mysz celuje niezależnie od kadłuba, LPM strzela, a PPM obsługuje laser wydobywczy. Kamera obraca świat wokół statku. To zastępuje wcześniejsze sterowanie myszą i spacją.
 - Priorytet v0.1 to wydobycie i eksploracja. Walka pojawi się później.
 - Odświeżenie lub zamknięcie aktywnej wyprawy rozliczamy jako przegraną. Wznowienie stanu wyprawy jest przewidziane na później.
 - Cechy pilotów na początek dają małe, czytelne zmiany sterowania. Później mogą wpływać na przeżywalność, statystyki i specjalne zdolności.
@@ -75,7 +83,7 @@ Cel balansu: typowa wyprawa trwa około 8–12 minut, ale bez obowiązkowego tim
 
 Pełne zatrudnianie załogi, kolejki zadań i produkcja, naliczanie pracy przy zamkniętej grze, wiele klas statków, rozbudowany crafting, walka, tymczasowe modyfikacje wyprawy, kamuflaż i infiltracja, naprawianie podsystemów podczas lotu, odzyskiwanie wraków i ratunek pilotów, frakcje, rozbudowana kampania i multiplayer.
 
-Zrealizowane rozszerzenia: v0.2 — mechanik i kolejka zadań oraz naprawa awarii; v0.3 — flota i nowe kadłuby; v0.4 — ratunek pilotów i odzysk wraków; v0.5 — badania i kontrakty eksploracyjne; v0.6 — rozwój pilotów; v0.7 — walka i wykrywanie przez patrole AI. Dalszy kierunek to więcej typów przeciwników i uzbrojenia, kontrakty bojowe, profesje załogi i gospodarka. Kamuflaż i infiltracja pozostają na później.
+Zrealizowane rozszerzenia: v0.2 — mechanik i kolejka zadań oraz naprawa awarii; v0.3 — flota i nowe kadłuby; v0.4 — ratunek pilotów i odzysk wraków; v0.5 — badania i kontrakty eksploracyjne; v0.6 — rozwój pilotów; v0.7 — walka i wykrywanie przez patrole AI; v0.8 — WASD, niezależne celowanie i hol; v0.9 — sześć kadłubów, chwytaki i kamuflaż; v0.10 — skrytki z tymczasowymi prototypami; v0.11 — infiltracja wrogiej placówki. Dalszy kierunek to więcej typów przeciwników i uzbrojenia, kontrakty bojowe, profesje załogi i gospodarka. Rozwinięcie infiltracji może objąć sabotaż i kradzież wyposażenia.
 
 ## Grafika i fizyka
 

@@ -44,19 +44,20 @@ export class ConfigurationPopup extends BasePopup<undefined> {
         text('Chwila oddechu.', 470, 210, 38);
         text('Symulacja jest zatrzymana.', 470, 268, 18, 0x7d9cac);
         const controls = [
-            ['MYSZ', 'Szybkie kierowanie i celowanie'],
-            ['SPACJA', 'Lot w kierunku kursora · puszczenie hamuje'],
-            ['SHIFT', 'Szybki hamulec · ma pierwszeństwo przed ciągiem'],
-            ['LPM', 'Działko: wydobycie i walka · przytrzymaj'],
-            ['E', 'Wrak / przytrzymaj: skan, odzysk lub dokowanie'],
-            ['1–8', 'Nawigacja · 6 ratunek, 7 przekaźnik, 8 obserwatorium'],
-            ['R', 'Naprawa: 5 s spokojnego lotu + zestaw'],
+            ['W / A / D', 'Przyspieszanie / skręt w lewo / skręt w prawo'],
+            ['S / SHIFT', 'Hamowanie i wsteczny / boost podczas lotu W'],
+            ['MYSZ', 'Celowanie działkami niezależnie od kadłuba'],
+            ['LPM / PPM', 'Działka bojowe / krótki laser wydobywczy'],
+            ['E', 'Wrak / przytrzymaj: skrytka, skan, odzysk, dokowanie'],
+            ['1–9', 'Nawigacja · 6 ratunek, 7/8 nauka, 9 skrytki'],
+            ['R / C', 'Naprawa / kamuflaż na obsługiwanych kadłubach'],
+            ['TAB', 'Pokład · szczegóły statku, pilot, prototypy i załoga'],
         ];
         controls.forEach(([key, detail], i) => {
             text(key, 470, 323 + i * 33, 17, 0x78e1bc);
             text(detail, 590, 323 + i * 33, 17);
         });
-        text('Zamknięcie lub odświeżenie gry oznacza utratę wyprawy.', 470, 568, 17, 0xf2bd75);
+        text('Zamknięcie lub odświeżenie gry oznacza utratę wyprawy.', 470, 594, 17, 0xf2bd75);
         this.soundSlider = new SoundSliderOption(
             'Efekty',
             () => {

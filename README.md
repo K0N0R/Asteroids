@@ -1,5 +1,15 @@
 # Orbit · Asteroids
 
+Aktualna wersja **0.11** dodaje infiltrację placówki Cerber. **0** wskazuje jej terminal. Omijaj obrotową wiązkę skanera albo wykorzystaj kamuflaż pod **C**, a przy terminalu spokojnie przytrzymaj **E** przez 4 s. Pełne wykrycie blokuje terminal na 8 s i wzywa dwa drony. Przechwyt zapewnia dane oraz skrzynie z 6 komponentami i 4 jednostkami rudy, zbierane zwykłymi chwytakami. Kontrakt **Cichy przechwyt** odblokowuje Nasłuch sektora i warsztat I; premia 32 rudy / 8 komponentów wymaga bezpiecznego powrotu. Szczegóły: [docs/implementation-v0.11.md](docs/implementation-v0.11.md).
+
+Wersja **0.10** dodaje dwie proceduralne skrytki z wyborem jednego z trzech prototypów. Klawisz **9** wskazuje najbliższą nieotwartą skrytkę; spokojne przytrzymanie **E** przez 2,5 s otwiera ekran wyboru i zatrzymuje wyprawę oraz pracę załogi. Siedem prototypów wzmacnia napęd, manewrowanie, laser, działka, ładownię, chwytaki lub kadłub. Premie działają tylko do końca wyprawy i nie zostają na odzyskanym wraku. Łup zachowujesz po bezpiecznym dokowaniu.
+
+Widok lotu ma minimalny HUD: mały radar, paski kadłuba i ładunku z ikonami, cele ze znacznikami wykonania i krótkie podpowiedzi. **Tab** otwiera panel pokładu ze szczegółami statku, pilotem, prototypami i kolejką załogi. Menu pauzuje lot i pracę w bazie; zamyka się Tabem, Esc lub przyciskiem. Szczegóły: [docs/mission-interface.md](docs/mission-interface.md).
+
+Lobby ma stałą nawigację po lewej i sześć odrębnych widoków kontekstowych. Środkowy podgląd zmienia się wraz z zakładką, a prawy panel pokazuje tylko wybrany kontrakt, statek, moduł stacji, pilota, kolejkę lub sygnał. Start wyprawy jest dostępny w Wyprawie i Ratunku. Projekt i galeria: [docs/lobby-interface.md](docs/lobby-interface.md).
+
+Wersja **0.9** dodaje sześć kadłubów według konceptów użytkownika: Prospector I, Swift, Mule, Bastion, Manta i Sokół. Skręt jest słabszy i zależy od kadłuba, pilota oraz kupowanych dysz manewrowych; kamera podąża łagodniej. Statki różnią się również liczbą i pozycją silników, działek, laserów i chwytaków, zasięgami, ładownią, boostem oraz kamuflażem. Hangar mieści sześć statków i ma paginację oraz galerię sylwetek.
+
 Prototyp gry 2D w PixiJS 8 i TypeScript, oparty na istniejącym boilerze. Zręcznościowy lot z fizyką Rapier 2D, wydobywanie rudy i komponentów, proceduralne sektory, baza, ulepszenia oraz piloci.
 
 Wersja 0.2 dodaje mechanika stacji, kolejkę produkcji i naprawę uszkodzonego napędu podczas wyprawy.
@@ -14,7 +24,9 @@ Wersja 0.6 dodaje doświadczenie i rozwój pilotów: pięć poziomów oraz wybó
 
 Wersja 0.7 wprowadza wrogów AI: pięć dronów patrolujących wrak, bogatą żyłę i obserwatorium. Wykrywają statek, ścigają go, celują z wyprzedzeniem i strzelają po widocznym ładowaniu działka. Zniszczony dron pozostawia 3 rudy i 2 komponenty. Początkowe pole wydobywcze i przekaźnik pozostają bez patroli.
 
-Sterowanie jest arcade: statek szybko skręca, osiąga prędkość przelotową w około pół sekundy, koryguje kierunek ruchu podczas skrętu i wyhamowuje po puszczeniu spacji w około sekundę. Zderzenia nadal obsługuje fizyka. Uszkodzony napęd ogranicza także prędkość maksymalną.
+Wersja 0.8 zmienia sterowanie na WASD, oddziela celowanie działek od kadłuba, dodaje laser wydobywczy pod PPM i boost pod Shift. Kamera obraca świat z lekkim opóźnieniem, utrzymując nos statku przy górze ekranu. Holowany wrak lub kapsuła dryfuje na luźnej linie.
+
+Lot pozostaje arcade: statek osiąga prędkość przelotową w około pół sekundy, koryguje kierunek ruchu podczas skrętu i wyhamowuje po puszczeniu W w około 2–2,5 s, zachowując wyraźny dryf. Skręt narasta łagodniej, a po puszczeniu A/D statek jeszcze przez chwilę obraca się siłą bezwładności. Kamera podąża za obrotem z większym opóźnieniem. S najpierw stopniowo hamuje, a następnie uruchamia wsteczny. Zderzenia nadal obsługuje fizyka. Uszkodzony napęd ogranicza także prędkość maksymalną.
 
 ## Uruchomienie
 
@@ -35,31 +47,39 @@ Buduje i uruchamia wersję produkcyjną, bez automatycznego odświeżania. Sam b
 
 | Wejście | Działanie |
 | --- | --- |
-| Mysz | Szybkie kierowanie i celowanie |
-| Spacja | Lot w kierunku kursora; po puszczeniu statek automatycznie wyhamowuje |
-| Shift | Szybki hamulec, także gdy trzymasz spację |
-| Przytrzymany LPM | Działko: wydobycie i walka |
+| W | Przyspieszanie w kierunku kadłuba; po puszczeniu automatyczne hamowanie |
+| A / D | Skręt kadłuba w lewo / prawo |
+| S | Hamowanie, potem lot wsteczny; ma pierwszeństwo przed W |
+| Shift + W | Boost zależny od kadłuba: prędkość ×1,25–2,10, przyspieszenie ×1,4 |
+| Mysz | Celowanie niezależnie od kierunku lotu |
+| Przytrzymany LPM | Obracane działka na mocowaniach kadłuba; bardzo słabe przeciw skałom |
+| Przytrzymany PPM | Laser wydobywczy: krótki zasięg 180 lub średni 320, duża moc przeciw skałom |
+| C | Włączanie kamuflażu na obsługiwanych kadłubach; ogień, laser, boost i trafienia ujawniają statek na 3 s |
 | E | Przeszukanie pobliskiego wraku |
 | Przytrzymany E | Dokowanie w strefie bazy przy prędkości poniżej 65 m/s |
 | Przytrzymany E przy sygnale ratunkowym | Podjęcie kapsuły/wraku: 4 s poniżej 80 m/s, bez ciągu, strzelania i naprawy |
 | Przytrzymany E przy miejscu badawczym | Skanowanie danych: 3 s w promieniu 180, przy prędkości do 60 m/s, bez ciągu, ognia i naprawy |
+| Przytrzymany E przy skrytce | Otwarcie po 2,5 s w promieniu 150, poniżej 60 m/s, bez ciągu, ognia i naprawy; wybór prototypu lub pominięcie |
 | Przytrzymany R | Naprawa napędu i 25 punktów kadłuba: 5 s lotu poniżej 80 m/s, bez ciągu, strzelania i interakcji; zużywa zestaw |
-| 1–8 | Cel nawigacji: baza, pole rudy, pas, wrak, bogata żyła, sygnał ratunkowy, przekaźnik, obserwatorium |
+| 1–9 | Cel nawigacji: baza, pole rudy, pas, wrak, bogata żyła, sygnał ratunkowy, przekaźnik, obserwatorium, najbliższa nieotwarta skrytka |
+| 0 | Terminal wrogiej placówki Cerber |
+| Przytrzymany E przy terminalu Cerbera | Przechwyt danych: 4 s, do 60 m/s, bez ciągu, ognia, lasera, naprawy i aktywnego alarmu |
 | Esc | Pauza, sterowanie i głośność efektów |
+| Tab | Panel pokładu: szczegóły statku, pilot, prototypy, załoga i odzysk; pauzuje wyprawę |
 
-Zniszcz asteroidy i zbliż się do pozostawionych kryształów. Łup przyciąga się automatycznie, dopóki jest miejsce w ładowni. Jasne bursztynowe skały zawierają komponenty. Kontrakt daje premię po powrocie, jeśli przywieziony ładunek spełnia wymagania. Możesz wrócić z częściowym ładunkiem.
+Zniszcz asteroidy laserem i podleć do kryształów. Chwytaki automatycznie wybierają pojedyncze surowce w swoim zasięgu, wysuwają ramię, zamykają szczęki i wracają z ładunkiem. Surowiec trafia do ładowni dopiero po powrocie ramienia. Nie ma magnesu ani przyciągania przez laser. Krótkie chwytaki mają zasięg 140, średnie 220, długie 300; liczba ramion zależy od kadłuba. Jasne bursztynowe skały zawierają komponenty. Kontrakt daje premię po bezpiecznym powrocie. Laser, strzelanie i ciąg wsteczny przerywają spokojne czynności: naprawę, skanowanie oraz podjęcie celu.
 
-Czerwone, kanciaste drony oznaczają zagrożenie; HUD i minimapa pokazują patrol oraz pościg. Asteroidy zasłaniają statek i zatrzymują pociski. Możesz zniszczyć przeciwnika albo zgubić go, oddalając się od patrolowanego miejsca lub chowając za skałami. Strefa Aurory w promieniu 850 jednostek chroni przed ostrzałem dronów; zderzenia ze skałami nadal są niebezpieczne. Trafienia przerywają naprawę, skanowanie i odzysk. Premie wydobywcze kadłuba, pilota i modułu działka działają na skały; obrażenia wrogim kadłubom pozostają stałe.
+Czerwone, kanciaste drony oznaczają zagrożenie; HUD i minimapa pokazują patrol oraz pościg. Asteroidy zasłaniają statek i zatrzymują pociski. Możesz zniszczyć przeciwnika albo zgubić go, oddalając się od patrolowanego miejsca lub chowając za skałami. Strefa Aurory w promieniu 850 jednostek chroni przed ostrzałem dronów; zderzenia ze skałami nadal są niebezpieczne. Trafienia przerywają naprawę, skanowanie i odzysk. Premie wydobywcze kadłuba, pilota i modułu lasera wzmacniają laser; akcelerator ze skrytki zwiększa obrażenia działek przeciw dronom, zachowując ich słabą skuteczność przeciw skałom.
 
 Kontrakty badawcze wymagają przywiezienia konkretnych danych: **Nasłuch sektora** — skan Lumen za 18 rudy i 3 komponenty; **Ślad dawnych gwiazd** — skany Lumen i Mnemos z jednej wyprawy za 30 rudy i 5 komponentów. Skan nie zajmuje ładowni, więc możesz również wydobywać. HUD wskazuje brakujące dane i kolejny cel. Nagroda jest dodatkiem do łupu i trafia do magazynu dopiero po dokowaniu. Częściowa wyprawa zachowuje łup, ale nie daje premii za niewykonany kontrakt.
 
-W bazie kupujesz moduły silnika, ładowni, działka i pancerza, rozbudowujesz warsztat oraz magazyn i zatrudniasz pilotów z niewielkimi różnicami sterowania.
+W bazie kupujesz moduły silnika, dysz manewrowych, ładowni, lasera i pancerza, rozbudowujesz warsztat oraz magazyn i zatrudniasz pilotów z niewielkimi różnicami sterowania. Dysze dają +20% do maksymalnej szybkości skrętu i jego reakcji na poziom.
 
-W **Piloci → Rozwój** wybierasz umiejętności aktywnego pilota. Manewrowanie daje +3% do obrotu i hamowania na poziom, wydobycie +5% do obrażeń skałom, a procedury ewakuacji +6 punktów procentowych do szansy kapsuły. Każda umiejętność ma dwa poziomy; pięć poziomów pilota daje łącznie cztery punkty, więc nie rozwiniesz wszystkiego do maksimum. Przydział jest trwały, dostępny wyłącznie w bazie i nie kosztuje surowców.
+W **Piloci → Moi piloci** wybierasz osobę i rozwijasz jej umiejętności w panelu po prawej. Przeglądanie pilota nie zmienia wyboru do wyprawy; służy do tego przycisk ustawienia aktywnego pilota. Manewrowanie daje +3% do obrotu i hamowania na poziom, wydobycie +5% do obrażeń skałom, a procedury ewakuacji +6 punktów procentowych do szansy kapsuły. Każda umiejętność ma dwa poziomy; pięć poziomów pilota daje łącznie cztery punkty, więc nie rozwiniesz wszystkiego do maksimum. Przydział jest trwały, dostępny wyłącznie w bazie i nie kosztuje surowców.
 
 Doświadczenie zdobywa pilot lecący na misję, po bezpiecznym dokowaniu: za przywieziony ładunek, unikalne skany, wykonany kontrakt i udany odzysk. Puste powroty i samo czekanie nie dają PD. Progi awansu to 20, 50, 90 i 140 PD. Przegrana nie daje doświadczenia; uratowany pilot zachowuje zdobyte wcześniej PD i umiejętności. Zapasowi piloci nie zdobywają doświadczenia za cudze wyprawy.
 
-W **Hangar → Flota / zakup** możesz kupić i wybrać statek. Swift jest szybszym, lżejszym zwiadowcą, a Mule ma większy kadłub, ładownię i moc wydobycia przy wolniejszym locie. Oba wymagają warsztatu I. Zakup nie kasuje poprzedniego kadłuba — pozostaje on w rezerwie z własnymi modułami. Zapasowe statki przetrwają stratę aktywnego statku. Złomowanie rezerwy wymaga potwierdzenia i miejsca w magazynie na zwrot materiałów.
+W **Hangar → Moje statki / Stocznia** możesz obejrzeć kadłuby, kupić statek i świadomie ustawić aktywny model. Moduły kupujesz w szczegółach aktywnego statku. Swift jest szybszym, lżejszym zwiadowcą, a Mule ma większy kadłub, ładownię i moc wydobycia przy wolniejszym locie. Oba wymagają warsztatu I. Zakup nie kasuje poprzedniego kadłuba — pozostaje on w rezerwie z własnymi modułami. Zapasowe statki przetrwają stratę aktywnego statku. Złomowanie rezerwy wymaga potwierdzenia i miejsca w magazynie na zwrot materiałów.
 
 W zakładce **Załoga** zatrudniasz mechanika za 12 rudy. Kolejka mieści trzy zadania: rafinacja 8 rudy w 1 komponent (45 s) lub produkcja zestawu naprawczego z 6 rudy i 1 komponentu (30 s). Praca postępuje podczas wyprawy; pauza, pobyt w bazie i zamknięta gra zatrzymują postęp. Materiały są rezerwowane od razu; anulowanie zadania zwraca je w całości.
 
@@ -69,11 +89,11 @@ Przed startem automatycznie zabierasz maksymalnie dwa zestawy z zapasu bazy. Now
 
 Postęp pozostaje lokalnie w przeglądarce. Zniszczenie statku lub odświeżenie aktywnej wyprawy zabiera aktywnego pilota i statek z hangaru; łup, dane i zabrane zestawy przepadają. Pilot może przetrwać w kapsule, a kadłub z modułami może nadawać się do odzysku. Szansa zależy od pilota, modelu statku i pancerza; aktualne wartości widać pod stacją w bazie. Baza, jej magazyn, historia wykonanych kontraktów i pozostali piloci pozostają. Przy braku środków można odebrać brakujące wyposażenie awaryjne i kontynuować grę.
 
-W **Ratunek → Wybierz → Rozpocznij akcję ratunkową** wracasz do początkowego układu sektora straty. Klawisz 6 wskazuje kapsułę/wrak. Podjęty cel podróżuje na holu i jest zabezpieczony dopiero po dokowaniu. Pilot wraca do załogi, a statek z własnymi modułami do rezerwy. Pełny hangar zamienia odzyskany kadłub na połowę zainwestowanych materiałów; nadwyżka magazynu przepada. Hol nie zajmuje ładowni i nie zmienia obecnego sterowania.
+W **Ratunek → wybierz sygnał → Wyrusz na ratunek** wracasz do początkowego układu sektora straty. Klawisz 6 wskazuje kapsułę/wrak. Podjęty cel podróżuje na holu i jest zabezpieczony dopiero po dokowaniu. Pilot wraca do załogi, a statek z własnymi modułami do rezerwy. Pełny hangar zamienia odzyskany kadłub na połowę zainwestowanych materiałów; nadwyżka magazynu przepada. Hol nie zajmuje ładowni i nie zmienia obecnego sterowania.
 
 Nieudana akcja lub odświeżenie podczas niej traci jej pierwotny cel. Udany powrót bez podjęcia celu zachowuje sygnał na później. Baza pamięta do trzech sygnałów; czwarty wypiera najstarszy. Piloci w kapsułach rezerwują miejsce w limicie załogi, a licznik utraconych pilotów obejmuje straty trwałe.
 
-Zapisy v0.1–v0.5 są automatycznie migrowane do formatu 6, z zachowaniem kampanii. Historia kontraktów jest naliczana od v0.5; wcześniejsze powroty nadal odblokowują Nasłuch sektora. Piloci ze starszego zapisu, także w kapsułach, zaczynają rozwój z 0 PD i zachowują tożsamość oraz cechę. Znacznik aktywnej wyprawy zachowuje swoją politykę straty także podczas migracji. Postęp pracy mechanika i ostatnia pozycja statku są zapisywane co 5 s lotu i natychmiast po ukończeniu zadania; nie naliczamy pracy offline ani nie wznawiamy stanu fizyki. Odzysku nie losujemy ponownie przy odświeżaniu.
+Zapisy v0.1–v0.10 są automatycznie migrowane do formatu 8, z zachowaniem kampanii. Historia kontraktów jest naliczana od v0.5; wcześniejsze powroty nadal odblokowują Nasłuch sektora. Piloci z zapisów sprzed v0.6, także w kapsułach, zaczynają rozwój z 0 PD i zachowują tożsamość oraz cechę. Znacznik aktywnej wyprawy zachowuje swoją politykę straty także podczas migracji. Postęp pracy mechanika i ostatnia pozycja statku są zapisywane co 5 s lotu i natychmiast po ukończeniu zadania; nie naliczamy pracy offline ani nie wznawiamy stanu fizyki. Odzysku nie losujemy ponownie przy odświeżaniu.
 
 ## Sprawdzenie kodu
 
@@ -90,7 +110,7 @@ Plan: [docs/plan-v0.1.md](docs/plan-v0.1.md). Implementacja i ograniczenia: [doc
 
 Aktualne rozszerzenia załogi i napraw: [docs/implementation-v0.2.md](docs/implementation-v0.2.md).
 
-Aktualne sterowanie arcade: [docs/arcade-controls.md](docs/arcade-controls.md).
+Poprzedni model sterowania arcade: [docs/arcade-controls.md](docs/arcade-controls.md).
 
 Flota i kadłuby: [docs/implementation-v0.3.md](docs/implementation-v0.3.md).
 
@@ -101,3 +121,9 @@ Eksploracja i kontrakty badawcze: [docs/implementation-v0.5.md](docs/implementat
 Doświadczenie i umiejętności pilotów: [docs/implementation-v0.6.md](docs/implementation-v0.6.md).
 
 Patrole AI i pierwsza walka: [docs/implementation-v0.7.md](docs/implementation-v0.7.md).
+
+Aktualne sterowanie WASD, celowanie, kamera i hol: [docs/implementation-v0.8.md](docs/implementation-v0.8.md).
+
+Kadłuby, chwytaki i kamuflaż: [docs/implementation-v0.9.md](docs/implementation-v0.9.md). Etap 0.9 wprowadził format 7: zachowuje wcześniejszy postęp, dodaje dysze manewrowe na poziomie 0 i zamienia dotychczasowy Prospector na Bastion, także w rezerwie i wrakach. Nowe kampanie zaczynają słabszym Prospectorem I. Odświeżenie aktywnej wyprawy nadal oznacza jej stratę.
+
+Skrytki i tymczasowe prototypy: [docs/implementation-v0.10.md](docs/implementation-v0.10.md). Etap 0.10 zachował format 7. Wersja 0.11 migruje go do formatu 8, dodając piąty kontrakt bez zmiany wcześniejszego postępu.

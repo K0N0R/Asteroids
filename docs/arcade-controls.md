@@ -1,5 +1,7 @@
 # Sterowanie arcade
 
+Dokument opisuje poprzedni model myszy i spacji. Od v0.8 obowiązuje [WASD, niezależne celowanie i boost](implementation-v0.8.md).
+
 Aktualne ustalenie zastępuje lot z długim dryfem. Mysz nadal kieruje i celuje, spacja uruchamia lot, a Shift służy do szybkiego zatrzymania.
 
 - Maksymalna prędkość: 480 jednostek/s, rozbieg bazowy około 0,48 s.

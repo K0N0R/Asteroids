@@ -145,14 +145,13 @@ test('full hangar converts the rescued hull to materials with storage overflow r
     const c = lostCampaign(),
         signal = c.recoverySignals[0];
     emergencyKit(c);
-    c.bank.ore = 30;
-    assert.ok(buyShip(c));
-    assert.ok(buyShip(c));
+    c.bank.ore = 100;
+    while (c.reserveShips.length < 5) assert.ok(buyShip(c));
     const refund = scrapRefund(signal.ship!);
     c.bank = { ore: 149, parts: 0 };
     beginRun(c, 7, signal.id);
     const result = finishRun(c, true, { ore: 0, parts: 0 }, 5, 'dock', 0, { securedId: signal.id });
-    assert.equal(c.reserveShips.length, 2);
+    assert.equal(c.reserveShips.length, 5);
     assert.equal(c.recoverySignals.length, 0);
     assert.equal(c.bank.ore + c.bank.parts, 150);
     assert.equal(result!.overflow, refund.ore + refund.parts - 1);
@@ -197,8 +196,14 @@ test('v3 migration keeps fleet, crew and interrupted marker without inventing pa
     delete old.activeRun.lastPosition;
     const loaded = parseCampaign(JSON.stringify(old))!;
     assert.ok(loaded);
-    assert.equal(loaded.version, 6);
-    assert.deepEqual(loaded.reserveShips, c.reserveShips);
+    assert.equal(loaded.version, 8);
+    assert.deepEqual(
+        loaded.reserveShips,
+        c.reserveShips.map((ship) => ({
+            ...ship,
+            hull: ship.hull === 'prospector' ? 'fighter' : ship.hull,
+        })),
+    );
     assert.deepEqual(loaded.crew, c.crew);
     assert.deepEqual(loaded.recoverySignals, []);
     assert.equal(loaded.activeRun!.seed, 123);

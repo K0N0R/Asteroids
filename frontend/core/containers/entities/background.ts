@@ -1,8 +1,11 @@
 import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { random } from '../../../game/worlds/sector';
+import { rotateVector } from '../../../game/systems/flight';
 
 export class Background extends Container {
     camera = { x: 0, y: 0 };
+    cameraAngle = 0;
+    private scenery = new Container();
     private stars: { view: Graphics; x: number; y: number; depth: number; phase: number }[] = [];
     private time = 0;
     constructor() {
@@ -14,7 +17,7 @@ export class Background extends Container {
             nebula.ellipse(1190, 260, i * 28, i * 18).fill({ color: 0x154452, alpha: 0.012 });
             nebula.ellipse(810, 740, i * 20, i * 12).fill({ color: 0x24425f, alpha: 0.009 });
         }
-        this.addChild(nebula);
+        this.scenery.addChild(nebula);
         const planet = new Graphics()
             .circle(1370, 210, 138)
             .fill(0x0e2336)
@@ -22,19 +25,22 @@ export class Background extends Container {
             .stroke({ color: 0x45859d, width: 2, alpha: 0.35 })
             .circle(1410, 181, 135)
             .fill(0x07111e);
-        this.addChild(planet);
+        this.scenery.addChild(planet);
+        this.scenery.pivot.set(800, 450);
+        this.scenery.position.set(800, 450);
+        this.addChild(this.scenery);
         const rng = random(819),
             contexts = [
                 new GraphicsContext().circle(0, 0, 0.8).fill(0x6c899e),
                 new GraphicsContext().circle(0, 0, 1.2).fill(0xc2e0e8),
                 new GraphicsContext().circle(0, 0, 1.8).fill(0xf1d8aa),
             ];
-        for (let i = 0; i < 320; i++) {
+        for (let i = 0; i < 1000; i++) {
             const view = new Graphics(contexts[i % 3]);
             const star = {
                 view,
-                x: rng() * 1600,
-                y: rng() * 900,
+                x: rng() * 2300,
+                y: rng() * 2300,
                 depth: 0.03 + rng() * 0.16,
                 phase: rng() * 6.28,
             };
@@ -46,11 +52,18 @@ export class Background extends Container {
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
         const wrap = (v: number, max: number) => ((v % max) + max) % max;
+        this.scenery.rotation = this.cameraAngle;
         for (const star of this.stars) {
-            star.view.position.set(
-                wrap(star.x - this.camera.x * star.depth, 1600),
-                wrap(star.y - this.camera.y * star.depth, 900),
+            const offset = rotateVector(
+                {
+                    x: wrap(star.x - this.camera.x * star.depth, 2300) - 1150,
+                    y: wrap(star.y - this.camera.y * star.depth, 2300) - 1150,
+                },
+                this.cameraAngle,
             );
+            star.view.position.set(800 + offset.x, 450 + offset.y);
+            star.view.visible =
+                offset.x >= -805 && offset.x <= 805 && offset.y >= -455 && offset.y <= 455;
             star.view.alpha = 0.45 + Math.sin(this.time * 0.4 + star.phase) * 0.18;
         }
     }

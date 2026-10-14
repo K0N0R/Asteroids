@@ -5,17 +5,26 @@ export const GAME = {
     dockRadius: 190,
     dockSpeed: 65,
     cargo: 40,
-    hull: 100,
-    thrust: 1000,
-    brake: 1800,
-    turnSpeed: 18,
-    turnResponse: 24,
-    releaseDrag: 4.8,
+    hull: 65,
+    thrust: 650,
+    brake: 720,
+    turnSpeed: 1.15,
+    turnResponse: 3,
+    releaseDrag: 2.2,
     stopSpeed: 3,
-    maxSpeed: 480,
+    maxSpeed: 300,
+    reverseSpeed: 0.35,
+    boostSpeed: 1.65,
+    boostThrust: 1.4,
+    cameraResponse: 1.8,
     shotSpeed: 1150,
     shotInterval: 0.2,
     shotDamage: 18,
+    shotRockDamage: 2,
+    gunMountY: 23,
+    gunLength: 36,
+    laserRange: 230,
+    laserDamage: 150,
     repairSeconds: 5,
     repairHull: 25,
     repairSpeed: 80,
@@ -23,7 +32,7 @@ export const GAME = {
     damagedThrust: 0.45,
 } as const;
 
-export const FLEET_LIMIT = 3;
+export const FLEET_LIMIT = 6;
 export const DRONES = {
     hull: 54,
     radius: 26,
@@ -45,16 +54,59 @@ export const DRONES = {
 } as const;
 export const RECOVERY = { signalLimit: 3, radius: 160, speed: 80, seconds: 4 } as const;
 export const SCAN = { radius: 180, speed: 60, seconds: 3 } as const;
+export const OUTPOST = {
+    radius: 100,
+    terminalDistance: 260,
+    interactRadius: 100,
+    interactSpeed: 60,
+    downloadSeconds: 4,
+    scanRange: 560,
+    scanHalfAngle: 0.38,
+    scanSpeed: 0.28,
+    detectSeconds: 2,
+    alarmSeconds: 8,
+} as const;
 export const SCAN_SITES = {
     relay: { name: 'Przekaźnik Lumen', key: 7 },
     archive: { name: 'Obserwatorium Mnemos', key: 8 },
+    outpost: { name: 'Dane placówki Cerber', key: 0 },
 } as const;
 export type ScanSiteId = keyof typeof SCAN_SITES;
+export interface Mount {
+    x: number;
+    y: number;
+}
+export interface HullDefinition {
+    name: string;
+    role: string;
+    detail: string;
+    health: number;
+    cargo: number;
+    thrust: number;
+    brake: number;
+    turnSpeed: number;
+    maxSpeed: number;
+    size: number;
+    miningPower: number;
+    ore: number;
+    parts: number;
+    workshop: number;
+    recovery: number;
+    boost: number;
+    cloak: number;
+    guns: readonly Mount[];
+    lasers: readonly Mount[];
+    engines: readonly Mount[];
+    laserRange: number;
+    grabbers: readonly Mount[];
+    grabberRange: number;
+    hitbox: readonly [number, number];
+}
 export const HULLS = {
     prospector: {
         name: 'Prospector I',
-        role: 'Uniwersalny',
-        detail: 'Sprawdzony punkt odniesienia dla sterowania.',
+        role: 'Początkowy',
+        detail: 'Prosty owalny kadłub: jeden silnik, działko i krótki laser.',
         health: GAME.hull,
         cargo: GAME.cargo,
         thrust: GAME.thrust,
@@ -67,16 +119,25 @@ export const HULLS = {
         parts: 0,
         workshop: 0,
         recovery: 0.1,
+        boost: 1.45,
+        cloak: 0,
+        guns: [{ x: 0, y: 0 }],
+        lasers: [{ x: 28, y: 0 }],
+        engines: [{ x: -32, y: 0 }],
+        laserRange: 180,
+        grabbers: [{ x: 8, y: 18 }],
+        grabberRange: 140,
+        hitbox: [32, 20],
     },
     swift: {
         name: 'Swift',
         role: 'Zwiadowca',
         detail: 'Szybszy i zwinniejszy; mniejszy zapas kadłuba.',
-        health: 85,
-        cargo: 35,
+        health: 60,
+        cargo: 24,
         thrust: 1500,
-        brake: 2200,
-        turnSpeed: 22,
+        brake: 880,
+        turnSpeed: 2.35,
         maxSpeed: 620,
         size: 0.9,
         miningPower: 1,
@@ -84,25 +145,146 @@ export const HULLS = {
         parts: 4,
         workshop: 1,
         recovery: 0.18,
+        boost: 1.6,
+        cloak: 0.6,
+        guns: [{ x: 32, y: 0 }],
+        lasers: [{ x: 24, y: 0 }],
+        engines: [{ x: -32, y: 0 }],
+        laserRange: 180,
+        grabbers: [{ x: 0, y: 18 }],
+        grabberRange: 140,
+        hitbox: [35, 20],
     },
     mule: {
         name: 'Mule',
         role: 'Statek wydobywczy',
-        detail: 'Duży ładunek, mocniejszy kadłub i działko; wolniejszy lot.',
+        detail: 'Duży ładunek, mocniejszy kadłub i laser; wolniejszy lot.',
         health: 150,
-        cargo: 80,
-        thrust: 850,
-        brake: 1600,
-        turnSpeed: 14,
-        maxSpeed: 400,
+        cargo: 110,
+        thrust: 550,
+        brake: 640,
+        turnSpeed: 0.9,
+        maxSpeed: 260,
         size: 1.25,
         miningPower: 1.3,
         ore: 85,
         parts: 6,
         workshop: 1,
         recovery: 0.22,
+        boost: 1.25,
+        cloak: 0,
+        guns: [{ x: -30, y: 0 }],
+        lasers: [
+            { x: 10, y: -29 },
+            { x: 10, y: 29 },
+        ],
+        engines: [
+            { x: -31, y: -24 },
+            { x: -31, y: 24 },
+        ],
+        laserRange: 320,
+        grabbers: [
+            { x: 0, y: -30 },
+            { x: 20, y: 0 },
+            { x: 0, y: 30 },
+        ],
+        grabberRange: 300,
+        hitbox: [34, 34],
     },
-} as const;
+    fighter: {
+        name: 'Bastion',
+        role: 'Bojowy',
+        detail: 'Dwa boczne działka, dawny kadłub Prospectora.',
+        health: 100,
+        cargo: 30,
+        thrust: 1000,
+        brake: 720,
+        turnSpeed: 1.65,
+        maxSpeed: 480,
+        size: 1,
+        miningPower: 1,
+        ore: 90,
+        parts: 7,
+        workshop: 1,
+        recovery: 0.18,
+        boost: 1.65,
+        cloak: 0.2,
+        guns: [
+            { x: 0, y: -23 },
+            { x: 0, y: 23 },
+        ],
+        lasers: [{ x: 25, y: 0 }],
+        engines: [{ x: -27, y: 0 }],
+        laserRange: 180,
+        grabbers: [{ x: 0, y: 22 }],
+        grabberRange: 220,
+        hitbox: [32, 23],
+    },
+    tug: {
+        name: 'Manta',
+        role: 'Holowniczy',
+        detail: 'Wytrzymała płaszczka z dwoma silnikami na przednich skrzydłach.',
+        health: 230,
+        cargo: 60,
+        thrust: 600,
+        brake: 680,
+        turnSpeed: 1.4,
+        maxSpeed: 280,
+        size: 1.25,
+        miningPower: 1,
+        ore: 95,
+        parts: 6,
+        workshop: 1,
+        recovery: 0.3,
+        boost: 1.25,
+        cloak: 0.25,
+        guns: [{ x: -30, y: 0 }],
+        lasers: [{ x: 28, y: 0 }],
+        engines: [
+            { x: 12, y: -37 },
+            { x: 12, y: 37 },
+        ],
+        laserRange: 320,
+        grabbers: [
+            { x: 0, y: -30 },
+            { x: 0, y: 30 },
+        ],
+        grabberRange: 220,
+        hitbox: [35, 36],
+    },
+    falcon: {
+        name: 'Sokół',
+        role: 'Szybki transport',
+        detail: 'Okrągły kadłub z rozwidlonym dziobem i mocnym boostem.',
+        health: 125,
+        cargo: 60,
+        thrust: 1050,
+        brake: 720,
+        turnSpeed: 1.05,
+        maxSpeed: 560,
+        size: 1.1,
+        miningPower: 1,
+        ore: 120,
+        parts: 9,
+        workshop: 1,
+        recovery: 0.22,
+        boost: 2.1,
+        cloak: 0.4,
+        guns: [
+            { x: 27, y: -12 },
+            { x: 27, y: 12 },
+        ],
+        lasers: [{ x: 18, y: 0 }],
+        engines: [{ x: -31, y: 0 }],
+        laserRange: 320,
+        grabbers: [
+            { x: 0, y: -27 },
+            { x: 0, y: 27 },
+        ],
+        grabberRange: 140,
+        hitbox: [36, 32],
+    },
+} as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
 
 export const CREW = { hireOre: 12, queueLimit: 3, kitLimit: 10, embarkKits: 2 } as const;
@@ -113,7 +295,7 @@ export const PILOT_PROGRESSION = {
 } as const;
 export const PILOT_SKILLS = {
     handling: { title: 'Manewrowanie', detail: 'Obrót i hamowanie +3% / poziom', bonus: 0.03 },
-    mining: { title: 'Wydobycie', detail: 'Obrażenia działka skałom +5% / poziom', bonus: 0.05 },
+    mining: { title: 'Wydobycie', detail: 'Moc lasera +5% / poziom', bonus: 0.05 },
     survival: {
         title: 'Procedury ewakuacji',
         detail: 'Szansa kapsuły +6 p.p. / poziom',
@@ -162,16 +344,22 @@ export const PILOTS = [
     },
 ] as const;
 
-export type Upgrade = 'engine' | 'cargo' | 'drill' | 'armor' | 'workshop' | 'storage';
+export type Upgrade = 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'workshop' | 'storage';
 export const UPGRADES: Record<
     Upgrade,
     { title: string; detail: string; ore: number; parts: number }
 > = {
     engine: { title: 'Silnik impulsowy', detail: 'Ciąg +15% / poziom', ore: 18, parts: 1 },
+    handling: {
+        title: 'Dysze manewrowe',
+        detail: 'Skręt i reakcja na klawisze +20% / poziom',
+        ore: 16,
+        parts: 1,
+    },
     cargo: { title: 'Moduł ładowni', detail: 'Pojemność +15 / poziom', ore: 14, parts: 0 },
     drill: {
-        title: 'Działo wydobywcze',
-        detail: 'Obrażenia skał +25% / poziom',
+        title: 'Laser wydobywczy',
+        detail: 'Moc lasera +25% / poziom',
         ore: 20,
         parts: 2,
     },
@@ -234,6 +422,16 @@ export const CONTRACTS: readonly ContractDefinition[] = [
         rewardOre: 30,
         rewardParts: 5,
         sites: ['relay', 'archive'],
+        unlock: 'research',
+    },
+    {
+        title: 'Cichy przechwyt',
+        detail: 'Wykradnij dane z terminala placówki Cerber (0) i wróć do Aurory.',
+        ore: 0,
+        parts: 0,
+        rewardOre: 32,
+        rewardParts: 8,
+        sites: ['outpost'],
         unlock: 'research',
     },
 ] as const;

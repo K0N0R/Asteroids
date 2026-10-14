@@ -7,11 +7,13 @@ import { LoaderPopup } from './loaderPopup';
 import { IPromise, JsUtils } from '@common';
 import { Bus, TBusMessage } from '@systems/bus';
 import { InputHandler } from '@systems/inputHandler';
+import { MissionInfoPopup, MissionInfoData } from '../../../game/ui/missionInfo';
 
-export type TPopupNames = 'welcome' | 'configuration';
+export type TPopupNames = 'welcome' | 'configuration' | 'missionInfo';
 interface TPopupData {
     welcome: undefined;
     configuration: undefined;
+    missionInfo: MissionInfoData;
 }
 
 export class PopupContainer extends PIXI.Container {
@@ -40,6 +42,7 @@ export class PopupContainer extends PIXI.Container {
         this.popupPromises = {
             configuration: null,
             welcome: null,
+            missionInfo: null,
         };
 
         this.loader = new LoaderPopup();
@@ -52,6 +55,7 @@ export class PopupContainer extends PIXI.Container {
     static instantiatePopups() {
         this.instance.popups = {
             welcome: new WelcomePopup(),
+            missionInfo: new MissionInfoPopup(),
             configuration: new ConfigurationPopup(),
         };
         Object.values(this.instance.popups).forEach((popup) => (popup.visible = false));

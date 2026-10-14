@@ -26,11 +26,28 @@ import {
     scrapRefund,
     pilotSlots,
 } from '../state/campaign';
-import { recoveryChances, recoveryDescription } from '../state/recovery';
+import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
 import { MAX_PILOT_XP, pilotLevel, pilotPoints } from '../state/pilots';
-import { C, ShipView, stationView } from '../graphics/shapes';
+import { C } from '../graphics/shapes';
 import { button, clear, label, panel } from './primitives';
+
+import {
+    bareModules,
+    choiceCard,
+    cost,
+    fittedShip,
+    fittedScene,
+    hullPreview,
+    lobbyIcon,
+    operationScene,
+    pilotPortrait,
+    segments,
+    signalScene,
+    stat,
+    stationScene,
+    workshopScene,
+} from './lobbyGraphics';
 
 export type LobbyTab = 'overview' | 'hangar' | 'station' | 'pilots' | 'crew' | 'recovery';
 export interface LobbyActions {
@@ -48,14 +65,32 @@ export interface LobbyActions {
     queueJob: (kind: JobKind) => void;
     cancelJob: (id: number) => void;
 }
+
+const NAV: { tab: LobbyTab; title: string; icon: Parameters<typeof lobbyIcon>[0] }[] = [
+    { tab: 'overview', title: 'Wyprawa', icon: 'flight' },
+    { tab: 'hangar', title: 'Hangar', icon: 'ship' },
+    { tab: 'station', title: 'Stacja', icon: 'station' },
+    { tab: 'pilots', title: 'Piloci', icon: 'pilot' },
+    { tab: 'crew', title: 'Załoga', icon: 'crew' },
+    { tab: 'recovery', title: 'Ratunek', icon: 'signal' },
+];
 export class LobbyView extends Container {
     private content = new Container();
-    private station = new Container();
+    private visual = new Container();
     private tab: LobbyTab = 'overview';
     private time = 0;
     private message = '';
-    private hangarMode: 'modules' | 'fleet' = 'modules';
-    private pilotMode: 'roster' | 'skills' = 'roster';
+    private messageUntil = 0;
+    private toast: ReturnType<typeof label> | null = null;
+    private hangarMode: 'owned' | 'shop' = 'owned';
+    private chosenShipId: number | null = null;
+    private shopHull: HullId = 'swift';
+    private pilotMode: 'roster' | 'recruit' = 'roster';
+    private chosenPilotId: number | null = null;
+    private recruit = 0;
+    private stationPart: 'workshop' | 'storage' = 'workshop';
+    private recipe: JobKind = 'refine';
+    private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' = 'engine';
     private scrapCandidate: number | null = null;
     private recoveryId: number | null = null;
     constructor(
@@ -63,740 +98,1038 @@ export class LobbyView extends Container {
         private actions: LobbyActions,
     ) {
         super();
-        this.addChild(this.station, this.content);
+        this.addChild(this.visual, this.content);
         this.refresh();
     }
-    refresh(message = this.message) {
-        this.message = message;
-        clear(this.content);
-        clear(this.station);
-        const c = this.campaign,
-            p = selectedPilot(c),
-            ui = this.content;
-        if (!c.recoverySignals.some((signal) => signal.id === this.recoveryId))
-            this.recoveryId = null;
-        const station = stationView(c.station.workshop + c.station.storage);
-        station.position.set(1130, 435);
-        station.scale.set(1.65);
-        this.station.addChild(station);
-        const orbit = new Graphics()
-            .ellipse(1130, 435, 390, 300)
-            .stroke({ color: C.cyan, alpha: 0.1, width: 1 });
-        this.station.addChild(orbit);
-        if (c.ship) {
-            const ship = new ShipView(c.ship);
-            ship.position.set(1470, 435);
-            ship.rotation = Math.PI;
-            ship.scale.set(1.4 * HULLS[c.ship.hull].size);
-            this.station.addChild(ship);
+    private go(tab: LobbyTab) {
+        this.tab = tab;
+        this.refresh();
+    }
+    private art(view: Container, x = 625, y = 440) {
+        view.position.set(x, y);
+        this.visual.addChild(view);
+    }
+    private section(title: string, subtitle: string) {
+        const ui = this.content;
+        label(ui, title, 280, 111, 39);
+        label(ui, subtitle, 282, 166, 16, C.muted);
+        panel(ui, 1040, 214, 520, 591);
+    }
+    refresh(message?: string) {
+        if (message !== undefined) {
+            this.message = message;
+            this.messageUntil = this.time + 6;
         }
-        label(ui, 'O R B I T  /  A S T E R O I D S', 60, 42, 17, C.mint);
-        label(ui, 'Dom pośród gwiazd.', 60, 75, 42);
-        label(ui, 'STACJA AURORA', 1190, 58, 16, C.muted);
-        label(ui, '●  DOK BEZPIECZNY', 1190, 86, 17, C.mint);
-        const tabs: [LobbyTab, string][] = [
-            ['overview', 'Wyprawa'],
-            ['hangar', 'Hangar'],
-            ['station', 'Stacja'],
-            ['pilots', `Piloci${c.pilots.some((pilot) => pilotPoints(pilot) > 0) ? ' (+)' : ''}`],
-            ['crew', 'Załoga'],
-            ['recovery', `Ratunek (${c.recoverySignals.length})`],
-        ];
-        tabs.forEach(([tab, text], i) =>
-            button(
-                ui,
-                text,
-                60 + i * 126,
-                151,
-                118,
-                () => {
-                    this.tab = tab;
-                    this.refresh();
-                },
-                this.tab === tab,
-            ),
+        clear(this.content);
+        clear(this.visual);
+        this.visual.y = 0;
+        const c = this.campaign,
+            ui = this.content;
+        if (!ownedShips(c).some((ship) => ship.id === this.chosenShipId))
+            this.chosenShipId = c.ship?.id ?? ownedShips(c)[0]?.id ?? null;
+        if (!c.pilots.some((pilot) => pilot.id === this.chosenPilotId))
+            this.chosenPilotId = c.selectedPilot || c.pilots[0]?.id || null;
+        if (!c.recoverySignals.some((signal) => signal.id === this.recoveryId))
+            this.recoveryId = c.recoverySignals[0]?.id ?? null;
+        ui.addChild(
+            new Graphics()
+                .rect(0, 0, 235, 900)
+                .fill({ color: C.ink, alpha: 0.9 })
+                .moveTo(235, 30)
+                .lineTo(235, 870)
+                .stroke({ color: C.line, width: 1 }),
         );
-        panel(ui, 60, 218, 624, 475);
-        label(ui, `${c.bank.ore}  RUDA`, 90, 240, 23, C.mint);
-        label(ui, `${c.bank.parts}  KOMPONENTY`, 314, 240, 23, C.gold);
-        label(
-            ui,
-            `${storageUsed(c)} / ${storageCapacity(c)} w magazynie · wraz z rezerwacją zadań`,
-            90,
-            275,
-            15,
-            C.muted,
-        );
+        const logo = lobbyIcon('station');
+        logo.position.set(50, 56);
+        ui.addChild(logo);
+        label(ui, 'AURORA', 75, 43, 23, C.text);
+        label(ui, 'DOM POŚRÓD GWIAZD', 31, 91, 11, C.muted);
+        NAV.forEach(({ tab, title, icon }, i) => {
+            const card = choiceCard(ui, 25, 184 + i * 65, 185, 51, this.tab === tab, () =>
+                this.go(tab),
+            );
+            const mark = lobbyIcon(icon, this.tab === tab ? C.mint : C.muted);
+            mark.position.set(24, 25);
+            card.addChild(mark);
+            label(card, title, 49, 15, 17, this.tab === tab ? C.mint : C.text);
+            const badge =
+                tab === 'pilots'
+                    ? c.pilots.reduce((sum, p) => sum + pilotPoints(p), 0)
+                    : tab === 'recovery'
+                      ? c.recoverySignals.length
+                      : 0;
+            if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
+        });
+        label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
+        label(ui, 'ORBIT / 0.10', 30, 851, 11, C.muted);
+        label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
+        cost(ui, c.bank.ore, c.bank.parts, 1230, 37, true);
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
-        if (this.tab === 'station') this.upgrades(ui, ['workshop', 'storage']);
+        if (this.tab === 'station') this.station(ui);
         if (this.tab === 'pilots') this.pilots(ui);
         if (this.tab === 'crew') this.crew(ui);
         if (this.tab === 'recovery') this.recovery(ui);
-        const ready = !!c.ship && !!p;
+        this.toast = label(
+            ui,
+            this.time < this.messageUntil ? this.message : '',
+            282,
+            847,
+            16,
+            C.gold,
+            1260,
+        );
+        if (this.scrapCandidate !== null) this.scrapConfirmation(ui);
+    }
+    private departure(ui: Container, recoveryId: number | null = null) {
+        const c = this.campaign,
+            ready = !!c.ship && !!selectedPilot(c);
         button(
             ui,
             ready
-                ? this.recoveryId !== null
-                    ? 'ROZPOCZNIJ AKCJĘ RATUNKOWĄ  →'
-                    : 'ROZPOCZNIJ WYPRAWĘ  →'
-                : 'PRZYGOTUJ STATEK I PILOTA',
-            60,
-            714,
-            624,
-            () => this.actions.launch(this.recoveryId),
+                ? recoveryId === null
+                    ? 'WYRUSZ →'
+                    : 'WYRUSZ NA RATUNEK →'
+                : !c.ship
+                  ? 'PRZYGOTUJ STATEK →'
+                  : 'ZATRUDNIJ PILOTA →',
+            1072,
+            719,
+            456,
+            () => {
+                if (ready) this.actions.launch(recoveryId);
+                else this.go(!c.ship ? 'hangar' : 'pilots');
+            },
             true,
-            ready,
-            58,
+            !c.activeRun,
+            52,
         );
-        label(
-            ui,
-            this.message || 'Łup jest bezpieczny dopiero po powrocie do bazy.',
-            64,
-            791,
-            16,
-            this.message ? C.gold : C.muted,
-        );
-        label(ui, 'AURORA / 01', 983, 745, 29);
-        label(ui, 'Warsztat i magazyn · Twój stały punkt powrotu', 885, 791, 17, C.muted);
-        const pilot = c.pilots.find((pilot) => pilot.id === c.selectedPilot);
-        if (c.ship && pilot) {
-            const chances = recoveryChances(c.ship, pilot);
-            label(
+        if (
+            !ready &&
+            ((!c.ship && (c.reserveShips.length > 0 || c.bank.ore < HULLS.prospector.ore)) ||
+                (!c.pilots.length && c.bank.ore < 12))
+        )
+            button(
                 ui,
-                `Szanse po stracie: kapsuła ${Math.round(chances.pilot * 100)}% · wrak ${Math.round(chances.ship * 100)}%`,
-                885,
-                818,
-                15,
-                C.gold,
+                'Wyposażenie awaryjne',
+                1072,
+                775,
+                456,
+                this.actions.rescue,
+                false,
+                true,
+                27,
             );
-        }
-        label(
-            ui,
-            `Wyprawy: ${c.sorties}    Powroty: ${c.recovered}    Utraceni piloci: ${c.lostPilots}`,
-            60,
-            850,
-            15,
-            C.muted,
-        );
-        label(ui, 'PROTOTYP 0.7 / PATROLE AI', 1090, 850, 13, C.muted);
-        if (this.scrapCandidate !== null) this.scrapConfirmation(ui);
     }
     private overview(ui: Container) {
         const c = this.campaign,
-            pilot = selectedPilot(c);
-        label(
-            ui,
-            this.recoveryId === null
-                ? 'NASTĘPNA WYPRAWA'
-                : `AKCJA RATUNKOWA / SYGNAŁ #${this.recoveryId}`,
-            90,
-            320,
-            14,
-            C.muted,
+            pilot = selectedPilot(c),
+            contract = CONTRACTS[c.contract];
+        this.section('Dokąd dziś polecisz?', 'Wybierz kontrakt i przygotuj wyprawę.');
+        CONTRACTS.forEach((entry, id) => {
+            const lock = contractLockReason(c, id);
+            const card = choiceCard(
+                ui,
+                280 + (id % 3) * 240,
+                232 + Math.floor(id / 3) * 137,
+                225,
+                118,
+                c.contract === id,
+                () => this.actions.contract(id),
+                !lock,
+            );
+            label(card, entry.title, 16, 15, 18, lock ? C.muted : C.text, 193);
+            label(
+                card,
+                lock ||
+                    (entry.sites.includes('outpost')
+                        ? 'Przechwyt danych'
+                        : entry.sites.length
+                          ? `${entry.sites.length} ${entry.sites.length === 1 ? 'skan' : 'skany'}`
+                          : `${entry.ore} rudy${entry.parts ? ` · ${entry.parts} komponenty` : ''}`),
+                16,
+                61,
+                14,
+                C.muted,
+                193,
+            );
+            label(
+                card,
+                lock ? 'ZABLOKOWANY' : `+${entry.rewardOre} R · +${entry.rewardParts} K`,
+                16,
+                94,
+                12,
+                lock ? C.muted : C.gold,
+            );
+        });
+        this.art(operationScene(!!contract.sites.length), 625, 650);
+        label(ui, 'WYBRANY KONTRAKT', 1072, 244, 13, C.muted);
+        label(ui, contract.title, 1072, 276, 29, C.text, 456);
+        label(ui, contract.detail, 1072, 328, 18, C.muted, 456);
+        label(ui, 'PREMIA PO POWROCIE', 1072, 403, 12, C.muted);
+        cost(ui, contract.rewardOre, contract.rewardParts, 1072, 430);
+        ui.addChild(
+            new Graphics().moveTo(1072, 481).lineTo(1528, 481).stroke({ color: C.line, width: 1 }),
         );
         label(
             ui,
-            pilot ? `${pilot.name} · P${pilot.level}  /  ${pilot.trait}` : 'Brak aktywnego pilota',
-            90,
-            351,
-            21,
-            pilot ? C.text : C.red,
+            c.ship ? HULLS[c.ship.hull].name : 'Brak statku',
+            1072,
+            506,
+            23,
+            c.ship ? C.text : C.red,
         );
         label(
             ui,
             c.ship
-                ? `${HULLS[c.ship.hull].name} · ładownia ${capacity(c)} · kadłub ${shipHealth(c.ship)}`
-                : 'Statek został utracony. Odwiedź hangar.',
-            90,
-            386,
-            17,
-            C.muted,
-        );
-        label(ui, 'WYBIERZ KONTRAKT', 90, 436, 14, C.muted);
-        label(
-            ui,
-            `Zestawy naprawcze: ${Math.min(c.repairKits, CREW.embarkKits)} na pokład / ${c.repairKits} w bazie`,
-            90,
-            410,
-            15,
-            C.gold,
-        );
-        CONTRACTS.forEach((contract, i) => {
-            const lock = contractLockReason(c, i);
-            button(
-                ui,
-                `${lock ? '🔒 ' : ''}${contract.title}`,
-                90 + (i % 2) * 283,
-                459 + Math.floor(i / 2) * 43,
-                267,
-                () => this.actions.contract(i),
-                c.contract === i,
-                !lock,
-                36,
-            );
-        });
-        const contract = CONTRACTS[c.contract];
-        label(ui, contract.detail, 90, 550, 16, C.text, 550);
-        label(
-            ui,
-            `Premia po powrocie: ${contract.rewardOre} rudy + ${contract.rewardParts} komponentów`,
-            90,
-            593,
+                ? `Kadłub ${shipHealth(c.ship)} · ładownia ${capacity(c)}`
+                : 'Wybierz statek w hangarze',
+            1072,
+            542,
             16,
-            C.gold,
+            C.muted,
         );
         label(
             ui,
-            `Wykonane: ${c.contractCompletions[c.contract]} · nagroda po bezpiecznym powrocie`,
-            90,
+            pilot ? `${pilot.name} · P${pilot.level}` : 'Brak pilota',
+            1072,
+            584,
+            20,
+            pilot ? C.text : C.red,
+        );
+        label(
+            ui,
+            `${Math.min(c.repairKits, CREW.embarkKits)} zest. naprawczych na pokład`,
+            1072,
             623,
-            14,
-            C.muted,
-        );
-        if (!c.ship || !c.pilots.length)
-            button(
-                ui,
-                'Odbierz dostępne wyposażenie awaryjne',
-                90,
-                656,
-                550,
-                this.actions.rescue,
-                false,
-                true,
-                28,
-            );
-        else {
-            label(
-                ui,
-                !c.recovered
-                    ? 'Nasłuch: pierwszy powrót · Ślad gwiazd: nasłuch + warsztat I'
-                    : !c.contractCompletions[2]
-                      ? 'Ślad dawnych gwiazd: wykonaj Nasłuch sektora + warsztat I'
-                      : c.station.workshop < 1
-                        ? 'Ślad dawnych gwiazd: rozbuduj warsztat do poziomu I'
-                        : 'Skanowanie: E przez 3 s spokojnego lotu · cele 7 i 8',
-                90,
-                655,
-                13,
-                C.muted,
-            );
-        }
-    }
-    private recovery(ui: Container) {
-        const c = this.campaign;
-        label(ui, 'SYGNAŁY RATUNKOWE', 90, 320, 19, C.mint);
-        button(
-            ui,
-            'Nowy sektor',
-            475,
-            314,
-            170,
-            () => {
-                this.recoveryId = null;
-                this.refresh();
-            },
-            this.recoveryId === null,
-            true,
-            36,
-        );
-        if (!c.recoverySignals.length) {
-            label(ui, 'Brak kapsuł i wraków do odzyskania.', 90, 381, 22);
-            label(ui, 'Po stracie sprawdzamy szansę przetrwania.', 90, 430, 17, C.muted);
-            label(ui, 'Liczy się pilot, model statku i poziom pancerza.', 90, 466, 17, C.muted);
-        }
-        c.recoverySignals.forEach((signal, i) => {
-            const y = 368 + i * 87;
-            label(
-                ui,
-                `Sygnał #${signal.id} · ${(Math.hypot(signal.x, signal.y) / 1000).toFixed(1)} km od bazy`,
-                90,
-                y,
-                18,
-            );
-            label(ui, recoveryDescription(signal), 90, y + 28, 15, C.gold);
-            button(
-                ui,
-                'Wybierz',
-                475,
-                y - 6,
-                170,
-                () => {
-                    this.recoveryId = signal.id;
-                    this.refresh();
-                },
-                this.recoveryId === signal.id,
-                true,
-                32,
-            );
-        });
-        label(ui, '6 → cel · E przez 4 s spokojnego lotu · potem dokowanie', 90, 632, 15, C.mint);
-        label(
-            ui,
-            'Porażka akcji traci jej cel. Pamiętamy 3 ostatnie sygnały.',
-            90,
-            660,
-            14,
-            C.muted,
-        );
-        label(ui, 'Hangar pełny? Odzyskany wrak daje materiały.', 90, 601, 15, C.muted);
-    }
-    private crew(ui: Container) {
-        const c = this.campaign;
-        label(ui, 'Mechanik stacji · Ada Vale', 90, 320, 21, c.crew.mechanic ? C.mint : C.text);
-        label(
-            ui,
-            c.crew.mechanic
-                ? 'Praca podczas lotu · pauza zatrzymuje postęp'
-                : 'Zatrudnij mechanika, aby uruchomić warsztat.',
-            90,
-            352,
             15,
             C.muted,
         );
-        if (!c.crew.mechanic)
-            button(
-                ui,
-                'Zatrudnij · 12 R',
-                475,
-                316,
-                170,
-                this.actions.hireMechanic,
-                false,
-                c.bank.ore >= CREW.hireOre,
-                40,
-            );
-        const kinds: JobKind[] = ['refine', 'kit'];
-        kinds.forEach((kind, i) => {
-            const job = JOBS[kind];
-            const enabled =
-                c.crew.mechanic &&
-                c.crew.jobs.length < CREW.queueLimit &&
-                c.bank.ore >= job.ore &&
-                c.bank.parts >= job.parts &&
-                (kind !== 'kit' ||
-                    c.repairKits + c.crew.jobs.filter((j) => j.kind === 'kit').length <
-                        CREW.kitLimit);
-            button(
-                ui,
-                kind === 'refine' ? 'Rafinuj rudę · 8 R' : 'Zestaw · 6 R + 1 K',
-                90 + i * 283,
-                393,
-                267,
-                () => this.actions.queueJob(kind),
-                false,
-                enabled,
-                42,
-            );
-            label(
-                ui,
-                kind === 'refine' ? '45 s → 1 komponent' : '30 s → 1 zestaw naprawczy',
-                90 + i * 283,
-                445,
-                15,
-                C.muted,
-            );
-        });
-        label(
-            ui,
-            `KOLEJKA ${c.crew.jobs.length}/${CREW.queueLimit}   ·   ZESTAWY ${c.repairKits}/${CREW.kitLimit}`,
-            90,
-            482,
-            14,
-            C.gold,
-        );
-        if (!c.crew.jobs.length) {
-            label(ui, 'Dodaj zadania przed rozpoczęciem wyprawy.', 90, 526, 19);
-            label(
-                ui,
-                'Surowce są rezerwowane. Anulowanie zwraca cały koszt.',
-                90,
-                569,
-                15,
-                C.muted,
-            );
-            label(ui, 'Mechanik pozostaje w bazie także po utracie statku.', 90, 602, 15, C.muted);
-            label(ui, `Zakończone zadania: ${c.crew.completed}`, 90, 644, 16, C.mint);
-        }
-        c.crew.jobs.forEach((job, i) => {
-            const y = 512 + i * 54;
-            label(ui, `${i + 1}. ${JOBS[job.kind].title}`, 90, y, 18);
-            label(
-                ui,
-                `${Math.ceil(job.remaining)} s pracy · ${i === 0 ? 'następne do wykonania' : 'oczekuje w kolejce'}`,
-                90,
-                y + 26,
-                14,
-                C.muted,
-            );
-            button(ui, 'Anuluj', 553, y, 92, () => this.actions.cancelJob(job.id), false, true, 32);
-        });
+        label(ui, 'Dostarcz ładunek i dane do Aurory.', 1072, 675, 15, C.muted);
+        this.departure(ui);
     }
     private hangar(ui: Container) {
-        const c = this.campaign;
-        if (this.hangarMode === 'fleet' || !c.ship) {
-            this.fleet(ui);
+        const c = this.campaign,
+            ships = ownedShips(c),
+            catalogue = Object.keys(HULLS) as HullId[];
+        this.section(
+            'Twój statek. Twój styl.',
+            'Wybierz kadłub, zmień statek lub zamontuj moduły.',
+        );
+        button(
+            ui,
+            `Moje statki · ${ships.length}/${FLEET_LIMIT}`,
+            280,
+            220,
+            235,
+            () => {
+                this.hangarMode = 'owned';
+                this.refresh();
+            },
+            this.hangarMode === 'owned',
+            true,
+            38,
+        );
+        button(
+            ui,
+            'Stocznia',
+            529,
+            220,
+            170,
+            () => {
+                this.hangarMode = 'shop';
+                this.refresh();
+            },
+            this.hangarMode === 'shop',
+            true,
+            38,
+        );
+        const ship = ships.find((entry) => entry.id === this.chosenShipId);
+        const modules = this.hangarMode === 'shop' ? bareModules(this.shopHull) : ship;
+        if (modules) this.art(hullPreview(modules), 625, 430);
+        else {
+            label(ui, 'Hangar czeka na nowy statek.', 392, 431, 25, C.muted);
+            button(ui, 'Otwórz stocznię', 425, 494, 330, () => {
+                this.hangarMode = 'shop';
+                this.refresh();
+            });
+        }
+        const entries = this.hangarMode === 'shop' ? catalogue : ships;
+        entries.forEach((entry, i) => {
+            const hull = typeof entry === 'string' ? entry : entry.hull,
+                config = HULLS[hull];
+            const selected =
+                typeof entry === 'string' ? this.shopHull === hull : this.chosenShipId === entry.id;
+            const card = choiceCard(
+                ui,
+                280 + (i % 3) * 240,
+                594 + Math.floor(i / 3) * 109,
+                225,
+                91,
+                selected,
+                () => {
+                    if (typeof entry === 'string') this.shopHull = entry;
+                    else this.chosenShipId = entry.id;
+                    this.refresh();
+                },
+            );
+            const thumbnail = fittedShip(
+                typeof entry === 'string' ? bareModules(hull) : entry,
+                52,
+                72,
+            );
+            thumbnail.position.set(37, 45);
+            card.addChild(thumbnail);
+            label(card, config.name, 75, 16, 16, C.text, 140);
+            label(
+                card,
+                typeof entry === 'string'
+                    ? config.role
+                    : c.ship?.id === entry.id
+                      ? 'Aktywny'
+                      : `Rezerwa #${entry.id}`,
+                75,
+                51,
+                13,
+                typeof entry !== 'string' && c.ship?.id === entry.id ? C.mint : C.muted,
+                140,
+            );
+        });
+        if (!modules) {
+            label(ui, 'Brak statku', 1072, 252, 28);
+            label(ui, 'Wybierz kadłub w stoczni.', 1072, 311, 18, C.muted);
             return;
         }
-        label(ui, `${HULLS[c.ship.hull].name} #${c.ship.id}`, 90, 318, 22, C.mint);
-        button(
-            ui,
-            'Flota / zakup',
-            475,
-            314,
-            170,
-            () => {
-                this.hangarMode = 'fleet';
-                this.refresh();
-            },
-            false,
-            true,
-            36,
-        );
+        const config = HULLS[modules.hull],
+            owned = this.hangarMode === 'owned';
+        label(ui, owned ? 'WYBRANY STATEK' : 'STOCZNIA / KADŁUB', 1072, 244, 13, C.muted);
         label(
             ui,
-            `Kadłub ${shipHealth(c.ship)} · ładownia ${capacity(c)} · prędkość ${HULLS[c.ship.hull].maxSpeed}`,
-            90,
-            358,
-            15,
-            C.muted,
+            `${config.name}${ship && owned ? ` #${ship.id}` : ''}`,
+            1072,
+            276,
+            29,
+            C.text,
+            456,
         );
-        this.upgrades(ui, ['engine', 'cargo', 'drill', 'armor'], 396, 65);
-    }
-    private fleet(ui: Container) {
-        const c = this.campaign,
-            ships = ownedShips(c);
-        label(ui, `FLOTA ${ships.length}/${FLEET_LIMIT}`, 90, 320, 20, C.mint);
-        button(
-            ui,
-            'Moduły',
-            475,
-            314,
-            170,
-            () => {
-                this.hangarMode = 'modules';
-                this.refresh();
-            },
-            false,
-            !!c.ship,
-            36,
-        );
-        if (!ships.length) {
-            label(ui, 'Brak kadłuba w hangarze.', 90, 371, 20, C.red);
-            label(ui, 'Zestaw awaryjny odbierzesz w zakładce Wyprawa.', 90, 407, 16, C.muted);
-        }
-        ships.forEach((ship, i) => {
-            const y = 359 + i * 50,
-                active = c.ship?.id === ship.id;
-            label(ui, `${HULLS[ship.hull].name} #${ship.id}`, 90, y, 19);
+        label(ui, config.role, 1072, 318, 15, C.muted);
+        stat(ui, 'KADŁUB', `${config.health + modules.armor * 25}`, 1072, 358, 'health');
+        stat(ui, 'ŁADOWNIA', `${config.cargo + modules.cargo * 15}`, 1230, 358, 'cargo');
+        stat(ui, 'PRĘDKOŚĆ', `${config.maxSpeed}`, 1390, 358);
+        if (owned && ship) {
             label(
                 ui,
-                `${HULLS[ship.hull].role} · kadłub ${shipHealth(ship)} · ładownia ${HULLS[ship.hull].cargo + ship.cargo * 15}`,
-                90,
-                y + 26,
+                `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
+                1072,
+                421,
                 14,
                 C.muted,
             );
-            if (active) {
-                const activeButton = button(ui, 'Aktywny', 475, y, 170, () => {}, true, false, 32);
-                activeButton.alpha = 1;
-            } else {
+            this.shipModules(ui, ship);
+            if (c.ship?.id !== ship.id) {
                 button(
                     ui,
-                    'Wybierz',
-                    475,
-                    y,
-                    80,
+                    'USTAW AKTYWNY',
+                    1072,
+                    721,
+                    285,
                     () => this.actions.selectShip(ship.id),
-                    false,
                     true,
-                    32,
                 );
-                button(
-                    ui,
-                    'Złomuj',
-                    563,
-                    y,
-                    82,
-                    () => {
-                        this.scrapCandidate = ship.id;
-                        this.refresh();
-                    },
-                    false,
-                    true,
-                    32,
-                );
-            }
-        });
-        label(ui, 'STOCZNIA / NOWE KADŁUBY', 90, 520, 14, C.gold);
-        (Object.keys(HULLS) as HullId[]).forEach((hull, i) => {
-            const config = HULLS[hull],
-                y = 550 + i * 40;
-            const locked = c.station.workshop < config.workshop;
-            label(ui, `${config.name} · ${config.role}`, 90, y, 17);
+                button(ui, 'Złomuj', 1373, 721, 155, () => {
+                    this.scrapCandidate = ship.id;
+                    this.refresh();
+                });
+            } else label(ui, '● Aktywny statek na następną wyprawę', 1072, 754, 15, C.mint);
+        } else {
+            stat(ui, 'SKRĘT', `${config.turnSpeed.toFixed(2)}`, 1072, 427);
+            stat(ui, 'BOOST', `×${config.boost}`, 1230, 427);
+            stat(
+                ui,
+                'KAMUFLAŻ',
+                !config.cloak
+                    ? 'Brak'
+                    : config.cloak >= 0.5
+                      ? 'Dobry'
+                      : config.cloak >= 0.35
+                        ? 'Średni'
+                        : 'Słaby',
+                1390,
+                427,
+            );
             label(
                 ui,
-                `Kadłub ${config.health} / ładownia ${config.cargo} / lot ${config.maxSpeed}${config.miningPower > 1 ? ' / działko +30%' : ''}`,
-                90,
-                y + 22,
-                13,
+                `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
+                1072,
+                493,
+                16,
+                C.text,
+            );
+            label(
+                ui,
+                `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
+                1072,
+                522,
+                15,
                 C.muted,
+            );
+            label(ui, config.detail, 1072, 564, 16, C.muted, 456);
+            const locked = c.station.workshop < config.workshop,
+                full = ships.length >= FLEET_LIMIT;
+            label(
+                ui,
+                locked
+                    ? 'Wymagany warsztat I'
+                    : full
+                      ? 'Hangar pełny · zwolnij miejsce we flocie'
+                      : 'KOSZT NOWEGO STATKU',
+                1072,
+                639,
+                13,
+                locked || full ? C.gold : C.muted,
+            );
+            cost(ui, config.ore, config.parts, 1072, 671);
+            button(
+                ui,
+                locked ? 'ROZBUDUJ WARSZTAT →' : full ? 'OTWÓRZ FLOTĘ →' : 'KUP STATEK →',
+                1072,
+                719,
+                456,
+                () => {
+                    if (locked) {
+                        this.stationPart = 'workshop';
+                        this.go('station');
+                    } else if (full) {
+                        this.hangarMode = 'owned';
+                        this.refresh();
+                    } else {
+                        this.chosenShipId = null;
+                        this.hangarMode = 'owned';
+                        this.actions.buyShip(modules.hull);
+                    }
+                },
+                true,
+                locked || full || (c.bank.ore >= config.ore && c.bank.parts >= config.parts),
+                52,
+            );
+        }
+    }
+    private shipModules(ui: Container, ship: ReturnType<typeof ownedShips>[number]) {
+        const c = this.campaign,
+            active = c.ship?.id === ship.id,
+            limit = c.station.workshop + 1;
+        label(
+            ui,
+            active ? `MODUŁY · LIMIT ${limit}` : 'MODUŁY · AKTYWUJ STATEK, ABY ZMIENIAĆ',
+            1072,
+            454,
+            12,
+            C.muted,
+        );
+        const hint = label(ui, UPGRADES[this.moduleFocus].detail, 1072, 691, 13, C.muted);
+        (['engine', 'handling', 'cargo', 'drill', 'armor'] as const).forEach((key, i) => {
+            const level = ship[key],
+                price = {
+                    ore: UPGRADES[key].ore * (level + 1),
+                    parts: UPGRADES[key].parts * (level + 1),
+                },
+                definition = UPGRADES[key],
+                y = 487 + i * 40;
+            label(ui, definition.title, 1072, y, 16);
+            segments(ui, level, 3, 1288, y + 5, 69);
+            const buy = button(
+                ui,
+                level >= limit ? 'MAX' : `${price.ore} R · ${price.parts} K`,
+                1390,
+                y - 6,
+                138,
+                () => {
+                    this.moduleFocus = key;
+                    this.actions.upgrade(key);
+                },
+                false,
+                active && level < limit && c.bank.ore >= price.ore && c.bank.parts >= price.parts,
+                30,
+            );
+            buy.config.onHover = () => {
+                this.moduleFocus = key;
+                hint.setText(definition.detail);
+            };
+        });
+    }
+    private station(ui: Container) {
+        const c = this.campaign,
+            part = this.stationPart,
+            level = c.station[part],
+            limit = part === 'workshop' ? 2 : 3,
+            price = upgradePrice(c, part);
+        this.section(
+            'Rozwijaj swój dom.',
+            'Warsztat i magazyn pozostają z Tobą po każdej wyprawie.',
+        );
+        this.art(
+            fittedScene(stationScene(c.station.workshop + c.station.storage, part), 680, 360),
+            625,
+            438,
+        );
+        (['workshop', 'storage'] as const).forEach((key, i) => {
+            const card = choiceCard(ui, 280 + i * 364, 650, 345, 141, part === key, () => {
+                this.stationPart = key;
+                this.refresh();
+            });
+            const icon = lobbyIcon(key === 'workshop' ? 'crew' : 'cargo');
+            icon.position.set(33, 37);
+            card.addChild(icon);
+            label(card, key === 'workshop' ? 'Warsztat' : 'Magazyn', 64, 23, 23);
+            label(card, `Poziom ${c.station[key]}`, 64, 60, 15, C.muted);
+            segments(card, c.station[key], key === 'workshop' ? 2 : 3, 24, 109, 292);
+        });
+        label(ui, 'MODUŁ STACJI', 1072, 244, 13, C.muted);
+        label(ui, part === 'workshop' ? 'Warsztat' : 'Magazyn', 1072, 276, 31);
+        label(ui, `Poziom ${level} / ${limit}`, 1072, 326, 18, C.mint);
+        segments(ui, level, limit, 1072, 367, 456);
+        if (part === 'workshop') {
+            label(ui, `Moduły statku do poziomu ${level + 1}`, 1072, 405, 24, C.text, 456);
+            label(
+                ui,
+                level === 0
+                    ? 'Warsztat I odblokuje nowe kadłuby.'
+                    : level < limit
+                      ? `Po rozbudowie: moduły do poziomu ${level + 2}.`
+                      : 'Najwyższy poziom warsztatu.',
+                1072,
+                447,
+                16,
+                C.muted,
+                456,
             );
             button(
                 ui,
-                locked
-                    ? 'Warsztat I'
-                    : ships.length >= FLEET_LIMIT
-                      ? 'Hangar pełny'
-                      : `${config.ore} R + ${config.parts} K`,
-                475,
-                y,
-                170,
-                () => this.actions.buyShip(hull),
+                'Zobacz moduły statku',
+                1072,
+                511,
+                456,
+                () => {
+                    this.hangarMode = 'owned';
+                    this.chosenShipId = c.ship?.id ?? null;
+                    this.go('hangar');
+                },
                 false,
-                !locked &&
-                    ships.length < FLEET_LIMIT &&
-                    c.bank.ore >= config.ore &&
-                    c.bank.parts >= config.parts,
-                32,
+                true,
+                40,
             );
+        } else {
+            stat(
+                ui,
+                'ZAJĘTE / POJEMNOŚĆ',
+                `${storageUsed(c)} / ${storageCapacity(c)}`,
+                1072,
+                405,
+                'cargo',
+            );
+            label(
+                ui,
+                `W tym rezerwacje zadań: ${storageUsed(c) - c.bank.ore - c.bank.parts}`,
+                1072,
+                468,
+                15,
+                C.muted,
+            );
+            label(
+                ui,
+                level < limit
+                    ? 'Rozbudowa: +100 miejsca na surowce.'
+                    : 'Najwyższa pojemność magazynu.',
+                1072,
+                503,
+                16,
+                C.muted,
+            );
+        }
+        label(ui, 'WYPRAWY', 1072, 576, 12, C.muted);
+        label(ui, `${c.sorties}`, 1072, 598, 24);
+        label(ui, 'POWROTY', 1245, 576, 12, C.muted);
+        label(ui, `${c.recovered}`, 1245, 598, 24);
+        label(ui, level >= limit ? 'MAKSYMALNY POZIOM' : 'KOSZT ROZBUDOWY', 1072, 649, 12, C.muted);
+        if (level < limit) cost(ui, price.ore, price.parts, 1072, 674);
+        button(
+            ui,
+            level >= limit ? 'MAKSYMALNY POZIOM' : 'ROZBUDUJ →',
+            1072,
+            719,
+            456,
+            () => this.actions.upgrade(part),
+            true,
+            level < limit && c.bank.ore >= price.ore && c.bank.parts >= price.parts,
+            52,
+        );
+    }
+    private pilots(ui: Container) {
+        const c = this.campaign,
+            pilot = c.pilots.find((entry) => entry.id === this.chosenPilotId);
+        const recruiting = this.pilotMode === 'recruit',
+            profile = recruiting ? PILOTS[this.recruit] : pilot ? PILOTS[pilot.archetype] : null;
+        this.section(
+            'Kto zasiądzie za sterami?',
+            'Wybierz pilota, rozwiń umiejętności albo zaproś nową osobę.',
+        );
+        button(
+            ui,
+            `Moi piloci · ${c.pilots.length}`,
+            280,
+            220,
+            220,
+            () => {
+                this.pilotMode = 'roster';
+                this.refresh();
+            },
+            !recruiting,
+            true,
+            38,
+        );
+        button(
+            ui,
+            'Nabór',
+            514,
+            220,
+            170,
+            () => {
+                this.pilotMode = 'recruit';
+                this.refresh();
+            },
+            recruiting,
+            true,
+            38,
+        );
+        if (profile)
+            this.art(pilotPortrait(recruiting ? this.recruit : pilot!.archetype), 625, 435);
+        else {
+            label(ui, 'Potrzebujesz nowego pilota.', 391, 417, 26, C.muted);
+            button(ui, 'Otwórz nabór', 434, 480, 310, () => {
+                this.pilotMode = 'recruit';
+                this.refresh();
+            });
+        }
+        if (recruiting)
+            PILOTS.slice(0, 3).forEach((entry, i) => {
+                const card = choiceCard(
+                    ui,
+                    280 + i * 240,
+                    650,
+                    225,
+                    139,
+                    this.recruit === i,
+                    () => {
+                        this.recruit = i;
+                        this.refresh();
+                    },
+                );
+                label(card, entry.name, 20, 21, 21);
+                label(card, entry.role, 20, 58, 14, C.muted, 185);
+                label(card, entry.trait, 20, 98, 14, C.mint);
+            });
+        else
+            c.pilots.forEach((entry, i) => {
+                const card = choiceCard(
+                    ui,
+                    280 + (i % 4) * 181,
+                    594 + Math.floor(i / 4) * 109,
+                    167,
+                    91,
+                    this.chosenPilotId === entry.id,
+                    () => {
+                        this.chosenPilotId = entry.id;
+                        this.refresh();
+                    },
+                );
+                const portrait = pilotPortrait(entry.archetype);
+                portrait.scale.set(0.18);
+                portrait.position.set(29, 42);
+                card.addChild(portrait);
+                label(card, PILOTS[entry.archetype].name, 58, 15, 14, C.text, 100);
+                label(
+                    card,
+                    `P${pilotLevel(entry)}${c.selectedPilot === entry.id ? ' · aktywny' : ` · #${entry.id}`}`,
+                    58,
+                    56,
+                    12,
+                    c.selectedPilot === entry.id ? C.mint : C.muted,
+                );
+            });
+        if (!profile) {
+            label(ui, 'Brak pilotów', 1072, 252, 28);
+            label(
+                ui,
+                'Zatrudnij pilota albo odbierz zestaw awaryjny w zakładce Wyprawa.',
+                1072,
+                316,
+                18,
+                C.muted,
+                456,
+            );
+            return;
+        }
+        label(ui, recruiting ? 'NABÓR / PILOT' : 'WYBRANY PILOT', 1072, 244, 13, C.muted);
+        label(ui, recruiting ? profile.name : `${profile.name} #${pilot!.id}`, 1072, 276, 31);
+        label(ui, profile.role, 1072, 325, 16, C.muted);
+        label(ui, profile.trait, 1072, 360, 18, C.mint);
+        if (recruiting) {
+            label(ui, `Miejsca ${pilotSlots(c)} / 8`, 1072, 425, 22);
+            label(ui, 'Piloci w kapsułach też rezerwują miejsce.', 1072, 464, 15, C.muted, 456);
+            label(ui, 'Nowy pilot · poziom 1', 1072, 536, 18, C.muted);
+            label(ui, 'KOSZT ZATRUDNIENIA', 1072, 649, 12, C.muted);
+            cost(ui, 12, 0, 1072, 674);
+            button(
+                ui,
+                pilotSlots(c) >= 8 ? 'ZAŁOGA PEŁNA' : 'ZATRUDNIJ PILOTA →',
+                1072,
+                719,
+                456,
+                () => {
+                    this.chosenPilotId = null;
+                    this.pilotMode = 'roster';
+                    this.actions.hire(this.recruit);
+                },
+                true,
+                c.bank.ore >= 12 && pilotSlots(c) < 8,
+                52,
+            );
+        } else if (pilot) {
+            const level = pilotLevel(pilot),
+                next = PILOT_PROGRESSION.thresholds[level],
+                start = PILOT_PROGRESSION.thresholds[level - 1],
+                points = pilotPoints(pilot);
+            label(
+                ui,
+                `Poziom ${level} · ${pilot.xp}/${next ?? MAX_PILOT_XP} PD`,
+                1072,
+                403,
+                17,
+                C.muted,
+            );
+            ui.addChild(
+                new Graphics()
+                    .roundRect(1072, 438, 456, 6, 3)
+                    .fill(C.line)
+                    .roundRect(
+                        1072,
+                        438,
+                        Math.max(1, 456 * (next ? (pilot.xp - start) / (next - start) : 1)),
+                        6,
+                        3,
+                    )
+                    .fill(C.mint),
+            );
+            label(ui, `UMIEJĘTNOŚCI · ${points} PKT`, 1072, 472, 12, C.gold);
+            (Object.keys(PILOT_SKILLS) as PilotSkillId[]).forEach((skill, i) => {
+                const y = 502 + i * 55,
+                    def = PILOT_SKILLS[skill];
+                label(ui, def.title, 1072, y, 18);
+                label(ui, def.detail, 1072, y + 25, 13, C.muted);
+                segments(ui, pilot.skills[skill], 2, 1330, y + 6, 59);
+                button(
+                    ui,
+                    pilot.skills[skill] >= 2 ? 'MAX' : '+ 1 pkt',
+                    1410,
+                    y - 3,
+                    118,
+                    () => this.actions.trainPilot(pilot.id, skill),
+                    false,
+                    points > 0 && pilot.skills[skill] < 2,
+                    32,
+                );
+            });
+            if (c.ship) {
+                const chances = recoveryChances(c.ship, pilot);
+                label(
+                    ui,
+                    `Po stracie: kapsuła ${Math.round(chances.pilot * 100)}% · wrak ${Math.round(chances.ship * 100)}%`,
+                    1072,
+                    688,
+                    14,
+                    C.muted,
+                );
+            }
+            if (c.selectedPilot !== pilot.id)
+                button(
+                    ui,
+                    'USTAW AKTYWNEGO PILOTA →',
+                    1072,
+                    731,
+                    456,
+                    () => this.actions.selectPilot(pilot.id),
+                    true,
+                    true,
+                    48,
+                );
+            else label(ui, '● Aktywny pilot na następną wyprawę', 1072, 754, 15, C.mint);
+        }
+    }
+    private crew(ui: Container) {
+        const c = this.campaign,
+            recipe = JOBS[this.recipe];
+        this.section(
+            'Załoga trzyma wszystko w ruchu.',
+            'Zaplanuj pracę warsztatu na czas swojej wyprawy.',
+        );
+        this.art(workshopScene(this.recipe), 625, 441);
+        label(ui, 'ADA VALE / MECHANIK STACJI', 388, 286, 16, c.crew.mechanic ? C.mint : C.muted);
+        (['refine', 'kit'] as JobKind[]).forEach((kind, i) => {
+            const job = JOBS[kind],
+                card = choiceCard(ui, 280 + i * 364, 650, 345, 141, this.recipe === kind, () => {
+                    this.recipe = kind;
+                    this.refresh();
+                });
+            label(card, job.title, 20, 23, 23);
+            label(
+                card,
+                `${job.seconds} s · ${kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
+                20,
+                64,
+                15,
+                C.muted,
+            );
+            cost(card, job.ore, job.parts, 20, 99);
         });
         label(
             ui,
-            'Zakup zachowuje poprzedni statek i jego moduły w rezerwie.',
-            90,
-            674,
+            c.crew.mechanic ? 'WARSZTAT / KOLEJKA' : 'ZAŁOGA / MECHANIK',
+            1072,
+            244,
             13,
             C.muted,
         );
+        label(
+            ui,
+            c.crew.mechanic ? `Zadania ${c.crew.jobs.length}/${CREW.queueLimit}` : 'Ada Vale',
+            1072,
+            276,
+            31,
+        );
+        if (!c.crew.mechanic) {
+            const portrait = pilotPortrait(0, true);
+            portrait.scale.set(0.6);
+            portrait.position.set(1300, 447);
+            ui.addChild(portrait);
+            label(ui, 'Uruchomi rafinację i produkcję zestawów.', 1072, 567, 17, C.muted, 456);
+            label(ui, 'KOSZT ZATRUDNIENIA', 1072, 649, 12, C.muted);
+            cost(ui, CREW.hireOre, 0, 1072, 674);
+            button(
+                ui,
+                'ZATRUDNIJ MECHANIKA →',
+                1072,
+                719,
+                456,
+                this.actions.hireMechanic,
+                true,
+                c.bank.ore >= CREW.hireOre,
+                52,
+            );
+            return;
+        }
+        label(ui, `Zestawy w bazie ${c.repairKits}/${CREW.kitLimit}`, 1072, 326, 16, C.muted);
+        if (!c.crew.jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
+        c.crew.jobs.forEach((job, i) => {
+            const y = 370 + i * 77;
+            label(ui, `${i + 1}. ${JOBS[job.kind].title}`, 1072, y, 18);
+            label(
+                ui,
+                `${Math.ceil(job.remaining)} s${i ? ' · w kolejce' : ' · następne do wykonania'}`,
+                1072,
+                y + 28,
+                13,
+                C.muted,
+            );
+            ui.addChild(
+                new Graphics()
+                    .rect(1072, y + 52, 365, 3)
+                    .fill(C.line)
+                    .rect(
+                        1072,
+                        y + 52,
+                        Math.max(1, 365 * (1 - job.remaining / JOBS[job.kind].seconds)),
+                        3,
+                    )
+                    .fill(C.mint),
+            );
+            button(ui, '×', 1468, y + 4, 60, () => this.actions.cancelJob(job.id), false, true, 36);
+        });
+        label(ui, 'Praca ruszy po starcie wyprawy.', 1072, 615, 14, C.muted);
+        label(ui, recipe.title, 1072, 654, 17);
+        cost(ui, recipe.ore, recipe.parts, 1072, 680);
+        const full = c.crew.jobs.length >= CREW.queueLimit,
+            kitsFull =
+                this.recipe === 'kit' &&
+                c.repairKits + c.crew.jobs.filter((job) => job.kind === 'kit').length >=
+                    CREW.kitLimit;
+        button(
+            ui,
+            full ? 'KOLEJKA PEŁNA' : kitsFull ? 'LIMIT ZESTAWÓW' : 'DODAJ ZADANIE →',
+            1072,
+            728,
+            456,
+            () => this.actions.queueJob(this.recipe),
+            true,
+            !full && !kitsFull && c.bank.ore >= recipe.ore && c.bank.parts >= recipe.parts,
+            48,
+        );
+    }
+    private recovery(ui: Container) {
+        const c = this.campaign,
+            signal = c.recoverySignals.find((entry) => entry.id === this.recoveryId);
+        this.section(
+            'Sygnał wciąż dociera.',
+            'Wybierz kapsułę lub wrak i zaplanuj akcję ratunkową.',
+        );
+        this.art(
+            signalScene(c.recoverySignals, this.recoveryId, (id) => {
+                this.recoveryId = id;
+                this.refresh();
+            }),
+            625,
+            429,
+        );
+        c.recoverySignals.forEach((entry, i) => {
+            const card = choiceCard(
+                ui,
+                280 + i * 240,
+                683,
+                225,
+                108,
+                entry.id === this.recoveryId,
+                () => {
+                    this.recoveryId = entry.id;
+                    this.refresh();
+                },
+            );
+            label(card, `Sygnał #${entry.id}`, 18, 18, 21);
+            label(
+                card,
+                `${(Math.hypot(entry.x, entry.y) / 1000).toFixed(1)} km od Aurory`,
+                18,
+                49,
+                14,
+                C.muted,
+            );
+            label(
+                card,
+                `${entry.pilot ? 'Kapsuła' : ''}${entry.pilot && entry.ship ? ' + ' : ''}${entry.ship ? 'wrak' : ''}`,
+                18,
+                78,
+                13,
+                C.gold,
+            );
+        });
+        if (!signal) {
+            label(ui, 'Brak sygnałów do odzyskania.', 381, 718, 22, C.muted);
+            label(ui, 'Cisza w eterze.', 1072, 279, 30);
+            label(
+                ui,
+                'Gdy pojawi się sygnał kapsuły lub wraku, znajdziesz go tutaj.',
+                1072,
+                347,
+                18,
+                C.muted,
+                456,
+            );
+            button(
+                ui,
+                'ZAPLANUJ WYPRAWĘ →',
+                1072,
+                719,
+                456,
+                () => this.go('overview'),
+                true,
+                true,
+                52,
+            );
+            return;
+        }
+        label(ui, 'AKCJA RATUNKOWA', 1072, 244, 13, C.muted);
+        label(ui, `Sygnał #${signal.id}`, 1072, 276, 31);
+        label(
+            ui,
+            `${(Math.hypot(signal.x, signal.y) / 1000).toFixed(1)} km od Aurory`,
+            1072,
+            326,
+            17,
+            C.muted,
+        );
+        if (signal.ship) {
+            const view = fittedShip(signal.ship, 175, 150);
+            view.position.set(1300, 430);
+            view.alpha = 0.7;
+            ui.addChild(view);
+        } else {
+            const portrait = pilotPortrait(signal.pilot?.archetype ?? 0);
+            portrait.scale.set(0.46);
+            portrait.position.set(1300, 430);
+            ui.addChild(portrait);
+        }
+        label(
+            ui,
+            signal.pilot ? PILOTS[signal.pilot.archetype].name : 'Brak kapsuły pilota',
+            1072,
+            529,
+            21,
+            signal.pilot ? C.mint : C.muted,
+        );
+        label(
+            ui,
+            signal.ship ? HULLS[signal.ship.hull].name : 'Brak wraku statku',
+            1072,
+            564,
+            20,
+            signal.ship ? C.text : C.muted,
+        );
+        label(ui, '6 · cel    E · podjęcie    1 · powrót', 1072, 616, 16, C.muted);
+        label(ui, 'Nieudana akcja traci ten cel.', 1072, 656, 15, C.gold);
+        if (signal.ship && ownedShips(c).length >= FLEET_LIMIT)
+            label(ui, 'Pełny hangar: wrak da materiały.', 1072, 684, 14, C.muted);
+        this.departure(ui, signal.id);
     }
     private scrapConfirmation(ui: Container) {
-        const ship = this.campaign.reserveShips.find((ship) => ship.id === this.scrapCandidate);
+        const ship = this.campaign.reserveShips.find((entry) => entry.id === this.scrapCandidate);
         if (!ship) {
             this.scrapCandidate = null;
             return;
         }
-        const refund = scrapRefund(ship);
-        const enoughRoom =
-            storageUsed(this.campaign) + refund.ore + refund.parts <=
-            storageCapacity(this.campaign);
-        const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.8 });
+        const refund = scrapRefund(ship),
+            room =
+                storageUsed(this.campaign) + refund.ore + refund.parts <=
+                storageCapacity(this.campaign);
+        const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.88 });
         shade.eventMode = 'static';
         ui.addChild(shade);
-        panel(ui, 425, 260, 750, 370);
-        label(ui, `Zezłomować ${HULLS[ship.hull].name} #${ship.id}?`, 470, 306, 29);
-        label(ui, 'Kadłub i zainstalowane moduły zostaną usunięte.', 470, 368, 19, C.red);
-        label(
-            ui,
-            `Odzyskasz ${refund.ore} rudy i ${refund.parts} komponentów.`,
-            470,
-            415,
-            22,
-            C.gold,
-        );
-        label(
-            ui,
-            enoughRoom
-                ? 'Możesz anulować i zachować statek w rezerwie.'
-                : 'Brak miejsca w magazynie na odzyskane materiały.',
-            470,
-            466,
-            17,
-            C.muted,
-        );
-        button(ui, 'Anuluj', 470, 538, 300, () => {
+        panel(ui, 425, 265, 750, 370);
+        label(ui, `Zezłomować ${HULLS[ship.hull].name} #${ship.id}?`, 469, 302, 29);
+        label(ui, 'Kadłub i zamontowane moduły zostaną usunięte.', 469, 360, 18, C.red);
+        label(ui, 'ODZYSKANE SUROWCE', 469, 409, 12, C.muted);
+        cost(ui, refund.ore, refund.parts, 469, 435);
+        if (!room) label(ui, 'Brak miejsca w magazynie na odzysk.', 469, 482, 16, C.gold);
+        button(ui, 'Anuluj', 469, 544, 300, () => {
             this.scrapCandidate = null;
             this.refresh();
         });
         button(
             ui,
             'Zezłomuj',
-            810,
-            538,
+            809,
+            544,
             320,
             () => {
                 const id = this.scrapCandidate!;
                 this.scrapCandidate = null;
+                this.chosenShipId = null;
                 this.actions.scrapShip(id);
             },
             false,
-            enoughRoom,
+            room,
         );
-    }
-    private upgrades(ui: Container, upgrades: Upgrade[], top = 326, spacing = 84) {
-        const c = this.campaign;
-        upgrades.forEach((upgrade, i) => {
-            const config = UPGRADES[upgrade],
-                price = upgradePrice(c, upgrade);
-            const station = upgrade === 'workshop' || upgrade === 'storage';
-            const level = station ? c.station[upgrade] : c.ship![upgrade];
-            const limit = upgrade === 'workshop' ? 2 : station ? 3 : c.station.workshop + 1;
-            const y = top + i * spacing;
-            label(ui, `${config.title}  /  ${level}`, 90, y, 19);
-            label(ui, config.detail, 90, y + 30, 15, C.muted);
-            button(
-                ui,
-                level >= limit ? 'Maks. poziom' : `${price.ore} R + ${price.parts} K`,
-                475,
-                y,
-                170,
-                () => this.actions.upgrade(upgrade),
-                false,
-                level < limit && c.bank.ore >= price.ore && c.bank.parts >= price.parts,
-                48,
-            );
-        });
-        if (upgrades.length === 2) {
-            label(ui, 'Baza pozostaje z Tobą po utracie pilota i statku.', 90, 532, 19, C.mint);
-            label(ui, 'Warsztat zwiększa limit poziomów części statku.', 90, 573, 17, C.muted);
-            label(ui, 'Magazyn przechowuje rudę i komponenty.', 90, 606, 17, C.muted);
-        } else
-            label(
-                ui,
-                `Limit modułów: ${c.station.workshop + 1} · rozbuduj warsztat, aby go podnieść.`,
-                90,
-                666,
-                14,
-                C.muted,
-            );
-    }
-    private pilots(ui: Container) {
-        const c = this.campaign;
-        const selected = c.pilots.find((pilot) => pilot.id === c.selectedPilot);
-        if (this.pilotMode === 'skills' && selected) {
-            this.pilotSkills(ui, selected);
-            return;
-        }
-        label(ui, `TWOI PILOCI · MIEJSCA ${pilotSlots(c)}/8 (także kapsuły)`, 90, 318, 14, C.muted);
-        button(
-            ui,
-            selected ? `Rozwój (+${pilotPoints(selected)})` : 'Rozwój',
-            475,
-            310,
-            170,
-            () => {
-                this.pilotMode = 'skills';
-                this.refresh();
-            },
-            false,
-            !!selected,
-            36,
-        );
-        if (!c.pilots.length) label(ui, 'Brak pilotów. Zatrudnij następcę.', 90, 350, 19, C.red);
-        c.pilots.forEach((pilot, i) => {
-            const p = PILOTS[pilot.archetype];
-            button(
-                ui,
-                `${p.name} #${pilot.id} · P${pilotLevel(pilot)}`,
-                90 + (i % 2) * 283,
-                350 + Math.floor(i / 2) * 43,
-                267,
-                () => {
-                    this.pilotMode = 'skills';
-                    this.actions.selectPilot(pilot.id);
-                },
-                c.selectedPilot === pilot.id,
-                true,
-                35,
-            );
-        });
-        label(ui, 'NABÓR / 12 RUDY', 90, 535, 14, C.muted);
-        PILOTS.slice(0, 3).forEach((pilot, i) => {
-            const y = 566 + i * 37;
-            label(ui, `${pilot.name} · ${pilot.trait}`, 90, y + 5, 17);
-            button(
-                ui,
-                'Zatrudnij',
-                510,
-                y,
-                135,
-                () => this.actions.hire(i),
-                false,
-                c.bank.ore >= 12 && pilotSlots(c) < 8,
-                30,
-            );
-        });
-    }
-    private pilotSkills(ui: Container, pilot: Campaign['pilots'][number]) {
-        const level = pilotLevel(pilot),
-            points = pilotPoints(pilot);
-        label(
-            ui,
-            `${PILOTS[pilot.archetype].name} #${pilot.id} · poziom ${level}`,
-            90,
-            318,
-            21,
-            C.mint,
-        );
-        button(
-            ui,
-            'Lista / nabór',
-            475,
-            310,
-            170,
-            () => {
-                this.pilotMode = 'roster';
-                this.refresh();
-            },
-            false,
-            true,
-            36,
-        );
-        const next = PILOT_PROGRESSION.thresholds[level];
-        label(
-            ui,
-            `${pilot.xp}/${next ?? MAX_PILOT_XP} PD · ${next ? `następny poziom ${level + 1}` : 'maksymalny poziom'} · punkty ${points}`,
-            90,
-            355,
-            16,
-            C.gold,
-        );
-        const start = PILOT_PROGRESSION.thresholds[level - 1];
-        const progress = next ? (pilot.xp - start) / (next - start) : 1;
-        ui.addChild(
-            new Graphics()
-                .roundRect(90, 385, 550, 7, 3)
-                .fill(C.line)
-                .roundRect(90, 385, Math.max(1, progress * 550), 7, 3)
-                .fill(C.mint),
-        );
-        (Object.keys(PILOT_SKILLS) as PilotSkillId[]).forEach((skill, i) => {
-            const y = 410 + i * 73,
-                definition = PILOT_SKILLS[skill];
-            label(
-                ui,
-                `${definition.title} / ${pilot.skills[skill]}/${PILOT_PROGRESSION.skillLimit}`,
-                90,
-                y,
-                19,
-            );
-            label(ui, definition.detail, 90, y + 32, 14, C.muted);
-            button(
-                ui,
-                pilot.skills[skill] >= PILOT_PROGRESSION.skillLimit
-                    ? 'Maks. poziom'
-                    : 'Rozwiń · 1 pkt',
-                475,
-                y,
-                170,
-                () => this.actions.trainPilot(pilot.id, skill),
-                false,
-                points > 0 && pilot.skills[skill] < PILOT_PROGRESSION.skillLimit,
-                48,
-            );
-        });
-        label(
-            ui,
-            'Punkt za każdy awans. Przypisanie umiejętności jest trwałe.',
-            90,
-            645,
-            14,
-            C.muted,
-        );
-        label(ui, 'PD: ładunek, skany, kontrakty i odzysk · po dokowaniu', 90, 672, 13, C.muted);
     }
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
-        this.station.y = Math.sin(this.time * 0.3) * 5;
+        this.visual.y = this.tab === 'recovery' ? 0 : Math.sin(this.time * 0.25) * 2;
+        if (this.toast && this.time >= this.messageUntil) this.toast.setText('');
     }
 }

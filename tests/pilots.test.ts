@@ -189,8 +189,15 @@ test('v5 migration initializes roster and missing pilots without erasing mission
     delete old.recoverySignals[0].pilot.skills;
     const loaded = parseCampaign(JSON.stringify(old))!;
     assert.ok(loaded);
-    assert.deepEqual(loaded, c);
-    assert.equal(loaded.version, 6);
+    assert.deepEqual(loaded, {
+        ...c,
+        ship: { ...c.ship, hull: 'fighter' },
+        recoverySignals: c.recoverySignals.map((signal) => ({
+            ...signal,
+            ship: { ...signal.ship, hull: 'fighter' },
+        })),
+    });
+    assert.equal(loaded.version, 8);
 });
 
 test('save validation rejects malformed XP, overspent points and malformed skills in roster or capsule', () => {
@@ -259,7 +266,7 @@ test('trained handling and mining alter actual Rapier flight and asteroid damage
             rock.health = 1000;
             sim.ship.setTranslation({ x: 8, y: 0 }, true);
             sim.ship.setRotation(0, true);
-            for (let i = 0; i < 20; i++) sim.step({ ...idle, fire: i === 0 });
+            for (let i = 0; i < 20; i++) sim.step({ ...idle, mine: i === 0 });
             const damage = 1000 - rock.health;
             sim.world.removeRigidBody(rock.body);
             sim.rocks.clear();
@@ -273,7 +280,8 @@ test('trained handling and mining alter actual Rapier flight and asteroid damage
             sim.ship.setRotation(0, true);
             sim.ship.setAngvel(0, true);
             const p = sim.position;
-            for (let i = 0; i < 5; i++) sim.step({ ...idle, target: { x: p.x, y: p.y + 10000 } });
+            for (let i = 0; i < 5; i++)
+                sim.step({ ...idle, turn: 1, target: { x: p.x, y: p.y + 10000 } });
             const turnError = Math.abs(Math.PI / 2 - sim.ship.rotation());
             for (let i = 0; i < 120; i++)
                 sim.step({ ...idle, target: { x: 10000, y: -1000 }, thrust: true });
