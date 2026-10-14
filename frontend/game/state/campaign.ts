@@ -1,3 +1,4 @@
+import { SALVAGE } from '../systems/salvage';
 import { WEAPONS, type WeaponId } from '../config';
 import {
     CONTRACTS,
@@ -26,12 +27,14 @@ import {
     newPilot,
     PilotProgress,
     pilotProfile,
+    pilotName,
     validPilotProgress,
 } from './pilots';
 
 export interface Cargo {
     ore: number;
     parts: number;
+    crystals?: number;
 }
 export interface Pilot {
     id: number;
@@ -39,15 +42,26 @@ export interface Pilot {
     xp: number;
     skills: Record<PilotSkillId, number>;
 }
-export type ShipModules = Record<'engine' | 'handling' | 'cargo' | 'drill' | 'armor', number>;
+export type ShipModules = Record<
+    'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield',
+    number
+>;
 export interface Ship extends ShipModules {
     id: number;
     hull: HullId;
     weapon: WeaponId;
     weapons: WeaponId[];
 }
+export interface SalvageDelivery {
+    id: number;
+    source: 'patrol' | 'lancer' | 'recovery';
+    description: string;
+    materials: Cargo;
+    overflow: number;
+    rescueXp: number;
+}
 export interface Campaign {
-    version: 11;
+    version: 15;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
@@ -64,6 +78,7 @@ export interface Campaign {
         repairKits: number;
         recoveryId: number | null;
         lastPosition: Point;
+        deliveries?: SalvageDelivery[];
     } | null;
     crew: CrewState;
     repairKits: number;
@@ -87,6 +102,7 @@ export interface RunResult {
     equipmentText: string;
     contractText: string;
     pilotProgress: PilotProgress | null;
+    deliveries: SalvageDelivery[];
 }
 
 export const SAVE_KEY = 'asteroids.campaign.v1';
@@ -100,10 +116,11 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
     cargo: 0,
     drill: 0,
     armor: 0,
+    shield: 0,
 });
 export function newCampaign(): Campaign {
     return {
-        version: 11,
+        version: 15,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
@@ -129,14 +146,17 @@ const integer = (value: unknown, max = 1000000): value is number =>
 const object = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
 const cargo = (value: unknown): value is Cargo =>
-    object(value) && integer(value.ore) && integer(value.parts);
+    object(value) &&
+    integer(value.ore) &&
+    integer(value.parts) &&
+    (value.crystals === undefined || integer(value.crystals));
 
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
         if (
             !object(p) ||
-            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(p.version as number) ||
+            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(p.version as number) ||
             !cargo(p.bank) ||
             !object(p.station)
         )
@@ -185,6 +205,32 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
                 return null;
         }
+        if (object(p.activeRun) && p.activeRun.deliveries !== undefined) {
+            const deliveries = p.activeRun.deliveries;
+            if (
+                !Array.isArray(deliveries) ||
+                deliveries.length > 64 ||
+                !deliveries.every(
+                    (d) =>
+                        object(d) &&
+                        typeof d.id === 'number' &&
+                        Number.isInteger(d.id) &&
+                        d.id !== 0 &&
+                        Math.abs(d.id) <= 1000000 &&
+                        ['patrol', 'lancer', 'recovery'].includes(d.source as string) &&
+                        (d.source === 'recovery' ? d.id < 0 : d.id > 0) &&
+                        typeof d.description === 'string' &&
+                        d.description.length > 0 &&
+                        d.description.length <= 200 &&
+                        cargo(d.materials) &&
+                        integer(d.overflow) &&
+                        [0, 5, 15, 20].includes(d.rescueXp as number) &&
+                        (d.source === 'recovery' || d.rescueXp === 0),
+                )
+            )
+                return null;
+            if (new Set(deliveries.map((d) => d.id)).size !== deliveries.length) return null;
+        }
         if (p.version === 1) {
             p.version = 2;
             p.crew = newCrew();
@@ -215,6 +261,7 @@ export function parseCampaign(json: string | null): Campaign | null {
                 return null;
             const recipe = JOBS[job.kind as keyof typeof JOBS];
             if (!p.crew[recipe.worker]) return null;
+            if ('workshop' in recipe && p.station.workshop < recipe.workshop) return null;
             if (
                 typeof job.remaining !== 'number' ||
                 !Number.isFinite(job.remaining) ||
@@ -248,6 +295,8 @@ export function parseCampaign(json: string | null): Campaign | null {
             typeof ship.hull === 'string' &&
             Object.hasOwn(HULLS, ship.hull) &&
             ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
+            (((p.version as number) < 15 && ship.shield === undefined) ||
+                integer(ship.shield, 3)) &&
             ((p.version as number) < 7 || integer(ship.handling, 3)) &&
             ((p.version as number) < 11 ||
                 (typeof ship.weapon === 'string' &&
@@ -359,6 +408,20 @@ export function parseCampaign(json: string | null): Campaign | null {
         )
             p.contractCompletions.push(0);
         if (
+            (p.version as number) < 13 &&
+            Array.isArray(p.contractCompletions) &&
+            p.contractCompletions.length === 6 &&
+            p.contractCompletions.every((count) => integer(count))
+        )
+            p.contractCompletions.push(0);
+        if (
+            (p.version as number) < 14 &&
+            Array.isArray(p.contractCompletions) &&
+            p.contractCompletions.length === 7 &&
+            p.contractCompletions.every((count) => integer(count))
+        )
+            p.contractCompletions.push(0);
+        if (
             !Array.isArray(p.contractCompletions) ||
             p.contractCompletions.length !== CONTRACTS.length ||
             !p.contractCompletions.every((count) => integer(count))
@@ -397,7 +460,10 @@ export function parseCampaign(json: string | null): Campaign | null {
             p.reserveShips.forEach(migrateWeapon);
             p.recoverySignals.forEach((signal) => migrateWeapon(signal.ship));
         }
-        p.version = 11;
+        if ((p.version as number) < 15)
+            for (const ship of [p.ship, ...p.reserveShips, ...p.recoverySignals.map((s) => s.ship)])
+                if (ship) ship.shield ??= 0;
+        p.version = 15;
         const campaign = p as unknown as Campaign;
         if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
             return null;
@@ -424,7 +490,7 @@ export function ownedShips(c: Campaign) {
 export function scrapRefund(ship: Ship): Cargo {
     let ore = HULLS[ship.hull].ore,
         parts = HULLS[ship.hull].parts;
-    for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor'] as const) {
+    for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const) {
         const levels = (ship[key] * (ship[key] + 1)) / 2;
         ore += UPGRADES[key].ore * levels;
         parts += UPGRADES[key].parts * levels;
@@ -433,16 +499,26 @@ export function scrapRefund(ship: Ship): Cargo {
         ore += WEAPONS[weapon].ore;
         parts += WEAPONS[weapon].parts;
     }
-    return { ore: Math.floor(ore / 2), parts: Math.floor(parts / 2) };
+    const crystals = (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).reduce(
+        (sum, key) => sum + (ship[key] * (ship[key] - 1)) / 2,
+        0,
+    );
+    return {
+        ore: Math.floor(ore / 2),
+        parts: Math.floor(parts / 2),
+        ...(crystals >= 2 ? { crystals: Math.floor(crystals / 2) } : {}),
+    };
 }
 export function scrapShip(c: Campaign, id: number): boolean {
     if (c.activeRun) return false;
     const ship = c.reserveShips.find((ship) => ship.id === id);
     if (!ship) return false;
     const refund = scrapRefund(ship);
-    if (storageUsed(c) + refund.ore + refund.parts > storageCapacity(c)) return false;
+    if (storageUsed(c) + refund.ore + refund.parts + (refund.crystals ?? 0) > storageCapacity(c))
+        return false;
     c.bank.ore += refund.ore;
     c.bank.parts += refund.parts;
+    if (refund.crystals) c.bank.crystals = (c.bank.crystals ?? 0) + refund.crystals;
     c.reserveShips = c.reserveShips.filter((ship) => ship.id !== id);
     return true;
 }
@@ -459,7 +535,7 @@ export function storageCapacity(c: Campaign) {
     return 150 + c.station.storage * 100;
 }
 export function storageUsed(c: Campaign) {
-    return c.bank.ore + c.bank.parts + reservedResources(c);
+    return c.bank.ore + c.bank.parts + (c.bank.crystals ?? 0) + reservedResources(c);
 }
 export function upgradePrice(c: Campaign, upgrade: Upgrade): Cargo {
     const level =
@@ -469,6 +545,7 @@ export function upgradePrice(c: Campaign, upgrade: Upgrade): Cargo {
     return {
         ore: UPGRADES[upgrade].ore * (level + 1),
         parts: UPGRADES[upgrade].parts * (level + 1),
+        ...(level > 0 ? { crystals: upgrade === 'workshop' ? 2 : level } : {}),
     };
 }
 export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
@@ -479,9 +556,16 @@ export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
     const level = (target as Record<string, number>)[upgrade];
     const limit = upgrade === 'workshop' ? 2 : station ? 3 : c.station.workshop + 1;
     const price = upgradePrice(c, upgrade);
-    if (level >= limit || c.bank.ore < price.ore || c.bank.parts < price.parts) return false;
+    if (
+        level >= limit ||
+        c.bank.ore < price.ore ||
+        c.bank.parts < price.parts ||
+        (c.bank.crystals ?? 0) < (price.crystals ?? 0)
+    )
+        return false;
     c.bank.ore -= price.ore;
     c.bank.parts -= price.parts;
+    if (price.crystals) c.bank.crystals = (c.bank.crystals ?? 0) - price.crystals;
     (target as Record<string, number>)[upgrade]++;
     return true;
 }
@@ -543,6 +627,64 @@ export function beginRun(c: Campaign, seed: number, recoveryId: number | null = 
     c.sorties++;
     return true;
 }
+export function deliverSalvage(
+    c: Campaign,
+    id: number,
+    source: SalvageDelivery['source'],
+): SalvageDelivery | null {
+    const active = c.activeRun;
+    if (
+        !active ||
+        active.deliveries?.some((d) => d.id === id) ||
+        (active.deliveries?.length ?? 0) >= 64
+    )
+        return null;
+    let refund: Cargo = { ore: 0, parts: 0 },
+        description = '',
+        rescueXp = 0;
+    if (source === 'recovery') {
+        const signal = c.recoverySignals.find((s) => s.id === active.recoveryId && -s.id === id);
+        if (!signal) return null;
+        description = `Odzysk: ${recoveryDescription(signal)}`;
+        if (signal.pilot) {
+            c.pilots.push(clonePilot(signal.pilot));
+            rescueXp += 15;
+        }
+        if (signal.ship) {
+            rescueXp += 5;
+            if (ownedShips(c).length < FLEET_LIMIT) c.reserveShips.push({ ...signal.ship });
+            else refund = scrapRefund(signal.ship);
+        }
+        c.recoverySignals = c.recoverySignals.filter((s) => s.id !== signal.id);
+        active.recoveryId = null;
+    } else {
+        if ((source !== 'patrol' && source !== 'lancer') || !integer(id) || id < 1) return null;
+        const recipe = SALVAGE[source];
+        refund = {
+            ore: recipe.ore,
+            parts: recipe.parts,
+            ...(recipe.crystals ? { crystals: recipe.crystals } : {}),
+        };
+        description = `Wrak ${source === 'lancer' ? 'Lancer' : 'drona'} #${id}`;
+    }
+    const free = Math.max(0, storageCapacity(c) - storageUsed(c));
+    const crystals = Math.min(free, refund.crystals ?? 0),
+        parts = Math.min(free - crystals, refund.parts),
+        ore = Math.min(free - crystals - parts, refund.ore);
+    c.bank.ore += ore;
+    c.bank.parts += parts;
+    if (crystals) c.bank.crystals = (c.bank.crystals ?? 0) + crystals;
+    const record: SalvageDelivery = {
+        id,
+        source,
+        description,
+        materials: { ore, parts, ...(crystals ? { crystals } : {}) },
+        overflow: refund.ore + refund.parts + (refund.crystals ?? 0) - ore - parts - crystals,
+        rescueXp,
+    };
+    (active.deliveries ??= []).push(record);
+    return record;
+}
 export function finishRun(
     c: Campaign,
     success: boolean,
@@ -552,6 +694,8 @@ export function finishRun(
     unusedRepairKits = 0,
     recovery: {
         securedId?: number;
+        destroyedRecoveryId?: number;
+        recycledWreck?: 'patrol' | 'lancer';
         lossPosition?: Point;
         data?: readonly ScanSiteId[];
         kills?: number;
@@ -564,7 +708,7 @@ export function finishRun(
     const result: RunResult = {
         success,
         cargo: { ...collected },
-        pilotName: PILOTS[pilot.archetype].name,
+        pilotName: pilotName(pilot),
         shipName: HULLS[c.ship!.hull].name,
         duration,
         reason,
@@ -576,7 +720,16 @@ export function finishRun(
             ? 'Cel kontraktu nie został wykonany.'
             : 'Kontrakt nie został rozliczony. Dane wyprawy przepadły.',
         pilotProgress: null,
+        deliveries: (active.deliveries ?? []).map((d) => ({ ...d, materials: { ...d.materials } })),
     };
+    const destroyed = c.recoverySignals.find(
+        (signal) => signal.id === active.recoveryId && signal.id === recovery.destroyedRecoveryId,
+    );
+    if (destroyed) {
+        if (destroyed.pilot) c.lostPilots++;
+        c.recoverySignals = c.recoverySignals.filter((signal) => signal.id !== destroyed.id);
+        result.recoveryText = 'Holowany cel ratunkowy został zniszczony. ';
+    }
     if (success) {
         const signal = c.recoverySignals.find((signal) => signal.id === active.recoveryId);
         if (signal && recovery.securedId === signal.id) {
@@ -590,12 +743,22 @@ export function finishRun(
             result.recoveryText = `Odzysk zabezpieczony: ${recoveryDescription(signal)}.`;
             if (salvage.ore || salvage.parts)
                 result.recoveryText =
-                    (signal.pilot ? `Uratowano ${PILOTS[signal.pilot.archetype].name}. ` : '') +
+                    (signal.pilot ? `Uratowano ${pilotName(signal.pilot)}. ` : '') +
                     'Hangar pełny: wrak rozebrano na materiały.';
             result.reward.ore += salvage.ore;
             result.reward.parts += salvage.parts;
+            if (salvage.crystals) result.reward.crystals = salvage.crystals;
         } else if (signal)
             result.recoveryText = 'Nie podjęto celu ratunkowego. Sygnał pozostaje dostępny.';
+        const recycled = recovery.recycledWreck;
+        if (recycled === 'patrol' || recycled === 'lancer') {
+            const refund = SALVAGE[recycled];
+            result.reward.ore += refund.ore;
+            result.reward.parts += refund.parts;
+            if (refund.crystals)
+                result.reward.crystals = (result.reward.crystals ?? 0) + refund.crystals;
+            result.recoveryText += `Recykling wraku ${recycled === 'lancer' ? 'Lancer' : 'drona'}: ${refund.ore} rudy / ${refund.parts} komponentów${refund.crystals ? ' / 1 kryształ' : ''}.`;
+        }
         const contract = CONTRACTS[active.contract];
         const data = (recovery.data ?? []).filter((site) => Object.hasOwn(SCAN_SITES, site));
         const equipment = recovery.equipment;
@@ -625,22 +788,35 @@ export function finishRun(
         }
         result.pilotProgress = awardPilotXp(
             pilot,
-            expeditionXp(
-                collected,
-                data,
-                contractReady(active.contract, collected, data, kills),
-                signal && recovery.securedId === signal.id ? signal : null,
-                kills,
+            Math.min(
+                50,
+                expeditionXp(
+                    collected,
+                    data,
+                    contractReady(active.contract, collected, data, kills),
+                    signal && recovery.securedId === signal.id ? signal : null,
+                    kills,
+                ) + (active.deliveries ?? []).reduce((sum, d) => sum + d.rescueXp, 0),
             ),
         );
         const free = Math.max(0, storageCapacity(c) - storageUsed(c));
         c.repairKits += Math.max(0, Math.min(active.repairKits, Math.floor(unusedRepairKits)));
-        const parts = Math.min(free, collected.parts + result.reward.parts);
-        const ore = Math.min(free - parts, collected.ore + result.reward.ore);
+        const crystals = Math.min(free, (collected.crystals ?? 0) + (result.reward.crystals ?? 0));
+        const parts = Math.min(free - crystals, collected.parts + result.reward.parts);
+        const ore = Math.min(free - crystals - parts, collected.ore + result.reward.ore);
         c.bank.ore += ore;
         c.bank.parts += parts;
+        if (crystals) c.bank.crystals = (c.bank.crystals ?? 0) + crystals;
         result.overflow =
-            collected.ore + collected.parts + result.reward.ore + result.reward.parts - ore - parts;
+            collected.ore +
+            collected.parts +
+            (collected.crystals ?? 0) +
+            result.reward.ore +
+            result.reward.parts +
+            (result.reward.crystals ?? 0) -
+            ore -
+            parts -
+            crystals;
         c.recovered++;
     } else {
         const target = c.recoverySignals.find((signal) => signal.id === active.recoveryId);

@@ -1,7 +1,7 @@
 import { GAME, HULLS, PILOTS } from '../config';
 import { Point, random } from '../worlds/sector';
 import type { Pilot, Ship } from './campaign';
-import { clonePilot, pilotLevel, pilotProfile } from './pilots';
+import { clonePilot, pilotLevel, pilotProfile, pilotName } from './pilots';
 
 export interface RecoverySignal extends Point {
     id: number;
@@ -46,9 +46,7 @@ export function createRecoverySignal(
 
 export function recoveryDescription(signal: RecoverySignal) {
     return [
-        signal.pilot
-            ? `kapsuła: ${PILOTS[signal.pilot.archetype].name} · P${pilotLevel(signal.pilot)}`
-            : '',
+        signal.pilot ? `kapsuła: ${pilotName(signal.pilot)} · P${pilotLevel(signal.pilot)}` : '',
         signal.ship ? `wrak: ${HULLS[signal.ship.hull].name} #${signal.ship.id}` : '',
     ]
         .filter(Boolean)

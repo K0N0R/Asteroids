@@ -7,6 +7,8 @@ export interface Point {
 export interface RockSpec extends Point {
     radius: number;
     rich: boolean;
+    crystal?: boolean;
+    orbit?: Point & { radius: number; speed: number };
     variant: number;
     vx: number;
     vy: number;
@@ -14,7 +16,7 @@ export interface RockSpec extends Point {
 export interface Landmark extends Point {
     name: string;
     key: number;
-    kind: 'field' | 'belt' | 'wreck' | 'relay' | 'archive';
+    kind: 'field' | 'belt' | 'wreck' | 'relay' | 'archive' | 'cluster' | 'fortress';
     siteId?: ScanSiteId;
     radius: number;
 }
@@ -23,6 +25,7 @@ export interface EnemySpec extends Point {
     id: number;
     home: Point;
     phase: number;
+    route?: Point[];
 }
 export interface CacheSpec extends Point {
     id: number;
@@ -73,10 +76,11 @@ export function generateSector(seed: number) {
             radius: 180,
         },
     ];
+    const innerRadius = 5400; // Preserve the original generation and saved salvage locations.
     const rocks: RockSpec[] = [];
     const add = (x: number, y: number, rich: boolean, moving: boolean) => {
         const radius = 24 + rng() * 52;
-        if (Math.hypot(x, y) < 450 || Math.hypot(x, y) > GAME.sectorRadius - 100) return;
+        if (Math.hypot(x, y) < 450 || Math.hypot(x, y) > innerRadius - 100) return;
         if (rocks.some((r) => Math.hypot(r.x - x, r.y - y) < r.radius + radius + 12)) return;
         if (
             landmarks.some(
@@ -115,7 +119,7 @@ export function generateSector(seed: number) {
     add(680, -260, false, false);
     for (let i = 0; i < 90; i++) {
         const a = rng() * Math.PI * 2,
-            d = 550 + rng() * (GAME.sectorRadius - 750);
+            d = 550 + rng() * (innerRadius - 750);
         add(Math.cos(a) * d, Math.sin(a) * d, rng() < 0.13, false);
     }
     const enemyRng = random(seed ^ 0x7ad191),
@@ -222,7 +226,184 @@ export function generateSector(seed: number) {
             phase: phase + side * 1.4,
         })),
     };
-    return { seed, landmarks, rocks, enemies, caches, outpost };
+    const crystalRng = random(seed ^ 0x3a712f);
+    const crystalRocks = rocks.filter((rock) => rock.rich && Math.hypot(rock.x, rock.y) > 2000);
+    // Independent sampling preserves existing locations and salvage seeds.
+    for (let i = 0; i < Math.min(5, crystalRocks.length); i++) {
+        const pick = i + Math.floor(crystalRng() * (crystalRocks.length - i));
+        [crystalRocks[i], crystalRocks[pick]] = [crystalRocks[pick], crystalRocks[i]];
+        crystalRocks[i].crystal = true;
+    }
+    // New content uses its own stream, preserving the original inner sector and salvage seeds.
+    const outerRng = random(seed ^ 0x62de91);
+    const cluster: Landmark = {
+        ...place(1.25, 6400),
+        name: 'Gniazdo kryształów',
+        key: 12,
+        kind: 'cluster',
+        radius: 700,
+    };
+    landmarks.push(cluster);
+    const outerRock = (
+        point: Point,
+        radius: number,
+        crystal = false,
+        speed = 0,
+        center = cluster,
+    ) => {
+        if (rocks.some((r) => Math.hypot(r.x - point.x, r.y - point.y) < r.radius + radius + 12))
+            return;
+        const dx = point.x - center.x,
+            dy = point.y - center.y,
+            distance = Math.hypot(dx, dy);
+        rocks.push({
+            ...point,
+            radius,
+            rich: crystal,
+            crystal,
+            variant: Math.floor(outerRng() * 128),
+            vx: distance ? (-dy / distance) * speed : 0,
+            vy: distance ? (dx / distance) * speed : 0,
+            ...(speed ? { orbit: { ...center, radius: distance, speed } } : {}),
+        });
+    };
+    for (const [radius, count] of [
+        [320, 15],
+        [450, 21],
+        [580, 27],
+    ]) {
+        const phase = outerRng() * Math.PI * 2;
+        for (let i = 0; i < count; i++) {
+            const angle = phase + (i / count) * Math.PI * 2;
+            outerRock(
+                {
+                    x: cluster.x + Math.cos(angle) * radius,
+                    y: cluster.y + Math.sin(angle) * radius,
+                },
+                55 + outerRng() * 4,
+            );
+        }
+    }
+    outerRock(cluster, 42, true);
+    for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        outerRock({ x: cluster.x + Math.cos(a) * 145, y: cluster.y + Math.sin(a) * 145 }, 40, true);
+    }
+    const drift: Landmark = {
+        ...place(3.7, 6400),
+        name: 'Prąd Perseid',
+        key: 13,
+        kind: 'belt',
+        radius: 900,
+    };
+    landmarks.push(drift);
+    for (let i = 0; i < 65; i++) {
+        const a = outerRng() * Math.PI * 2,
+            d = 300 + outerRng() * 550;
+        outerRock(
+            { x: drift.x + Math.cos(a) * d, y: drift.y + Math.sin(a) * d },
+            28 + outerRng() * 32,
+            false,
+            95 + outerRng() * 35,
+            drift,
+        );
+    }
+    // Helios now retains a circulating flow rather than drifting away permanently.
+    for (const rock of rocks) {
+        const belt = landmarks[1],
+            dx = rock.x - belt.x,
+            dy = rock.y - belt.y,
+            d = Math.hypot(dx, dy);
+        if (d < 950 && d > 160 && !rock.orbit) {
+            rock.orbit = { x: belt.x, y: belt.y, radius: d, speed: 75 };
+            rock.vx = (-dy / d) * 75;
+            rock.vy = (dx / d) * 75;
+        }
+    }
+    for (let id = 10; id < 13; id++) {
+        const phase = outerRng() * Math.PI * 2;
+        const route = Array.from({ length: 6 }, (_, i) =>
+            place(phase + (i * Math.PI) / 3, 4400 + outerRng() * 2700),
+        );
+        // Start clear of geometry, with a local pursuit anchor and an independent route.
+        for (let attempt = 0; attempt < 200; attempt++) {
+            const point = place(phase + (outerRng() - 0.5) * 0.4, 5500 + outerRng() * 1700);
+            const fortressCenter = place(5.05, 6800);
+            if (
+                Math.hypot(point.x - fortressCenter.x, point.y - fortressCenter.y) < 1200 ||
+                rocks.some(
+                    (r) => Math.hypot(r.x - point.x, r.y - point.y) < r.radius + DRONES.radius + 30,
+                ) ||
+                enemies.some(
+                    (e) => Math.hypot(e.x - point.x, e.y - point.y) < DRONES.radius * 2 + 40,
+                )
+            )
+                continue;
+            enemies.push({ ...point, id, home: { ...point }, phase, route });
+            break;
+        }
+    }
+    // The fortress is isolated from original locations, the treasure nest and Perseids.
+    const fortressSite: Landmark = {
+        ...place(5.05, 6800),
+        name: 'Twierdza Aegis',
+        key: 14,
+        kind: 'fortress',
+        siteId: 'fortress',
+        radius: 1000,
+    };
+    landmarks.push(fortressSite);
+    const vertices = Array.from({ length: 8 }, (_, i) => ({
+        x: fortressSite.x + Math.cos((i * Math.PI) / 4) * 1000,
+        y: fortressSite.y + Math.sin((i * Math.PI) / 4) * 1000,
+    }));
+    // Leave the south-east edge open as a permanent, navigable gate.
+    const walls = vertices.flatMap((from, i) =>
+        i === 1 ? [] : [{ from, to: vertices[(i + 1) % 8] }],
+    );
+    const guards: EnemySpec[] = Array.from({ length: 5 }, (_, i) => {
+        const angle = (i * Math.PI * 2) / 5;
+        return {
+            id: 201 + i,
+            kind: i >= 3 ? 'lancer' : 'patrol',
+            home: { x: fortressSite.x, y: fortressSite.y },
+            phase: angle,
+            x: fortressSite.x + Math.cos(angle) * 520,
+            y: fortressSite.y + Math.sin(angle) * 520,
+        };
+    });
+    const fortress = {
+        ...fortressSite,
+        walls,
+        guards,
+        gate: {
+            x: (vertices[1].x + vertices[2].x) / 2,
+            y: (vertices[1].y + vertices[2].y) / 2,
+        },
+    };
+    const researchRng = random(seed ^ 0x347e2d);
+    let research: Point = { x: 0, y: 0 },
+        clearance = -Infinity;
+    for (let attempt = 0; attempt < 4000; attempt++) {
+        const point = place(researchRng() * Math.PI * 2, 2400 + researchRng() * 1300);
+        const space = Math.min(
+            ...rocks.map((r) => Math.hypot(point.x - r.x, point.y - r.y) - r.radius - 240),
+            ...landmarks
+                .filter((l) => l.siteId || l.kind === 'wreck')
+                .map((l) => Math.hypot(point.x - l.x, point.y - l.y) - 650),
+            ...enemies
+                .filter((e) => !e.route)
+                .map((e) => Math.hypot(point.x - e.home.x, point.y - e.home.y) - 1100),
+            Math.hypot(point.x - outpost.x, point.y - outpost.y) - 800,
+        );
+        if (space > clearance) {
+            research = point;
+            clearance = space;
+        }
+        if (space >= 0) break;
+    }
+    const researchSite = { ...research, name: 'Anomalia Keplera' };
+    return { seed, landmarks, rocks, enemies, caches, outpost, fortress, researchSite };
 }
 
 export function navigationWaypoint(

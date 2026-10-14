@@ -1,6 +1,8 @@
+import { salvagePosition } from '../systems/salvage';
+import { RadarTrail } from '../systems/radarTrail';
 import { Container, Graphics } from 'pixi.js';
 import { Typography } from '../../core/containers/components/typography';
-import { CONTRACTS, GAME, SCAN_SITES } from '../config';
+import { CONTRACTS, GAME, SCAN_SITES, DRONES } from '../config';
 import { C } from '../graphics/shapes';
 import { MissionSimulation } from '../systems/mission';
 import { navigationWaypoint } from '../worlds/sector';
@@ -13,15 +15,19 @@ export class MissionHud extends Container {
     cameraAngle = 0;
     target = 1;
     private health: Typography;
+    private shieldValue: Typography;
     private cargo: Typography;
     private context: Typography;
     private direction: Typography;
     private goals: Typography[] = [];
     private checks = new Graphics();
     private recoveryWasSecured = false;
+    private towedId: number | null = null;
+    private wreckId: number | null = null;
     private lastSurveyCount = 0;
     private combatComplete = false;
     private enemyNavigation = new EnemyNavigation();
+    private trail = new RadarTrail();
     private map = new Graphics();
     private meters = new Graphics();
     private arrow = new Graphics();
@@ -41,6 +47,7 @@ export class MissionHud extends Container {
         for (const graphic of [this.meters, this.map, this.checks, this.arrow])
             graphic.eventMode = 'none';
         this.health = label(this, '', 80, 41, 20);
+        this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
         this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
         label(this, CONTRACTS[contract].title, 1320, 285, 16, C.text, 250);
@@ -61,8 +68,8 @@ export class MissionHud extends Container {
         mouseHint(this, null, 'cel', 277, 845);
         mouseHint(this, 'left', 'ogień', 355, 845);
         mouseHint(this, 'right', 'laser', 453, 845);
-        keyHint(this, 'F', 'dron', 552, 845);
-        keyHint(this, '0–9', 'cel', 644, 845, 43);
+        keyHint(this, 'F/Z/N', 'cel', 552, 845, 52);
+        keyHint(this, '0–9/T/H', 'cel', 644, 845, 66);
         keyHint(this, 'E', 'akcja', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
         if (sim.hullConfig.cloak) keyHint(this, 'C', 'kamuflaż', 990, 845);
@@ -77,7 +84,33 @@ export class MissionHud extends Container {
         this.enemyNavigation.select(this.sim.enemies, this.sim.position);
         this.target = 10;
     }
+    trackWreck() {
+        const p = this.sim.position;
+        this.wreckId =
+            [...this.sim.salvage.items.values()]
+                .filter((w) => w.source !== 'recovery')
+                .sort(
+                    (a, b) =>
+                        Math.hypot(salvagePosition(a).x - p.x, salvagePosition(a).y - p.y) -
+                        Math.hypot(salvagePosition(b).x - p.x, salvagePosition(b).y - p.y),
+                )[0]?.id ?? null;
+        this.target = 14;
+    }
     get waypoint() {
+        if (this.target === 15) {
+            const e = this.sim.escort;
+            return !e || e.state === 'destroyed' || e.state === 'complete'
+                ? { x: 0, y: 0, name: 'Aurora / koniec eskorty' }
+                : { ...e.position, name: 'RV Kepler' };
+        }
+        if (this.target === 14) {
+            if (this.wreckId === null || !this.sim.salvage.items.has(this.wreckId))
+                this.trackWreck();
+            const item = this.sim.salvage.items.get(this.wreckId!);
+            return item
+                ? { ...salvagePosition(item), name: `Wrak #${item.id}` }
+                : { x: 0, y: 0, name: 'Aurora / brak wraków' };
+        }
         if (this.target === 10)
             return this.enemyNavigation.waypoint(this.sim.enemies, this.sim.position);
         if (this.target === -1)
@@ -87,7 +120,7 @@ export class MissionHud extends Container {
         return navigationWaypoint(
             this.sim.sector.landmarks,
             this.target + 1,
-            this.sim.recoverySignal,
+            this.sim.recoveryDestroyed ? null : this.sim.recoverySignal,
         );
     }
     update(deltaMS: number) {
@@ -102,6 +135,9 @@ export class MissionHud extends Container {
             p = s.position,
             v = s.velocity;
         const lowHull = s.hull / s.maxHull < 0.3;
+        this.shieldValue.setText(
+            `${Math.ceil(s.kineticShield.charge)}/${s.kineticShield.profile.capacity}`,
+        );
         this.health.setText(`${Math.ceil(s.hull)} / ${s.maxHull}`);
         this.health.setColor(lowHull ? C.red : C.text);
         this.cargo.setText(`${s.cargoUsed} / ${s.cargoCapacity}`);
@@ -123,12 +159,26 @@ export class MissionHud extends Container {
             this.meters
                 .rect(80, 72, 190 * Math.min(1, s.hull / s.maxHull), 5)
                 .fill(lowHull ? C.red : C.cyan);
+        const shield = s.kineticShield,
+            alpha = shield.charge > 0 ? 0.8 : 0.25;
+        this.meters
+            .poly([265, 43, 274, 48, 274, 58, 265, 63, 256, 58, 256, 48])
+            .stroke({ color: 0x86bded, width: 2, alpha })
+            .rect(288, 72, 100, 5)
+            .fill({ color: C.line, alpha: 0.65 })
+            .rect(288, 72, (100 * shield.charge) / shield.profile.capacity, 5)
+            .fill(0x86bded);
         this.meters.rect(80, 124, 190, 5).fill({ color: C.line, alpha: 0.65 });
         if (s.cargoUsed > 0)
             this.meters
                 .rect(80, 124, 190 * Math.min(1, s.cargoUsed / s.cargoCapacity), 5)
                 .fill(C.gold);
         this.context.setText(flightHint(s));
+        if (s.salvage.towed && this.towedId !== s.salvage.towed.id) {
+            this.towedId = s.salvage.towed.id;
+            this.target = 0;
+        }
+        if (!s.salvage.towed) this.towedId = null;
         if (s.recoverySecured && !this.recoveryWasSecured) {
             this.recoveryWasSecured = true;
             this.target = 0;
@@ -154,8 +204,35 @@ export class MissionHud extends Container {
             false,
             s.enemyKills,
         ).forEach((goal, i) => {
-            this.goals[i].setText(`${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`);
-            this.goals[i].setColor(goal.complete ? C.mint : C.muted);
+            const text =
+                goal.id === 'rescue' && s.recoveryDestroyed
+                    ? 'Cel ratunkowy utracony'
+                    : goal.id === 'rescue' && s.recoveryDelivered
+                      ? 'Cel przekazany Aurorze'
+                      : goal.id === 'fortress'
+                        ? goal.complete
+                            ? 'Dane Aegis'
+                            : s.fortressGuardCount
+                              ? `Obrońcy Aegis ${5 - s.fortressGuardCount}/5`
+                              : 'Pobierz dane rdzenia'
+                        : goal.id === 'escort' && s.escort
+                          ? s.escort.state === 'destroyed'
+                              ? 'Kepler utracony'
+                              : goal.complete
+                                ? 'Badania Keplera'
+                                : s.escort.state === 'research'
+                                  ? `Badania ${Math.floor(s.escort.researchProgress)}/12 s`
+                                  : `Kepler · ${Math.ceil(s.escort.health)} HP`
+                          : `${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`;
+            this.goals[i].setText(text);
+            this.goals[i].setColor(
+                (goal.id === 'rescue' && s.recoveryDestroyed) ||
+                    (goal.id === 'escort' && s.escort?.state === 'destroyed')
+                    ? C.red
+                    : goal.complete
+                      ? C.mint
+                      : C.muted,
+            );
             objectiveMark(this.checks, 1325, 328 + i * 28, goal.complete);
         });
         const waypoint = this.waypoint,
@@ -179,27 +256,82 @@ export class MissionHud extends Container {
             .moveTo(x, y - radius)
             .lineTo(x, y + radius)
             .stroke({ color: C.line, width: 1, alpha: 0.35 });
+        this.trail.update(p, s.elapsed);
+        this.map
+            .beginPath()
+            .circle(x, y, DRONES.safeRadius * scale)
+            .fill({ color: C.cyan, alpha: 0.12 })
+            .stroke({ color: C.cyan, width: 1, alpha: 0.5 });
+        const homes = new Map<string, { x: number; y: number }>();
+        for (const enemy of enemies.filter((e) => !e.route))
+            homes.set(`${Math.round(enemy.home.x)},${Math.round(enemy.home.y)}`, enemy.home);
+        for (const home of homes.values())
+            this.map
+                .beginPath()
+                .circle(x + home.x * scale, y + home.y * scale, DRONES.leash * scale)
+                .fill({ color: C.red, alpha: 0.09 })
+                .stroke({ color: C.red, width: 1, alpha: 0.35 });
+        for (const point of this.trail.points) {
+            if (Math.hypot(point.x, point.y) > GAME.sectorRadius) continue;
+            this.map
+                .beginPath()
+                .circle(x + point.x * scale, y + point.y * scale, 1)
+                .fill({ color: C.cyan, alpha: this.trail.opacity(s.elapsed, point) });
+        }
         this.map.circle(x, y, 3).fill(C.mint);
         for (const site of s.sector.landmarks) {
             const mx = x + site.x * scale,
                 my = y + site.y * scale;
-            if (site.kind === 'belt')
+            if (site.kind === 'belt' || site.kind === 'cluster')
                 this.map
                     .beginPath()
                     .circle(mx, my, site.radius * scale)
-                    .stroke({ color: C.red, alpha: 0.25, width: 1 });
+                    .stroke({
+                        color: site.kind === 'cluster' ? 0xb6a1e2 : C.red,
+                        alpha: 0.5,
+                        width: 1,
+                    });
+            if (site.kind === 'fortress')
+                this.map
+                    .beginPath()
+                    .circle(mx, my, site.radius * scale)
+                    .fill({ color: s.surveyData.has('fortress') ? C.mint : C.red, alpha: 0.12 })
+                    .stroke({ color: C.red, width: 1, alpha: 0.6 });
             if (site.siteId)
                 this.map
                     .rect(mx - 3, my - 3, 6, 6)
                     .fill(s.surveyData.has(site.siteId) ? C.mint : C.cyan);
             else this.map.circle(mx, my, 2.5).fill(site.key === this.target + 1 ? C.text : C.gold);
         }
-        if (s.recoverySignal && !s.recoverySecured) {
+        if (s.recoverySignal && !s.recoverySecured && !s.recoveryDestroyed) {
             const mx = x + s.recoverySignal.x * scale,
                 my = y + s.recoverySignal.y * scale;
             this.map
                 .poly([mx, my - 5, mx + 5, my, mx, my + 5, mx - 5, my])
                 .stroke({ color: C.mint, width: 1.5 });
+        }
+        for (const item of s.salvage.items.values()) {
+            if (item.source === 'recovery') continue;
+            const p = salvagePosition(item),
+                mx = x + p.x * scale,
+                my = y + p.y * scale;
+            this.map
+                .beginPath()
+                .poly([mx, my - 4, mx + 4, my, mx, my + 4, mx - 4, my])
+                .stroke({ color: item === s.salvage.towed ? C.mint : C.gold, width: 1 });
+        }
+        if (s.escort) {
+            const site = s.sector.researchSite,
+                e = s.escort;
+            this.map
+                .beginPath()
+                .circle(x + site.x * scale, y + site.y * scale, 4)
+                .stroke({ color: C.cyan, width: 1 });
+            if (e.vulnerable)
+                this.map
+                    .beginPath()
+                    .circle(x + e.position.x * scale, y + e.position.y * scale, 3)
+                    .fill(C.mint);
         }
         const outpost = s.sector.outpost,
             ox = x + outpost.x * scale,

@@ -60,7 +60,8 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             root,
             [
                 `Kadłub ${Math.ceil(s.hull)}/${s.maxHull} · ładunek ${s.cargoUsed}/${s.cargoCapacity}`,
-                `Ruda ${s.cargo.ore} · komponenty ${s.cargo.parts}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
+                `Tarcza ${Math.ceil(s.kineticShield.charge)}/${s.kineticShield.profile.capacity} · ${s.kineticShield.profile.regen.toFixed(1)}/s · przerwa ${Math.ceil(s.kineticShield.cooldown)} s`,
+                `Ruda ${s.cargo.ore} · komponenty ${s.cargo.parts} · kryształy ${s.cargo.crystals ?? 0}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
                 `Prędkość ${Math.round(s.speed)} / ${Math.round(s.hullConfig.maxSpeed * s.driveMultiplier * (s.engineFault ? GAME.damagedThrust : 1))} m/s`,
                 `Skręt ${s.turnSpeed.toFixed(2)} rad/s · laser ${Math.round(s.laserRange)} m`,
                 `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń · zestawy ${s.repairKits}`,
@@ -139,11 +140,19 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             objectiveMark(checks, 867, 322 + i * 30, goal.complete);
             label(
                 root,
-                `${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`,
+                goal.id === 'escort' && s.escort?.state === 'destroyed'
+                    ? 'Kepler utracony'
+                    : goal.id === 'rescue' && s.recoveryDestroyed
+                      ? 'Cel ratunkowy utracony'
+                      : `${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`,
                 888,
                 313 + i * 30,
                 17,
-                goal.complete ? C.mint : C.muted,
+                goal.id === 'rescue' && s.recoveryDestroyed
+                    ? C.red
+                    : goal.complete
+                      ? C.mint
+                      : C.muted,
                 430,
             );
         });
@@ -172,10 +181,16 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         label(
             root,
             !s.recoverySignal
-                ? 'Brak akcji ratunkowej'
-                : s.recoverySecured
-                  ? 'Cel na holu · zabezpieczysz go po dokowaniu'
-                  : `Sygnał #${s.recoverySignal.id} · ${s.recoverySignal.pilot ? 'kapsuła pilota' : 'bez kapsuły'} · ${s.recoverySignal.ship ? 'wrak statku' : 'bez wraku'}`,
+                ? s.salvage.towed
+                    ? `Wrak na holu · ${Math.ceil(s.salvage.towed.health)}/${s.salvage.towed.maxHealth} HP · recykling po powrocie`
+                    : 'Brak akcji ratunkowej'
+                : s.recoveryDelivered
+                  ? 'Cel ratunkowy przekazany Aurorze'
+                  : s.recoveryDestroyed
+                    ? 'Cel ratunkowy zniszczony'
+                    : s.recoverySecured
+                      ? 'Cel na holu · zabezpieczysz go po dokowaniu'
+                      : `Sygnał #${s.recoverySignal.id} · ${s.recoverySignal.pilot ? 'kapsuła pilota' : 'bez kapsuły'} · ${s.recoverySignal.ship ? 'wrak statku' : 'bez wraku'}`,
             860,
             660,
             16,
@@ -201,10 +216,18 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         );
         label(
             root,
-            '1 Baza · 2 Ruda · 3 Pas · 4 Wrak · 5 Żyła · 6 Ratunek · 7 Lumen · 8 Mnemos · 9 Skrytki · 0 Cerber · F Dron',
+            '1 Baza · 2 Ruda · 3 Pas · 4 Wrak · 5 Żyła · 6 Ratunek · 7 Lumen · 8 Mnemos · 9 Skrytki · 0 Cerber',
             280,
             753,
-            15,
+            13,
+            C.muted,
+        );
+        label(
+            root,
+            'F Dron · T Gniazdo / Prąd · H Aegis · Z Wrak · J Zwolnij hol · N Kepler',
+            280,
+            772,
+            13,
             C.muted,
         );
         label(root, 'Lot i praca załogi są zatrzymane.', 280, 792, 14, C.muted);

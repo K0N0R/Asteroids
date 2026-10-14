@@ -48,10 +48,10 @@ function singleEnemy(sim: MissionSimulation) {
     return enemy;
 }
 
-test('sectors seed five patrols outside the base and without initial asteroid or drone overlaps', () => {
+test('sectors seed five guards and three roamers outside the base and without initial asteroid or drone overlaps', () => {
     for (let seed = 0; seed < 100; seed++) {
         const sector = generateSector(seed);
-        assert.equal(sector.enemies.length, 5);
+        assert.equal(sector.enemies.length, 8);
         assert.deepEqual(sector.enemies, generateSector(seed).enemies);
         for (const [index, enemy] of sector.enemies.entries()) {
             assert.ok(Math.hypot(enemy.x, enemy.y) >= DRONES.safeRadius + DRONES.detectRange);
@@ -265,7 +265,9 @@ test('actual AI shots damage a stationary target and escape to the base stops fu
         singleEnemy(sim);
         for (let i = 0; i < 240; i++) sim.step(idle);
         assert.ok(sim.events.some((e) => e.kind === 'shot'));
-        assert.ok(sim.hull < sim.maxHull);
+        assert.ok(
+            sim.hull < sim.maxHull || sim.kineticShield.charge < sim.kineticShield.profile.capacity,
+        );
         sim.ship.setTranslation({ x: 2, y: 0 }, true);
         sim.ship.setLinvel({ x: 0, y: 0 }, true);
         const health = sim.hull;
@@ -318,7 +320,9 @@ test('observatory guards interrupt scanning until they are neutralized or evaded
         const site = sim.sector.landmarks.find((s) => s.siteId === 'archive')!;
         sim.ship.setTranslation({ x: site.x / 100, y: site.y / 100 }, true);
         for (let i = 0; i < 300; i++) sim.step({ ...idle, interact: true });
-        assert.ok(sim.hull < sim.maxHull);
+        assert.ok(
+            sim.hull < sim.maxHull || sim.kineticShield.charge < sim.kineticShield.profile.capacity,
+        );
         assert.equal(sim.surveyData.has('archive'), false);
         assert.equal(sim.ended, null);
         sim.enemies.dispose();
@@ -403,6 +407,8 @@ test('hostile hits interrupt repair and can end a mission; ending and disposal s
     removeRocks(sim);
     sim.enemies.dispose();
     sim.ship.setTranslation({ x: 30, y: 0 }, true);
+    sim.kineticShield.charge = 0;
+    sim.kineticShield.cooldown = 1000;
     sim.hull = 50;
     sim.engineFault = true;
     sim.repairProgress = 4.9;

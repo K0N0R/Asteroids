@@ -44,6 +44,7 @@ export class GameSession {
     private hasOverlay = false;
     private launching = false;
     private crewSaveSeconds = 0;
+    private savedDeliveryRevision = 0;
     constructor(
         private worldHost: Container,
         private uiHost: Container,
@@ -143,9 +144,16 @@ export class GameSession {
                     this.hud &&
                     !this.hasOverlay &&
                     !PopupContainer.hasActivePopup() &&
-                    /^[0-9]$/.test(message.data)
+                    (/^[0-9]$/.test(message.data) || ['t', 'h'].includes(message.data))
                 )
-                    this.hud.target = Number(message.data) - 1;
+                    this.hud.target =
+                        message.data === 'h'
+                            ? 13
+                            : message.data === 't'
+                              ? this.hud.target === 11
+                                  ? 12
+                                  : 11
+                              : Number(message.data) - 1;
                 if (
                     message.name === 'keydown' &&
                     message.data === 'f' &&
@@ -154,6 +162,30 @@ export class GameSession {
                     !PopupContainer.hasActivePopup()
                 )
                     this.hud.trackEnemy();
+                if (
+                    message.name === 'keydown' &&
+                    message.data === 'n' &&
+                    this.hud &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup()
+                )
+                    this.hud.target = 15;
+                if (
+                    message.name === 'keydown' &&
+                    message.data === 'z' &&
+                    this.hud &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup()
+                )
+                    this.hud.trackWreck();
+                if (
+                    message.name === 'keydown' &&
+                    message.data === 'j' &&
+                    this.mission &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup()
+                )
+                    this.mission.simulation.releaseWreck();
                 if (
                     message.name === 'keydown' &&
                     message.data === 'c' &&
@@ -208,6 +240,7 @@ export class GameSession {
         try {
             const seed = this.campaign.activeRun!.seed;
             const simulation = new MissionSimulation(this.campaign, seed);
+            this.savedDeliveryRevision = 0;
             this.mission = new MissionWorld(simulation, this.campaign.ship!);
             this.hud = new MissionHud(simulation, this.campaign.contract, () =>
                 this.toggleMissionInfo(),
@@ -271,6 +304,12 @@ export class GameSession {
             this.crewSaveSeconds = 0;
             if (completed) this.mission.simulation.setNotice('Załoga zakończyła zadanie w bazie.');
         }
+        if (this.mission.simulation.deliveryRevision !== this.savedDeliveryRevision) {
+            this.savedDeliveryRevision = this.mission.simulation.deliveryRevision;
+            if (this.campaign.activeRun)
+                this.campaign.activeRun.lastPosition = this.mission.simulation.position;
+            this.saves.save(this.campaign);
+        }
         this.background.camera = this.mission.simulation.position;
         this.background.cameraAngle = this.mission.camera.rotation;
         if (this.hud) this.hud.cameraAngle = this.mission.camera.rotation;
@@ -293,6 +332,8 @@ export class GameSession {
                     data: [...sim.surveyData],
                     kills: sim.enemyKills,
                     equipment: sim.stolenEquipment,
+                    recycledWreck: sim.recycledWreck,
+                    destroyedRecoveryId: sim.recoveryDestroyed ? sim.recoverySignal?.id : undefined,
                 },
             );
             this.saves.save(this.campaign);
@@ -359,6 +400,82 @@ export class GameSession {
         );
         button(this.overlay, 'POMIŃ SKRYTKĘ', 1070, 642, 250, () => choose(null));
     }
+    private showDeliveries(result: RunResult, page = 0) {
+        clear(this.overlay);
+        this.hasOverlay = true;
+        const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.8 });
+        shade.eventMode = 'static';
+        this.overlay.addChild(shade);
+        panel(this.overlay, 405, 200, 790, 590);
+        label(this.overlay, 'ODHOLOWANE DO AURORY', 450, 235, 24, C.mint);
+        label(
+            this.overlay,
+            'Przekazane bazie · zachowane także po utracie wyprawy',
+            450,
+            275,
+            16,
+            C.muted,
+        );
+        const perPage = 5,
+            pages = Math.ceil(result.deliveries.length / perPage);
+        result.deliveries.slice(page * perPage, (page + 1) * perPage).forEach((d, i) => {
+            label(
+                this.overlay,
+                `${page * perPage + i + 1}. ${d.description}`,
+                450,
+                320 + i * 63,
+                17,
+                C.text,
+                690,
+            );
+            const m = d.materials;
+            label(
+                this.overlay,
+                `${m.ore} R · ${m.parts} K · ${m.crystals ?? 0} X${d.source === 'recovery' ? ' · cel ratunkowy zabezpieczony' : ''}${d.overflow ? ` · nadwyżka ${d.overflow}` : ''}`,
+                450,
+                345 + i * 63,
+                14,
+                C.muted,
+                690,
+            );
+        });
+        if (pages > 1) {
+            button(
+                this.overlay,
+                '←',
+                450,
+                650,
+                70,
+                () => this.showDeliveries(result, page - 1),
+                false,
+                page > 0,
+                32,
+            );
+            label(this.overlay, `${page + 1} / ${pages}`, 765, 654, 16, C.muted);
+            button(
+                this.overlay,
+                '→',
+                1080,
+                650,
+                70,
+                () => this.showDeliveries(result, page + 1),
+                false,
+                page + 1 < pages,
+                32,
+            );
+        }
+        button(
+            this.overlay,
+            'PODSUMOWANIE',
+            450,
+            692,
+            700,
+            () => this.showResult(result),
+            true,
+            true,
+            56,
+        );
+    }
     private showResult(result: RunResult) {
         uiCue(result.success ? 'complete' : 'destroy');
         clear(this.overlay);
@@ -380,7 +497,7 @@ export class GameSession {
         label(
             this.overlay,
             result.success
-                ? `Dostarczono: ${result.cargo.ore} rudy · ${result.cargo.parts} komponentów`
+                ? `Dostarczono: ${result.cargo.ore} rudy · ${result.cargo.parts} komponentów · ${result.cargo.crystals ?? 0} kryształów`
                 : 'Pilot i statek nie wrócili do bazy.',
             450,
             395,
@@ -390,7 +507,7 @@ export class GameSession {
         if (result.success)
             label(
                 this.overlay,
-                `Premia i odzysk: ${result.reward.ore} rudy · ${result.reward.parts} komponentów`,
+                `Premia i odzysk: ${result.reward.ore} rudy · ${result.reward.parts} komponentów · ${result.reward.crystals ?? 0} kryształów`,
                 450,
                 435,
                 20,
@@ -424,6 +541,18 @@ export class GameSession {
             15,
             C.muted,
         );
+        if (result.deliveries.length)
+            button(
+                this.overlay,
+                `ODHOLOWANE OBIEKTY · ${result.deliveries.length}`,
+                450,
+                647,
+                700,
+                () => this.showDeliveries(result),
+                false,
+                true,
+                34,
+            );
         button(
             this.overlay,
             'WRÓĆ DO BAZY  →',

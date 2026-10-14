@@ -64,7 +64,7 @@ test('outposts have deterministic clear terminals and guard launch areas across 
         assert.ok(sector.rocks.every((r) => Math.hypot(r.x - p.x, r.y - p.y) >= r.radius + 440));
         assert.ok(sector.caches.every((c) => Math.hypot(c.x - p.x, c.y - p.y) >= 700));
         assert.ok(sector.landmarks.every((l) => Math.hypot(l.x - p.x, l.y - p.y) >= 800));
-        assert.equal(sector.enemies.length, 5);
+        assert.equal(sector.enemies.length, 8);
         assert.deepEqual(
             p.guards.map((g) => g.id),
             [101, 102],
@@ -226,6 +226,8 @@ test('incoming shots reset a download and lethal damage on its final frame canno
         atTerminal(sim);
         const p = sim.position;
         sim.outpost.download = OUTPOST.downloadSeconds - GAME.step;
+        sim.kineticShield.charge = 0;
+        sim.kineticShield.cooldown = 1000;
         sim.hull = 1;
         sim.bullets.set(9999, {
             id: 9999,
@@ -322,7 +324,7 @@ test('infiltration contract requires stolen data and safe return, pays once, and
 test('v7 save migration preserves fleet, skills, history and interrupted marker while appending one empty contract', () => {
     const c = campaign();
     c.ship!.handling = 1;
-    c.contractCompletions = [2, 3, 4, 5, 0, 0];
+    c.contractCompletions = [2, 3, 4, 5, 0, 0, 0, 0];
     c.nextShipId = 3;
     c.reserveShips = [newShip(2, 'mule')];
     c.bank = { ore: 20, parts: 3 };
@@ -333,7 +335,7 @@ test('v7 save migration preserves fleet, skills, history and interrupted marker 
     assert.deepEqual(loaded, c);
     assert.ok(loaded);
     finishRun(loaded, false, { ore: 0, parts: 0 }, 0, 'refresh', 0, { data: ['outpost'] });
-    assert.deepEqual(loaded.contractCompletions, [2, 3, 4, 5, 0, 0]);
+    assert.deepEqual(loaded.contractCompletions, [2, 3, 4, 5, 0, 0, 0, 0]);
     assert.deepEqual(loaded.bank, { ore: 20, parts: 3 });
     const malformed = JSON.parse(JSON.stringify(old));
     delete malformed.ship.handling;
@@ -487,6 +489,8 @@ test('damage interrupts sabotage; lethal final-frame damage cannot spend its com
             isolate(sim);
             atTerminal(sim);
             sim.cargo.parts = 1;
+            sim.kineticShield.charge = 0;
+            sim.kineticShield.cooldown = 1000;
             sim.hull = hp;
             sim.outpost.sabotageProgress = OUTPOST.sabotageSeconds - GAME.step;
             const p = sim.position;
@@ -624,6 +628,8 @@ test('lethal damage on the final equipment frame grants no stolen mount', () => 
         sim.outpost.secured = true;
         sim.outpost.equipmentArmed = true;
         sim.outpost.equipmentProgress = OUTPOST.equipmentSeconds - GAME.step;
+        sim.kineticShield.charge = 0;
+        sim.kineticShield.cooldown = 1000;
         sim.hull = 1;
         const p = sim.position;
         sim.bullets.set(9999, {

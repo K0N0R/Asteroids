@@ -70,7 +70,7 @@ test('all six ships can be purchased, saved and reloaded; a seventh is rejected'
 });
 test('maneuvering modules are purchased per ship, affect actual rotation and are included in scrap value', () => {
     const c = newCampaign();
-    c.bank = { ore: 80, parts: 10 };
+    c.bank = { ore: 80, parts: 10, crystals: 3 };
     c.station.workshop = 2;
     const initial = scrapRefund(c.ship!);
     assert.ok(buyUpgrade(c, 'handling'));
@@ -108,7 +108,7 @@ test('v6 migration preserves identities and modules, converting old Prospectors 
     delete old.recoverySignals[0].ship.handling;
     const loaded = parseCampaign(JSON.stringify(old))!;
     assert.ok(loaded);
-    assert.equal(loaded.version, 11);
+    assert.equal(loaded.version, 15);
     assert.equal(loaded.ship!.hull, 'fighter');
     assert.equal(loaded.ship!.id, 1);
     assert.equal(loaded.ship!.engine, 2);

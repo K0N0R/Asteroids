@@ -1,7 +1,7 @@
 export const GAME = {
     step: 1 / 60,
     pixelsPerMeter: 100,
-    sectorRadius: 5400,
+    sectorRadius: 8000,
     dockRadius: 190,
     dockSpeed: 65,
     cargo: 40,
@@ -101,6 +101,8 @@ export const SCAN_SITES = {
     relay: { name: 'Przekaźnik Lumen', key: 7 },
     archive: { name: 'Obserwatorium Mnemos', key: 8 },
     outpost: { name: 'Dane placówki Cerber', key: 0 },
+    fortress: { name: 'Rdzeń twierdzy Aegis', key: 14 },
+    escort: { name: 'Badania Keplera', key: 16 },
 } as const;
 export type ScanSiteId = keyof typeof SCAN_SITES;
 export interface Mount {
@@ -112,6 +114,7 @@ export interface HullDefinition {
     role: string;
     detail: string;
     health: number;
+    shield: { capacity: number; regen: number; delay: number };
     cargo: number;
     thrust: number;
     brake: number;
@@ -139,6 +142,7 @@ export const HULLS = {
         role: 'Początkowy',
         detail: 'Prosty owalny kadłub: jeden silnik, działko i krótki laser.',
         health: GAME.hull,
+        shield: { capacity: 25, regen: 5, delay: 5 },
         cargo: GAME.cargo,
         thrust: GAME.thrust,
         brake: GAME.brake,
@@ -165,6 +169,7 @@ export const HULLS = {
         role: 'Zwiadowca',
         detail: 'Szybszy i zwinniejszy; mniejszy zapas kadłuba.',
         health: 60,
+        shield: { capacity: 35, regen: 9, delay: 3.5 },
         cargo: 24,
         thrust: 1500,
         brake: 880,
@@ -191,6 +196,7 @@ export const HULLS = {
         role: 'Statek wydobywczy',
         detail: 'Duży ładunek, mocniejszy kadłub i laser; wolniejszy lot.',
         health: 150,
+        shield: { capacity: 60, regen: 6, delay: 6 },
         cargo: 110,
         thrust: 550,
         brake: 640,
@@ -227,6 +233,7 @@ export const HULLS = {
         role: 'Bojowy',
         detail: 'Dwa boczne działka, dawny kadłub Prospectora.',
         health: 100,
+        shield: { capacity: 100, regen: 10, delay: 4.5 },
         cargo: 30,
         thrust: 1000,
         brake: 720,
@@ -256,6 +263,7 @@ export const HULLS = {
         role: 'Holowniczy',
         detail: 'Wytrzymała płaszczka z dwoma silnikami na przednich skrzydłach.',
         health: 230,
+        shield: { capacity: 80, regen: 7, delay: 5.5 },
         cargo: 60,
         thrust: 600,
         brake: 680,
@@ -288,6 +296,7 @@ export const HULLS = {
         role: 'Szybki transport',
         detail: 'Okrągły kadłub z rozwidlonym dziobem i mocnym boostem.',
         health: 125,
+        shield: { capacity: 65, regen: 8, delay: 4.5 },
         cargo: 60,
         thrust: 1050,
         brake: 720,
@@ -342,6 +351,16 @@ export const PILOT_SKILLS = {
 } as const;
 export type PilotSkillId = keyof typeof PILOT_SKILLS;
 export const JOBS = {
+    crystallize: {
+        title: 'Przetop kryształów',
+        ore: 0,
+        parts: 5,
+        seconds: 90,
+        output: 'crystals',
+        amount: 1,
+        worker: 'mechanic',
+        workshop: 1,
+    },
     refine: {
         title: 'Rafinacja rudy',
         ore: 8,
@@ -408,7 +427,15 @@ export const PILOTS = [
     },
 ] as const;
 
-export type Upgrade = 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'workshop' | 'storage';
+export type Upgrade =
+    | 'engine'
+    | 'handling'
+    | 'cargo'
+    | 'drill'
+    | 'armor'
+    | 'shield'
+    | 'workshop'
+    | 'storage';
 export const UPGRADES: Record<
     Upgrade,
     { title: string; detail: string; ore: number; parts: number }
@@ -428,6 +455,12 @@ export const UPGRADES: Record<
         parts: 2,
     },
     armor: { title: 'Wzmocnienie kadłuba', detail: 'Kadłub +25 / poziom', ore: 16, parts: 1 },
+    shield: {
+        title: 'Tarcza kinetyczna',
+        detail: 'Pojemność +25%, regeneracja +15% / poziom',
+        ore: 22,
+        parts: 2,
+    },
     workshop: {
         title: 'Warsztat stacji',
         detail: 'Odblokowuje wyższy poziom modułów',
@@ -509,6 +542,26 @@ export const CONTRACTS: readonly ContractDefinition[] = [
         sites: [],
         kills: 3,
         unlock: 'combat',
+    },
+    {
+        title: 'Przełamanie Aegis',
+        detail: 'H wskazuje twierdzę. Pokonaj 5 obrońców, pobierz dane rdzenia (E) i wróć do Aurory.',
+        ore: 0,
+        parts: 0,
+        rewardOre: 48,
+        rewardParts: 12,
+        sites: ['fortress'],
+        unlock: 'research',
+    },
+    {
+        title: 'Eskorta Keplera',
+        detail: 'N wskazuje statek badawczy. E rozpoczyna eskortę. Osłaniaj Keplera w locie i podczas badań, potem wróć z danymi.',
+        ore: 0,
+        parts: 0,
+        rewardOre: 36,
+        rewardParts: 8,
+        sites: ['escort'],
+        unlock: 'research',
     },
 ] as const;
 

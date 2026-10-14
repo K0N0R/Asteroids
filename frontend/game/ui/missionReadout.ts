@@ -74,6 +74,16 @@ export function flightHint(s: MissionSimulation) {
     const percent = (progress: number, seconds: number) =>
         `${Math.min(100, Math.floor((progress / seconds) * 100))}%`;
     if (s.pendingChoice) return '';
+    if (s.escort?.state === 'idle' && s.nearbyEscort)
+        return s.escort.startProgress > 0
+            ? `E Eskorta · ${percent(s.escort.startProgress, 2)}`
+            : 'E Rozpocznij eskortę Keplera · 2 s';
+    if (s.escort?.state === 'waiting')
+        return s.escort.waitingReason === 'player'
+            ? 'N Wróć do Keplera · czeka na eskortę'
+            : 'Kepler szuka bezpiecznej drogi';
+    if (s.escort?.state === 'research')
+        return 'Osłaniaj Keplera · badania wymagają spokojnego otoczenia';
     if (s.outpost.sabotageProgress > 0)
         return `G  Sabotaż · ${percent(s.outpost.sabotageProgress, OUTPOST.sabotageSeconds)}`;
     if (s.outpost.equipmentProgress > 0)
@@ -82,6 +92,7 @@ export function flightHint(s: MissionSimulation) {
         return `E  Przechwyt · ${percent(s.outpost.download, OUTPOST.downloadSeconds)}`;
     if (s.repairProgress > 0)
         return `R  Naprawa · ${percent(s.repairProgress, GAME.repairSeconds)}`;
+    if (s.salvageProgress > 0) return `E Holowanie wraku · ${percent(s.salvageProgress, 3)}`;
     if (s.recoveryProgress > 0)
         return `E  Odzysk · ${percent(s.recoveryProgress, RECOVERY.seconds)}`;
     if (s.scanProgress > 0) return `E  Skan · ${percent(s.scanProgress, SCAN.seconds)}`;
@@ -92,11 +103,21 @@ export function flightHint(s: MissionSimulation) {
     if (
         signal &&
         !s.recoverySecured &&
+        !s.recoveryDestroyed &&
         Math.hypot(p.x - signal.x, p.y - signal.y) < RECOVERY.radius
     )
-        return s.speed > RECOVERY.speed
-            ? 'S  Wyhamuj do odzysku · <80 m/s'
-            : 'E  Podejmij cel · przytrzymaj 4 s';
+        return s.salvage.towed
+            ? 'J Zwolnij wrak, aby podjąć cel ratunkowy'
+            : s.speed > RECOVERY.speed
+              ? 'S  Wyhamuj do odzysku · <80 m/s'
+              : 'E  Podejmij cel · przytrzymaj 4 s';
+    if (s.nearbyWreck)
+        return s.speed > 80 ? 'S Wyhamuj przy wraku · <80 m/s' : 'E Holuj wrak · przytrzymaj 3 s';
+    if (s.salvage.towed) {
+        const item = s.salvage.towed;
+        if (s.distanceHome > 350)
+            return `Hol ${Math.ceil(item.health)}/${item.maxHealth} · 1 Aurora${item.source !== 'recovery' ? ' · J zwolnij' : ''}`;
+    }
     if (s.nearbyCache)
         return s.speed > CACHE.speed
             ? 'S  Wyhamuj przy skrytce · <60 m/s'
@@ -127,6 +148,8 @@ export function flightHint(s: MissionSimulation) {
     if (s.outpost.detection > 0)
         return `Skaner wykrywa statek · ${percent(s.outpost.detection, OUTPOST.detectSeconds)}`;
     const site = s.nearbyScanSite;
+    if (site?.siteId === 'fortress' && s.fortressGuardCount)
+        return `Rdzeń zablokowany · obrońcy ${s.fortressGuardCount}/5`;
     if (site?.siteId && !s.surveyData.has(site.siteId))
         return s.speed > SCAN.speed
             ? 'S  Wyhamuj do skanu · <60 m/s'

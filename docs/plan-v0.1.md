@@ -45,6 +45,12 @@ Etap 0.18 wprowadza miks audio z 18 próbkami CC0 dostarczonymi przez użytkowni
 
 Etap 0.19 dodaje opcjonalną kradzież broni z magazynu Cerbera po przejęciu danych. Sprzęt zajmuje trzy miejsca w ładowni i staje się wyposażeniem aktywnego kadłuba dopiero po bezpiecznym powrocie. Duplikat rozlicza się na materiały. Szczegóły: `implementation-v0.19.md`.
 
+
+Etap 0.20 wprowadza pierwszą paczkę nowych propozycji: portrety bez rysów twarzy, nazwy pilotów, zanikający ślad na radarze, prezentację stref, zoom prędkości i kapsułę ratunkową. Szczegóły: `implementation-v0.20.md`. Pełna nowa lista z gospodarczą i światową rozbudową: `roadmap-after-v0.19.md`.
+
+
+Etap 0.21 wprowadza kryształy technologiczne: rzadkie skały, przetop komponentów w kolejce mechanika, koszty wyższych ulepszeń, obsługę ładowni i magazynu oraz migrację zapisu do formatu 12. Szczegóły: `implementation-v0.21.md`. Kolejny etap z nowych propozycji: rozbudowa świata i zagrożeń.
+
 ## Cel i ustalenia
 
 Gra 2D z widokiem z góry, kamerą śledzącą statek i dwiema fazami: spokojna baza oraz niebezpieczna wyprawa do proceduralnego sektora. Pierwsza wersja ma pozwolić wielokrotnie przejść pełną pętlę: przygotowanie → start → eksploracja/wydobycie/walka → powrót lub śmierć → rozliczenie → rozwój bazy → kolejny start.
@@ -180,3 +186,38 @@ Weryfikacja obejmuje testy logiki generatora, kosztów, strat i jednokrotnego ro
 - Rapier — inicjalizacja i wariant compat: https://rapier.rs/docs/user_guides/javascript/getting_started_js/
 - Rapier — CCD i ograniczenia: https://rapier.rs/docs/user_guides/javascript/rigid_body_ccd/
 - Alternatywa Matter.js: https://brm.io/matter-js/docs/classes/Engine.html
+
+
+## Etap 0.22 — wdrożony
+
+Większy sektor (promień 8000), kryształowy rdzeń za trzema pierścieniami skał, Prąd Perseid i podtrzymany obieg Heliosa, trzy wędrujące patrole oraz nawigacja T. Zobacz [opis i weryfikację](implementation-v0.22.md). Następnie fortyfikacje, później wraki przeciwników i recykling.
+
+
+## Dopisane kierunki — eskorta, tarcze, ryzyko holowania
+
+- Eskortowanie przyjaznego statku badawczego AI do ciekawego miejsca badawczego.
+- Tarcze kinetyczne absorbują obrażenia: niebieskie heksy w pierścieniu i poświata; sposób napełniania oraz indywidualne, rozwijalne statystyki dla każdego statku.
+- Holowany wrak/kapsułę mogą zniszczyć asteroidy i pociski przeciwnika. Brak friendly fire i kolizji z graczem; odporność, efekty uderzenia i poprawne zakończenie odzysku.
+
+Pełne założenia i propozycje balansu: [plan rozwoju](roadmap-after-v0.19.md).
+
+
+## Etap 0.23 — wdrożony
+
+Twierdza Aegis z fizycznymi ścianami, otwartą bramą, trzema zwykłymi i dwoma ciężkimi obrońcami. Kontrakt Przełamanie Aegis wymaga usunięcia obstawy, pobrania danych oraz powrotu. Nawigacja H, strefa na radarze, czytelny postęp obrońców. Zapis migruje do formatu 13 z zachowaniem historii i aktywnej wyprawy. [Opis i weryfikacja](implementation-v0.23.md).
+
+
+## Etap 0.24 — wdrożony
+
+Wraki pokonanych dronów (35% szansy), fizyczny hol w Rapier, odporność wraków/kapsuł, obrażenia od zderzeń i ostrzału wroga oraz ochrona Aurory. Z wskazuje wrak, E podejmuje, J zwalnia wrak przeciwnika; jeden hol i brak friendly fire/kontaktów z graczem.
+
+Wciągnięcie holu do doku Aurory przekazuje obiekt bazie **bez kończenia rundy**. Dokowanie E też go rozlicza. Dostarczone materiały, piloci i statki są chronione przed późniejszą przegraną. Podsumowanie ma listę wszystkich dostaw, z zachowaniem ich dziennika w aktywnym zapisie. [Opis i testy](implementation-v0.24.md).
+
+Następna faza: eskorta statku badawczego AI. Tarcze kinetyczne pozostają kolejnym zaplanowanym kierunkiem.
+
+
+## Etap 0.25 — wdrożony
+
+Eskorta Keplera: przyjazny statek AI, szukanie drogi między skałami, czekanie na gracza, zasadzka, 12 s badań anomalii i dane wymagające powrotu. N wskazuje eskortę, E rozpoczyna ją. Format zapisu 14 zachowuje kontrakty oraz dziennik dostaw. [Opis etapu](implementation-v0.25.md).
+
+Sześć propozycji kadłubów zapisano jako [referencję z uwagami do ról i balansu](fleet-concepts.md). Nie traktujemy obrazka jako obowiązkowej specyfikacji. Następny etap: tarcze kinetyczne, potem dalszy rozwój floty.

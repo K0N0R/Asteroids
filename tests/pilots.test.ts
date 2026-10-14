@@ -197,7 +197,7 @@ test('v5 migration initializes roster and missing pilots without erasing mission
             ship: { ...signal.ship, hull: 'fighter' },
         })),
     });
-    assert.equal(loaded.version, 11);
+    assert.equal(loaded.version, 15);
 });
 
 test('save validation rejects malformed XP, overspent points and malformed skills in roster or capsule', () => {

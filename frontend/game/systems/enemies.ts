@@ -21,6 +21,8 @@ export interface Enemy extends EnemySpec {
     impactCooldown: number;
     thrusting: boolean;
     lastSeen: Point;
+    routeIndex: number;
+    target: 'player' | 'escort';
 }
 export const enemyPosition = (enemy: Enemy): Point => {
     const p = enemy.body.translation();
@@ -88,6 +90,9 @@ export class EnemyFleet {
             );
             this.enemies.set(spec.id, {
                 ...spec,
+                route: spec.route?.map((point) => ({ ...point })),
+                routeIndex: 0,
+                target: 'player',
                 kind,
                 config,
                 home: { ...spec.home },
@@ -137,15 +142,37 @@ export class EnemyFleet {
     }
     update(
         dt: number,
-        player: Point,
-        velocity: Point,
+        playerPosition: Point,
+        playerVelocity: Point,
         isRock: (collider: RAPIER.Collider) => boolean,
         fire: (enemy: Enemy) => boolean,
         signature = 1,
+        ally?: { position: Point; velocity: Point },
     ) {
         if (this.disposed) return;
         for (const enemy of this.enemies.values()) {
-            const config = enemy.config;
+            const config = enemy.config,
+                p0 = enemyPosition(enemy);
+            const allyDistance = ally
+                ? Math.hypot(ally.position.x - p0.x, ally.position.y - p0.y)
+                : Infinity;
+            const playerDistance = Math.hypot(playerPosition.x - p0.x, playerPosition.y - p0.y);
+            const playerVisible =
+                Math.hypot(playerPosition.x, playerPosition.y) >= DRONES.safeRadius &&
+                playerDistance < config.loseRange * signature &&
+                this.lineClear(p0, playerPosition, isRock);
+            const chooseAlly =
+                !!ally &&
+                Math.hypot(ally.position.x, ally.position.y) >= DRONES.safeRadius &&
+                allyDistance < config.loseRange &&
+                this.lineClear(p0, ally.position, isRock) &&
+                (!playerVisible || allyDistance < playerDistance);
+            const target = chooseAlly ? 'escort' : 'player';
+            if (enemy.target !== target) enemy.charge = 0;
+            enemy.target = target;
+            const player = chooseAlly ? ally!.position : playerPosition,
+                velocity = chooseAlly ? ally!.velocity : playerVelocity;
+            const targetSignature = chooseAlly ? 1 : signature;
             const p = enemyPosition(enemy),
                 dx = player.x - p.x,
                 dy = player.y - p.y;
@@ -154,7 +181,7 @@ export class EnemyFleet {
             const safe = Math.hypot(player.x, player.y) < DRONES.safeRadius;
             const visible =
                 !safe &&
-                distance < config.loseRange * signature &&
+                distance < config.loseRange * targetSignature &&
                 this.lineClear(p, player, isRock);
             if (visible) enemy.lastSeen = { ...player };
             enemy.previous = p;
@@ -176,7 +203,8 @@ export class EnemyFleet {
                 }
             } else if (enemy.state === 'return') {
                 if (homeDistance < 210) enemy.state = 'patrol';
-            } else if (visible && distance < config.detectRange * signature) {
+            } else if (visible && distance < config.detectRange * targetSignature) {
+                if (enemy.route) enemy.home = { ...p };
                 enemy.state = 'chase';
                 enemy.lostSight = 0;
             }
@@ -198,13 +226,18 @@ export class EnemyFleet {
                         (tx / Math.max(1, trackedDistance)) * tangent) *
                     speed;
             } else {
+                if (enemy.state === 'patrol' && enemy.route?.length) {
+                    const point = enemy.route[enemy.routeIndex];
+                    if (Math.hypot(point.x - p.x, point.y - p.y) < 180)
+                        enemy.routeIndex = (enemy.routeIndex + 1) % enemy.route.length;
+                }
                 const target =
                     enemy.state === 'return'
                         ? enemy.home
-                        : {
+                        : (enemy.route?.[enemy.routeIndex] ?? {
                               x: enemy.home.x + Math.cos(enemy.phase) * 170,
                               y: enemy.home.y + Math.sin(enemy.phase) * 170,
-                          };
+                          });
                 const tx = target.x - p.x,
                     ty = target.y - p.y,
                     length = Math.hypot(tx, ty);
@@ -313,6 +346,7 @@ export class EnemyFleet {
         if (!enemy) return null;
         enemy.health = Math.max(0, enemy.health - amount);
         enemy.hitFlash = 0.15;
+        if (enemy.route && enemy.state !== 'chase') enemy.home = enemyPosition(enemy);
         enemy.state = 'chase';
         enemy.lostSight = 0;
         enemy.charge = 0;

@@ -4,7 +4,7 @@ import type { Point } from '../worlds/sector';
 
 export interface Resource extends Point {
     id: number;
-    kind: 'ore' | 'parts';
+    kind: 'ore' | 'parts' | 'crystals';
     amount: number;
 }
 export interface Gripper {
@@ -13,7 +13,7 @@ export interface Gripper {
     targetId: number | null;
     tip: Point;
     previous: Point;
-    held: 'ore' | 'parts' | null;
+    held: 'ore' | 'parts' | 'crystals' | null;
 }
 export class GripperSystem {
     readonly arms: Gripper[];
@@ -42,7 +42,7 @@ export class GripperSystem {
         size: number,
         space: number,
         loot: Map<number, Resource>,
-        deliver: (kind: 'ore' | 'parts') => void,
+        deliver: (kind: 'ore' | 'parts' | 'crystals') => void,
         clearLine: (a: Point, b: Point) => boolean,
     ) {
         const reserved = new Set(this.arms.map((arm) => arm.targetId).filter((id) => id !== null));

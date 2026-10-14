@@ -160,7 +160,7 @@ test('navigation follows one moving drone, switches after destruction and return
 test('v8 journal migrates to v9 without losing active marker, history, fleet or bank; new incomplete journals fail', () => {
     const c = ready();
     c.contract = 4;
-    c.contractCompletions = [1, 2, 3, 4, 5, 0];
+    c.contractCompletions = [1, 2, 3, 4, 5, 0, 0, 0];
     c.bank = { ore: 15, parts: 3 };
     beginRun(c, 7);
     const old = { ...c, version: 8, contractCompletions: [1, 2, 3, 4, 5] };

@@ -37,3 +37,9 @@ export function aimAngle(origin: Point, target: Point, fallback: number) {
         ? Math.atan2(target.y - origin.y, target.x - origin.x)
         : fallback;
 }
+
+export function followCameraZoom(current: number, speed: number, dt: number) {
+    const ratio = Math.max(0, Math.min(1, (speed - 220) / 780));
+    const target = 1 - 0.36 * ratio * ratio * (3 - 2 * ratio);
+    return current + (target - current) * (1 - Math.exp(-1.3 * Math.max(0, dt)));
+}

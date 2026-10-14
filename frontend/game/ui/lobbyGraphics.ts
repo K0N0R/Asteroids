@@ -1,3 +1,4 @@
+import { pilotAppearanceId } from '../state/pilots';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { C, ShipView, stationView, DroneView } from '../graphics/shapes';
 import { HullId, WeaponId } from '../config';
@@ -14,6 +15,7 @@ export type LobbyIcon =
     | 'signal'
     | 'ore'
     | 'parts'
+    | 'crystals'
     | 'cargo'
     | 'health';
 export function lobbyIcon(kind: LobbyIcon, color: number = C.mint) {
@@ -67,6 +69,12 @@ export function lobbyIcon(kind: LobbyIcon, color: number = C.mint) {
             .moveTo(0, -12)
             .lineTo(-2, 3)
             .lineTo(6, 10)
+            .stroke({ color, width: 1 });
+    if (kind === 'crystals')
+        g.poly([0, -13, 8, 0, 0, 13, -8, 0])
+            .stroke({ color, width: 2 })
+            .moveTo(0, -13)
+            .lineTo(0, 13)
             .stroke({ color, width: 1 });
     if (kind === 'parts')
         g.rect(-8, -8, 16, 16).stroke({ color, width: 2 }).rect(-3, -3, 6, 6).fill(color);
@@ -125,7 +133,14 @@ export function cost(
     x: number,
     y: number,
     showZeroParts = false,
+    crystals = 0,
 ) {
+    if (crystals) {
+        const icon = lobbyIcon('crystals', 0xc2a0ec);
+        icon.position.set(x + 250, y + 11);
+        parent.addChild(icon);
+        label(parent, `${crystals}`, x + 272, y, 20, 0xc2a0ec);
+    }
     const rock = lobbyIcon('ore', C.gold);
     rock.position.set(x + 10, y + 11);
     parent.addChild(rock);
@@ -220,25 +235,82 @@ export function hullPreview(modules: ShipModules & { hull: HullId; weapon?: Weap
     return root;
 }
 
-export function pilotPortrait(archetype: number, mechanic = false) {
+export function pilotPortrait(archetype: number, mechanic = false, identity = archetype + 1) {
+    const appearance = pilotAppearanceId({ id: identity, archetype });
     const root = new Container(),
         g = new Graphics(),
-        tint = mechanic ? C.gold : [C.mint, C.gold, C.cyan][archetype % 3];
-    g.circle(0, 0, 132).fill({ color: C.ink, alpha: 0.8 }).stroke({ color: C.line, width: 1 });
-    g.poly([-104, 109, -91, 61, -48, 40, 48, 40, 91, 61, 104, 109])
-        .fill(0x253942)
-        .stroke({ color: tint, width: 2 });
-    g.roundRect(-64, -100, 128, 152, 46).fill(0x4c545b).stroke({ color: 0x737373, width: 5 });
-    g.roundRect(-53, -67, 106, 56, 21).fill(0x10242b).stroke({ color: tint, width: 3 });
-    g.moveTo(-36, -56).lineTo(30, -56).stroke({ color: tint, width: 2, alpha: 0.55 });
-    g.rect(-76, -49, 13, 52)
-        .fill(0x33373a)
-        .rect(63, -49, 13, 52)
-        .fill(0x33373a)
-        .roundRect(-30, 5, 60, 22, 7)
-        .fill(0x33373a);
-    g.moveTo(-23, 16).lineTo(23, 16).stroke({ color: tint, width: 2 });
-    for (let i = -1; i <= 1; i++) g.rect(-6 + i * 14, 73, 8, 4).fill(tint);
+        style = mechanic ? 1 : appearance % 4;
+    const accent = mechanic ? 0xbb9560 : [0x6d929e, 0xb68a72, 0x748fa8, 0x91976f][archetype % 4];
+    // Cycle skin tones independently of hairstyle and profession, including fair complexions.
+    const skin = [0xf3d9c4, 0xe9c5a7, 0xd2a080, 0xb17a5b, 0x88563f, 0x644235][(appearance - 1) % 6];
+    const hair = [0x343538, 0x6b493b, 0x9a6547, 0xc8b799][Math.floor(appearance / 3) % 4];
+    g.circle(0, 0, 132).fill(0x132631).stroke({ color: C.line, width: 1 });
+    if (style === 1) g.ellipse(45, -47, 45, 78).fill(hair);
+    g.moveTo(-105, 111)
+        .quadraticCurveTo(-101, 62, -55, 46)
+        .lineTo(55, 46)
+        .quadraticCurveTo(101, 62, 105, 111)
+        .closePath()
+        .fill(0x71828c);
+    g.poly([-50, 45, -25, 39, 25, 39, 50, 45, 23, 112, -23, 112]).fill(0x253642);
+    for (const side of [-1, 1]) {
+        g.poly([side * 49, 45, side * 75, 58, side * 91, 108, side * 59, 117, side * 29, 51]).fill(
+            0xacb4b4,
+        );
+        g.poly([side * 23, 45, side * 52, 35, side * 63, 58, side * 33, 103]).fill(accent);
+        g.roundRect(side < 0 ? -82 : 58, 56, 21, 28, 4).fill(0x3a4c59);
+    }
+    g.roundRect(-20, 19, 40, 44, 12).fill(skin);
+    g.ellipse(-47, -28, 9, 17).ellipse(47, -28, 9, 17).fill(skin);
+    g.moveTo(-45, -56)
+        .quadraticCurveTo(-48, -91, 0, -94)
+        .quadraticCurveTo(48, -91, 45, -56)
+        .lineTo(40, -7)
+        .quadraticCurveTo(32, 32, 0, 39)
+        .quadraticCurveTo(-32, 32, -40, -7)
+        .closePath()
+        .fill(skin);
+    g.moveTo(34, -65)
+        .quadraticCurveTo(48, -25, 34, 9)
+        .quadraticCurveTo(23, 32, 0, 39)
+        .quadraticCurveTo(34, 18, 29, -19)
+        .closePath()
+        .fill({ color: 0x8e5845, alpha: 0.16 });
+    // Hair, visible skin and faceless silhouettes replace the opaque helmet.
+    if (style === 0)
+        g.poly([
+            -50, -44, -54, -80, -37, -102, -20, -96, -9, -112, 16, -103, 34, -105, 51, -77, 49, -43,
+            31, -71, 8, -73, -20, -55, -13, -80,
+        ]).fill(hair);
+    else if (style === 1)
+        g.moveTo(-48, -8)
+            .quadraticCurveTo(-70, -75, -20, -100)
+            .quadraticCurveTo(34, -121, 50, -70)
+            .lineTo(43, -14)
+            .lineTo(31, -66)
+            .quadraticCurveTo(2, -50, -47, -8)
+            .closePath()
+            .fill(hair);
+    else if (style === 2)
+        g.moveTo(-48, -25)
+            .quadraticCurveTo(-65, -92, -12, -106)
+            .quadraticCurveTo(56, -113, 48, -27)
+            .lineTo(26, -75)
+            .lineTo(-32, -49)
+            .closePath()
+            .fill(hair);
+    else {
+        for (let i = 0; i < 7; i++)
+            g.circle(-40 + i * 13, -78 - Math.sin((i / 6) * Math.PI) * 18, 18).fill(hair);
+    }
+    g.ellipse(-50, -28, 10, 22).fill(0x2c3e4b).stroke({ color: 0x7b8b94, width: 2 });
+    g.roundRect(-54, -38, 6, 19, 2).fill(accent);
+    g.beginPath()
+        .moveTo(-50, -8)
+        .quadraticCurveTo(-45, 11, -22, 17)
+        .stroke({ color: 0x283b48, width: 5 });
+    g.roundRect(-27, 13, 17, 7, 3).fill(0x293d4b);
+    g.roundRect(37, 91, 27, 6, 2).fill(accent);
     root.addChild(g);
     return root;
 }
@@ -264,7 +336,7 @@ export function stationScene(level: number, selected: 'workshop' | 'storage') {
     return root;
 }
 
-export function workshopScene(kind: 'refine' | 'kit' | 'recycle') {
+export function workshopScene(kind: 'refine' | 'kit' | 'recycle' | 'crystallize') {
     const root = new Container(),
         g = new Graphics();
     g.poly([-265, 76, -215, 128, 215, 128, 265, 76, 215, -115, -215, -115])
@@ -278,12 +350,18 @@ export function workshopScene(kind: 'refine' | 'kit' | 'recycle') {
         .lineTo(80, 80)
         .stroke({ color: C.cyan, width: 5, alpha: 0.55 });
     for (let i = 0; i < 4; i++) g.rect(-180 + i * 120, 117, 50, 7).fill(C.gold);
-    const input = lobbyIcon(kind === 'recycle' ? 'parts' : 'ore', C.gold);
+    const input = lobbyIcon(kind === 'recycle' || kind === 'crystallize' ? 'parts' : 'ore', C.gold);
     input.scale.set(3);
     input.position.set(-135, 0);
     const output = lobbyIcon(
-        kind === 'recycle' ? 'ore' : kind === 'refine' ? 'parts' : 'health',
-        C.mint,
+        kind === 'crystallize'
+            ? 'crystals'
+            : kind === 'recycle'
+              ? 'ore'
+              : kind === 'refine'
+                ? 'parts'
+                : 'health',
+        kind === 'crystallize' ? 0xc2a0ec : C.mint,
     );
     output.scale.set(3.5);
     output.position.set(130, 0);
@@ -296,7 +374,13 @@ export function workshopScene(kind: 'refine' | 'kit' | 'recycle') {
     root.addChild(g, input, output);
     label(
         root,
-        kind === 'recycle' ? '1 komponent' : kind === 'refine' ? '8 rudy' : '6 rudy + 1 komponent',
+        kind === 'crystallize'
+            ? '5 komponentów'
+            : kind === 'recycle'
+              ? '1 komponent'
+              : kind === 'refine'
+                ? '8 rudy'
+                : '6 rudy + 1 komponent',
         -190,
         56,
         15,
@@ -304,7 +388,13 @@ export function workshopScene(kind: 'refine' | 'kit' | 'recycle') {
     );
     label(
         root,
-        kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw',
+        kind === 'crystallize'
+            ? '1 kryształ'
+            : kind === 'recycle'
+              ? '5 rudy'
+              : kind === 'refine'
+                ? '1 komponent'
+                : '1 zestaw',
         77,
         56,
         15,
@@ -378,5 +468,5 @@ export function signalScene(
     return root;
 }
 export function bareModules(hull: HullId): ShipModules & { hull: HullId; weapon?: WeaponId } {
-    return { hull, engine: 0, handling: 0, cargo: 0, drill: 0, armor: 0 };
+    return { hull, engine: 0, handling: 0, cargo: 0, drill: 0, armor: 0, shield: 0 };
 }

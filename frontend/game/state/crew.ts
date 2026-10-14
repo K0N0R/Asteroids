@@ -55,6 +55,7 @@ export function hireQuartermaster(c: Campaign) {
 export function queueJob(c: Campaign, kind: JobKind) {
     if (c.activeRun || !Object.hasOwn(JOBS, kind)) return false;
     const recipe = JOBS[kind];
+    if ('workshop' in recipe && c.station.workshop < recipe.workshop) return false;
     if (!c.crew[recipe.worker] || workerJobs(c, recipe.worker).length >= CREW.queueLimit)
         return false;
     if (storageUsed(c) + jobStorage(kind) - recipe.ore - recipe.parts > storageCapacity(c))
@@ -94,7 +95,7 @@ export function advanceCrew(c: Campaign, seconds: number): number {
             if (job.remaining > 1e-8) break;
             const recipe = JOBS[job.kind];
             if (recipe.output === 'kit') c.repairKits += recipe.amount;
-            else c.bank[recipe.output] += recipe.amount;
+            else c.bank[recipe.output] = (c.bank[recipe.output] ?? 0) + recipe.amount;
             c.crew.jobs = c.crew.jobs.filter((other) => other.id !== job.id);
             c.crew.completed++;
             completed++;

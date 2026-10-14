@@ -30,7 +30,7 @@ test('sectors replace one observatory guard with a Lancer, retaining five enemie
     for (let seed = 0; seed < 100; seed++) {
         const sector = generateSector(seed),
             lancers = sector.enemies.filter((e) => e.kind === 'lancer');
-        assert.equal(sector.enemies.length, 5);
+        assert.equal(sector.enemies.length, 8);
         assert.equal(lancers.length, 1);
         assert.equal(lancers[0].id, 5);
         assert.deepEqual(lancers[0].home, { x: sector.landmarks[5].x, y: sector.landmarks[5].y });

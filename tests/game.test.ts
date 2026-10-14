@@ -91,7 +91,7 @@ test('refresh restores an active marker so the interrupted mission can be resolv
 });
 test('upgrade costs and workshop limits are enforced without partial charges', () => {
     const c = newCampaign();
-    c.bank = { ore: 200, parts: 30 };
+    c.bank = { ore: 200, parts: 30, crystals: 3 };
     assert.ok(buyUpgrade(c, 'engine'));
     const bank = { ...c.bank };
     assert.equal(buyUpgrade(c, 'engine'), false);
@@ -123,7 +123,7 @@ test('invalid saves and unavailable storage fail safely', () => {
         },
     };
     const repository = new SaveRepository(storage);
-    assert.equal(repository.load().version, 11);
+    assert.equal(repository.load().version, 15);
     assert.equal(repository.save(newCampaign()), false);
 });
 test('W accelerates, releasing stops and S brakes before reversing with priority over W', () => {
@@ -275,7 +275,7 @@ test('legacy campaigns migrate without losing pilots, bank, upgrades or the inte
     delete legacy.repairKits;
     delete legacy.activeRun.repairKits;
     const loaded = parseCampaign(JSON.stringify(legacy))!;
-    assert.equal(loaded.version, 11);
+    assert.equal(loaded.version, 15);
     assert.deepEqual(loaded.bank, c.bank);
     assert.deepEqual(loaded.pilots, c.pilots);
     assert.equal(loaded.ship!.engine, 1);

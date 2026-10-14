@@ -17,6 +17,10 @@ const idle: FlightInput = {
     interact: false,
 };
 function clean(sim: MissionSimulation, keepRock = false, keepEnemy = false) {
+    // These fixtures isolate hull/interaction behavior; kinetic shielding has separate integration tests.
+    sim.kineticShield.charge = 0;
+    sim.kineticShield.cooldown = 1000;
+
     const rock = [...sim.rocks.values()].find((r) => r.radius < 40)!;
     const enemy = [...sim.enemies.enemies.values()][0];
     for (const r of sim.rocks.values())

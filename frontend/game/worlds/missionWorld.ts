@@ -1,3 +1,7 @@
+import { drawKineticShield } from '../graphics/kineticShieldView';
+import { researchShipView, researchAnomalyView } from '../graphics/researchView';
+import { salvagePosition } from '../systems/salvage';
+import { fortressView } from '../graphics/fortressView';
 import { createMissionAudio } from '../systems/audio';
 import { Container, Graphics } from 'pixi.js';
 import { MissionSimulation, FlightInput } from '../systems/mission';
@@ -16,7 +20,12 @@ import { SoundManager } from '../../core/systems/soundManager';
 import { Ship } from '../state/campaign';
 import { label } from '../ui/primitives';
 import { enemyPosition } from '../systems/enemies';
-import { angleDifference, followCameraAngle, rotateVector } from '../systems/flight';
+import {
+    angleDifference,
+    followCameraAngle,
+    followCameraZoom,
+    rotateVector,
+} from '../systems/flight';
 import type { Point } from './sector';
 import { outpostView } from '../graphics/outpostView';
 import { impactParticleCount } from '../systems/impact';
@@ -29,6 +38,11 @@ export class MissionWorld extends Container {
     readonly shipView;
     private rocks = new Map<number, Graphics>();
     private bullets = new Map<number, Graphics>();
+    private researchView = researchShipView();
+    private anomalyView = researchAnomalyView();
+    private researchStatus = new Graphics();
+    private salvageViews = new Map<number, Container>();
+    private salvageStatus = new Graphics();
     private enemyViews = new Map<number, DroneView>();
     private enemyStatus = new Graphics();
     private loot = new Map<number, Graphics>();
@@ -42,6 +56,7 @@ export class MissionWorld extends Container {
         dust: boolean;
     }[] = [];
     private shield = new Graphics();
+    private kineticView = new Graphics();
     private rockLayer = new Container();
     private effectLayer = new Container();
     private shapes = new ShapeLibrary();
@@ -77,17 +92,25 @@ export class MissionWorld extends Container {
             w = simulation.sector.landmarks[2];
         wreck.position.set(w.x, w.y);
         this.camera.addChild(wreck, this.rockLayer, this.effectLayer, this.shipView);
-        this.camera.addChild(this.enemyStatus, this.effectLayer);
+        this.camera.addChild(this.enemyStatus, this.effectLayer, this.salvageStatus);
+        this.camera.addChildAt(this.kineticView, this.camera.getChildIndex(this.shipView) + 1);
         this.camera.addChildAt(this.laser, this.camera.getChildIndex(this.shipView));
         this.camera.addChildAt(this.grabberLines, this.camera.getChildIndex(this.shipView));
         this.camera.addChildAt(this.surveyRings, 2);
         for (const site of simulation.sector.landmarks) {
             if (!site.siteId) continue;
-            const view = surveySiteView(site.siteId);
+            const view =
+                site.siteId === 'fortress'
+                    ? fortressView(simulation.sector.fortress)
+                    : surveySiteView(site.siteId);
             view.position.set(site.x, site.y);
             this.surveyLabels.set(site.siteId, label(view, site.name, -100, 103, 17, C.cyan));
             this.surveyViews.set(site.siteId, view);
             this.camera.addChildAt(view, 2);
+        }
+        if (simulation.escort) {
+            this.anomalyView.position.copyFrom(simulation.sector.researchSite);
+            this.camera.addChild(this.anomalyView, this.researchView, this.researchStatus);
         }
         const outpost = simulation.sector.outpost;
         this.outpostView.position.set(outpost.x, outpost.y);
@@ -126,11 +149,23 @@ export class MissionWorld extends Container {
             }
             if (signal.pilot) {
                 const pod = new Graphics()
-                    .roundRect(-10, -18, 20, 36, 8)
-                    .fill(C.ink)
-                    .stroke({ color: C.mint, width: 2 })
-                    .circle(0, -3, 5)
-                    .fill(C.mint);
+                    .roundRect(-15, -26, 30, 52, 14)
+                    .fill(0x5e7481)
+                    .stroke({ color: 0xa9bdc5, width: 1.2 })
+                    .roundRect(-11, -20, 22, 33, 10)
+                    .fill(0x283d4b)
+                    .stroke({ color: C.cyan, width: 1 })
+                    .ellipse(0, -4, 8, 13)
+                    .fill(0x9ccfe3)
+                    .ellipse(0, -4, 4, 7)
+                    .fill({ color: 0xd9ad88, alpha: 0.8 })
+                    .circle(4, -12, 3)
+                    .fill({ color: 0xffffff, alpha: 0.65 })
+                    .roundRect(-7, 17, 14, 4, 2)
+                    .fill(C.mint)
+                    .roundRect(-18, -10, 5, 20, 2)
+                    .roundRect(13, -10, 5, 20, 2)
+                    .fill(0x364c5a);
                 pod.x = signal.ship ? 70 : 0;
                 this.recoveryView.addChild(pod);
             }
@@ -139,6 +174,27 @@ export class MissionWorld extends Container {
         }
         this.addChild(this.camera);
         this.render(1);
+    }
+    private holHealthBar(g: Graphics, p: Point, health: number, max: number, color: number) {
+        const polygon = (width: number) =>
+            [-24, -48, -24 + width, -48, -24 + width, -45, -24, -45].reduce<number[]>(
+                (points, value, i, array) => {
+                    if (i % 2 === 0) {
+                        const q = rotateVector(
+                            { x: value, y: array[i + 1] },
+                            -this.camera.rotation,
+                        );
+                        points.push(p.x + q.x, p.y + q.y);
+                    }
+                    return points;
+                },
+                [],
+            );
+        g.beginPath()
+            .poly(polygon(48))
+            .fill({ color: C.line, alpha: 0.7 })
+            .poly(polygon((48 * health) / max))
+            .fill(health / max < 0.3 ? C.red : color);
     }
     update(deltaMS: number, input: FlightInput) {
         if (this.simulation.pendingChoice) return;
@@ -242,12 +298,15 @@ export class MissionWorld extends Container {
             }
         }
     }
-    private inView(point: Point) {
+    private inView(point: Point, margin = 0) {
         const delta = rotateVector(
             { x: point.x - this.shipView.x, y: point.y - this.shipView.y },
             this.camera.rotation,
         );
-        return Math.abs(delta.x) < 960 && Math.abs(delta.y) < 580;
+        return (
+            Math.abs(delta.x) < 960 / this.camera.scale.x + margin &&
+            Math.abs(delta.y) < 580 / this.camera.scale.y + margin
+        );
     }
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
@@ -284,6 +343,13 @@ export class MissionWorld extends Container {
             Math.cos(s.ship.rotation() - s.previousAngle),
         );
         this.shipView.rotation = s.previousAngle + deltaAngle * alpha;
+        this.kineticView.position.copyFrom(this.shipView.position);
+        drawKineticShield(
+            this.kineticView,
+            s.kineticShield,
+            (Math.hypot(...s.hullConfig.hitbox) + 18) * s.hullConfig.size,
+            this.clock,
+        );
         this.shipView.aimAt(s.aimTarget);
         this.shipView.updateDrive(
             s.thrusting && !s.reversing,
@@ -294,6 +360,7 @@ export class MissionWorld extends Container {
         );
         this.shipView.alpha = s.cloaked ? 0.4 : 1;
         this.camera.rotation = followCameraAngle(this.camera.rotation, this.shipView.rotation, dt);
+        this.camera.scale.set(followCameraZoom(this.camera.scale.x, s.speed, dt));
         this.camera.pivot.copyFrom(this.shipView.position);
         this.camera.position.set(800, 450);
         this.laser.clear();
@@ -339,7 +406,9 @@ export class MissionWorld extends Container {
             if (arm.held)
                 this.grabberLines
                     .poly([tip.x, tip.y - 7, tip.x + 6, tip.y, tip.x, tip.y + 7, tip.x - 6, tip.y])
-                    .fill(arm.held === 'parts' ? C.gold : C.mint);
+                    .fill(
+                        arm.held === 'crystals' ? 0xc2a0ec : arm.held === 'parts' ? C.gold : C.mint,
+                    );
         }
         for (const [id, view] of this.enemyViews)
             if (!s.enemies.enemies.has(id)) {
@@ -427,7 +496,7 @@ export class MissionWorld extends Container {
         for (const site of s.sector.landmarks) {
             if (!site.siteId) continue;
             const view = this.surveyViews.get(site.siteId)!;
-            view.visible = this.inView(site);
+            view.visible = this.inView(site, site.siteId === 'fortress' ? site.radius : 0);
             if (!view.visible) continue;
             const title = this.surveyLabels.get(site.siteId)!;
             title.rotation = -this.camera.rotation;
@@ -559,13 +628,23 @@ export class MissionWorld extends Container {
         }
         const signal = s.recoverySignal;
         this.recoveryRing.clear();
-        if (signal) {
+        this.recoveryView.visible = !!signal && !s.recoveryDestroyed && !s.recoveryDelivered;
+        if (signal && !s.recoveryDestroyed && !s.recoveryDelivered) {
             if (s.recoverySecured && s.tow) {
                 const x = interpolate(s.tow.previous.x, s.tow.position.x, alpha),
                     y = interpolate(s.tow.previous.y, s.tow.position.y, alpha);
                 this.recoveryView.position.set(x, y);
                 this.recoveryView.rotation =
                     s.tow.previousAngle + angleDifference(s.tow.angle, s.tow.previousAngle) * alpha;
+                const held = s.salvage.towed;
+                if (held)
+                    this.holHealthBar(
+                        this.recoveryRing,
+                        { x, y },
+                        held.health,
+                        held.maxHealth,
+                        C.mint,
+                    );
                 const a = this.shipView.rotation;
                 const anchor = {
                     x: this.shipView.x - Math.cos(a) * 28,
@@ -600,6 +679,108 @@ export class MissionWorld extends Container {
                         .stroke({ color: C.mint, width: 4 });
             }
         }
+        if (s.escort) {
+            const e = s.escort,
+                p = e.position;
+            this.researchView.visible =
+                e.state !== 'destroyed' && e.departure < 2 && this.inView(p);
+            this.researchView.alpha = e.state === 'complete' ? Math.max(0, 1 - e.departure / 2) : 1;
+            this.researchView.position.set(
+                interpolate(e.previous.x, p.x, alpha),
+                interpolate(e.previous.y, p.y, alpha),
+            );
+            this.researchView.rotation =
+                e.previousAngle + angleDifference(e.body.rotation(), e.previousAngle) * alpha;
+            this.anomalyView.visible = this.inView(s.sector.researchSite, 180);
+            this.anomalyView.rotation = this.clock * 0.08;
+            this.researchStatus.clear();
+            if (this.researchView.visible)
+                this.holHealthBar(this.researchStatus, p, e.health, 140, C.mint);
+            if (e.state === 'research')
+                this.researchStatus
+                    .beginPath()
+                    .arc(
+                        p.x,
+                        p.y,
+                        60,
+                        -Math.PI / 2,
+                        -Math.PI / 2 + (e.researchProgress / 12) * Math.PI * 2,
+                    )
+                    .stroke({ color: C.cyan, width: 3, alpha: 0.8 });
+        }
+        this.salvageStatus.clear();
+        for (const [id, view] of this.salvageViews)
+            if (!s.salvage.items.has(id)) {
+                view.destroy({ children: true });
+                this.salvageViews.delete(id);
+            }
+        for (const item of s.salvage.items.values()) {
+            if (item.source === 'recovery') continue;
+            let view = this.salvageViews.get(item.id);
+            if (!view) {
+                const drone = new DroneView(item.source);
+                drone.flame.visible = false;
+                drone.alpha = 0.75;
+                const scars = new Graphics()
+                    .moveTo(-15, -10)
+                    .lineTo(6, 8)
+                    .lineTo(15, 2)
+                    .stroke({ color: 0x161f28, width: 3 })
+                    .circle(-8, 5, 5)
+                    .fill(0x25323d);
+                view = new Container();
+                view.addChild(drone, scars);
+                this.effectLayer.addChild(view);
+                this.salvageViews.set(item.id, view);
+            }
+            const p = salvagePosition(item);
+            view.visible = this.inView(p);
+            if (!view.visible) continue;
+            view.position.set(
+                interpolate(item.previous.x, p.x, alpha),
+                interpolate(item.previous.y, p.y, alpha),
+            );
+            view.rotation =
+                item.previousAngle +
+                angleDifference(item.body.rotation(), item.previousAngle) * alpha;
+            this.holHealthBar(this.salvageStatus, p, item.health, item.maxHealth, C.gold);
+            if (s.salvage.towed === item) {
+                const anchor = this.shipView.position,
+                    a = this.shipView.rotation;
+                const x = anchor.x - Math.cos(a) * 28,
+                    y = anchor.y - Math.sin(a) * 28;
+                const dx = p.x - x,
+                    dy = p.y - y,
+                    d = Math.max(1, Math.hypot(dx, dy)),
+                    slack = Math.min(45, Math.max(4, (230 - d) * 0.25));
+                this.salvageStatus
+                    .beginPath()
+                    .moveTo(x, y)
+                    .quadraticCurveTo(
+                        (x + p.x) / 2 - (dy / d) * slack,
+                        (y + p.y) / 2 + (dx / d) * slack,
+                        p.x,
+                        p.y,
+                    )
+                    .stroke({ color: C.mint, width: 1, alpha: 0.6 });
+            } else {
+                this.salvageStatus
+                    .beginPath()
+                    .circle(p.x, p.y, 55)
+                    .stroke({ color: C.gold, width: 1, alpha: 0.25 });
+                if (s.salvageTarget === item.id && s.salvageProgress > 0)
+                    this.salvageStatus
+                        .beginPath()
+                        .arc(
+                            p.x,
+                            p.y,
+                            55,
+                            -Math.PI / 2,
+                            -Math.PI / 2 + (s.salvageProgress / 3) * Math.PI * 2,
+                        )
+                        .stroke({ color: C.mint, width: 3 });
+            }
+        }
         for (const [id, view] of this.rocks)
             if (!s.rocks.has(id)) {
                 view.destroy();
@@ -608,7 +789,7 @@ export class MissionWorld extends Container {
         for (const rock of s.rocks.values()) {
             let view = this.rocks.get(rock.id);
             if (!view) {
-                view = this.shapes.rock(rock.variant, rock.rich);
+                view = this.shapes.rock(rock.variant, rock.rich, rock.crystal);
                 view.scale.set(rock.radius);
                 this.rocks.set(rock.id, view);
                 this.rockLayer.addChild(view);
@@ -662,10 +843,21 @@ export class MissionWorld extends Container {
             if (!view) {
                 view = new Graphics()
                     .poly([0, -7, 6, 0, 0, 7, -6, 0])
-                    .fill(item.kind === 'parts' ? C.gold : C.mint)
+                    .fill(
+                        item.kind === 'crystals'
+                            ? 0xc2a0ec
+                            : item.kind === 'parts'
+                              ? C.gold
+                              : C.mint,
+                    )
                     .circle(0, 0, 12)
                     .stroke({
-                        color: item.kind === 'parts' ? C.gold : C.mint,
+                        color:
+                            item.kind === 'crystals'
+                                ? 0xc2a0ec
+                                : item.kind === 'parts'
+                                  ? C.gold
+                                  : C.mint,
                         width: 1,
                         alpha: 0.3,
                     });
@@ -676,6 +868,43 @@ export class MissionWorld extends Container {
             view.alpha = 0.8 + Math.sin(this.clock * 3 + item.id) * 0.2;
         }
         this.navigation.clear();
+        for (const site of s.sector.landmarks) {
+            if (site.key < 12 || !this.inView(site, site.radius)) continue;
+            this.navigation
+                .beginPath()
+                .circle(site.x, site.y, site.radius)
+                .stroke({
+                    color: site.kind === 'cluster' ? 0xb6a1e2 : C.cyan,
+                    width: 2,
+                    alpha: 0.16,
+                });
+        }
+        const territories = new Map<string, Point>();
+        for (const enemy of s.enemies.enemies.values())
+            if (!enemy.route)
+                territories.set(
+                    `${Math.round(enemy.home.x)},${Math.round(enemy.home.y)}`,
+                    enemy.home,
+                );
+        for (const center of territories.values()) {
+            if (!this.inView(center, DRONES.leash)) continue;
+            this.navigation
+                .beginPath()
+                .circle(center.x, center.y, DRONES.leash)
+                .fill({ color: C.red, alpha: 0.015 });
+            for (let i = 0; i < 12; i++)
+                this.navigation
+                    .beginPath()
+                    .arc(
+                        center.x,
+                        center.y,
+                        DRONES.leash,
+                        (i * Math.PI) / 6 + 0.02,
+                        (i * Math.PI) / 6 + 0.35,
+                    )
+                    .stroke({ color: C.red, alpha: 0.15, width: 2 });
+        }
+
         this.navigation
             .circle(0, 0, GAME.dockRadius)
             .stroke({ color: C.mint, width: 1, alpha: 0.3 });

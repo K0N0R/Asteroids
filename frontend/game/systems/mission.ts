@@ -1,8 +1,11 @@
+import { KineticShield, shieldProfile } from './kineticShield';
+import { ResearchEscort, ESCORT } from './escort';
+import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
 import type { SoundCue } from './audioPolicy';
 import { WEAPONS, type WeaponId } from '../config';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
-import { Campaign, Cargo, capacity, shipHealth } from '../state/campaign';
+import { Campaign, Cargo, capacity, shipHealth, deliverSalvage } from '../state/campaign';
 import { generateSector, Point, random, RockSpec } from '../worlds/sector';
 import { RecoverySignal } from '../state/recovery';
 import { pilotProfile } from '../state/pilots';
@@ -32,6 +35,8 @@ export interface Rock {
     collider: RAPIER.Collider;
     radius: number;
     rich: boolean;
+    crystal?: boolean;
+    orbit?: RockSpec['orbit'];
     variant: number;
     health: number;
     previous: Point;
@@ -49,7 +54,7 @@ export interface Projectile extends Point {
 }
 export interface Loot extends Point {
     id: number;
-    kind: 'ore' | 'parts';
+    kind: 'ore' | 'parts' | 'crystals';
     amount: number;
 }
 export interface MissionEvent extends Point {
@@ -65,6 +70,14 @@ const clamp = (v: number, low: number, high: number) => Math.max(low, Math.min(h
 export class MissionSimulation {
     readonly sector;
     readonly world = new RAPIER.World({ x: 0, y: 0 });
+    readonly kineticShield: KineticShield;
+    readonly escort: ResearchEscort | null;
+    readonly salvage = new SalvageFleet(this.world);
+    salvageProgress = 0;
+    salvageTarget: number | null = null;
+    recoveryDestroyed = false;
+    recoveryDelivered = false;
+    deliveryRevision = 0;
     readonly queue = new RAPIER.EventQueue(true);
     readonly ship: RAPIER.RigidBody;
     readonly shipCollider: RAPIER.Collider;
@@ -75,6 +88,7 @@ export class MissionSimulation {
     readonly enemies: EnemyFleet;
     readonly outpost: OutpostSecurity;
     readonly outpostCollider: RAPIER.Collider;
+    readonly fortressColliders = new Set<number>();
     enemyKills = 0;
     deathReason = 'Zniszczony kadłub.';
     readonly pilot;
@@ -126,7 +140,10 @@ export class MissionSimulation {
     private modules;
     private disposed = false;
 
-    constructor(campaign: Campaign, seed: number) {
+    constructor(
+        private campaign: Campaign,
+        seed: number,
+    ) {
         this.sector = generateSector(seed);
         this.outpost = new OutpostSecurity(this.sector.outpost);
         this.outpostCollider = this.world.createCollider(
@@ -135,6 +152,28 @@ export class MissionSimulation {
                 .setRestitution(0.25)
                 .setFriction(0.1),
         );
+        const fortress = this.sector.fortress;
+        for (const wall of fortress.walls) {
+            const dx = wall.to.x - wall.from.x,
+                dy = wall.to.y - wall.from.y;
+            const collider = this.world.createCollider(
+                RAPIER.ColliderDesc.cuboid(Math.hypot(dx, dy) / 2 / P, 12 / P)
+                    .setTranslation(
+                        (wall.from.x + wall.to.x) / 2 / P,
+                        (wall.from.y + wall.to.y) / 2 / P,
+                    )
+                    .setRotation(Math.atan2(dy, dx))
+                    .setRestitution(0.3)
+                    .setFriction(0.2),
+            );
+            this.fortressColliders.add(collider.handle);
+        }
+        const core = this.world.createCollider(
+            RAPIER.ColliderDesc.ball(100 / P)
+                .setTranslation(fortress.x / P, fortress.y / P)
+                .setRestitution(0.25),
+        );
+        this.fortressColliders.add(core.handle);
         this.recoverySignal =
             campaign.recoverySignals.find(
                 (signal) => signal.id === campaign.activeRun?.recoveryId,
@@ -146,6 +185,9 @@ export class MissionSimulation {
         this.pilot = pilotProfile(campaign.pilots.find((p) => p.id === campaign.selectedPilot)!);
         this.baseCargoCapacity = capacity(campaign);
         this.baseMaxHull = shipHealth(campaign.ship!);
+        this.kineticShield = new KineticShield(
+            shieldProfile(this.modules.hull, this.modules.shield),
+        );
         this.hull = this.maxHull;
         this.repairKits = campaign.activeRun?.repairKits ?? 0;
         this.world.timestep = GAME.step;
@@ -162,6 +204,7 @@ export class MissionSimulation {
                 (this.hullConfig.hitbox[1] * this.hullConfig.size) / P,
                 0.04,
             )
+                .setCollisionGroups(0x0001fff9)
                 .setDensity(5)
                 .setRestitution(0.35)
                 .setFriction(0.1)
@@ -174,7 +217,14 @@ export class MissionSimulation {
             if (!signal || Math.hypot(rock.x - signal.x, rock.y - signal.y) > rock.radius + 180)
                 this.addRock(rock);
         }
-        this.enemies = new EnemyFleet(this.world, this.sector.enemies);
+        this.enemies = new EnemyFleet(this.world, [
+            ...this.sector.enemies,
+            ...this.sector.fortress.guards,
+        ]);
+        this.escort =
+            campaign.activeRun?.contract === 7
+                ? new ResearchEscort(this.world, this.sector.researchSite)
+                : null;
         this.previous = this.position;
     }
     get position(): Point {
@@ -205,7 +255,10 @@ export class MissionSimulation {
     }
     get cargoUsed() {
         return (
-            this.cargo.ore + this.cargo.parts + (this.stolenEquipment ? OUTPOST.equipmentSlots : 0)
+            this.cargo.ore +
+            this.cargo.parts +
+            (this.cargo.crystals ?? 0) +
+            (this.stolenEquipment ? OUTPOST.equipmentSlots : 0)
         );
     }
     get prototypes(): readonly PrototypeId[] {
@@ -238,12 +291,47 @@ export class MissionSimulation {
     get gunDamage() {
         return this.weaponConfig.damage * (this.installed.includes('guns') ? 1.35 : 1);
     }
+    get nearbyWreck() {
+        if (this.salvage.towed) return undefined;
+        return [...this.salvage.items.values()]
+            .filter(
+                (w) =>
+                    w.source !== 'recovery' &&
+                    Math.hypot(
+                        salvagePosition(w).x - this.position.x,
+                        salvagePosition(w).y - this.position.y,
+                    ) < SALVAGE.range,
+            )
+            .sort(
+                (a, b) =>
+                    Math.hypot(
+                        salvagePosition(a).x - this.position.x,
+                        salvagePosition(a).y - this.position.y,
+                    ) -
+                    Math.hypot(
+                        salvagePosition(b).x - this.position.x,
+                        salvagePosition(b).y - this.position.y,
+                    ),
+            )[0];
+    }
+    get recycledWreck() {
+        const item = this.salvage.towed;
+        return item && item.source !== 'recovery' && item.health > 0 ? item.source : undefined;
+    }
+    releaseWreck() {
+        if (this.salvage.towed?.source === 'recovery' || !this.salvage.towed) return;
+        this.salvage.detach();
+        this.tow = null;
+        this.salvageProgress = 0;
+        this.setNotice('Hol zwolniony · wrak pozostaje w kosmosie.');
+    }
     get nearbyCache() {
         const p = this.position,
             signal = this.recoverySignal;
         if (
             signal &&
             !this.recoverySecured &&
+            !this.recoveryDestroyed &&
             Math.hypot(p.x - signal.x, p.y - signal.y) < RECOVERY.radius
         )
             return undefined;
@@ -311,6 +399,11 @@ export class MissionSimulation {
         return (
             this.distanceHome < GAME.dockRadius &&
             this.speed < GAME.dockSpeed &&
+            (!this.salvage.towed ||
+                Math.hypot(
+                    salvagePosition(this.salvage.towed).x,
+                    salvagePosition(this.salvage.towed).y,
+                ) < 350) &&
             !this.grippers.arms.some((arm) => arm.held)
         );
     }
@@ -324,8 +417,12 @@ export class MissionSimulation {
     private isObstacle(collider: RAPIER.Collider) {
         return (
             this.asteroidColliders.has(collider.handle) ||
-            collider.handle === this.outpostCollider.handle
+            collider.handle === this.outpostCollider.handle ||
+            this.fortressColliders.has(collider.handle)
         );
+    }
+    get fortressGuardCount() {
+        return this.sector.fortress.guards.filter((g) => this.enemies.enemies.has(g.id)).length;
     }
     get nearbyScanSite() {
         const p = this.position;
@@ -338,6 +435,7 @@ export class MissionSimulation {
         if (
             this.recoverySignal &&
             !this.recoverySecured &&
+            !this.recoveryDestroyed &&
             Math.hypot(
                 this.position.x - this.recoverySignal.x,
                 this.position.y - this.recoverySignal.y,
@@ -346,11 +444,17 @@ export class MissionSimulation {
             return this.recoveryProgress > 0
                 ? `Podejmowanie celu · ${Math.floor((this.recoveryProgress / RECOVERY.seconds) * 100)}%`
                 : 'Przytrzymaj E · odzysk 4 s · bez ciągu i ognia, poniżej 80 m/s';
+        if (this.nearbyWreck)
+            return this.salvageProgress > 0
+                ? 'Podłączanie holu · przytrzymaj E'
+                : 'E Holuj wrak · 3 s · poniżej 80 m/s';
         if (this.nearbyCache)
             return this.cacheProgress > 0
                 ? `Otwieranie skrytki · ${Math.floor((this.cacheProgress / CACHE.seconds) * 100)}%`
                 : 'Przytrzymaj E · skrytka 2,5 s · bez ciągu i ognia, poniżej 60 m/s';
         const site = this.nearbyScanSite;
+        if (site?.siteId === 'fortress' && this.fortressGuardCount)
+            return `Rdzeń zablokowany · obrońcy ${this.fortressGuardCount}/5`;
         if (site?.siteId && !this.surveyData.has(site.siteId))
             return this.scanProgress > 0
                 ? `Skanowanie · ${Math.floor((this.scanProgress / SCAN.seconds) * 100)}%`
@@ -375,13 +479,15 @@ export class MissionSimulation {
             p = this.position;
         if (!this.wreckVisited && Math.hypot(w.x - p.x, w.y - p.y) < 160)
             return 'E · przeszukaj wrak';
+        if (this.recoveryDelivered)
+            return 'Cel ratunkowy przekazany Aurorze · możesz kontynuować wyprawę';
         if (this.recoverySecured) return 'Cel zabezpieczony na holu · wróć do Aurory i zadokuj';
         return this.cargoUsed >= this.cargoCapacity
             ? 'Ładownia pełna · wróć do bazy'
             : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
     }
     private addRock(spec: RockSpec) {
-        if (this.rocks.size >= 380) return;
+        if (this.rocks.size >= 600) return;
         const distance = Math.hypot(spec.x, spec.y),
             boundary = DRONES.safeRadius + spec.radius + 2;
         if (distance < boundary) {
@@ -407,7 +513,7 @@ export class MissionSimulation {
             id: ++this.ids,
             body,
             collider,
-            health: spec.radius * 1.35,
+            health: spec.radius * (spec.crystal ? 1.8 : 1.35),
             previous: { x: spec.x, y: spec.y },
             previousAngle: 0,
             previousVelocity: { x: spec.vx, y: spec.vy },
@@ -423,6 +529,7 @@ export class MissionSimulation {
         if (this.ended || this.disposed || this.choice) return;
         const dt = GAME.step;
         this.elapsed += dt;
+        this.kineticShield.update(dt, this.distanceHome < GAME.dockRadius);
         this.shotCooldown -= dt;
         this.laserEffectCooldown -= dt;
         this.laserBeam = null;
@@ -440,6 +547,27 @@ export class MissionSimulation {
             rock.previousAngle = rock.body.rotation();
             const v = rock.body.linvel();
             rock.previousVelocity = { x: v.x * P, y: v.y * P };
+            if (rock.orbit) {
+                const flow = rock.orbit,
+                    dx = rock.previous.x - flow.x,
+                    dy = rock.previous.y - flow.y;
+                const distance = Math.max(1, Math.hypot(dx, dy));
+                const radial = clamp((flow.radius - distance) * 0.15, -30, 30);
+                const desired = {
+                    x: ((-dy / distance) * flow.speed + (dx / distance) * radial) / P,
+                    y: ((dx / distance) * flow.speed + (dy / distance) * radial) / P,
+                };
+                const ex = desired.x - v.x,
+                    ey = desired.y - v.y;
+                const fraction = Math.min(
+                    1,
+                    ((60 / P) * dt) / Math.max(0.00001, Math.hypot(ex, ey)),
+                );
+                rock.body.applyImpulse(
+                    { x: ex * rock.body.mass() * fraction, y: ey * rock.body.mass() * fraction },
+                    true,
+                );
+            }
         }
         const maxTurn = this.turnSpeed;
         const desiredAngularVelocity = clamp(input.turn ?? 0, -1, 1) * maxTurn;
@@ -500,6 +628,35 @@ export class MissionSimulation {
                 true,
             );
         }
+        const anchor = this.position,
+            shipAngle = this.ship.rotation();
+        this.salvage.beforeStep(dt, {
+            x: anchor.x - Math.cos(shipAngle) * 28,
+            y: anchor.y - Math.sin(shipAngle) * 28,
+        });
+        if (this.escort) {
+            const obstacles = [...this.rocks.values()]
+                .map((r) => ({ ...r.body.translation(), radius: r.radius }))
+                .map((r) => ({ x: r.x * P, y: r.y * P, radius: r.radius }));
+            obstacles.push({ ...this.sector.outpost, radius: OUTPOST.radius });
+            const hostileNear = [...this.enemies.enemies.values()].some(
+                (e) =>
+                    Math.hypot(
+                        enemyPosition(e).x - this.escort!.position.x,
+                        enemyPosition(e).y - this.escort!.position.y,
+                    ) < 750,
+            );
+            if (this.escort.update(dt, this.position, obstacles, hostileNear)) {
+                this.surveyData.add('escort');
+                this.setNotice('Kepler: badania ukończone · wróć z danymi do Aurory.');
+                this.events.push({
+                    ...this.escort.position,
+                    kind: 'collect',
+                    sound: 'complete',
+                    rich: true,
+                });
+            }
+        }
         const beforeImpact = this.velocity;
         const chasingBefore = [...this.enemies.enemies.values()].filter(
             (enemy) => enemy.state === 'chase',
@@ -511,6 +668,9 @@ export class MissionSimulation {
             (collider) => this.isObstacle(collider),
             (enemy) => this.fireEnemy(enemy),
             this.cloaked ? 1 - this.hullConfig.cloak : 1,
+            this.escort?.vulnerable
+                ? { position: this.escort.position, velocity: this.escort.velocity }
+                : undefined,
         );
         if (
             !chasingBefore &&
@@ -526,6 +686,11 @@ export class MissionSimulation {
             const v = enemy.body.linvel();
             velocities.set(enemy.collider.handle, { x: v.x * P, y: v.y * P });
         }
+        for (const item of this.salvage.items.values()) {
+            const v = item.body.linvel();
+            velocities.set(item.collider.handle, { x: v.x * P, y: v.y * P });
+        }
+        if (this.escort) velocities.set(this.escort.collider.handle, this.escort.velocity);
         this.world.step(this.queue);
         this.queue.drainCollisionEvents((a, b, started) => {
             if (!started) return;
@@ -553,11 +718,22 @@ export class MissionSimulation {
                     this.damageCooldown <= 0 &&
                     this.distanceHome >= DRONES.safeRadius
                 ) {
-                    this.takeDamage(damage, 'Kadłub zniszczony przez zderzenie.', point);
-                    if (damage >= GAME.faultDamage && !this.engineFault) {
+                    const hullDamage = this.takeDamage(
+                        damage,
+                        'Kadłub zniszczony przez zderzenie.',
+                        point,
+                    );
+                    if (hullDamage >= GAME.faultDamage && !this.engineFault) {
                         this.engineFault = true;
                         this.setNotice('Uszkodzone dysze · ciąg napędu spadł do 45%');
                     }
+                }
+                if (this.escort?.collider.handle === handle && this.escort.cooldown <= 0)
+                    this.damageEscort(damage, point);
+                const item = this.salvage.items.get(this.salvage.colliders.get(handle)!);
+                if (item && item.cooldown <= 0) {
+                    item.cooldown = 0.5;
+                    this.damageSalvage(item, damage, point);
                 }
                 const id = this.enemies.colliders.get(handle),
                     enemy = id === undefined ? undefined : this.enemies.enemies.get(id);
@@ -571,15 +747,29 @@ export class MissionSimulation {
         if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) this.fire();
         this.updateBullets(dt);
         if (input.mine) this.mine(dt);
-        if (this.recoverySecured && this.recoverySignal) {
-            this.tow ??= this.attachTow();
-            const p = this.position,
-                a = this.ship.rotation();
-            this.tow.step(dt, { x: p.x - Math.cos(a) * 28, y: p.y - Math.sin(a) * 28 }, a);
+        if (this.salvage.towed) {
+            const item = this.salvage.towed;
+            this.tow ??= new TowBody(salvagePosition(item), { x: 0, y: 0 });
+            this.tow.previous = { ...item.previous };
+            this.tow.previousAngle = item.previousAngle;
+            this.tow.position = salvagePosition(item);
+            this.tow.angle = item.body.rotation();
+            const v = item.body.linvel();
+            this.tow.velocity = { x: v.x * P, y: v.y * P };
         }
+        if (
+            this.salvage.towed &&
+            Math.hypot(
+                salvagePosition(this.salvage.towed).x,
+                salvagePosition(this.salvage.towed).y,
+            ) < GAME.dockRadius
+        )
+            this.deliverTow();
         this.collectLoot(dt);
         this.updateRepair(input, dt);
+        this.updateEscort(input, dt);
         this.updateRecovery(input, dt);
+        this.updateSalvage(input, dt);
         this.updateScan(input, dt);
         if (
             input.interact &&
@@ -588,7 +778,9 @@ export class MissionSimulation {
             !this.thrusting &&
             !input.fire &&
             !input.mine &&
-            !this.nearbyCache
+            !this.nearbyCache &&
+            !this.escort?.startHeld &&
+            !(this.escort?.state === 'idle' && this.nearbyEscort)
         )
             this.interact(dt);
         else this.dockProgress = 0;
@@ -608,12 +800,104 @@ export class MissionSimulation {
             this.updateCache(input, dt);
         }
     }
+    get nearbyEscort() {
+        return (
+            !!this.escort &&
+            Math.hypot(
+                this.escort.position.x - this.position.x,
+                this.escort.position.y - this.position.y,
+            ) < ESCORT.startRange
+        );
+    }
+    private damageEscort(damage: number, point: Point) {
+        if (
+            !this.escort?.vulnerable ||
+            Math.hypot(this.escort.position.x, this.escort.position.y) < DRONES.safeRadius
+        )
+            return;
+        this.events.push({ ...point, kind: 'hit', strength: damage });
+        if (this.escort.damage(damage)) {
+            this.setNotice('Kepler zniszczony · kontrakt eskorty nie został wykonany.');
+            this.events.push({ ...point, kind: 'break', sound: 'destroy', strength: 40 });
+        }
+    }
+    private updateEscort(input: FlightInput, dt: number) {
+        const e = this.escort;
+        if (!e) return;
+        if (!input.interact) e.startHeld = false;
+        if (e.state === 'idle') {
+            const canStart =
+                this.nearbyEscort &&
+                input.interact &&
+                !this.thrusting &&
+                !input.fire &&
+                !input.mine &&
+                !input.repair &&
+                !input.sabotage &&
+                this.speed < 60 &&
+                this.damageCooldown <= 0 &&
+                this.hull > 0;
+            e.startProgress = canStart ? e.startProgress + dt : 0;
+            if (e.startProgress + 1e-8 >= ESCORT.startSeconds) {
+                e.state = 'travel';
+                e.startHeld = true;
+                e.startProgress = 0;
+                this.setNotice('Kepler: kurs na anomalię · trzymaj się w pobliżu.');
+            }
+        }
+        if (
+            !e.ambushed &&
+            ['travel', 'waiting', 'research'].includes(e.state) &&
+            Math.hypot(e.position.x, e.position.y) > 1200
+        ) {
+            e.ambushed = true;
+            const rng = random(this.sector.seed ^ 0x78ad31),
+                p = e.position;
+            const forward = Math.atan2(e.destination.y - p.y, e.destination.x - p.x);
+            for (let i = 0; i < 2; i++)
+                for (let attempt = 0; attempt < 100; attempt++) {
+                    const angle = forward + (rng() - 0.5) * 1.8,
+                        d = 420 + rng() * 180;
+                    const point = { x: p.x + Math.cos(angle) * d, y: p.y + Math.sin(angle) * d };
+                    if (
+                        Math.hypot(point.x, point.y) < 1200 ||
+                        [...this.rocks.values()].some(
+                            (r) =>
+                                Math.hypot(
+                                    r.body.translation().x * P - point.x,
+                                    r.body.translation().y * P - point.y,
+                                ) <
+                                r.radius + 60,
+                        ) ||
+                        [...this.enemies.enemies.values()].some(
+                            (enemy) =>
+                                Math.hypot(
+                                    enemyPosition(enemy).x - point.x,
+                                    enemyPosition(enemy).y - point.y,
+                                ) < 90,
+                        )
+                    )
+                        continue;
+                    this.enemies.add([
+                        {
+                            ...point,
+                            id: 301 + i,
+                            kind: 'patrol',
+                            home: { ...p },
+                            phase: angle + Math.PI,
+                        },
+                    ]);
+                    break;
+                }
+        }
+    }
     private updateOutpost(input: FlightInput, dt: number) {
         const spec = this.sector.outpost;
         const signal = this.recoverySignal;
         const recovering =
             signal &&
             !this.recoverySecured &&
+            !this.recoveryDestroyed &&
             Math.hypot(this.position.x - signal.x, this.position.y - signal.y) < RECOVERY.radius;
         const canSabotage =
             input.sabotage &&
@@ -734,8 +1018,10 @@ export class MissionSimulation {
         }
     }
     private takeDamage(damage: number, reason: string, point: Point = this.position) {
-        if (this.hull <= 0) return;
-        this.hull = Math.max(0, this.hull - damage);
+        if (this.hull <= 0) return 0;
+        const hit = this.kineticShield.absorb(damage);
+        if (hit.absorbed) this.events.push({ ...point, kind: 'shield', strength: hit.absorbed });
+        this.hull = Math.max(0, this.hull - hit.hull);
         this.deathReason = reason;
         this.damageCooldown = 0.5;
         this.repairProgress = 0;
@@ -747,11 +1033,13 @@ export class MissionSimulation {
         this.outpost.equipmentProgress = 0;
         this.outpost.sabotageProgress = 0;
         this.revealTime = 3;
-        this.events.push({ ...point, kind: 'hit', strength: damage });
+        if (hit.hull) this.events.push({ ...point, kind: 'hit', strength: hit.hull });
+        return hit.hull;
     }
     private damageEnemy(enemy: Enemy, damage: number, point: Point) {
         this.events.push({ ...point, kind: 'hit', strength: damage });
-        const velocity = enemy.body.linvel();
+        const velocity = enemy.body.linvel(),
+            wreckAngle = enemy.body.rotation();
         const wreck = this.enemies.damage(enemy.id, damage);
         if (!wreck) return;
         this.enemyKills++;
@@ -763,9 +1051,88 @@ export class MissionSimulation {
             rich: true,
             velocity: { x: velocity.x * P, y: velocity.y * P },
         });
+        if (
+            leavesWreck(this.sector.seed, enemy.id) &&
+            this.salvage.add(
+                enemy.id,
+                enemy.kind,
+                wreck,
+                { x: velocity.x * P * 0.35, y: velocity.y * P * 0.35 },
+                wreckAngle,
+            )
+        ) {
+            this.setNotice('Wrak drona · Z wskaż · E holuj · recykling po powrocie.');
+            return;
+        }
         this.addLoot(wreck.x - 20, wreck.y, 'ore', enemy.config.oreLoot);
         this.addLoot(wreck.x + 20, wreck.y, 'parts', enemy.config.partsLoot);
         this.setNotice('Dron zniszczony · odzyskaj komponenty i rudę.');
+    }
+    private damageSalvage(item: SalvageBody, damage: number, point: Point) {
+        if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < DRONES.safeRadius)
+            return;
+        this.events.push({ ...point, kind: 'hit', strength: damage });
+        const destroyed = this.salvage.damage(item, damage);
+        if (!destroyed) return;
+        if (item.source === 'recovery') {
+            this.recoveryDestroyed = true;
+            this.recoverySecured = false;
+            this.setNotice('Cel ratunkowy zniszczony · wrak i kapsuła zostały utracone.');
+        } else this.setNotice('Wrak zniszczony · recykling niemożliwy.');
+        if (!this.salvage.towed) this.tow = null;
+        this.events.push({ ...point, kind: 'break', sound: 'destroy', strength: item.radius });
+    }
+    private deliverTow() {
+        const item = this.salvage.towed;
+        if (!item) return;
+        const record = deliverSalvage(this.campaign, item.id, item.source);
+        if (!record) return;
+        const p = salvagePosition(item);
+        if (item.source === 'recovery') this.recoveryDelivered = true;
+        this.salvage.remove(item);
+        this.tow = null;
+        this.deliveryRevision++;
+        this.setNotice('Hol przekazany Aurorze · możesz kontynuować wyprawę.');
+        this.events.push({ ...p, kind: 'collect', sound: 'complete', rich: true });
+    }
+    private updateSalvage(input: FlightInput, dt: number) {
+        const item = this.nearbyWreck;
+        const rescuing =
+            this.recoverySignal &&
+            !this.recoverySecured &&
+            !this.recoveryDestroyed &&
+            Math.hypot(
+                this.position.x - this.recoverySignal.x,
+                this.position.y - this.recoverySignal.y,
+            ) < RECOVERY.radius;
+        if (
+            !item ||
+            rescuing ||
+            !input.interact ||
+            this.thrusting ||
+            input.fire ||
+            input.mine ||
+            input.repair ||
+            input.sabotage ||
+            this.speed > SALVAGE.speed ||
+            this.damageCooldown > 0 ||
+            this.hull <= 0
+        ) {
+            this.salvageProgress = 0;
+            this.salvageTarget = null;
+            return;
+        }
+        if (this.salvageTarget !== item.id) this.salvageProgress = 0;
+        this.salvageTarget = item.id;
+        this.salvageProgress += dt;
+        if (this.salvageProgress + 1e-8 < SALVAGE.seconds) return;
+        if (this.salvage.attach(item, this.ship)) {
+            this.tow = new TowBody(salvagePosition(item), { x: 0, y: 0 });
+            this.setNotice('Wrak na holu · wróć do Aurory · J zwolnij hol.');
+            this.events.push({ ...salvagePosition(item), kind: 'collect', sound: 'complete' });
+        }
+        this.salvageProgress = 0;
+        this.salvageTarget = null;
     }
     private enforceShield() {
         const movers = [...this.rocks.values()].map((rock) => ({
@@ -836,7 +1203,10 @@ export class MissionSimulation {
     private fireEnemy(enemy: Enemy) {
         if (
             this.bullets.size >= 80 ||
-            Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius
+            (enemy.target === 'escort'
+                ? !this.escort?.vulnerable ||
+                  Math.hypot(this.escort.position.x, this.escort.position.y) < DRONES.safeRadius
+                : Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius)
         )
             return false;
         const p = enemyPosition(enemy),
@@ -867,10 +1237,12 @@ export class MissionSimulation {
         const recovering =
             rescue &&
             !this.recoverySecured &&
+            !this.recoveryDestroyed &&
             Math.hypot(this.position.x - rescue.x, this.position.y - rescue.y) < RECOVERY.radius;
         if (
             !site?.siteId ||
             this.surveyData.has(site.siteId) ||
+            (site.siteId === 'fortress' && this.fortressGuardCount > 0) ||
             !input.interact ||
             this.thrusting ||
             input.fire ||
@@ -909,6 +1281,8 @@ export class MissionSimulation {
         if (
             !signal ||
             this.recoverySecured ||
+            this.recoveryDestroyed ||
+            !!this.salvage.towed ||
             !input.interact ||
             this.thrusting ||
             input.fire ||
@@ -927,6 +1301,20 @@ export class MissionSimulation {
         if (this.recoveryProgress + 1e-8 >= RECOVERY.seconds) {
             this.recoverySecured = true;
             this.tow = this.attachTow();
+            const item = this.salvage.add(
+                -signal.id,
+                'recovery',
+                this.tow.position,
+                this.tow.velocity,
+                this.ship.rotation(),
+                !signal.ship,
+            );
+            if (!item || !this.salvage.attach(item, this.ship)) {
+                this.recoverySecured = false;
+                this.tow = null;
+                this.setNotice('Hol niedostępny.');
+                return;
+            }
             this.recoveryProgress = 0;
             this.setNotice(
                 'Cel podjęty · wróć do bazy. Odzysk jest bezpieczny dopiero po dokowaniu.',
@@ -1032,6 +1420,10 @@ export class MissionSimulation {
                 undefined,
                 (collider) =>
                     this.isObstacle(collider) ||
+                    (bullet.team === 'enemy' &&
+                        (this.salvage.colliders.has(collider.handle) ||
+                            (this.escort?.vulnerable &&
+                                collider.handle === this.escort.collider.handle))) ||
                     (bullet.team === 'player'
                         ? this.enemies.colliders.has(collider.handle)
                         : collider.handle === this.shipCollider.handle),
@@ -1053,6 +1445,15 @@ export class MissionSimulation {
                     x: bullet.x + bullet.vx * dt * hit.timeOfImpact,
                     y: bullet.y + bullet.vy * dt * hit.timeOfImpact,
                 };
+                if (this.fortressColliders.has(hit.collider.handle))
+                    this.events.push({ ...contact, kind: 'hit', strength: bullet.damage });
+                if (bullet.team === 'enemy' && this.escort?.collider.handle === hit.collider.handle)
+                    this.damageEscort(bullet.damage, contact);
+                const salvage = this.salvage.items.get(
+                    this.salvage.colliders.get(hit.collider.handle)!,
+                );
+                if (salvage && bullet.team === 'enemy')
+                    this.damageSalvage(salvage, bullet.damage, contact);
                 const rock = this.rocks.get(this.asteroidColliders.get(hit.collider.handle)!);
                 if (rock && bullet.team === 'player') {
                     rock.health -= GAME.shotRockDamage;
@@ -1153,9 +1554,12 @@ export class MissionSimulation {
                     vx: v.x * P + side * 34,
                     vy: v.y * P + (this.rng() - 0.5) * 30,
                     rich: rock.rich,
+                    crystal: rock.crystal,
+                    orbit: rock.orbit,
                     variant: (rock.variant * 7 + (side > 0 ? 3 : 1)) % 128,
                 });
         }
+        if (rock.crystal && rock.radius <= 44) this.addLoot(x, y, 'crystals', 1);
         const count = Math.ceil(rock.radius / 17);
         for (let i = 0; i < count; i++)
             this.addLoot(
@@ -1188,7 +1592,7 @@ export class MissionSimulation {
             this.cargoCapacity - this.cargoUsed,
             this.loot,
             (kind) => {
-                this.cargo[kind]++;
+                this.cargo[kind] = (this.cargo[kind] ?? 0) + 1;
                 this.events.push({ ...this.position, kind: 'collect', rich: kind === 'parts' });
             },
             (a, b) =>
@@ -1203,7 +1607,10 @@ export class MissionSimulation {
     private interact(dt: number) {
         if (this.dockable) {
             this.dockProgress += dt;
-            if (this.dockProgress >= 1.2 && this.hull > 0) this.ended = 'returned';
+            if (this.dockProgress >= 1.2 && this.hull > 0) {
+                this.deliverTow();
+                this.ended = 'returned';
+            }
         } else {
             this.dockProgress = 0;
             const p = this.position,
@@ -1220,6 +1627,8 @@ export class MissionSimulation {
         if (this.disposed) return;
         this.disposed = true;
         this.choice = null;
+        this.escort?.dispose();
+        this.salvage.dispose();
         this.enemies.dispose();
         this.queue.free();
         this.world.free();

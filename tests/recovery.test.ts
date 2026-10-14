@@ -196,7 +196,7 @@ test('v3 migration keeps fleet, crew and interrupted marker without inventing pa
     delete old.activeRun.lastPosition;
     const loaded = parseCampaign(JSON.stringify(old))!;
     assert.ok(loaded);
-    assert.equal(loaded.version, 11);
+    assert.equal(loaded.version, 15);
     assert.deepEqual(
         loaded.reserveShips,
         c.reserveShips.map((ship) => ({
@@ -271,6 +271,9 @@ test('live pickup requires uninterrupted calm flight and remains possible with a
         assert.equal(c.pilots.length, 1);
         assert.match(sim.context, /Aurory/);
         sim.ship.setTranslation({ x: 0, y: 0 }, true);
+        // Move the whole tow to the dock in this fixture; teleporting only the ship now stretches a physical rope.
+        sim.salvage.towed!.body.setTranslation({ x: -1.4, y: 0 }, true);
+        sim.salvage.towed!.body.setLinvel({ x: 0, y: 0 }, true);
         for (let i = 0; i < 80; i++) sim.step({ ...idle, interact: true });
         assert.equal(sim.ended, 'returned');
         finishRun(c, true, sim.cargo, sim.elapsed, 'dock', sim.repairKits, {

@@ -58,7 +58,7 @@ test('new survey sites are deterministic, reachable and have a clear initial sca
         const sites = sector.landmarks.filter((l) => l.siteId);
         assert.deepEqual(
             sites.map((l) => l.siteId),
-            ['relay', 'archive'],
+            ['relay', 'archive', 'fortress'],
         );
         for (const site of sites) {
             const radius = Math.hypot(site.x, site.y);
@@ -171,7 +171,7 @@ test('the advanced contract pays for both distinct sites and completed missions 
     assert.equal(c.contractCompletions[3], 1);
     beginRun(c, 29);
     finishRun(c, false, { ore: 20, parts: 4 }, 1, 'loss', 0, { data: ['archive', 'relay'] });
-    assert.deepEqual(c.contractCompletions, [0, 0, 1, 1, 0, 0]);
+    assert.deepEqual(c.contractCompletions, [0, 0, 1, 1, 0, 0, 0, 0]);
     assert.deepEqual(c.bank, { ore: 36, parts: 6 });
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
@@ -189,7 +189,7 @@ test('v4 migration preserves campaign and recovery targets while starting a trut
     old.version = 4;
     delete old.contractCompletions;
     const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.equal(loaded.version, 11);
+    assert.equal(loaded.version, 15);
     assert.deepEqual(loaded.bank, c.bank);
     assert.deepEqual(loaded.ship, { ...c.ship, hull: 'fighter' });
     assert.deepEqual(loaded.crew, c.crew);

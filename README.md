@@ -1,6 +1,18 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.19** dodaje kradzież sprzętu z Cerbera. Po pobraniu danych puść E i przytrzymaj ponownie przez 5 s: zabierzesz Impuls lub Kinetic, zajmujące 3 miejsca w ładowni. Dopiero bezpieczne dokowanie dodaje broń do wyposażenia aktywnego statku; duplikat jest rozbierany na materiały. Sabotaż pomaga otworzyć okno na kradzież, a alarm i trafienia przerywają działanie. [Szczegóły i weryfikacja](docs/implementation-v0.19.md).
+Aktualna wersja **0.25** dodaje kontrakt **Eskorta Keplera**: przyjazny statek AI omija skały, czeka na gracza i bada anomalię. **N** wskazuje statek, **E** rozpoczyna misję. Chroń Keplera przed zasadzką i ostrzałem, a po badaniach wróć z danymi po premię 36 rudy / 8 komponentów. Format zapisu 14 zachowuje wcześniejsze kontrakty i dostawy holu. [Szczegóły etapu](docs/implementation-v0.25.md).
+
+Wersja **0.24** dodaje wraki przeciwników i fizyczne holowanie. **Z** wskazuje wrak, **E** podejmuje, **J** zwalnia. Przekazanie holu do doku Aurory daje recykling/odzysk i **nie kończy wyprawy**; zwykłe dokowanie E również rozlicza hol. Można dostarczyć kilka obiektów, zachowanych po późniejszej śmierci i widocznych w podsumowaniu. Wraki i kapsuły mogą zostać zniszczone przez skały lub ostrzał wroga; gracz nie ma z nimi kolizji ani friendly fire. [Szczegóły etapu](docs/implementation-v0.24.md).
+
+Wersja **0.23** dodaje twierdzę **Aegis**: fizyczne ściany, otwartą bramę, pięciu obrońców i rdzeń z danymi. Kontrakt **Przełamanie Aegis** płaci 48 rudy / 12 komponentów po bezpiecznym powrocie. **H** wskazuje twierdzę; HUD pokazuje postęp obstawy. Zapis migruje do formatu 13. [Szczegóły etapu](docs/implementation-v0.23.md).
+
+Wersja **0.22** rozszerza promień sektora do 8000: gniazdo kryształów za trzema pierścieniami skał, szybki prąd Perseid, podtrzymany dryf Heliosa i trzy wędrujące patrole. **T** przełącza nawigację między nowymi obszarami. [Szczegóły etapu](docs/implementation-v0.22.md).
+
+Wersja **0.21** dodaje trzeci surowiec: **kryształy technologiczne**. Wydobywasz je z rzadkich skał z fioletowymi minerałami albo zlecasz mechanikowi przetop **5 komponentów → 1 kryształ / 90 s**, wymagający warsztatu I. Kryształy są potrzebne przy modułach statku II/III, warsztacie II i magazynie II/III. Ładownie, chwytaki, produkcja, magazyn i rozliczenie obsługują nowy surowiec. Zapis migruje do formatu 12. [Balans i weryfikacja](docs/implementation-v0.21.md).
+
+Wersja **0.20** dodaje ludzkie portrety bez rysów twarzy, większą pulę nazw pilotów, zanikający ślad podróży i strefy patroli na radarze, płynny zoom przy dużej prędkości oraz odświeżoną kapsułę ratunkową. [Szczegóły](docs/implementation-v0.20.md). Pozostałe nowe propozycje — trzeci surowiec, przetapianie, mocniejsze ulepszenia, większy świat, dryfujące klastry, patrole, strzeżone sekcje i wraki bojowe — są ujęte w [kolejnych etapach](docs/roadmap-after-v0.19.md).
+
+Wersja **0.19** dodaje kradzież sprzętu z Cerbera. Po pobraniu danych puść E i przytrzymaj ponownie przez 5 s: zabierzesz Impuls lub Kinetic, zajmujące 3 miejsca w ładowni. Dopiero bezpieczne dokowanie dodaje broń do wyposażenia aktywnego statku; duplikat jest rozbierany na materiały. Sabotaż pomaga otworzyć okno na kradzież, a alarm i trafienia przerywają działanie. [Szczegóły i weryfikacja](docs/implementation-v0.19.md).
 
 Wersja **0.18** dodaje 18 dźwięków z dostarczonych paczek CC0: osobne próbki broni, eksplozje, trafienia, tarczę, łup, ciche pętle silnika/lasera/spawania oraz sygnały interfejsu. Miks uwzględnia odległość i siłę zdarzeń, ogranicza nakładanie próbek oraz zatrzymuje pętle w menu i po utracie fokusu. Działa z istniejącym suwakiem efektów. [Szczegóły](docs/implementation-v0.18.md) · [Źródła CC0](docs/audio-credits.md).
 

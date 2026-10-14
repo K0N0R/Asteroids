@@ -9,6 +9,58 @@ import {
 import type { Campaign, Cargo, Pilot } from './campaign';
 import type { RecoverySignal } from './recovery';
 
+const FIRST_NAMES = [
+    'Lena',
+    'Kai',
+    'Rhea',
+    'Noah',
+    'Inez',
+    'Leon',
+    'Aya',
+    'Oren',
+    'Nadia',
+    'Elias',
+    'Sora',
+    'Milo',
+    'Talia',
+    'Aron',
+    'Vera',
+    'Finn',
+    'Nila',
+    'Dorian',
+    'Ada',
+    'Ravi',
+];
+const LAST_NAMES = [
+    'Vale',
+    'Chen',
+    'Orlov',
+    'Solis',
+    'Reed',
+    'Kade',
+    'Moreau',
+    'Novak',
+    'Renn',
+    'Navarro',
+    'Ash',
+    'Okoye',
+    'Marin',
+    'Sato',
+    'Kovac',
+    'Hale',
+    'Mercer',
+    'Vega',
+];
+export function pilotName(pilot: Pick<Pilot, 'id' | 'archetype'>) {
+    if (pilot.id === 1) return PILOTS[pilot.archetype].name;
+    const index = pilot.id - 2 + pilot.archetype * 7;
+    return `${FIRST_NAMES[index % FIRST_NAMES.length]} ${LAST_NAMES[(Math.floor(index / FIRST_NAMES.length) + pilot.archetype * 3) % LAST_NAMES.length]}`;
+}
+
+// Recruitment previews share the next roster ID; include their role in visual identity.
+export const pilotAppearanceId = (pilot: Pick<Pilot, 'id' | 'archetype'>) =>
+    pilot.id + pilot.archetype * 7;
+
 export const MAX_PILOT_XP = PILOT_PROGRESSION.thresholds[PILOT_PROGRESSION.thresholds.length - 1];
 export const newPilot = (id = 1, archetype = 0): Pilot => ({
     id,
@@ -31,6 +83,7 @@ export function pilotProfile(pilot: Pilot) {
     const handling = 1 + pilot.skills.handling * PILOT_SKILLS.handling.bonus;
     return {
         ...base,
+        name: pilotName(pilot),
         level: pilotLevel(pilot),
         turn: base.turn * handling,
         brake: base.brake * handling,
@@ -54,7 +107,7 @@ export function expeditionXp(
     recovery: RecoverySignal | null,
     kills = 0,
 ) {
-    const load = cargo.ore + cargo.parts * 2;
+    const load = cargo.ore + cargo.parts * 2 + (cargo.crystals ?? 0) * 4;
     const cargoXp = Number.isFinite(load) ? Math.max(0, Math.min(20, Math.floor(load))) : 0;
     const combatXp = Number.isInteger(kills) && kills >= 0 ? Math.min(10, kills * 2) : 0;
     const scans = new Set(data.filter((site) => Object.hasOwn(SCAN_SITES, site))).size;

@@ -40,6 +40,7 @@ export class ShipView extends Container {
             cargo: 0,
             drill: 0,
             armor: 0,
+            shield: 0,
         },
     ) {
         super();
@@ -362,8 +363,8 @@ export function surveySiteView(site: ScanSiteId) {
 
 export class ShapeLibrary {
     private rocks = new Map<string, GraphicsContext>();
-    rock(variant: number, rich: boolean) {
-        const key = `${variant}:${rich}`;
+    rock(variant: number, rich: boolean, crystal = false) {
+        const key = `${variant}:${rich}:${crystal}`;
         let context = this.rocks.get(key);
         if (!context) {
             const rng = random(variant * 163 + 8),
@@ -430,6 +431,16 @@ export class ShapeLibrary {
                         .fill(0xb9a17c)
                         .stroke({ color: 0xe0c398, width: 0.01 });
                 }
+            if (crystal)
+                for (const [x, y] of [
+                    [-0.18, -0.18],
+                    [0.18, 0.2],
+                    [0.23, -0.23],
+                ])
+                    context
+                        .poly([x, y - 0.16, x + 0.08, y, x, y + 0.1, x - 0.07, y])
+                        .fill(0xb69ade)
+                        .stroke({ color: 0xe5d6ff, width: 0.014 });
             this.rocks.set(key, context);
         }
         return new Graphics(context);

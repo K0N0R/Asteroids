@@ -31,7 +31,7 @@ import {
 import { workerJobs, jobStorage } from '../state/crew';
 import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
-import { MAX_PILOT_XP, pilotLevel, pilotPoints } from '../state/pilots';
+import { MAX_PILOT_XP, pilotLevel, pilotPoints, pilotName } from '../state/pilots';
 import { C } from '../graphics/shapes';
 import { button, clear, label, panel } from './primitives';
 
@@ -97,7 +97,7 @@ export class LobbyView extends Container {
     private stationPart: 'workshop' | 'storage' = 'workshop';
     private recipe: JobKind = 'refine';
     private crewRole: CrewRole = 'mechanic';
-    private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' = 'engine';
+    private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield' = 'engine';
     private scrapCandidate: number | null = null;
     private recoveryId: number | null = null;
     constructor(
@@ -168,9 +168,13 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.19', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.26', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
-        cost(ui, c.bank.ore, c.bank.parts, 1230, 37, true);
+        cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
+        const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
+        crystalIcon.position.set(1410, 48);
+        ui.addChild(crystalIcon);
+        label(ui, `${c.bank.crystals ?? 0}`, 1435, 37, 20, 0xc2a0ec);
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
         if (this.tab === 'station') this.station(ui);
@@ -249,13 +253,17 @@ export class LobbyView extends Container {
             label(
                 card,
                 lock ||
-                    (entry.kills
-                        ? `${entry.kills} drony`
-                        : entry.sites.includes('outpost')
-                          ? 'Przechwyt danych'
-                          : entry.sites.length
-                            ? `${entry.sites.length} ${entry.sites.length === 1 ? 'skan' : 'skany'}`
-                            : `${entry.ore} rudy${entry.parts ? ` · ${entry.parts} komponenty` : ''}`),
+                    (entry.sites.includes('escort')
+                        ? 'Lot i badania · N Kepler'
+                        : entry.sites.includes('fortress')
+                          ? '5 obrońców · dane rdzenia'
+                          : entry.kills
+                            ? `${entry.kills} drony`
+                            : entry.sites.includes('outpost')
+                              ? 'Przechwyt danych'
+                              : entry.sites.length
+                                ? `${entry.sites.length} ${entry.sites.length === 1 ? 'skan' : 'skany'}`
+                                : `${entry.ore} rudy${entry.parts ? ` · ${entry.parts} komponenty` : ''}`),
                 16,
                 61,
                 14,
@@ -271,7 +279,7 @@ export class LobbyView extends Container {
                 lock ? C.muted : C.gold,
             );
         });
-        this.art(operationScene(!!contract.sites.length, !!contract.kills), 625, 650);
+        this.art(operationScene(!!contract.sites.length, !!contract.kills), 625, 735);
         label(ui, 'WYBRANY KONTRAKT', 1072, 244, 13, C.muted);
         label(ui, contract.title, 1072, 276, 29, C.text, 456);
         label(ui, contract.detail, 1072, 328, 18, C.muted, 456);
@@ -453,6 +461,14 @@ export class LobbyView extends Container {
         stat(ui, 'KADŁUB', `${config.health + modules.armor * 25}`, 1072, 358, 'health');
         stat(ui, 'ŁADOWNIA', `${config.cargo + modules.cargo * 15}`, 1230, 358, 'cargo');
         stat(ui, 'PRĘDKOŚĆ', `${config.maxSpeed}`, 1390, 358);
+        label(
+            ui,
+            `Tarcza ${Math.round(config.shield.capacity * (1 + modules.shield * 0.25))} · regeneracja ${(config.shield.regen * (1 + modules.shield * 0.15)).toFixed(1)}/s`,
+            1072,
+            400,
+            13,
+            C.cyan,
+        );
         if (owned && ship) {
             label(
                 ui,
@@ -644,20 +660,19 @@ export class LobbyView extends Container {
             12,
             C.muted,
         );
-        const hint = label(ui, UPGRADES[this.moduleFocus].detail, 1072, 691, 13, C.muted);
-        (['engine', 'handling', 'cargo', 'drill', 'armor'] as const).forEach((key, i) => {
+        const hint = label(ui, UPGRADES[this.moduleFocus].detail, 1072, 733, 13, C.muted);
+        (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).forEach((key, i) => {
             const level = ship[key],
-                price = {
-                    ore: UPGRADES[key].ore * (level + 1),
-                    parts: UPGRADES[key].parts * (level + 1),
-                },
+                price = upgradePrice({ ...c, ship }, key),
                 definition = UPGRADES[key],
                 y = 487 + i * 40;
             label(ui, definition.title, 1072, y, 16);
             segments(ui, level, 3, 1288, y + 5, 69);
             const buy = button(
                 ui,
-                level >= limit ? 'MAX' : `${price.ore} R · ${price.parts} K`,
+                level >= limit
+                    ? 'MAX'
+                    : `${price.ore}R ${price.parts}K${price.crystals ? ` ${price.crystals}◆` : ''}`,
                 1390,
                 y - 6,
                 138,
@@ -666,7 +681,11 @@ export class LobbyView extends Container {
                     this.actions.upgrade(key);
                 },
                 false,
-                active && level < limit && c.bank.ore >= price.ore && c.bank.parts >= price.parts,
+                active &&
+                    level < limit &&
+                    c.bank.ore >= price.ore &&
+                    c.bank.parts >= price.parts &&
+                    (c.bank.crystals ?? 0) >= (price.crystals ?? 0),
                 30,
             );
             buy.config.onHover = () => {
@@ -691,7 +710,7 @@ export class LobbyView extends Container {
             438,
         );
         (['workshop', 'storage'] as const).forEach((key, i) => {
-            const card = choiceCard(ui, 280 + i * 364, 650, 345, 141, part === key, () => {
+            const card = choiceCard(ui, 280 + i * 240, 650, 225, 141, part === key, () => {
                 this.stationPart = key;
                 this.refresh();
             });
@@ -747,7 +766,7 @@ export class LobbyView extends Container {
             );
             label(
                 ui,
-                `W tym rezerwacje zadań: ${storageUsed(c) - c.bank.ore - c.bank.parts}`,
+                `W tym rezerwacje zadań: ${storageUsed(c) - c.bank.ore - c.bank.parts - (c.bank.crystals ?? 0)}`,
                 1072,
                 468,
                 15,
@@ -769,7 +788,7 @@ export class LobbyView extends Container {
         label(ui, 'POWROTY', 1245, 576, 12, C.muted);
         label(ui, `${c.recovered}`, 1245, 598, 24);
         label(ui, level >= limit ? 'MAKSYMALNY POZIOM' : 'KOSZT ROZBUDOWY', 1072, 649, 12, C.muted);
-        if (level < limit) cost(ui, price.ore, price.parts, 1072, 674);
+        if (level < limit) cost(ui, price.ore, price.parts, 1072, 674, false, price.crystals ?? 0);
         button(
             ui,
             level >= limit ? 'MAKSYMALNY POZIOM' : 'ROZBUDUJ →',
@@ -778,7 +797,10 @@ export class LobbyView extends Container {
             456,
             () => this.actions.upgrade(part),
             true,
-            level < limit && c.bank.ore >= price.ore && c.bank.parts >= price.parts,
+            level < limit &&
+                c.bank.ore >= price.ore &&
+                c.bank.parts >= price.parts &&
+                (c.bank.crystals ?? 0) >= (price.crystals ?? 0),
             52,
         );
     }
@@ -786,7 +808,14 @@ export class LobbyView extends Container {
         const c = this.campaign,
             pilot = c.pilots.find((entry) => entry.id === this.chosenPilotId);
         const recruiting = this.pilotMode === 'recruit',
-            profile = recruiting ? PILOTS[this.recruit] : pilot ? PILOTS[pilot.archetype] : null;
+            profile = recruiting
+                ? {
+                      ...PILOTS[this.recruit],
+                      name: pilotName({ id: c.nextPilotId, archetype: this.recruit }),
+                  }
+                : pilot
+                  ? { ...PILOTS[pilot.archetype], name: pilotName(pilot) }
+                  : null;
         this.section(
             'Kto zasiądzie za sterami?',
             'Wybierz pilota, rozwiń umiejętności albo zaproś nową osobę.',
@@ -820,7 +849,15 @@ export class LobbyView extends Container {
             38,
         );
         if (profile)
-            this.art(pilotPortrait(recruiting ? this.recruit : pilot!.archetype), 625, 435);
+            this.art(
+                pilotPortrait(
+                    recruiting ? this.recruit : pilot!.archetype,
+                    false,
+                    recruiting ? c.nextPilotId : pilot!.id,
+                ),
+                625,
+                435,
+            );
         else {
             label(ui, 'Potrzebujesz nowego pilota.', 391, 417, 26, C.muted);
             button(ui, 'Otwórz nabór', 434, 480, 310, () => {
@@ -842,7 +879,7 @@ export class LobbyView extends Container {
                         this.refresh();
                     },
                 );
-                label(card, entry.name, 20, 21, 21);
+                label(card, pilotName({ id: c.nextPilotId, archetype: i }), 20, 21, 21);
                 label(card, entry.role, 20, 58, 14, C.muted, 185);
                 label(card, entry.trait, 20, 98, 14, C.mint);
             });
@@ -860,11 +897,11 @@ export class LobbyView extends Container {
                         this.refresh();
                     },
                 );
-                const portrait = pilotPortrait(entry.archetype);
+                const portrait = pilotPortrait(entry.archetype, false, entry.id);
                 portrait.scale.set(0.18);
                 portrait.position.set(29, 42);
                 card.addChild(portrait);
-                label(card, PILOTS[entry.archetype].name, 58, 15, 14, C.text, 100);
+                label(card, pilotName(entry), 58, 15, 14, C.text, 100);
                 label(
                     card,
                     `P${pilotLevel(entry)}${c.selectedPilot === entry.id ? ' · aktywny' : ` · #${entry.id}`}`,
@@ -1020,23 +1057,33 @@ export class LobbyView extends Container {
             16,
             hired ? C.mint : C.muted,
         );
-        ((quartermaster ? ['recycle'] : ['refine', 'kit']) as JobKind[]).forEach((kind, i) => {
-            const job = JOBS[kind],
-                card = choiceCard(ui, 280 + i * 364, 650, 345, 141, this.recipe === kind, () => {
-                    this.recipe = kind;
-                    this.refresh();
-                });
-            label(card, job.title, 20, 23, 23);
-            label(
-                card,
-                `${job.seconds} s · ${kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
-                20,
-                64,
-                15,
-                C.muted,
-            );
-            cost(card, job.ore, job.parts, 20, 99);
-        });
+        ((quartermaster ? ['recycle'] : ['refine', 'kit', 'crystallize']) as JobKind[]).forEach(
+            (kind, i) => {
+                const job = JOBS[kind],
+                    card = choiceCard(
+                        ui,
+                        280 + i * 240,
+                        650,
+                        225,
+                        141,
+                        this.recipe === kind,
+                        () => {
+                            this.recipe = kind;
+                            this.refresh();
+                        },
+                    );
+                label(card, job.title, 16, 23, 20, C.text, 190);
+                label(
+                    card,
+                    `${job.seconds} s · ${kind === 'crystallize' ? '1 kryształ' : kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
+                    20,
+                    64,
+                    15,
+                    C.muted,
+                );
+                cost(card, job.ore, job.parts, 20, 99);
+            },
+        );
         label(
             ui,
             hired
@@ -1063,7 +1110,11 @@ export class LobbyView extends Container {
             31,
         );
         if (!hired) {
-            const portrait = pilotPortrait(quartermaster ? 2 : 0, !quartermaster);
+            const portrait = pilotPortrait(
+                quartermaster ? 2 : 0,
+                !quartermaster,
+                quartermaster ? 92 : 91,
+            );
             portrait.scale.set(0.6);
             portrait.position.set(1300, 447);
             ui.addChild(portrait);
@@ -1162,13 +1213,16 @@ export class LobbyView extends Container {
                   ? 'LIMIT ZESTAWÓW'
                   : noStorage
                     ? 'MAGAZYN PEŁNY'
-                    : 'DODAJ ZADANIE →',
+                    : this.recipe === 'crystallize' && c.station.workshop < 1
+                      ? 'WYMAGANY WARSZTAT I'
+                      : 'DODAJ ZADANIE →',
             1072,
             728,
             456,
             () => this.actions.queueJob(this.recipe),
             true,
             !full &&
+                (this.recipe !== 'crystallize' || c.station.workshop >= 1) &&
                 !kitsFull &&
                 c.bank.ore >= recipe.ore &&
                 c.bank.parts >= recipe.parts &&
@@ -1264,14 +1318,18 @@ export class LobbyView extends Container {
             view.alpha = 0.7;
             ui.addChild(view);
         } else {
-            const portrait = pilotPortrait(signal.pilot?.archetype ?? 0);
+            const portrait = pilotPortrait(
+                signal.pilot?.archetype ?? 0,
+                false,
+                signal.pilot?.id ?? 1,
+            );
             portrait.scale.set(0.46);
             portrait.position.set(1300, 430);
             ui.addChild(portrait);
         }
         label(
             ui,
-            signal.pilot ? PILOTS[signal.pilot.archetype].name : 'Brak kapsuły pilota',
+            signal.pilot ? pilotName(signal.pilot) : 'Brak kapsuły pilota',
             1072,
             529,
             21,

@@ -86,7 +86,7 @@ test('legacy saves migrate every hull and interrupted run without granting new w
     }
     const migrated = parseCampaign(JSON.stringify(old))!;
     assert.ok(migrated);
-    assert.equal(migrated.version, 11);
+    assert.equal(migrated.version, 15);
     for (const ship of [
         migrated.ship!,
         ...migrated.reserveShips,

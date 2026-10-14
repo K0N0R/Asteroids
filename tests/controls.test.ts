@@ -221,7 +221,7 @@ test('a towed body drifts on slack rope, trails turns and stays within the maxim
         'turn does not teleport cargo to a rigid rear offset',
     );
 });
-test('live rescue attaches a loose tow and keeps both the recovered hull and capsule clear of the ship', () => {
+test('live rescue attaches a physical loose tow without contacts against the player', () => {
     const c = newCampaign();
     c.recoverySignals = [
         {
@@ -243,12 +243,12 @@ test('live rescue attaches a loose tow and keeps both the recovered hull and cap
         assert.ok(sim.tow);
         for (let i = 0; i < 180; i++) {
             sim.step({ ...idle, thrust: i < 60, turn: i >= 60 && i < 100 ? 1 : 0 });
-            assert.ok(
-                Math.hypot(
-                    sim.position.x - sim.tow!.position.x,
-                    sim.position.y - sim.tow!.position.y,
-                ) >= 129.999,
-            );
+            assert.ok(Number.isFinite(sim.tow!.position.x));
+            let contact = false;
+            sim.world.contactPair(sim.shipCollider, sim.salvage.towed!.collider, (manifold) => {
+                if (manifold.numSolverContacts()) contact = true;
+            });
+            assert.equal(contact, false);
         }
         const tow = { ...sim.tow!.position };
         sim.ended = 'returned';
