@@ -97,7 +97,8 @@ test('guns barely damage rocks while the laser is powerful, range-limited and st
         sim.ship.setTranslation({ x: 2, y: 0 }, true);
         for (let i = 0; i < 30; i++) sim.step({ ...idle, mine: true });
         assert.equal(rocks[0].health, before);
-        sim.ship.setTranslation({ x: 8, y: 0 }, true);
+        // Rear-mounted laser needs a closer approach than the old nose-mounted one.
+        sim.ship.setTranslation({ x: 8.5, y: 0 }, true);
         for (let i = 0; i < 30; i++) sim.step({ ...idle, mine: true });
         assert.ok(before - rocks[0].health > 70);
         assert.equal(rocks[1].health, 1000);

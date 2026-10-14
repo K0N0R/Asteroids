@@ -12,6 +12,8 @@ Wersja **0.9** dodaje sześć kadłubów według konceptów użytkownika: Prospe
 
 Prototyp gry 2D w PixiJS 8 i TypeScript, oparty na istniejącym boilerze. Zręcznościowy lot z fizyką Rapier 2D, wydobywanie rudy i komponentów, proceduralne sektory, baza, ulepszenia oraz piloci.
 
+Sylwetki floty mają wygładzone kontury, panele poszycia, szklane wizjery z okrągłymi refleksami i szare trapezowe silniki. Mule ma kształt T, Manta zbiorniki pod skrzydłami, a Prospector i Swift tylne lasery pod kadłubem. Galeria i szczegóły: [docs/ship-visuals.md](docs/ship-visuals.md).
+
 Wersja 0.2 dodaje mechanika stacji, kolejkę produkcji i naprawę uszkodzonego napędu podczas wyprawy.
 
 Wersja 0.3 dodaje flotę do trzech statków, zakup kadłubów Swift i Mule, osobne moduły każdego statku oraz złomowanie rezerwy. Aktualne sterowanie bazowego Prospectora pozostaje bez zmian.

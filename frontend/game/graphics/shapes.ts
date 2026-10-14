@@ -5,6 +5,7 @@ import { ShipModules } from '../state/campaign';
 import { GAME, HULLS } from '../config';
 import { aimAngle, rotateVector } from '../systems/flight';
 import type { Point } from '../worlds/sector';
+import { SHIP_COLORS, shipHull, shipUnderbody, engineHousing } from './shipHull';
 
 export const C = {
     ink: 0x07121e,
@@ -18,17 +19,7 @@ export const C = {
     red: 0xf07879,
 } as const;
 
-export const SHIP_COLORS = {
-    hull: 0x4c545b,
-    visor: 0x22dd7b,
-    gun: 0xffffff,
-    gunInset: 0xc3c3c3,
-    cargo: 0xca9229,
-    engine: 0x33373a,
-    flame: 0x465aca,
-    reinforcement: 0x737373,
-    laser: 0x2ddecb,
-} as const;
+export { SHIP_COLORS } from './shipHull';
 export class ShipView extends Container {
     readonly guns: Container[] = [];
     readonly lasers: Container[] = [];
@@ -48,6 +39,7 @@ export class ShipView extends Container {
         const hull = modules.hull ?? 'prospector',
             config = (this.config = HULLS[hull]),
             S = SHIP_COLORS;
+        this.addChild(this.flame, this.retro, shipUnderbody(hull));
         for (const mount of config.guns) {
             const gun = new Container();
             gun.position.set(mount.x, mount.y);
@@ -64,75 +56,13 @@ export class ShipView extends Container {
             this.guns.push(gun);
             this.addChild(gun);
         }
-        this.addChild(this.flame, this.retro);
-        for (const engine of config.engines)
-            this.addChild(
-                new Graphics()
-                    .roundRect(engine.x - 8, engine.y - 9, 16, 18, 3)
-                    .fill(S.engine)
-                    .rect(engine.x - 7, engine.y - 7, 4, 14)
-                    .fill(S.flame),
-            );
-        const g = new Graphics();
-        const body = (points: number[]) =>
-            g.poly(points).fill(S.hull).stroke({ color: S.reinforcement, width: 1.3 });
-        if (hull === 'prospector') {
-            g.ellipse(0, 0, 37, 22).fill(S.hull).stroke({ color: S.reinforcement, width: 1.2 });
-            g.ellipse(18, 0, 11, 12).fill(S.visor);
-            g.roundRect(-26, -13, 12, 26, 5).fill(S.cargo);
-        } else if (hull === 'swift') {
-            body([-29, -17, -9, -19, 45, 0, -9, 19, -29, 17, -22, 0]);
-            body([-19, -14, -32, -35, 21, -11, 38, 0, 21, 11, -32, 35, -19, 14]);
-            g.poly([-3, -8, 25, 0, -3, 8, -14, 0]).fill(S.visor);
-            g.rect(-25, -10, 8, 20).fill(S.cargo);
-            g.moveTo(-16, -19)
-                .lineTo(31, 0)
-                .lineTo(-16, 19)
-                .stroke({ color: S.reinforcement, width: 3 });
-        } else if (hull === 'mule') {
-            body([-36, -28, -18, -13, 18, -13, 36, -27, 36, 27, 18, 13, -18, 13, -36, 28]);
-            g.roundRect(-25, -38, 48, 20, 3).roundRect(-25, 18, 48, 20, 3).fill(S.cargo);
-            g.rect(-28, -4, 57, 8).fill(S.reinforcement);
-            g.rect(22, -15, 9, 10).rect(22, 5, 9, 10).fill(S.visor);
-        } else if (hull === 'fighter') {
-            body([-22, -10, -8, -25, 8, -22, 20, -9, 34, 0, 20, 9, 8, 22, -8, 25, -22, 10]);
-            g.poly([-17, -9, 15, -9, 28, 0, 15, 9, -17, 9]).fill(S.reinforcement);
-            g.poly([-8, -5, 12, -5, 20, 0, 12, 5, -8, 5]).fill(S.visor);
-            g.rect(-18, -19, 13, 6).rect(-18, 13, 13, 6).fill(S.cargo);
-        } else if (hull === 'tug') {
-            body([
-                -40, 0, -6, -17, 10, -42, 28, -34, 38, -19, 42, 0, 38, 19, 28, 34, 10, 42, -6, 17,
-            ]);
-            g.poly([10, -29, 29, -18, 35, 0, 29, 18, 10, 29, 1, 0]).fill(S.reinforcement);
-            g.poly([13, -19, 27, -12, 31, 0, 27, 12, 13, 19, 8, 0]).fill(S.visor);
-            g.poly([-3, -30, -15, -20, -22, -8, 2, -17])
-                .poly([-3, 30, -15, 20, -22, 8, 2, 17])
-                .fill(S.cargo);
-        } else {
-            g.ellipse(-5, 0, 34, 34).fill(S.hull).stroke({ color: S.reinforcement, width: 1.8 });
-            body([10, -28, 44, -17, 44, -8, 17, -7, 17, 7, 44, 8, 44, 17, 10, 28]);
-            g.poly([-29, -19, -36, 0, -29, 19, -12, 16, -12, -16]).fill(S.cargo);
-            g.moveTo(-25, -24)
-                .lineTo(7, 0)
-                .lineTo(-25, 24)
-                .stroke({ color: S.reinforcement, width: 3 });
-            g.circle(2, 0, 9).fill(S.reinforcement);
-            g.roundRect(2, -32, 18, 10, 4).fill(S.visor);
-        }
-        for (let i = 0; i < modules.cargo; i++) g.rect(-21 + i * 9, -9, 6, 18).fill(S.cargo);
-        if (modules.armor)
-            g.beginPath()
-                .arc(0, 0, 28, Math.PI * 0.65, Math.PI * 1.35)
-                .stroke({ color: S.reinforcement, width: 2 + modules.armor });
-        this.addChild(g);
-        // The starter's central turret is exposed; wing-mounted guns stay below the hull.
-        if (hull === 'prospector') this.addChild(this.guns[0]);
         for (const mount of config.lasers) {
             const laser = new Container();
             laser.position.set(mount.x, mount.y);
+            laser.rotation = mount.x < 0 ? Math.PI : 0;
             laser.addChild(
                 new Graphics()
-                    .roundRect(-4, -3, 15 + modules.drill, 6, 2)
+                    .roundRect(-5, -4, 24 + modules.drill, 8, 3)
                     .fill(S.laser)
                     .circle(0, 0, 4)
                     .fill(S.engine),
@@ -140,6 +70,8 @@ export class ShipView extends Container {
             this.lasers.push(laser);
             this.addChild(laser);
         }
+        for (const engine of config.engines) this.addChild(engineHousing(engine.x, engine.y));
+        this.addChild(shipHull(hull, modules));
         for (const mount of config.grabbers)
             this.addChild(new Graphics().circle(mount.x, mount.y, 3).fill(S.reinforcement));
         this.updateDrive(false, false, false, false, 0);
@@ -159,11 +91,11 @@ export class ShipView extends Container {
         for (const engine of this.config.engines) {
             this.flame
                 .poly([
-                    engine.x - 8,
+                    engine.x - 14,
                     engine.y - 7,
-                    engine.x - 8 - length,
+                    engine.x - 14 - length,
                     engine.y,
-                    engine.x - 8,
+                    engine.x - 14,
                     engine.y + 7,
                 ])
                 .fill(fault ? C.red : SHIP_COLORS.flame);
