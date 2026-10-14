@@ -155,32 +155,24 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         visor(g, 17, 0, 12, 14);
     } else if (hull === 'swift') {
         for (const side of [-1, 1]) {
-            g.moveTo(36, side * 24)
+            g.beginPath()
+                .moveTo(36, side * 24)
                 .bezierCurveTo(19, side * 38, -5, side * 42, -25, side * 35)
                 .lineTo(-34, side * 28)
                 .quadraticCurveTo(-12, side * 34, -8, side * 24)
-                .lineTo(-3, side * 15)
+                .lineTo(-12, side * 8)
+                .lineTo(4, side * 7)
                 .quadraticCurveTo(19, side * 16, 36, side * 24)
                 .closePath()
                 .fill(palette.hull)
                 .stroke({ color: palette.edge, width: 1.3 });
-            roundedHull(
+            roundedPanel(
                 g,
                 [25, side * 27, 8, side * 35, -13, side * 35, -8, side * 27, 4, side * 22],
                 2,
                 palette.panel,
+                palette.panel,
             );
-            seam(g, [19, side * 27, 7, side * 30, -3, side * 22], 1.5);
-            g.moveTo(33, side * 25)
-                .lineTo(27, side * 28)
-                .moveTo(9, side * 20)
-                .lineTo(-2, side * 20)
-                .moveTo(-25, side * 34)
-                .lineTo(-32, side * 29)
-                .stroke({ color: 0x76e3d4, width: 2 });
-            g.roundRect(-13, side * 27 - 1, 14, 2, 1).fill(0x76e3d4);
-            g.circle(-9, side * 37, 2).fill(S.engine);
-            g.circle(-9, side * 37, 0.9).fill(0x76e3d4);
         }
         roundedHull(
             g,
@@ -191,16 +183,8 @@ export function shipHull(hull: HullId, modules: ShipModules) {
             1.6,
         );
         roundedHull(g, [-33, 0, -19, -8, 3, -7, 30, 0, 3, 7, -19, 8], 2, palette.panel);
-        roundedHull(g, [0, -5, 14, -4, 33, 0, 14, 4, 0, 5], 1, S.engine);
-        g.moveTo(18, 0).lineTo(33, 0).stroke({ color: 0x76e3d4, width: 1.8 });
         g.poly([4, -2.5, 9, 0, 4, 2.5]).fill(0x8ae6e0);
         visor(g, -13, 0, 11, 7);
-        g.moveTo(40, -2)
-            .lineTo(46, -2)
-            .moveTo(40, 2)
-            .lineTo(46, 2)
-            .stroke({ color: 0x98eae3, width: 1.5 });
-        g.moveTo(-39, 0).lineTo(-46, 0).stroke({ color: palette.edge, width: 1.5 });
     } else if (hull === 'mule') {
         // Broad forward crossbar and a narrower rear spine read as a T from above.
         roundedHull(g, [-36, -12, 15, -12, 22, -32, 39, -32, 39, 32, 22, 32, 15, 12, -36, 12], 4);
@@ -361,21 +345,24 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         g.circle(2, 0, 9).fill(S.reinforcement).stroke({ color: S.engine, width: 1 });
         visor(g, 10, -27, 10, 6);
     }
-    // Recessed exhaust vents and a raised service cover give the aft deck more depth.
-    for (let i = 0; i < 3; i++)
-        g.roundRect(-26 + i * 4, -4, 2, 8, 0.8).fill({ color: S.engine, alpha: 0.65 });
-    g.roundRect(-8, -4, 7, 8, 2)
-        .fill(S.hull)
-        .stroke({ color: palette.edge, width: 0.5, alpha: 0.55 });
-    // Small inspection plates and fasteners add detail without a texture atlas.
-    for (const y of [-1, 1]) {
-        g.circle(-9, y * 11, 1.5).fill(0xa0a6aa);
-        g.roundRect(-19, y * 8 - 1, 7, 2, 1).fill(S.engine);
+    if (hull !== 'swift') {
+        // Recessed exhaust vents and a raised service cover give the aft deck more depth.
+        for (let i = 0; i < 3; i++)
+            g.roundRect(-26 + i * 4, -4, 2, 8, 0.8).fill({ color: S.engine, alpha: 0.65 });
+        g.roundRect(-8, -4, 7, 8, 2)
+            .fill(S.hull)
+            .stroke({ color: palette.edge, width: 0.5, alpha: 0.55 });
+        // Small inspection plates and fasteners add detail without a texture atlas.
+        for (const y of [-1, 1]) {
+            g.circle(-9, y * 11, 1.5).fill(0xa0a6aa);
+            g.roundRect(-19, y * 8 - 1, 7, 2, 1).fill(S.engine);
+        }
+        for (let i = 0; i < modules.cargo; i++)
+            g.roundRect(-21 + i * 9, -7, 6, 14, 2).fill(S.cargo);
+        if (modules.armor)
+            g.beginPath()
+                .arc(0, 0, 28, Math.PI * 0.65, Math.PI * 1.35)
+                .stroke({ color: S.reinforcement, width: 2 + modules.armor });
     }
-    for (let i = 0; i < modules.cargo; i++) g.roundRect(-21 + i * 9, -7, 6, 14, 2).fill(S.cargo);
-    if (modules.armor)
-        g.beginPath()
-            .arc(0, 0, 28, Math.PI * 0.65, Math.PI * 1.35)
-            .stroke({ color: S.reinforcement, width: 2 + modules.armor });
     return g;
 }

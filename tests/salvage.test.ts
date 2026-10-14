@@ -72,6 +72,45 @@ test('dual towing owns separate ropes and removing one leaves the other attached
     }
 });
 
+test('Manta tow partners have no mutual physical contacts or impact damage, detach restores collisions', () => {
+    for (const source of ['lancer', 'recovery'] as const) {
+        const { sim } = arena(71, 'tug');
+        try {
+            const first = sim.salvage.add(1, 'patrol', { x: 2860, y: -15 }, { x: 0, y: 200 })!;
+            const second = sim.salvage.add(2, source, { x: 2860, y: 15 }, { x: 0, y: -200 })!;
+            assert.ok(sim.salvage.attach(first, sim.ship));
+            assert.ok(sim.salvage.attach(second, sim.ship));
+            for (let frame = 0; frame < 15; frame++) {
+                sim.step(idle);
+                let contact = false;
+                sim.world.contactPair(first.collider, second.collider, (manifold) => {
+                    contact ||= manifold.numSolverContacts() > 0;
+                });
+                assert.equal(contact, false);
+            }
+            assert.equal(first.health, first.maxHealth);
+            assert.equal(second.health, second.maxHealth);
+            assert.equal(
+                sim.events.some((event) => event.kind === 'hit'),
+                false,
+            );
+            sim.salvage.detach(second);
+            first.body.setTranslation({ x: 28.6, y: -0.15 }, true);
+            second.body.setTranslation({ x: 28.6, y: 0.15 }, true);
+            first.body.setLinvel({ x: 0, y: 0 }, true);
+            second.body.setLinvel({ x: 0, y: 0 }, true);
+            sim.world.step();
+            let contact = false;
+            sim.world.contactPair(first.collider, second.collider, (manifold) => {
+                contact ||= manifold.numSolverContacts() > 0;
+            });
+            assert.ok(contact);
+            assert.equal(sim.salvage.towing.size, 1);
+        } finally {
+            sim.dispose();
+        }
+    }
+});
 test('actual drone destruction gives either a wreck or loose resources, never both', () => {
     for (const wreck of [true, false]) {
         let seed = 1;

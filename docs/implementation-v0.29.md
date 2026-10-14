@@ -14,6 +14,8 @@ Swift zmienia nazwę na Widmo; zapisany identyfikator `swift` pozostaje zgodny z
 
 Nowy model według referencji ma smukły grafitowy korpus, zakrzywione skrzydła, turkusowe akcenty, wydłużony ogon i szklany niebieski kokpit. Jedno działko na LPM i jeden chwytak pozostają, laser usunięto. Kolizja została dopasowana do szerszych skrzydeł; parametry napędu i ceny nie zmieniają się.
 
+Skrzydła łączą się z korpusem pełnymi nasadami. Pozostają gładkie cieniowane panele bez jasnych wewnętrznych obrysów, pionowych pasków ani akcentów na końcówkach. Usunięto również dodatkowe kreski i nakładki na kokpicie.
+
 PPM aktywuje kamuflaż optyczny na **3 s**. Wrogowie nie mogą wykryć bieżącej pozycji, aktualizować punktu celowania ani strzelać do Widma; mogą wracać do ostatniego znanego miejsca lub wybrać widoczną eskortę. Skaner Cerbera także nie wykrywa ukrytego statku. Kamuflaż nie usuwa istniejących pocisków ani kolizji i nie daje odporności na trafienia.
 
 Bazowe odnowienie: **12 s od aktywacji**. Przytrzymanie PPM nie przedłuża ani nie powtarza działania. Kolejne użycie wymaga gotowej umiejętności i nowego naciśnięcia. Ogień i boost nie przerywają tych 3 s. Pauza i wybór prototypu zatrzymują oba zegary. C nie włącza na Widmie dawnego bezterminowego kamuflażu.
@@ -33,6 +35,8 @@ Nie ma limitu liczby produkcji na wyprawę. Po zużyciu zestawu można stworzyć
 Manta ma dwa niezależne sloty fizycznego holu. Pozostałe statki zachowują jeden. E podejmuje kolejny pobliski niepodłączony wrak, dopóki są wolne sloty. Można holować dwa wraki albo wrak i wybrany cel ratunkowy. Nie zwiększa to ładowni surowców.
 
 Każdy hol ma własną linę Rapiera, boczny punkt zaczepu, HP i historię dostawy. Zniszczenie jednego nie odłącza drugiego. J zwalnia holowane wraki, ale nie cel ratunkowy. Automatyczne przekazanie sprawdza każdy obiekt osobno; dokowanie E wymaga, by oba dotarły do Aurory. Każda dostawa rozliczana jest raz i korzysta z dotychczasowego dziennika zapisu.
+
+Jednostki na podwójnym holu nie kolidują ze sobą i nie zadają sobie obrażeń od wzajemnych uderzeń. Nadal mogą otrzymać obrażenia od otoczenia i ostrzału; odłączenie przywraca zwykłe kolizje wraku. Zasada obejmuje także parę wrak / cel ratunkowy.
 
 HUD, radar, podpowiedzi i panel pokładu uwzględniają oba hole. Obie liny są rysowane od tych samych punktów zaczepu, których używa fizyka.
 

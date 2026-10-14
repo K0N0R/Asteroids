@@ -5,9 +5,34 @@ import { DRONES, GAME } from '../frontend/game/config';
 import { newCampaign } from '../frontend/game/state/campaign';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 import { shieldEntry, impactParticleCount } from '../frontend/game/systems/impact';
+import { HULL_PALETTES, shipHull } from '../frontend/game/graphics/shipHull';
 
 before(async () => {
     await RAPIER.init();
+});
+test('Widmo wings have plain shaded panels without bright decorative strips', () => {
+    const hull = shipHull('swift', newCampaign().ship!);
+    try {
+        const strokes = hull.context.instructions.filter(
+            (instruction) => instruction.action === 'stroke',
+        );
+        assert.ok(strokes.length > 0);
+        assert.equal(
+            strokes.filter((stroke) => stroke.data.style.color === HULL_PALETTES.swift.panel)
+                .length,
+            2,
+        );
+        for (const stroke of strokes)
+            assert.equal(
+                stroke.data.path.instructions.some((part) => part.action === 'roundRect'),
+                false,
+            );
+        for (const instruction of hull.context.instructions)
+            if (instruction.action === 'fill' || instruction.action === 'stroke')
+                assert.notEqual(instruction.data.style.color, 0x76e3d4);
+    } finally {
+        hull.destroy();
+    }
 });
 const idle: FlightInput = {
     target: { x: 10000, y: 0 },

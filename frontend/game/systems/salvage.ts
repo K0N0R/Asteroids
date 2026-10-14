@@ -120,6 +120,7 @@ export class SalvageFleet {
             true,
         );
         joint.setContactsEnabled(false);
+        if (this.capacity > 1) item.collider.setCollisionGroups(0x0010ffef);
         this.ropes.set(item.id, { joint, anchor });
         this.towing.set(item.id, item);
         return true;
@@ -128,6 +129,7 @@ export class SalvageFleet {
         for (const [id, rope] of this.ropes) {
             if (item && id !== item.id) continue;
             this.world.removeImpulseJoint(rope.joint, true);
+            this.towing.get(id)?.collider.setCollisionGroups(0x0002ffff);
             this.ropes.delete(id);
             this.towing.delete(id);
         }
