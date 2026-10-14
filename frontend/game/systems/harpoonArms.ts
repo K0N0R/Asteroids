@@ -2,11 +2,14 @@ import type { Point } from '../worlds/sector';
 
 export const HARPOON_ARMS = {
     reach: 150,
-    jawRadius: 17,
-    cycle: 0.55,
-    contactTime: 0.22,
-    rockDamage: 28,
-    shipDamage: 65,
+    jawRadius: 22,
+    jawOpen: 20,
+    jawClosed: 2,
+    cycle: 0.32,
+    contactTime: 0.08,
+    releaseTime: 0.14,
+    rockDamage: 45,
+    shipDamage: 95,
 } as const;
 
 export interface HarpoonArmPose {
@@ -51,7 +54,12 @@ export class HarpoonArms {
         this.extension += Math.max(-speed, Math.min(speed, desired - this.extension));
         this.cycleTime = Math.min(HARPOON_ARMS.cycle, this.cycleTime + dt);
         this.closure = active
-            ? Math.max(0, 1 - Math.abs(this.cycleTime - HARPOON_ARMS.contactTime) / 0.16)
+            ? Math.max(
+                  0,
+                  this.cycleTime <= HARPOON_ARMS.contactTime
+                      ? this.cycleTime / HARPOON_ARMS.contactTime
+                      : 1 - (this.cycleTime - HARPOON_ARMS.contactTime) / HARPOON_ARMS.releaseTime,
+              )
             : 0;
         const strike = !this.contacted && this.cycleTime >= HARPOON_ARMS.contactTime;
         if (strike) this.contacted = true;
@@ -68,14 +76,14 @@ export class HarpoonArms {
         );
         return [-1, 1].map((side, index) => {
             const shoulder = { x: 8, y: side * 18 };
-            const spread = side * (19 - this.closure * 10);
+            const spread = side * (28 - this.closure * 16);
             const deployed = {
-                x: Math.cos(angle) * distance - Math.sin(angle) * spread,
-                y: Math.sin(angle) * distance + Math.cos(angle) * spread,
+                x: Math.cos(angle) * distance,
+                y: Math.sin(angle) * distance + spread,
             };
             const tip = this.limits.get(index) ?? {
-                x: -23 + (deployed.x + 23) * this.extension,
-                y: side * 25 + (deployed.y - side * 25) * this.extension,
+                x: 12 + (deployed.x - 12) * this.extension,
+                y: side * 40 + (deployed.y - side * 40) * this.extension,
             };
             const dx = tip.x - shoulder.x,
                 dy = tip.y - shoulder.y;
@@ -84,10 +92,20 @@ export class HarpoonArms {
             const bend = Math.sqrt(Math.max(0, segment * segment - (length * length) / 4));
             const bendSide = dx >= 0 ? side : -side;
             const elbow = {
-                x: (shoulder.x + tip.x) / 2 - (dy / length) * bend * bendSide,
-                y: (shoulder.y + tip.y) / 2 + (dx / length) * bend * bendSide,
+                x:
+                    -14 * (1 - this.extension) +
+                    ((shoulder.x + tip.x) / 2 - (dy / length) * bend * bendSide) * this.extension,
+                y:
+                    side * 32 * (1 - this.extension) +
+                    ((shoulder.y + tip.y) / 2 + (dx / length) * bend * bendSide) * this.extension,
             };
-            return { shoulder, elbow, tip, angle, closure: this.closure };
+            return {
+                shoulder,
+                elbow,
+                tip,
+                angle: angle * this.extension,
+                closure: this.closure,
+            };
         });
     }
 }

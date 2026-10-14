@@ -1,5 +1,5 @@
 import { Graphics } from 'pixi.js';
-import type { HarpoonArmPose } from '../systems/harpoonArms';
+import { HARPOON_ARMS, type HarpoonArmPose } from '../systems/harpoonArms';
 import { rotateVector } from '../systems/flight';
 
 export function drawHarpoonArms(graphics: Graphics, poses: readonly HarpoonArmPose[]) {
@@ -30,11 +30,8 @@ export function drawHarpoonArms(graphics: Graphics, poses: readonly HarpoonArmPo
             graphics.circle(joint.x, joint.y, 3.4).fill(0xb58e4b);
             graphics.circle(joint.x, joint.y, 1).fill(0xd6bc83);
         }
-        const direction =
-            pose.tip.x < 0 && Math.abs(pose.tip.y) < 40
-                ? Math.atan2(pose.tip.y - pose.elbow.y, pose.tip.x - pose.elbow.x)
-                : pose.angle;
-        const gap = 12 - pose.closure * 10;
+        const gap =
+            HARPOON_ARMS.jawOpen - pose.closure * (HARPOON_ARMS.jawOpen - HARPOON_ARMS.jawClosed);
         for (const side of [-1, 1]) {
             const points = [
                 [-7, side * 4],
@@ -42,7 +39,7 @@ export function drawHarpoonArms(graphics: Graphics, poses: readonly HarpoonArmPo
                 [14, side * (gap * 0.55)],
                 [15, side * (gap * 0.55 - 3)],
             ].flatMap(([x, y]) => {
-                const offset = rotateVector({ x, y }, direction);
+                const offset = rotateVector({ x, y }, pose.angle);
                 return [pose.tip.x + offset.x, pose.tip.y + offset.y];
             });
             graphics.poly(points).stroke({ color: 0x283840, width: 5 });

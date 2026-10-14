@@ -28,26 +28,19 @@ Etap 0.13 dodaje intendenta, odzysk rudy z komponentów, równoległe kolejki pr
 
 Etap 0.14 dodaje ciężkiego strażnika Lancer z własną sylwetką, dystansem, ładowaniem, pociskiem i łupem. Profile przeciwników współdzielą istniejącą fizykę i AI. Szczegóły: `implementation-v0.14.md`.
 
-
 Etap 0.15 dodaje sabotaż skanera Cerbera: G przez 3 s, koszt jednego komponentu z ładowni, 20 s przerwy w skanowaniu. Aktywny alarm zostaje skasowany, ale drony pozostają zagrożeniem. Szczegóły: `implementation-v0.15.md`.
 
 Z większych elementów wizji pozostają załoga pokładowa z zadaniami w locie, kolejne wymienne części oraz placówki i misje. Praca offline i wznowienie wypraw pozostają późniejszymi etapami. Pierwsza pętla wydobywcza, progresja, walka, infiltracja oraz ratunek są już grywalne.
 
-
 Etap 0.16 to lifting modeli i efektów rozgrywki do wspólnego stylu floty gracza oraz działająca tarcza bezpieczeństwa Aurory. Drony i stacje mają nowe poszycie i szklane elementy, asteroidy są bardziej zróżnicowane, a zniszczenia, trafienia i naprawy emitują cząsteczki. Szczegóły: `implementation-v0.16.md`.
-
 
 Etap 0.17 dodaje pierwszy wybór wymiennego uzbrojenia: Autocannon, Impuls i Kinetic. Hangar ma osobny widok zakupu i montażu z podglądem działek, a broń jest przypisana do konkretnego kadłuba i zachowywana przy odzysku. Format zapisu 11 migruje starsze kampanie. Szczegóły: `implementation-v0.17.md`.
 
-
 Etap 0.18 wprowadza miks audio z 18 próbkami CC0 dostarczonymi przez użytkownika, osobne brzmienia broni, pętle napędu/lasera/naprawy, efekty trafień i interfejsu oraz ograniczenia nakładania dźwięków. Szczegóły: `implementation-v0.18.md`; źródła: `audio-credits.md`.
-
 
 Etap 0.19 dodaje opcjonalną kradzież broni z magazynu Cerbera po przejęciu danych. Sprzęt zajmuje trzy miejsca w ładowni i staje się wyposażeniem aktywnego kadłuba dopiero po bezpiecznym powrocie. Duplikat rozlicza się na materiały. Szczegóły: `implementation-v0.19.md`.
 
-
 Etap 0.20 wprowadza pierwszą paczkę nowych propozycji: portrety bez rysów twarzy, nazwy pilotów, zanikający ślad na radarze, prezentację stref, zoom prędkości i kapsułę ratunkową. Szczegóły: `implementation-v0.20.md`. Pełna nowa lista z gospodarczą i światową rozbudową: `roadmap-after-v0.19.md`.
-
 
 Etap 0.21 wprowadza kryształy technologiczne: rzadkie skały, przetop komponentów w kolejce mechanika, koszty wyższych ulepszeń, obsługę ładowni i magazynu oraz migrację zapisu do formatu 12. Szczegóły: `implementation-v0.21.md`. Kolejny etap z nowych propozycji: rozbudowa świata i zagrożeń.
 
@@ -70,11 +63,11 @@ Robocza interpretacja kary za śmierć: tracimy pilota, aktualnie używany state
 
 ## Co wykorzystujemy z istniejących projektów
 
-| Projekt | Wykorzystanie |
-| --- | --- |
-| Docelowy boiler, Pixi 8 | `Core`, `prepreload`, `preload`, generator manifestu, build esbuild, ustawienia, dźwięk, muzyka, efekty, komponenty UI, popupy, magistrala zdarzeń i podział czasu UI/świata. |
-| `Asteroids_old`, Canvas2D | Zachowanie myszy, ciągu, strzelania, perspektywę, asteroidy i kamerę jako punkt odniesienia. Ruch zależny od liczby klatek i ręczne sprawdzanie wszystkich par kolizji zastępujemy nową symulacją. |
-| `astedroid`, Pixi 7 + Matter.js | Wzorce osobnych światów lobby/misji, wersjonowania zapisu, konfiguracji przedmiotów i grup kolizji. Fragmenty przenosimy selektywnie po sprawdzeniu zależności i API. |
+| Projekt                         | Wykorzystanie                                                                                                                                                                                      |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docelowy boiler, Pixi 8         | `Core`, `prepreload`, `preload`, generator manifestu, build esbuild, ustawienia, dźwięk, muzyka, efekty, komponenty UI, popupy, magistrala zdarzeń i podział czasu UI/świata.                      |
+| `Asteroids_old`, Canvas2D       | Zachowanie myszy, ciągu, strzelania, perspektywę, asteroidy i kamerę jako punkt odniesienia. Ruch zależny od liczby klatek i ręczne sprawdzanie wszystkich par kolizji zastępujemy nową symulacją. |
+| `astedroid`, Pixi 7 + Matter.js | Wzorce osobnych światów lobby/misji, wersjonowania zapisu, konfiguracji przedmiotów i grup kolizji. Fragmenty przenosimy selektywnie po sprawdzeniu zależności i API.                              |
 
 W boilerze `WorldContainer` i `UiContainer` są obecnie szkieletem. `GameState` przełącza lobby/gameplay, ale nie realizuje jeszcze wypraw, pauzy i rozliczania. Backend służy plikom statycznym; v0.1 pozostaje lokalną grą dla jednego gracza.
 
@@ -157,16 +150,16 @@ W v0.1 nie zapisujemy pełnej misji do wznowienia. Zapis startu oznacza aktywną
 
 ## Etapy wdrożenia i kryteria ukończenia
 
-| Etap | Prace | Warunek ukończenia |
-| --- | --- | --- |
-| 0. Fundament | Uruchomienie boilera, kontrola TypeScript/lint/build, poprawki cyklu życia i wejścia, kolejność warstw, adapter Rapier i inicjalizacja. | Działa build developerski i produkcyjny; popup jest nad światem, blokuje sterowanie, pauza zatrzymuje symulację. |
-| 1. Przyjemność lotu | Geometryczny statek, ciąg, obrót, dryf, hamulec, kamera, pole gwiazd i wskaźnik wektora prędkości. | Kilkuminutowy lot i dokowanie są zrozumiałe; zachowanie przy 30/60/144 FPS jest porównywalne, celowanie działa po zmianie rozmiaru okna. |
-| 2. Wydobycie | Strzelanie, asteroidy, trafienia, fragmenty, surowce, ładownia i HUD. | Można wydobywać i zbierać; szybkie pociski trafiają, liczba fragmentów jest ograniczona, pełna ładownia ma jasny komunikat. |
-| 3. Pierwsza kompletna pętla | Minimalna baza, start, powrót, śmierć, ekran wyniku i jeden zakup. | Można wykonać kilka wypraw z rzędu; powrót zachowuje łup, śmierć go usuwa, zakup zmienia następną wyprawę. |
-| 4. Proceduralna wyprawa | Seed, skończony sektor, strefy ryzyka, pas asteroid, wrak i nawigacja do bazy/celu. | Spawn jest bezpieczny, cele mają dostępną trasę, świat się nie zawija i układ startowy można odtworzyć z seeda. |
-| 5. Eksploracja i kontrakty | Ruchomy pas asteroid, zasobne pole, wrak i dwa kontrakty wydobywcze. | Można wybrać cel nawigacji, zebrać wartościowy ładunek, rozliczyć kontrakt lub wrócić wcześniej. |
-| 6. Progresja i piloci | Hangar, moduły, ulepszenia stacji, nabór, trwała śmierć, zestaw awaryjny i wersjonowany zapis. | Porażka nie blokuje dalszej gry, zakup/strata są poprawnie zapisywane, misje i łup nie rozliczają się podwójnie. |
-| 7. Jakość prototypu | Dźwięki, kontrast, podpowiedzi, odczucia trafień, balans, profilowanie i limity obiektów. | Pełna sesja 20–30 minut działa stabilnie; po serii wypraw nie rosną liczby subskrypcji, timerów i ciał fizycznych. |
+| Etap                        | Prace                                                                                                                                   | Warunek ukończenia                                                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. Fundament                | Uruchomienie boilera, kontrola TypeScript/lint/build, poprawki cyklu życia i wejścia, kolejność warstw, adapter Rapier i inicjalizacja. | Działa build developerski i produkcyjny; popup jest nad światem, blokuje sterowanie, pauza zatrzymuje symulację.                         |
+| 1. Przyjemność lotu         | Geometryczny statek, ciąg, obrót, dryf, hamulec, kamera, pole gwiazd i wskaźnik wektora prędkości.                                      | Kilkuminutowy lot i dokowanie są zrozumiałe; zachowanie przy 30/60/144 FPS jest porównywalne, celowanie działa po zmianie rozmiaru okna. |
+| 2. Wydobycie                | Strzelanie, asteroidy, trafienia, fragmenty, surowce, ładownia i HUD.                                                                   | Można wydobywać i zbierać; szybkie pociski trafiają, liczba fragmentów jest ograniczona, pełna ładownia ma jasny komunikat.              |
+| 3. Pierwsza kompletna pętla | Minimalna baza, start, powrót, śmierć, ekran wyniku i jeden zakup.                                                                      | Można wykonać kilka wypraw z rzędu; powrót zachowuje łup, śmierć go usuwa, zakup zmienia następną wyprawę.                               |
+| 4. Proceduralna wyprawa     | Seed, skończony sektor, strefy ryzyka, pas asteroid, wrak i nawigacja do bazy/celu.                                                     | Spawn jest bezpieczny, cele mają dostępną trasę, świat się nie zawija i układ startowy można odtworzyć z seeda.                          |
+| 5. Eksploracja i kontrakty  | Ruchomy pas asteroid, zasobne pole, wrak i dwa kontrakty wydobywcze.                                                                    | Można wybrać cel nawigacji, zebrać wartościowy ładunek, rozliczyć kontrakt lub wrócić wcześniej.                                         |
+| 6. Progresja i piloci       | Hangar, moduły, ulepszenia stacji, nabór, trwała śmierć, zestaw awaryjny i wersjonowany zapis.                                          | Porażka nie blokuje dalszej gry, zakup/strata są poprawnie zapisywane, misje i łup nie rozliczają się podwójnie.                         |
+| 7. Jakość prototypu         | Dźwięki, kontrast, podpowiedzi, odczucia trafień, balans, profilowanie i limity obiektów.                                               | Pełna sesja 20–30 minut działa stabilnie; po serii wypraw nie rosną liczby subskrypcji, timerów i ciał fizycznych.                       |
 
 Najpierw oceniamy etap 1: jeżeli obracanie, dryf i hamowanie nie dają satysfakcji, korygujemy lot przed dokładaniem gospodarki. Etap 3 jest pierwszym testem kompletnej gry; etapy 4–7 nadają jej charakter planowanej v0.1.
 
@@ -187,11 +180,9 @@ Weryfikacja obejmuje testy logiki generatora, kosztów, strat i jednokrotnego ro
 - Rapier — CCD i ograniczenia: https://rapier.rs/docs/user_guides/javascript/rigid_body_ccd/
 - Alternatywa Matter.js: https://brm.io/matter-js/docs/classes/Engine.html
 
-
 ## Etap 0.22 — wdrożony
 
 Większy sektor (promień 8000), kryształowy rdzeń za trzema pierścieniami skał, Prąd Perseid i podtrzymany obieg Heliosa, trzy wędrujące patrole oraz nawigacja T. Zobacz [opis i weryfikację](implementation-v0.22.md). Następnie fortyfikacje, później wraki przeciwników i recykling.
-
 
 ## Dopisane kierunki — eskorta, tarcze, ryzyko holowania
 
@@ -201,11 +192,9 @@ Większy sektor (promień 8000), kryształowy rdzeń za trzema pierścieniami sk
 
 Pełne założenia i propozycje balansu: [plan rozwoju](roadmap-after-v0.19.md).
 
-
 ## Etap 0.23 — wdrożony
 
 Twierdza Aegis z fizycznymi ścianami, otwartą bramą, trzema zwykłymi i dwoma ciężkimi obrońcami. Kontrakt Przełamanie Aegis wymaga usunięcia obstawy, pobrania danych oraz powrotu. Nawigacja H, strefa na radarze, czytelny postęp obrońców. Zapis migruje do formatu 13 z zachowaniem historii i aktywnej wyprawy. [Opis i weryfikacja](implementation-v0.23.md).
-
 
 ## Etap 0.24 — wdrożony
 
@@ -214,7 +203,6 @@ Wraki pokonanych dronów (35% szansy), fizyczny hol w Rapier, odporność wrakó
 Wciągnięcie holu do doku Aurory przekazuje obiekt bazie **bez kończenia rundy**. Dokowanie E też go rozlicza. Dostarczone materiały, piloci i statki są chronione przed późniejszą przegraną. Podsumowanie ma listę wszystkich dostaw, z zachowaniem ich dziennika w aktywnym zapisie. [Opis i testy](implementation-v0.24.md).
 
 Następna faza: eskorta statku badawczego AI. Tarcze kinetyczne pozostają kolejnym zaplanowanym kierunkiem.
-
 
 ## Etap 0.25 — wdrożony
 

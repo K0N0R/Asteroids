@@ -30,8 +30,13 @@ test('Harpoon articulated jaws extend toward aim, fold to attached shoulders and
             { x: 8, y: 18 },
         ],
     );
-    assert.ok(arms.poses.every((arm) => arm.tip.x < 0));
-    assert.ok(arms.poses.every((arm) => Math.abs(arm.elbow.y) < 35));
+    assert.deepEqual(
+        arms.poses.map((arm) => [arm.elbow, arm.tip, arm.angle]),
+        [
+            [{ x: -14, y: -32 }, { x: 12, y: -40 }, 0],
+            [{ x: -14, y: 32 }, { x: 12, y: 40 }, 0],
+        ],
+    );
     for (let frame = 0; frame < 60; frame++) arms.update(GAME.step, target, true, false);
     assert.equal(arms.extension, 1);
     assert.ok(arms.poses.every((arm) => arm.tip.x === HARPOON_ARMS.reach));
@@ -48,6 +53,48 @@ test('Harpoon articulated jaws extend toward aim, fold to attached shoulders and
     const upgraded = new HarpoonArms(2, 2);
     assert.ok(upgraded.reach > arms.reach);
     assert.equal(upgraded.damageMultiplier, 1.5);
+});
+test('Harpoon rear aiming preserves arm sides throughout extension and retraction', () => {
+    for (const target of [
+        { x: -150, y: 0 },
+        { x: -150, y: -60 },
+        { x: -150, y: 60 },
+    ]) {
+        const arms = new HarpoonArms();
+        for (const extend of [true, false])
+            for (let frame = 0; frame < 60; frame++) {
+                arms.update(GAME.step, target, extend, false);
+                const [left, right] = arms.poses;
+                assert.ok(left.tip.y < right.tip.y);
+                assert.ok(left.elbow.y < right.elbow.y);
+                for (let sample = 0; sample <= 10; sample++) {
+                    const t = sample / 10;
+                    for (const [start, end] of [
+                        ['shoulder', 'elbow'],
+                        ['elbow', 'tip'],
+                    ] as const)
+                        assert.ok(
+                            left[start].y * (1 - t) + left[end].y * t <
+                                right[start].y * (1 - t) + right[end].y * t,
+                        );
+                }
+            }
+    }
+});
+test('Harpoon jaws close rapidly and reopen within a shortened attack cycle', () => {
+    const arms = new HarpoonArms();
+    const target = { x: 150, y: 0 };
+    assert.ok(HARPOON_ARMS.jawOpen > 12);
+    assert.ok(HARPOON_ARMS.rockDamage > 28);
+    assert.ok(HARPOON_ARMS.shipDamage > 65);
+    assert.equal(arms.update(HARPOON_ARMS.contactTime / 2, target, true, true), false);
+    assert.equal(arms.closure, 0.5);
+    assert.equal(arms.update(HARPOON_ARMS.contactTime / 2, target, true, true), true);
+    assert.equal(arms.closure, 1);
+    assert.equal(arms.update(HARPOON_ARMS.releaseTime, target, true, true), false);
+    assert.ok(arms.closure < 1e-8);
+    arms.update(HARPOON_ARMS.cycle, target, true, false);
+    assert.equal(arms.update(HARPOON_ARMS.contactTime, target, true, true), true);
 });
 const idle: FlightInput = {
     target: { x: 10000, y: 0 },
@@ -106,7 +153,9 @@ test('Harpoon crushes rocks once per click without bullets or a mining beam and 
         rock.health = 1;
         squeeze(sim);
         assert.equal(sim.rocks.has(rock.id), false);
-        assert.ok(sim.loot.size > 0 || sim.cargoUsed > 0);
+        assert.ok(
+            sim.loot.size > 0 || sim.cargoUsed > 0 || sim.grippers.arms.some((arm) => arm.held),
+        );
     } finally {
         sim.dispose();
     }
@@ -121,10 +170,10 @@ test('Harpoon jaws deal high ship damage, count kills once and cannot be fitted 
         const enemy = sim.enemies.enemies.get(999)!;
         enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
         enemy.cooldown = 999;
-        enemy.health = 130;
+        enemy.health = HARPOON_ARMS.shipDamage * 2;
         for (let frame = 0; frame < 60; frame++) sim.step(armInput);
         squeeze(sim);
-        assert.equal(enemy.health, 65);
+        assert.equal(enemy.health, HARPOON_ARMS.shipDamage);
         assert.equal(sim.enemyKills, 0);
         squeeze(sim);
         assert.equal(sim.enemyKills, 1);

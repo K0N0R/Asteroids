@@ -37,16 +37,13 @@
 
 Załoga pokładowa i jej zadania w locie pozostają w ogólnym planie. Wznowienie wypraw i praca offline są późniejszymi etapami.
 
-
 ## Kolejne etapy — eskorty i ochrona statków
 
 - Eskorta Keplera — wdrożona w 0.25: przyjazny statek badawczy AI, trasa omijająca skały, czekanie na gracza, zasadzka, badanie anomalii i premia po powrocie. [Opis i weryfikacja](implementation-v0.25.md).
 - Tarcze kinetyczne - wdrożone w 0.26: niebieski pierścień heksów, absorpcja obrażeń, indywidualne profile kadłubów, trzy poziomy ulepszeń, regeneracja po przerwie i szybkie ładowanie w doku Aurory. HUD i panel pokładu pokazują stan tarczy. [Opis etapu](implementation-v0.26.md).
 - Holowanie wymagające ostrożności — wdrożone w 0.24 dla podjętych celów: wrak i kapsuła mają odporność; zderzenia z asteroidami oraz trafienia pocisków wroga mogą je zniszczyć. Brak friendly fire i fizycznych kolizji między graczem a holowanym obiektem. Utrata obiektu musi jasno kończyć dany cel odzysku, bez wpływu na pozostałe cele; fizyka liny zachowuje bezwładność. Uwzględnić ochronę obiektu przez tarczę Aurory, obrażenia zależne od siły zderzenia i wynik ratowania pilota.
 
-
 Ustalenie dotyczące dostaw (wdrożone): sam hol kończy się po wciągnięciu obiektu do doku Aurory. Wyprawa trwa dalej; E przy normalnym dokowaniu też rozlicza hol. Dziennik i podsumowanie obejmują wszystkie odholowane obiekty.
-
 
 ## Koncepty kolejnych sześciu kadłubów
 

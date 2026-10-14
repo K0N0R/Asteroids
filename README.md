@@ -79,29 +79,29 @@ Buduje i uruchamia wersję produkcyjną, bez automatycznego odświeżania. Sam b
 
 ## Sterowanie
 
-| Wejście | Działanie |
-| --- | --- |
-| W | Przyspieszanie w kierunku kadłuba; po puszczeniu automatyczne hamowanie |
-| A / D | Skręt kadłuba w lewo / prawo |
-| S | Hamowanie, potem lot wsteczny; ma pierwszeństwo przed W |
-| Shift + W | Boost zależny od kadłuba: prędkość ×1,25–2,10, przyspieszenie ×1,4 |
-| Mysz | Celowanie niezależnie od kierunku lotu |
-| Przytrzymany LPM | Obracane działka na mocowaniach kadłuba; bardzo słabe przeciw skałom |
-| Przytrzymany PPM | Laser wydobywczy: krótki zasięg 180 lub średni 320, duża moc przeciw skałom |
-| C | Włączanie kamuflażu na obsługiwanych kadłubach; ogień, laser, boost i trafienia ujawniają statek na 3 s |
-| E | Przeszukanie pobliskiego wraku |
-| Przytrzymany E | Dokowanie w strefie bazy przy prędkości poniżej 65 m/s |
-| Przytrzymany E przy sygnale ratunkowym | Podjęcie kapsuły/wraku: 4 s poniżej 80 m/s, bez ciągu, strzelania i naprawy |
-| Przytrzymany E przy miejscu badawczym | Skanowanie danych: 3 s w promieniu 180, przy prędkości do 60 m/s, bez ciągu, ognia i naprawy |
-| Przytrzymany E przy skrytce | Otwarcie po 2,5 s w promieniu 150, poniżej 60 m/s, bez ciągu, ognia i naprawy; wybór prototypu lub pominięcie |
-| Przytrzymany R | Naprawa napędu i 25 punktów kadłuba: 5 s lotu poniżej 80 m/s, bez ciągu, strzelania i interakcji; zużywa zestaw |
-| 1–9 | Cel nawigacji: baza, pole rudy, pas, wrak, bogata żyła, sygnał ratunkowy, przekaźnik, obserwatorium, najbliższa nieotwarta skrytka |
-| 0 | Terminal wrogiej placówki Cerber |
-| F | Wskaż najbliższego drona; śledź go do zniszczenia |
-| Przytrzymany G przy terminalu Cerbera | Sabotaż: 3 s spokojnego lotu do 60 m/s; 1 komponent z ładowni; skaner nieaktywny przez 20 s, raz na wyprawę |
-| Przytrzymany E przy terminalu Cerbera | Przechwyt danych: 4 s, do 60 m/s, bez ciągu, ognia, lasera, naprawy i aktywnego alarmu |
-| Esc | Pauza, sterowanie i głośność efektów |
-| Tab | Panel pokładu: szczegóły statku, pilot, prototypy, załoga i odzysk; pauzuje wyprawę |
+| Wejście                                | Działanie                                                                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| W                                      | Przyspieszanie w kierunku kadłuba; po puszczeniu automatyczne hamowanie                                                            |
+| A / D                                  | Skręt kadłuba w lewo / prawo                                                                                                       |
+| S                                      | Hamowanie, potem lot wsteczny; ma pierwszeństwo przed W                                                                            |
+| Shift + W                              | Boost zależny od kadłuba: prędkość ×1,25–2,10, przyspieszenie ×1,4                                                                 |
+| Mysz                                   | Celowanie niezależnie od kierunku lotu                                                                                             |
+| Przytrzymany LPM                       | Obracane działka na mocowaniach kadłuba; bardzo słabe przeciw skałom                                                               |
+| Przytrzymany PPM                       | Laser wydobywczy: krótki zasięg 180 lub średni 320, duża moc przeciw skałom                                                        |
+| C                                      | Włączanie kamuflażu na obsługiwanych kadłubach; ogień, laser, boost i trafienia ujawniają statek na 3 s                            |
+| E                                      | Przeszukanie pobliskiego wraku                                                                                                     |
+| Przytrzymany E                         | Dokowanie w strefie bazy przy prędkości poniżej 65 m/s                                                                             |
+| Przytrzymany E przy sygnale ratunkowym | Podjęcie kapsuły/wraku: 4 s poniżej 80 m/s, bez ciągu, strzelania i naprawy                                                        |
+| Przytrzymany E przy miejscu badawczym  | Skanowanie danych: 3 s w promieniu 180, przy prędkości do 60 m/s, bez ciągu, ognia i naprawy                                       |
+| Przytrzymany E przy skrytce            | Otwarcie po 2,5 s w promieniu 150, poniżej 60 m/s, bez ciągu, ognia i naprawy; wybór prototypu lub pominięcie                      |
+| Przytrzymany R                         | Naprawa napędu i 25 punktów kadłuba: 5 s lotu poniżej 80 m/s, bez ciągu, strzelania i interakcji; zużywa zestaw                    |
+| 1–9                                    | Cel nawigacji: baza, pole rudy, pas, wrak, bogata żyła, sygnał ratunkowy, przekaźnik, obserwatorium, najbliższa nieotwarta skrytka |
+| 0                                      | Terminal wrogiej placówki Cerber                                                                                                   |
+| F                                      | Wskaż najbliższego drona; śledź go do zniszczenia                                                                                  |
+| Przytrzymany G przy terminalu Cerbera  | Sabotaż: 3 s spokojnego lotu do 60 m/s; 1 komponent z ładowni; skaner nieaktywny przez 20 s, raz na wyprawę                        |
+| Przytrzymany E przy terminalu Cerbera  | Przechwyt danych: 4 s, do 60 m/s, bez ciągu, ognia, lasera, naprawy i aktywnego alarmu                                             |
+| Esc                                    | Pauza, sterowanie i głośność efektów                                                                                               |
+| Tab                                    | Panel pokładu: szczegóły statku, pilot, prototypy, załoga i odzysk; pauzuje wyprawę                                                |
 
 Zniszcz asteroidy laserem i podleć do kryształów. Chwytaki automatycznie wybierają pojedyncze surowce w swoim zasięgu, wysuwają ramię, zamykają szczęki i wracają z ładunkiem. Surowiec trafia do ładowni dopiero po powrocie ramienia. Nie ma magnesu ani przyciągania przez laser. Krótkie chwytaki mają zasięg 140, średnie 220, długie 300; liczba ramion zależy od kadłuba. Jasne bursztynowe skały zawierają komponenty. Kontrakt daje premię po bezpiecznym powrocie. Laser, strzelanie i ciąg wsteczny przerywają spokojne czynności: naprawę, skanowanie oraz podjęcie celu.
 
