@@ -69,6 +69,7 @@ export class MissionWorld extends Container {
     private shield = new Graphics();
     private kineticView = new Graphics();
     private atlasLockView = new Graphics();
+    private burningView = new Graphics();
     private supportShields = new Graphics();
     private supportDrone = new Container();
     private rockLayer = new Container();
@@ -107,7 +108,7 @@ export class MissionWorld extends Container {
         wreck.position.set(w.x, w.y);
         this.camera.addChild(wreck, this.rockLayer, this.effectLayer, this.shipView);
         this.camera.addChild(this.enemyStatus, this.effectLayer, this.salvageStatus);
-        this.camera.addChild(this.atlasLockView);
+        this.camera.addChild(this.atlasLockView, this.burningView);
         this.supportDrone.addChild(
             new Graphics()
                 .poly([-14, -6, -5, -11, 7, -7, 15, 0, 7, 7, -5, 11, -14, 6])
@@ -368,7 +369,7 @@ export class MissionWorld extends Container {
         const s = this.simulation,
             p = s.position;
         this.atlasLockView.clear();
-        if (s.isAtlas) {
+        if (s.hasRocketLauncher) {
             for (const id of new Set([s.atlasLock.target, s.atlasLock.locked])) {
                 const enemy = id === null ? undefined : s.enemies.enemies.get(id);
                 if (!enemy) continue;
@@ -399,6 +400,30 @@ export class MissionWorld extends Container {
                         .moveTo(position.x, position.y + side * (radius + 8))
                         .lineTo(position.x, position.y + side * (radius - 5))
                         .stroke({ color, width: 2 });
+            }
+        }
+        this.burningView.clear();
+        for (const [id, burn] of s.burning) {
+            const enemy = s.enemies.enemies.get(id);
+            if (!enemy) continue;
+            const position = enemyPosition(enemy);
+            const opacity = Math.min(1, burn.remaining);
+            this.burningView
+                .beginPath()
+                .circle(position.x, position.y, enemy.config.radius + 3)
+                .stroke({ color: 0xff5636, width: 2, alpha: opacity * 0.45 });
+            for (let index = 0; index < 3; index++) {
+                const angle = (index * Math.PI * 2) / 3 + this.clock * 0.6;
+                const x = position.x + Math.cos(angle) * enemy.config.radius * 0.7;
+                const y = position.y + Math.sin(angle) * enemy.config.radius * 0.7;
+                const length = 8 + Math.sin(this.clock * 16 + index) * 3;
+                this.burningView
+                    .beginPath()
+                    .moveTo(x - 3, y + 3)
+                    .quadraticCurveTo(x - 5, y - 3, x + 1, y - length)
+                    .quadraticCurveTo(x + 6, y, x + 3, y + 3)
+                    .closePath()
+                    .fill({ color: 0xffa345, alpha: opacity * 0.85 });
             }
         }
         this.shield.clear();
@@ -507,15 +532,25 @@ export class MissionWorld extends Container {
         this.camera.position.set(800, 450);
         this.laser.clear();
         for (const { from, to } of s.laserBeams) {
+            const combat = s.hullId === 'phoenix';
             this.laser
+                .beginPath()
                 .moveTo(from.x, from.y)
                 .lineTo(to.x, to.y)
-                .stroke({ color: C.gold, width: 8, alpha: 0.18 });
+                .stroke({ color: combat ? 0xff4438 : C.gold, width: combat ? 11 : 8, alpha: 0.18 });
             this.laser
+                .beginPath()
                 .moveTo(from.x, from.y)
                 .lineTo(to.x, to.y)
-                .stroke({ color: C.mint, width: 2.5, alpha: 0.9 });
-            this.laser.circle(to.x, to.y, 4 + Math.sin(this.clock * 40)).fill(C.text);
+                .stroke({
+                    color: combat ? 0xff493e : C.mint,
+                    width: combat ? 3.5 : 2.5,
+                    alpha: 0.9,
+                });
+            this.laser
+                .beginPath()
+                .circle(to.x, to.y, 4 + Math.sin(this.clock * 40))
+                .fill(combat ? 0xffb49a : C.text);
         }
         this.grabberLines.clear();
         for (const arm of s.grippers.arms) {

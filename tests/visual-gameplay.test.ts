@@ -11,6 +11,25 @@ import { ShipView } from '../frontend/game/graphics/shapes';
 before(async () => {
     await RAPIER.init();
 });
+test('Phoenix has swept metal wings, orange reactor accents and one central combat laser', () => {
+    const hull = shipHull('phoenix', newCampaign().ship!);
+    const view = new ShipView({ ...newCampaign().ship!, hull: 'phoenix' });
+    try {
+        assert.ok(hull.width > 90 && hull.height > 80);
+        const fills = hull.context.instructions.filter(
+            (instruction) => instruction.action === 'fill',
+        );
+        assert.ok(fills.some((fill) => fill.data.style.color === HULL_PALETTES.phoenix.panel));
+        assert.ok(fills.some((fill) => fill.data.style.color === HULL_PALETTES.phoenix.cargo));
+        assert.equal(view.guns.length, 0);
+        assert.equal(view.lasers.length, 1);
+        assert.equal(view.lasers[0].x, 42);
+        assert.equal(view.lasers[0].y, 0);
+    } finally {
+        hull.destroy();
+        view.destroy({ children: true });
+    }
+});
 test('Stinger has broad split wings, a glazed cockpit and two accent panels', () => {
     const hull = shipHull('stinger', newCampaign().ship!);
     try {

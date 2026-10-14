@@ -1,4 +1,13 @@
-import { AEGIS, ATLAS_WEAPONS, GAME, STINGER_AMMO, WIDMO, WEAPONS, type WeaponId } from '../config';
+import {
+    AEGIS,
+    ATLAS_WEAPONS,
+    GAME,
+    PHOENIX,
+    STINGER_AMMO,
+    WIDMO,
+    WEAPONS,
+    type WeaponId,
+} from '../config';
 import { HarpoonArms, HARPOON_ARMS } from '../systems/harpoonArms';
 import { Container, Graphics } from 'pixi.js';
 import {
@@ -171,7 +180,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.30', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.31', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -625,6 +634,56 @@ export class LobbyView extends Container {
             label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
             return;
         }
+        if (ship.hull === 'phoenix') {
+            this.art(hullPreview(ship), 625, 430);
+            label(ui, 'UZBROJENIE / FENIKS', 1072, 244, 13, C.muted);
+            label(ui, 'Laser i rakieta', 1072, 279, 30, C.text, 456);
+            const multiplier = 1 + ship.drill * 0.25;
+            stat(ui, 'LASER / HP/S', `${PHOENIX.laserDamage * multiplier}`, 1072, 365);
+            stat(
+                ui,
+                'PODPALENIE',
+                `${PHOENIX.burnDamage * multiplier}/s · ${PHOENIX.burnSeconds} s`,
+                1298,
+                365,
+            );
+            stat(ui, 'LASER / ZASIĘG', `${HULLS.phoenix.laserRange} m`, 1072, 446);
+            stat(
+                ui,
+                'RAKIETA / HP',
+                `${ATLAS_WEAPONS.rocket.damage * (1 + ship.handling * 0.25)}`,
+                1298,
+                446,
+            );
+            label(
+                ui,
+                `Wydobycie ${PHOENIX.rockDamage * multiplier}/s · 2 krótkie chwytaki\nRakieta ${ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life} m · cykl ${ATLAS_WEAPONS.rocket.interval} s`,
+                1072,
+                541,
+                17,
+                C.muted,
+                456,
+            );
+            label(
+                ui,
+                'LPM: wiązka bojowa i wydobycie\nPPM: rakieta · namierzanie kursorem 3 s\nPodpalenie odnawia czas, nie kumuluje siły.',
+                1072,
+                604,
+                15,
+                C.muted,
+                456,
+            );
+            label(
+                ui,
+                'Stałe uzbrojenie · projektor i układ rakietowy.',
+                1072,
+                719,
+                16,
+                C.mint,
+                456,
+            );
+            return;
+        }
         if (ship.hull === 'stinger') {
             this.art(hullPreview(ship), 625, 430);
             label(ui, 'UZBROJENIE / ŻĄDŁO', 1072, 244, 13, C.muted);
@@ -1025,7 +1084,7 @@ export class LobbyView extends Container {
             card.addChild(icon);
             label(card, key === 'workshop' ? 'Warsztat' : 'Magazyn', 64, 23, 23);
             label(card, `Poziom ${c.station[key]}`, 64, 60, 15, C.muted);
-            segments(card, c.station[key], key === 'workshop' ? 2 : 3, 24, 109, 292);
+            segments(card, c.station[key], key === 'workshop' ? 2 : 3, 24, 109, 177);
         });
         label(ui, 'MODUŁ STACJI', 1072, 244, 13, C.muted);
         label(ui, part === 'workshop' ? 'Warsztat' : 'Magazyn', 1072, 276, 31);

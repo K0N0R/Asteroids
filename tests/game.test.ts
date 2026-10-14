@@ -17,6 +17,7 @@ import {
     shipHealth,
     scrapRefund,
     scrapShip,
+    upgradePrice,
 } from '../frontend/game/state/campaign';
 import { generateSector } from '../frontend/game/worlds/sector';
 import { FlightInput, MissionSimulation } from '../frontend/game/systems/mission';
@@ -108,6 +109,54 @@ test('full station storage accepts valuable parts first and reports overflow', (
     const result = finishRun(c, true, { ore: 5, parts: 2 }, 1, 'dock');
     assert.deepEqual(c.bank, { ore: 148, parts: 2 });
     assert.equal(result!.overflow, 4);
+});
+test('ship upgrades spend more components and less ore at every level without partial charges', () => {
+    const prices = [
+        ['engine', 12, 8],
+        ['handling', 10, 6],
+        ['cargo', 8, 6],
+        ['drill', 12, 10],
+        ['armor', 10, 8],
+        ['shield', 14, 10],
+    ] as const;
+    for (const [upgrade, ore, parts] of prices) {
+        const c = newCampaign();
+        c.station.workshop = 2;
+        for (let level = 1; level <= 3; level++) {
+            const price = {
+                ore: ore * level,
+                parts: parts * level,
+                ...(level > 1 ? { crystals: level - 1 } : {}),
+            };
+            assert.deepEqual(upgradePrice(c, upgrade), price);
+            c.bank = { ...price, parts: price.parts - 1, crystals: price.crystals ?? 0 };
+            const missingParts = JSON.stringify(c);
+            assert.equal(buyUpgrade(c, upgrade), false);
+            assert.equal(JSON.stringify(c), missingParts);
+            c.bank.parts++;
+            c.bank.ore--;
+            const missingOre = JSON.stringify(c);
+            assert.equal(buyUpgrade(c, upgrade), false);
+            assert.equal(JSON.stringify(c), missingOre);
+            c.bank.ore++;
+            assert.ok(buyUpgrade(c, upgrade));
+            assert.equal(c.ship![upgrade], level);
+            assert.deepEqual(c.bank, { ore: 0, parts: 0, crystals: 0 });
+            assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
+        }
+    }
+    const c = newCampaign();
+    assert.deepEqual(upgradePrice(c, 'workshop'), { ore: 30, parts: 3 });
+    assert.deepEqual(upgradePrice(c, 'storage'), { ore: 25, parts: 1 });
+});
+test('component-heavy full storage can fund ship upgrades and free space with little ore', () => {
+    const c = newCampaign();
+    c.bank = { ore: 12, parts: 138 };
+    assert.equal(storageUsed(c), 150);
+    assert.ok(buyUpgrade(c, 'engine'));
+    assert.deepEqual(c.bank, { ore: 0, parts: 130 });
+    assert.equal(storageUsed(c), 130);
+    assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
 test('invalid saves and unavailable storage fail safely', () => {
     assert.equal(parseCampaign('{'), null);
@@ -579,10 +628,10 @@ test('scrapping only a reserve returns half the invested materials once and free
     c.ship!.engine = 1;
     const old = c.ship!.id;
     assert.ok(buyShip(c));
-    assert.deepEqual(scrapRefund(c.reserveShips[0]), { ore: 16, parts: 0 });
+    assert.deepEqual(scrapRefund(c.reserveShips[0]), { ore: 13, parts: 4 });
     assert.equal(scrapShip(c, c.ship!.id), false);
     assert.ok(scrapShip(c, old));
-    assert.deepEqual(c.bank, { ore: 101, parts: 8 });
+    assert.deepEqual(c.bank, { ore: 98, parts: 12 });
     assert.equal(scrapShip(c, old), false);
     assert.equal(ownedShips(c).length, 1);
 });

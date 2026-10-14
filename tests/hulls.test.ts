@@ -9,6 +9,7 @@ import {
     JOBS,
     WIDMO,
     STINGER_AMMO,
+    PHOENIX,
     HullId,
     FLEET_LIMIT,
     shipUpgradeDefinition,
@@ -33,6 +34,198 @@ import { selectContract } from '../frontend/game/state/contracts';
 import { salvagePosition } from '../frontend/game/systems/salvage';
 before(async () => {
     await RAPIER.init();
+});
+test('Phoenix purchase preserves a central laser, two short grabbers and medium cargo in saves', () => {
+    const campaign = newCampaign();
+    campaign.bank = { ore: HULLS.phoenix.ore, parts: HULLS.phoenix.parts };
+    campaign.station.workshop = 1;
+    assert.equal(buyShip(campaign, 'phoenix'), false);
+    assert.deepEqual(campaign.bank, { ore: HULLS.phoenix.ore, parts: HULLS.phoenix.parts });
+    campaign.station.workshop = 2;
+    assert.ok(buyShip(campaign, 'phoenix'));
+    assert.deepEqual(campaign.bank, { ore: 0, parts: 0 });
+    assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
+    assert.deepEqual(HULLS.phoenix.lasers, [{ x: 42, y: 0 }]);
+    assert.equal(HULLS.phoenix.grabbers.length, 2);
+    assert.equal(HULLS.phoenix.grabberRange, 140);
+    assert.equal(HULLS.phoenix.cargo, 55);
+});
+function phoenixArena() {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'phoenix';
+    const sim = new MissionSimulation(campaign, 71);
+    clean(sim, true);
+    sim.ship.setTranslation({ x: 30, y: 0 }, true);
+    return sim;
+}
+test('Phoenix combat laser burns without stacking, continues after release and expires', () => {
+    const sim = phoenixArena();
+    try {
+        sim.enemies.add([
+            { id: 990, kind: 'lancer', x: 3400, y: 0, home: { x: 3400, y: 0 }, phase: 0 },
+        ]);
+        const enemy = sim.enemies.enemies.get(990)!;
+        enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+        sim.step({ ...idle, fire: true });
+        assert.equal(sim.bullets.size, 0);
+        assert.equal(sim.laserBeams.length, 1);
+        assert.ok(Math.abs(enemy.health - (90 - PHOENIX.laserDamage * GAME.step)) < 1e-8);
+        assert.equal(sim.burning.size, 1);
+        for (let frame = 0; frame < 10; frame++) sim.step({ ...idle, fire: true });
+        assert.equal(sim.burning.size, 1);
+        assert.equal(sim.burning.get(990)!.remaining, PHOENIX.burnSeconds);
+        const health = enemy.health;
+        for (let frame = 0; frame < 60; frame++) sim.step(idle);
+        assert.ok(Math.abs(health - enemy.health - PHOENIX.burnDamage) < 1e-8);
+        assert.equal(sim.laserBeams.length, 0);
+        for (let frame = 0; frame < 130; frame++) sim.step(idle);
+        assert.equal(sim.burning.size, 0);
+        assert.ok(
+            Math.abs(health - enemy.health - PHOENIX.burnDamage * PHOENIX.burnSeconds) < 1e-8,
+        );
+    } finally {
+        sim.dispose();
+    }
+});
+test('Phoenix burn kills once, releases loot or a wreck and clears the effect', () => {
+    const sim = phoenixArena();
+    try {
+        sim.enemies.add([
+            { id: 991, kind: 'patrol', x: 3400, y: 0, home: { x: 3400, y: 0 }, phase: 0 },
+        ]);
+        const enemy = sim.enemies.enemies.get(991)!;
+        enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+        enemy.health = PHOENIX.laserDamage * GAME.step + (PHOENIX.burnDamage * GAME.step) / 2;
+        sim.step({ ...idle, fire: true });
+        assert.equal(sim.enemyKills, 0);
+        sim.step(idle);
+        assert.equal(sim.enemyKills, 1);
+        assert.equal(sim.burning.size, 0);
+        assert.ok(sim.loot.size > 0 || sim.salvage.items.size > 0);
+        sim.step(idle);
+        assert.equal(sim.enemyKills, 1);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Phoenix PPM launches Atlas rockets and shares three-second locking and target-death cleanup', () => {
+    const sim = phoenixArena();
+    try {
+        sim.enemies.add([
+            { id: 992, kind: 'lancer', x: 3600, y: 0, home: { x: 3600, y: 0 }, phase: 0 },
+        ]);
+        const enemy = sim.enemies.enemies.get(992)!;
+        enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+        const target = { x: 3600, y: 0 };
+        for (let frame = 0; frame < 179; frame++) sim.step({ ...idle, target });
+        assert.equal(sim.atlasLock.locked, null);
+        sim.step({ ...idle, target });
+        assert.equal(sim.atlasLock.locked, 992);
+        sim.step({ ...idle, target: { x: 2000, y: 0 }, mine: true });
+        assert.equal(sim.laserBeams.length, 0);
+        assert.equal(sim.bullets.size, 1);
+        const rocket = [...sim.bullets.values()][0];
+        assert.equal(rocket.explosive, 'rocket');
+        assert.equal(rocket.damage, ATLAS_WEAPONS.rocket.damage);
+        assert.equal(rocket.targetId, 992);
+        assert.ok(rocket.vx < 0);
+        for (let frame = 0; frame < 30; frame++) sim.step({ ...idle, target });
+        assert.ok(Math.abs(rocket.vy) > 1);
+        sim.enemies.damage(992, 10000);
+        sim.step(idle);
+        assert.equal(sim.atlasLock.locked, null);
+        assert.equal(rocket.targetId, undefined);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Phoenix beam stops at rocks and walls, mines normal loot and its short grabbers collect cargo', () => {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'phoenix';
+    const sim = new MissionSimulation(campaign, 71);
+    try {
+        const rock = [...sim.rocks.values()].find((item) => item.radius < 40)!;
+        for (const item of [...sim.rocks.values()])
+            if (item !== rock) {
+                sim.world.removeRigidBody(item.body);
+                sim.rocks.delete(item.id);
+            }
+        for (const enemy of [...sim.enemies.enemies.values()]) sim.enemies.damage(enemy.id, 10000);
+        sim.ship.setTranslation({ x: 30, y: 0 }, true);
+        rock.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+        rock.body.setTranslation({ x: 32, y: 0 }, true);
+        rock.health = 100;
+        sim.enemies.add([
+            { id: 993, kind: 'lancer', x: 3400, y: 0, home: { x: 3400, y: 0 }, phase: 0 },
+        ]);
+        const enemy = sim.enemies.enemies.get(993)!;
+        enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+        enemy.cooldown = 1000;
+        sim.step({ ...idle, fire: true });
+        assert.ok(Math.abs(100 - rock.health - PHOENIX.rockDamage * GAME.step) < 1e-8);
+        assert.equal(enemy.health, 90);
+        assert.equal(sim.burning.size, 0);
+        assert.ok(sim.laserBeams[0].to.x < 3200);
+        const wall = sim.world.createCollider(
+            RAPIER.ColliderDesc.cuboid(0.1, 1).setTranslation(31, 0),
+        );
+        sim.fortressColliders.add(wall.handle);
+        const health = rock.health;
+        sim.step({ ...idle, fire: true });
+        assert.equal(rock.health, health);
+        sim.fortressColliders.delete(wall.handle);
+        sim.world.removeCollider(wall, true);
+        rock.health = 0.1;
+        sim.step({ ...idle, fire: true });
+        assert.equal(sim.rocks.has(rock.id), false);
+        assert.ok(sim.loot.size > 0);
+        sim.loot.clear();
+        sim.loot.set(9990, { id: 9990, x: 3010, y: 40, kind: 'ore', amount: 1 });
+        sim.loot.set(9991, { id: 9991, x: 3010, y: -40, kind: 'parts', amount: 1 });
+        for (let frame = 0; frame < 120; frame++) sim.step(idle);
+        assert.equal(sim.cargo.ore, 1);
+        assert.equal(sim.cargo.parts, 1);
+    } finally {
+        sim.dispose();
+    }
+});
+test('Phoenix saved projector and rocket upgrades affect both weapons and completed runs freeze burns', () => {
+    const campaign = newCampaign();
+    campaign.ship!.hull = 'phoenix';
+    campaign.station.workshop = 2;
+    campaign.bank = { ore: 80, parts: 40, crystals: 3 };
+    assert.ok(buyUpgrade(campaign, 'drill'));
+    assert.ok(buyUpgrade(campaign, 'drill'));
+    assert.ok(buyUpgrade(campaign, 'handling'));
+    const loaded = parseCampaign(JSON.stringify(campaign))!;
+    assert.ok(loaded);
+    assert.equal(equipWeapon(loaded, 'rail'), false);
+    assert.equal(shipUpgradeDefinition('phoenix', 'drill').title, 'Projektor bojowy');
+    const sim = new MissionSimulation(loaded, 71);
+    try {
+        clean(sim, true);
+        sim.ship.setTranslation({ x: 30, y: 0 }, true);
+        sim.enemies.add([
+            { id: 994, kind: 'lancer', x: 3400, y: 0, home: { x: 3400, y: 0 }, phase: 0 },
+        ]);
+        const enemy = sim.enemies.enemies.get(994)!;
+        enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+        sim.step({ ...idle, fire: true, mine: true });
+        assert.equal(sim.laserBeams.length, 1);
+        assert.equal(sim.bullets.size, 1);
+        assert.equal(sim.burning.get(994)!.damage, PHOENIX.burnDamage * 1.5);
+        assert.ok(Math.abs(90 - enemy.health - PHOENIX.laserDamage * 1.5 * GAME.step) < 1e-8);
+        assert.equal([...sim.bullets.values()][0].damage, ATLAS_WEAPONS.rocket.damage * 1.25);
+        const remaining = sim.burning.get(994)!.remaining;
+        const health = enemy.health;
+        sim.ended = 'returned';
+        for (let frame = 0; frame < 60; frame++) sim.step(idle);
+        assert.equal(enemy.health, health);
+        assert.equal(sim.burning.get(994)!.remaining, remaining);
+    } finally {
+        sim.dispose();
+        assert.equal(sim.burning.size, 0);
+    }
 });
 test('Stinger requires workshop II, persists its identity and fires four guns without a laser', () => {
     const campaign = newCampaign();
@@ -638,7 +831,7 @@ test('Atlas saved grenade upgrades launch symmetric cone salvos and block ordina
     campaign.ship!.hull = 'atlas';
     campaign.station.workshop = 2;
     campaign.station.storage = 3;
-    campaign.bank = { ore: 350, parts: 40, crystals: 20 };
+    campaign.bank = { ore: 300, parts: 80, crystals: 20 };
     for (let level = 0; level < 3; level++) assert.ok(buyUpgrade(campaign, 'drill'));
     assert.ok(buyUpgrade(campaign, 'handling'));
     assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
@@ -852,7 +1045,7 @@ test('Harpoon joint and jaw upgrades persist and improve actual reach and crushi
         c.ship!.hull = 'harpoon';
         c.station.workshop = 2;
         c.station.storage = 3;
-        c.bank = { ore: 350, parts: 40, crystals: 20 };
+        c.bank = { ore: 300, parts: 110, crystals: 20 };
         if (upgraded)
             for (let level = 0; level < 3; level++) {
                 assert.ok(buyUpgrade(c, 'handling'));
@@ -884,8 +1077,8 @@ test('Harpoon joint and jaw upgrades persist and improve actual reach and crushi
     assert.equal(shipUpgradeDefinition('harpoon', 'drill').title, 'Siłowniki szczęk');
     assert.equal(shipUpgradeDefinition('prospector', 'drill').title, 'Laser wydobywczy');
 });
-test('ten distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
-    assert.equal(Object.keys(HULLS).length, 10);
+test('eleven distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
+    assert.equal(Object.keys(HULLS).length, 11);
     assert.deepEqual(
         Object.values(HULLS).map((h) => [h.guns.length, h.lasers.length, h.grabbers.length]),
         [
@@ -899,6 +1092,7 @@ test('ten distinct hulls have the requested gun, laser and gripper layouts and r
             [0, 0, 4],
             [1, 0, 1],
             [4, 0, 1],
+            [0, 1, 2],
         ],
     );
     assert.equal(HULLS.swift.name, 'Widmo');
@@ -964,7 +1158,7 @@ test('utility hulls require workshop II and charge their full cost only once on 
 });
 test('maneuvering modules are purchased per ship, affect actual rotation and are included in scrap value', () => {
     const c = newCampaign();
-    c.bank = { ore: 80, parts: 10, crystals: 3 };
+    c.bank = { ore: 80, parts: 20, crystals: 3 };
     c.station.workshop = 2;
     const initial = scrapRefund(c.ship!);
     assert.ok(buyUpgrade(c, 'handling'));

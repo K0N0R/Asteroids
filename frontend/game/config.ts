@@ -471,8 +471,44 @@ export const HULLS = {
         towPickupSpeed: 1,
         hitbox: [40, 46],
     },
+    phoenix: {
+        name: 'Feniks',
+        role: 'Uniwersalny szturmowiec',
+        detail: 'LPM: czerwony laser bojowy, wydobycie i podpalenie. PPM: rakieta namierzana po 3 s.',
+        health: 95,
+        shield: { capacity: 55, regen: 8, delay: 4.5 },
+        cargo: 55,
+        thrust: 1100,
+        brake: 820,
+        turnSpeed: 1.95,
+        maxSpeed: 540,
+        size: 1.05,
+        miningPower: 1,
+        ore: 190,
+        parts: 18,
+        workshop: 2,
+        recovery: 0.2,
+        boost: 1.7,
+        cloak: 0,
+        guns: [],
+        lasers: [{ x: 42, y: 0 }],
+        engines: [
+            { x: -27, y: -20 },
+            { x: -27, y: 20 },
+        ],
+        laserRange: 700,
+        grabbers: [
+            { x: -8, y: -27 },
+            { x: -8, y: 27 },
+        ],
+        grabberRange: 140,
+        towPickupSpeed: 1,
+        hitbox: [43, 39],
+    },
 } as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
+
+export const PHOENIX = { laserDamage: 30, rockDamage: 110, burnDamage: 8, burnSeconds: 3 } as const;
 
 export const STINGER_AMMO = {
     light: { damage: 8, interval: 0.24, speed: 1250, life: 0.9, patrol: 1.5, lancer: 0.4 },
@@ -592,26 +628,26 @@ export const UPGRADES: Record<
     Upgrade,
     { title: string; detail: string; ore: number; parts: number }
 > = {
-    engine: { title: 'Silnik impulsowy', detail: 'Ciąg +15% / poziom', ore: 18, parts: 1 },
+    engine: { title: 'Silnik impulsowy', detail: 'Ciąg +15% / poziom', ore: 12, parts: 8 },
     handling: {
         title: 'Dysze manewrowe',
         detail: 'Skręt i reakcja na klawisze +20% / poziom',
-        ore: 16,
-        parts: 1,
+        ore: 10,
+        parts: 6,
     },
-    cargo: { title: 'Moduł ładowni', detail: 'Pojemność +15 / poziom', ore: 14, parts: 0 },
+    cargo: { title: 'Moduł ładowni', detail: 'Pojemność +15 / poziom', ore: 8, parts: 6 },
     drill: {
         title: 'Laser wydobywczy',
         detail: 'Moc lasera +25% / poziom',
-        ore: 20,
-        parts: 2,
+        ore: 12,
+        parts: 10,
     },
-    armor: { title: 'Wzmocnienie kadłuba', detail: 'Kadłub +25 / poziom', ore: 16, parts: 1 },
+    armor: { title: 'Wzmocnienie kadłuba', detail: 'Kadłub +25 / poziom', ore: 10, parts: 8 },
     shield: {
         title: 'Tarcza kinetyczna',
         detail: 'Pojemność +25%, regeneracja +15% / poziom',
-        ore: 22,
-        parts: 2,
+        ore: 14,
+        parts: 10,
     },
     workshop: {
         title: 'Warsztat stacji',
@@ -657,6 +693,12 @@ export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
             title: 'Układ amunicji',
             detail: 'Obrażenia obu rodzajów pocisków +25% / poziom',
         };
+    if (hull === 'phoenix' && upgrade === 'drill')
+        return {
+            ...definition,
+            title: 'Projektor bojowy',
+            detail: 'Wiązka, podpalenie i wydobycie +25% / poziom',
+        };
     if (hull === 'swift' && upgrade === 'drill')
         return {
             ...definition,
@@ -687,7 +729,7 @@ export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
             title: 'Salwa granatów',
             detail: '+1 granat w stożku / poziom',
         };
-    if (hull === 'atlas' && upgrade === 'handling')
+    if ((hull === 'atlas' || hull === 'phoenix') && upgrade === 'handling')
         return {
             ...definition,
             title: 'Układ rakietowy',

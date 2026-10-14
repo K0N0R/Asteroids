@@ -24,6 +24,7 @@ export const HULL_PALETTES = {
     harpoon: { hull: 0x586e79, panel: 0x7d959b, edge: 0xacc4c5, cargo: 0xaf8b4e },
     aegis: { hull: 0x788b98, panel: 0xa8b9c2, edge: 0xc8d8de, cargo: 0x749baf },
     stinger: { hull: 0x596462, panel: 0x85918a, edge: 0xb7c4b6, cargo: 0xc7b955 },
+    phoenix: { hull: 0x707b80, panel: 0xa9b4b8, edge: 0xd0d7d6, cargo: 0xef963c },
 } as const satisfies Record<HullId, { hull: number; panel: number; edge: number; cargo: number }>;
 const S = SHIP_COLORS;
 
@@ -237,6 +238,73 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         roundedHull(g, [-36, -7, -15, -12, 17, -7, 43, 0, 17, 7, -15, 12, -36, 7], 2);
         roundedHull(g, [-26, -5, -10, -8, 21, 0, -10, 8, -26, 5], 2, palette.panel);
         visor(g, 4, 0, 14, 7);
+    } else if (hull === 'phoenix') {
+        for (const side of [-1, 1]) {
+            roundedHull(
+                g,
+                [
+                    26,
+                    side * 10,
+                    10,
+                    side * 22,
+                    -20,
+                    side * 42,
+                    -36,
+                    side * 36,
+                    -24,
+                    side * 20,
+                    4,
+                    side * 8,
+                ],
+                1.8,
+            );
+            roundedHull(
+                g,
+                [16, side * 16, -21, side * 35, -29, side * 32, -18, side * 23, 7, side * 13],
+                1.4,
+                palette.panel,
+            );
+            seam(g, [-30, side * 33, -10, side * 23, 13, side * 17]);
+            roundedPanel(
+                g,
+                [-20, side * 37, -14, side * 34, -10, side * 35, -19, side * 41],
+                1,
+                palette.cargo,
+                palette.cargo,
+            );
+            g.beginPath()
+                .roundRect(-29, side * 22 - 3, 14, 6, 2)
+                .fill(S.engine);
+            g.beginPath()
+                .roundRect(-27, side * 22 - 1.5, 8, 3, 1)
+                .fill(0xffb351);
+        }
+        roundedHull(
+            g,
+            [
+                -43, 0, -29, -12, -15, -16, 6, -10, 28, -7, 48, -3, 51, 0, 48, 3, 28, 7, 6, 10, -15,
+                16, -29, 12,
+            ],
+            1.8,
+        );
+        roundedHull(g, [-37, 0, -24, -8, 8, -6, 28, 0, 8, 6, -24, 8], 1.8, S.engine);
+        roundedPanel(
+            g,
+            [-35, 0, -22, -5, 17, -4, 28, 0, 17, 4, -22, 5],
+            1.2,
+            palette.cargo,
+            0xffc173,
+        );
+        g.beginPath().roundRect(2, -2, 21, 4, 1).fill(0xffce76);
+        g.beginPath().poly([-29, -3, -36, 0, -29, 3]).fill(0xffd68b);
+        for (const side of [-1, 1])
+            roundedHull(
+                g,
+                [-31, side * 8, -22, side * 15, -10, side * 12, -20, side * 7],
+                1.4,
+                palette.panel,
+            );
+        visor(g, -12, 0, 12, 8);
     } else if (hull === 'mule') {
         // Broad forward crossbar and a narrower rear spine read as a T from above.
         roundedHull(g, [-36, -12, 15, -12, 22, -32, 39, -32, 39, 32, 22, 32, 15, 12, -36, 12], 4);

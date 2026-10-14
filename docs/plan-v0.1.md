@@ -229,3 +229,7 @@ Widmo zastępuje Swifta nową sylwetką i kamuflażem optycznym na PPM. Mule pro
 ## Etap 0.30 - wdrożony
 
 Żądło: szybki glass cannon z czterema działkami na szerokich rozwidlonych skrzydłach (po dwa na stronę), bez uzbrojenia dziobu, lasera i kamuflażu. LPM jest skuteczny przeciw lekkim patrolom, PPM przeciw opancerzonym Lancerom. Własny model Pixi, zakup od warsztatu II, dziesięć typów w stoczni bez zwiększenia limitu floty. [Opis etapu](implementation-v0.30.md). Następny koncept floty: Feniks. Załoga pokładowa pozostaje dalszym kierunkiem planu; praca offline i wznowienie wypraw nadal są odłożone.
+
+## Etap 0.31 - wdrożony
+
+Feniks: uniwersalny szturmowiec z centralnym czerwonym laserem bojowym na LPM, wydobyciem i odnawianym podpaleniem oraz rakietą Atlasa na PPM. Dwa krótkie chwytaki, ładownia 55, sylwetka według referencji, własne ulepszenia projektora i rakiet. Jedenaście typów w katalogu, bez zmiany limitu floty i formatu zapisu. [Opis etapu](implementation-v0.31.md). Sześć konceptów floty jest wdrożonych; załoga pokładowa pozostaje kolejnym większym kierunkiem planu.

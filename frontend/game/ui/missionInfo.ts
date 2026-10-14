@@ -1,4 +1,4 @@
-import { AEGIS, ATLAS_WEAPONS, STINGER_AMMO, WEAPONS } from '../config';
+import { AEGIS, ATLAS_WEAPONS, PHOENIX, STINGER_AMMO, WEAPONS } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import { BasePopup } from '../../core/containers/popup/basePopup';
 import { Campaign } from '../state/campaign';
@@ -74,7 +74,9 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                           ? `Lasery ×2 · zestawy ${s.repairKits} · produkcja ${s.repairKitCost.ore}/${s.repairKitCost.parts}`
                           : s.hullId === 'stinger'
                             ? `4 działa · LPM ${(STINGER_AMMO.light.damage * s.stingerDamageMultiplier).toFixed(1)} / PPM ${(STINGER_AMMO.armor.damage * s.stingerDamageMultiplier).toFixed(1)} · zestawy ${s.repairKits}`
-                            : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń${s.hullId === 'fighter' ? ` · granaty ×${s.grenadeCount}` : ''} · zestawy ${s.repairKits}`,
+                            : s.hullId === 'phoenix'
+                              ? `Laser ${(PHOENIX.laserDamage * s.phoenixLaserMultiplier).toFixed(0)}/s · ogień ${(PHOENIX.burnDamage * s.phoenixLaserMultiplier).toFixed(0)}/s · rakieta ${s.rocketDamage}`
+                              : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń${s.hullId === 'fighter' ? ` · granaty ×${s.grenadeCount}` : ''} · zestawy ${s.repairKits}`,
                 `Kamuflaż: ${s.hullId === 'swift' ? (s.opticalCloak ? `${s.opticalCloakTime.toFixed(1)} s` : s.opticalCloakCooldown > 1e-8 ? `odnowienie ${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy / PPM') : !s.hullConfig.cloak ? 'brak' : s.cloaked ? 'aktywny' : s.cloakEnabled ? `ujawniony (${Math.ceil(s.revealTime)} s)` : 'wyłączony'}`,
             ].join('\n'),
             280,

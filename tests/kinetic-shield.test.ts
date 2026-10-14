@@ -135,20 +135,20 @@ test('a protected collision does not cause hull damage or engine failure; sector
 
 test('shield upgrades charge atomically, respect workshop levels, and contribute to scrap refunds', () => {
     const c = newCampaign();
-    c.bank = { ore: 100, parts: 10, crystals: 3 };
+    c.bank = { ore: 100, parts: 40, crystals: 3 };
     assert.ok(buyUpgrade(c, 'shield'));
     assert.equal(c.ship!.shield, 1);
-    assert.deepEqual(c.bank, { ore: 78, parts: 8, crystals: 3 });
+    assert.deepEqual(c.bank, { ore: 86, parts: 30, crystals: 3 });
     assert.equal(buyUpgrade(c, 'shield'), false);
     assert.equal(c.ship!.shield, 1);
     c.station.workshop = 1;
-    assert.deepEqual(upgradePrice(c, 'shield'), { ore: 44, parts: 4, crystals: 1 });
+    assert.deepEqual(upgradePrice(c, 'shield'), { ore: 28, parts: 20, crystals: 1 });
     assert.ok(buyUpgrade(c, 'shield'));
     assert.equal(c.ship!.shield, 2);
     const bare = scrapRefund(newShip(1)),
         up = scrapRefund(c.ship!);
-    assert.equal(up.ore - bare.ore, 33);
-    assert.equal(up.parts - bare.parts, 3);
+    assert.equal(up.ore - bare.ore, 21);
+    assert.equal(up.parts - bare.parts, 15);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
 

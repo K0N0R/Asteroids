@@ -111,14 +111,23 @@ export class ShipView extends Container {
             laser.position.set(mount.x, mount.y);
             laser.rotation = mount.x < 0 ? Math.PI : 0;
             laser.addChild(
-                new Graphics()
-                    .roundRect(-5, -4, 24 + modules.drill, 8, 3)
-                    .fill(S.laser)
-                    .stroke({ color: S.gunInset, width: 0.7 })
-                    .roundRect(3, -1.5, 13 + modules.drill, 3, 1)
-                    .fill(S.visor)
-                    .circle(0, 0, 4)
-                    .fill(S.engine),
+                hull === 'phoenix'
+                    ? new Graphics()
+                          .roundRect(-8, -5, 27, 10, 2)
+                          .fill(S.engine)
+                          .stroke({ color: 0xc5d2d7, width: 1 })
+                          .roundRect(3, -3, 19, 6, 1)
+                          .fill(0x7b4242)
+                          .rect(7, -1, 16, 2)
+                          .fill(0xff5547)
+                    : new Graphics()
+                          .roundRect(-5, -4, 24 + modules.drill, 8, 3)
+                          .fill(S.laser)
+                          .stroke({ color: S.gunInset, width: 0.7 })
+                          .roundRect(3, -1.5, 13 + modules.drill, 3, 1)
+                          .fill(S.visor)
+                          .circle(0, 0, 4)
+                          .fill(S.engine),
             );
             this.lasers.push(laser);
             this.addChild(laser);

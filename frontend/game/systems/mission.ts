@@ -4,7 +4,16 @@ import { AegisSupport } from './aegisSupport';
 import { ResearchEscort, ESCORT } from './escort';
 import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
 import type { SoundCue } from './audioPolicy';
-import { AEGIS, ATLAS_WEAPONS, JOBS, STINGER_AMMO, WIDMO, WEAPONS, type WeaponId } from '../config';
+import {
+    AEGIS,
+    ATLAS_WEAPONS,
+    JOBS,
+    PHOENIX,
+    STINGER_AMMO,
+    WIDMO,
+    WEAPONS,
+    type WeaponId,
+} from '../config';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
 import { Campaign, Cargo, capacity, shipHealth, deliverSalvage } from '../state/campaign';
@@ -130,6 +139,7 @@ export class MissionSimulation {
     aimTarget: Point = { x: 1000, y: 0 };
     laserBeam: { from: Point; to: Point } | null = null;
     readonly laserBeams: { from: Point; to: Point }[] = [];
+    readonly burning = new Map<number, { remaining: number; damage: number }>();
     cloakEnabled = false;
     opticalCloakTime = 0;
     opticalCloakCooldown = 0;
@@ -549,12 +559,14 @@ export class MissionSimulation {
             ? 'Ładownia pełna · wróć do bazy'
             : this.harpoonArms
               ? 'LPM · zacisk szczęk    /    PPM · wysuw ramion ku celowi'
-              : this.isAtlas
+              : this.hasRocketLauncher
                 ? this.atlasLock.locked !== null
                     ? 'Rakieta · cel zablokowany'
                     : this.atlasLock.target !== null
                       ? `Namierzanie · ${this.atlasLock.progress.toFixed(1)} / 3 s`
-                      : 'LPM · rakieta    /    PPM · granaty'
+                      : this.hullId === 'phoenix'
+                        ? 'LPM · laser bojowy    /    PPM · rakieta'
+                        : 'LPM · rakieta    /    PPM · granaty'
                 : this.aegis
                   ? `LPM · energia    /    PPM · impuls ${this.aegis.cooldown > 0 ? `${Math.ceil(this.aegis.cooldown)} s` : 'gotowy'}`
                   : this.hullId === 'swift'
@@ -875,7 +887,13 @@ export class MissionSimulation {
         this.enforceShield();
         if (this.harpoonArms) this.updateHarpoon(input, dt);
         else if (this.modules.hull === 'atlas') this.updateAtlas(input, dt);
-        else if (this.modules.hull === 'stinger') {
+        else if (this.modules.hull === 'phoenix') {
+            this.updateRocketLock(input, dt);
+            if (input.mine && this.shotCooldown <= 0 && this.bullets.size < 80) {
+                this.launchAtlas('rocket');
+                this.shotCooldown = ATLAS_WEAPONS.rocket.interval;
+            }
+        } else if (this.modules.hull === 'stinger') {
             if ((input.fire || input.mine) && this.shotCooldown <= 0 && this.bullets.size <= 76)
                 this.fireStinger(input.mine ? 'armor' : 'light');
         } else {
@@ -889,7 +907,13 @@ export class MissionSimulation {
                 this.fire();
         }
         this.updateBullets(dt);
-        if (this.modules.hull === 'mule' ? input.fire : input.mine) this.mine(dt);
+        this.updateBurning(dt);
+        if (
+            this.modules.hull === 'mule' || this.modules.hull === 'phoenix'
+                ? input.fire
+                : input.mine
+        )
+            this.mine(dt);
         this.syncTow();
         for (const item of [...this.salvage.towing.values()])
             if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < GAME.dockRadius)
@@ -1543,6 +1567,12 @@ export class MissionSimulation {
     get isAtlas() {
         return this.modules.hull === 'atlas';
     }
+    get hasRocketLauncher() {
+        return this.isAtlas || this.modules.hull === 'phoenix';
+    }
+    get phoenixLaserMultiplier() {
+        return this.laserPowerMultiplier * (1 + this.modules.drill * 0.25);
+    }
     get hullId() {
         return this.modules.hull;
     }
@@ -1553,6 +1583,7 @@ export class MissionSimulation {
         return ATLAS_WEAPONS.rocket.damage * (1 + this.modules.handling * 0.25);
     }
     private clearAtlasTarget(id: number) {
+        this.burning.delete(id);
         if (this.atlasLock.target === id) {
             this.atlasLock.target = null;
             this.atlasLock.progress = 0;
@@ -1561,7 +1592,7 @@ export class MissionSimulation {
         for (const bullet of this.bullets.values())
             if (bullet.targetId === id) delete bullet.targetId;
     }
-    private updateAtlas(input: FlightInput, dt: number) {
+    private updateRocketLock(input: FlightInput, dt: number) {
         for (const id of [this.atlasLock.target, this.atlasLock.locked])
             if (id !== null && !this.enemies.enemies.has(id)) this.clearAtlasTarget(id);
         const candidate = [...this.enemies.enemies.values()].find((enemy) => {
@@ -1582,6 +1613,9 @@ export class MissionSimulation {
             target === null ? 0 : Math.min(ATLAS_WEAPONS.lockTime, this.atlasLock.progress + dt);
         if (target !== null && this.atlasLock.progress >= ATLAS_WEAPONS.lockTime - 1e-8)
             this.atlasLock.locked = target;
+    }
+    private updateAtlas(input: FlightInput, dt: number) {
+        this.updateRocketLock(input, dt);
         if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) {
             this.launchAtlas('rocket');
             this.shotCooldown = ATLAS_WEAPONS.rocket.interval;
@@ -2108,6 +2142,19 @@ export class MissionSimulation {
             }
         }
     }
+    private updateBurning(dt: number) {
+        for (const [id, burn] of this.burning) {
+            const enemy = this.enemies.enemies.get(id);
+            if (!enemy) {
+                this.burning.delete(id);
+                continue;
+            }
+            const elapsed = Math.min(dt, burn.remaining);
+            burn.remaining = Math.max(0, burn.remaining - elapsed);
+            this.damageEnemy(enemy, burn.damage * elapsed, enemyPosition(enemy), false);
+            if (burn.remaining <= 1e-8) this.burning.delete(id);
+        }
+    }
     private mine(dt: number) {
         for (const mount of this.hullConfig.lasers)
             this.mineFrom(
@@ -2135,6 +2182,20 @@ export class MissionSimulation {
         if (!hit) return;
         const enemy = this.enemies.enemies.get(this.enemies.colliders.get(hit.collider.handle)!);
         if (enemy) {
+            if (this.modules.hull === 'phoenix') {
+                this.damageEnemy(
+                    enemy,
+                    PHOENIX.laserDamage * this.phoenixLaserMultiplier * dt,
+                    to,
+                    false,
+                );
+                if (this.enemies.enemies.has(enemy.id))
+                    this.burning.set(enemy.id, {
+                        remaining: PHOENIX.burnSeconds,
+                        damage: PHOENIX.burnDamage * this.phoenixLaserMultiplier,
+                    });
+                return;
+            }
             this.damageEnemy(
                 enemy,
                 GAME.laserShipDamage *
@@ -2151,7 +2212,7 @@ export class MissionSimulation {
         const rock = this.rocks.get(this.asteroidColliders.get(hit.collider.handle)!);
         if (!rock) return;
         rock.health -=
-            GAME.laserDamage *
+            (this.modules.hull === 'phoenix' ? PHOENIX.rockDamage : GAME.laserDamage) *
             this.laserPowerMultiplier *
             dt *
             this.hullConfig.miningPower *
@@ -2269,6 +2330,7 @@ export class MissionSimulation {
         this.world.free();
         this.rocks.clear();
         this.bullets.clear();
+        this.burning.clear();
         this.loot.clear();
         this.grippers.clear();
         this.laserBeams.length = 0;
