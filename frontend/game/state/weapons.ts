@@ -8,6 +8,7 @@ export function equipWeapon(c: Campaign, id: WeaponId) {
         c.activeRun ||
         !ship ||
         ship.hull === 'aegis' ||
+        ship.hull === 'stinger' ||
         !HULLS[ship.hull].guns.length ||
         !Object.hasOwn(WEAPONS, id) ||
         ship.weapon === id

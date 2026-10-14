@@ -435,8 +435,49 @@ export const HULLS = {
         towPickupSpeed: 1,
         hitbox: [40, 37],
     },
+    stinger: {
+        name: 'Żądło',
+        role: 'Glass cannon',
+        detail: 'Cztery działka. LPM: amunicja przeciw lekkim dronom. PPM: amunicja przeciwpancerna. Bez lasera.',
+        health: 55,
+        shield: { capacity: 20, regen: 7, delay: 5 },
+        cargo: 20,
+        thrust: 1650,
+        brake: 1000,
+        turnSpeed: 2.85,
+        maxSpeed: 680,
+        size: 0.95,
+        miningPower: 0.8,
+        ore: 165,
+        parts: 14,
+        workshop: 2,
+        recovery: 0.14,
+        boost: 1.95,
+        cloak: 0,
+        guns: [
+            { x: -20, y: -42 },
+            { x: 16, y: -36 },
+            { x: -20, y: 42 },
+            { x: 16, y: 36 },
+        ],
+        lasers: [],
+        engines: [
+            { x: -29, y: -12 },
+            { x: -29, y: 12 },
+        ],
+        laserRange: 0,
+        grabbers: [{ x: -8, y: 20 }],
+        grabberRange: 140,
+        towPickupSpeed: 1,
+        hitbox: [40, 46],
+    },
 } as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
+
+export const STINGER_AMMO = {
+    light: { damage: 8, interval: 0.24, speed: 1250, life: 0.9, patrol: 1.5, lancer: 0.4 },
+    armor: { damage: 12, interval: 0.4, speed: 1500, life: 1, patrol: 0.45, lancer: 1.5 },
+} as const;
 
 export const CREW = {
     hireOre: 12,
@@ -610,6 +651,12 @@ export const ATLAS_WEAPONS = {
 
 export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
     const definition = UPGRADES[upgrade];
+    if (hull === 'stinger' && upgrade === 'drill')
+        return {
+            ...definition,
+            title: 'Układ amunicji',
+            detail: 'Obrażenia obu rodzajów pocisków +25% / poziom',
+        };
     if (hull === 'swift' && upgrade === 'drill')
         return {
             ...definition,

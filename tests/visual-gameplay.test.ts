@@ -6,9 +6,49 @@ import { newCampaign } from '../frontend/game/state/campaign';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 import { shieldEntry, impactParticleCount } from '../frontend/game/systems/impact';
 import { HULL_PALETTES, shipHull } from '../frontend/game/graphics/shipHull';
+import { ShipView } from '../frontend/game/graphics/shapes';
 
 before(async () => {
     await RAPIER.init();
+});
+test('Stinger has broad split wings, a glazed cockpit and two accent panels', () => {
+    const hull = shipHull('stinger', newCampaign().ship!);
+    try {
+        const fills = hull.context.instructions.filter(
+            (instruction) => instruction.action === 'fill',
+        );
+        assert.equal(
+            fills.filter((fill) => fill.data.style.color === HULL_PALETTES.stinger.cargo).length,
+            2,
+        );
+        assert.ok(fills.some((fill) => fill.data.style.color === HULL_PALETTES.stinger.hull));
+        assert.ok(fills.some((fill) => fill.data.style.color === 0x639cbb));
+        assert.ok(hull.height > hull.width);
+        assert.ok(hull.width < 90);
+        assert.ok(hull.height > 90 && hull.height < 100);
+    } finally {
+        hull.destroy();
+    }
+});
+test('Stinger renders two forward-facing guns beneath each wing, with no nose gun or mining laser', () => {
+    const view = new ShipView({ ...newCampaign().ship!, hull: 'stinger' });
+    try {
+        assert.equal(view.guns.length, 4);
+        assert.equal(view.lasers.length, 0);
+        assert.deepEqual(
+            view.guns.map((gun) => [gun.x, gun.y]),
+            [
+                [-20, -42],
+                [16, -36],
+                [-20, 42],
+                [16, 36],
+            ],
+        );
+        assert.ok(view.guns.every((gun) => Math.abs(gun.y) >= 36 && gun.rotation === 0));
+        assert.ok(view.guns.every((gun) => view.getChildIndex(gun) < view.children.length - 2));
+    } finally {
+        view.destroy({ children: true });
+    }
 });
 test('Widmo wings have plain shaded panels without bright decorative strips', () => {
     const hull = shipHull('swift', newCampaign().ship!);

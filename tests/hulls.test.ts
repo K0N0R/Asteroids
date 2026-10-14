@@ -8,6 +8,7 @@ import {
     GAME,
     JOBS,
     WIDMO,
+    STINGER_AMMO,
     HullId,
     FLEET_LIMIT,
     shipUpgradeDefinition,
@@ -32,6 +33,122 @@ import { selectContract } from '../frontend/game/state/contracts';
 import { salvagePosition } from '../frontend/game/systems/salvage';
 before(async () => {
     await RAPIER.init();
+});
+test('Stinger requires workshop II, persists its identity and fires four guns without a laser', () => {
+    const campaign = newCampaign();
+    campaign.bank = { ore: HULLS.stinger.ore, parts: HULLS.stinger.parts };
+    campaign.station.workshop = 1;
+    assert.equal(buyShip(campaign, 'stinger'), false);
+    assert.deepEqual(campaign.bank, { ore: HULLS.stinger.ore, parts: HULLS.stinger.parts });
+    campaign.station.workshop = 2;
+    assert.equal(buyShip(campaign, 'stinger'), true);
+    assert.deepEqual(campaign.bank, { ore: 0, parts: 0 });
+    assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
+    campaign.ship!.hull = 'stinger';
+    const sim = new MissionSimulation(campaign, 71);
+    try {
+        clean(sim);
+        sim.ship.setTranslation({ x: 30, y: 0 }, true);
+        sim.step({ ...idle, fire: true });
+        assert.equal(sim.bullets.size, 4);
+        assert.ok([...sim.bullets.values()].every((bullet) => bullet.stingerAmmo === 'light'));
+        assert.equal(new Set([...sim.bullets.values()].map((bullet) => bullet.y)).size, 4);
+        assert.equal(sim.laserBeams.length, 0);
+        assert.ok(HULLS.stinger.maxSpeed > HULLS.swift.maxSpeed);
+        assert.ok(HULLS.stinger.turnSpeed > HULLS.swift.turnSpeed);
+        assert.ok(HULLS.stinger.shield.capacity < HULLS.fighter.shield.capacity);
+        assert.ok(HULLS.stinger.cargo < HULLS.swift.cargo);
+        assert.equal(HULLS.stinger.cloak, 0);
+        assert.equal(equipWeapon(campaign, 'rail'), false);
+        assert.equal(shipUpgradeDefinition('stinger', 'drill').title, 'Układ amunicji');
+    } finally {
+        sim.dispose();
+    }
+});
+test('Stinger ammunition favors light patrols or armored Lancers and PPM wins combined input', () => {
+    for (const mode of ['light', 'armor'] as const) {
+        const campaign = newCampaign();
+        campaign.ship!.hull = 'stinger';
+        const sim = new MissionSimulation(campaign, 71);
+        try {
+            clean(sim, true);
+            sim.ship.setTranslation({ x: 30, y: 0 }, true);
+            sim.step({ ...idle, fire: true, mine: mode === 'armor' });
+            assert.equal(sim.bullets.size, 4);
+            assert.ok([...sim.bullets.values()].every((bullet) => bullet.stingerAmmo === mode));
+            assert.equal(sim.laserBeams.length, 0);
+            sim.bullets.clear();
+            for (const [index, kind] of ['patrol', 'lancer'].entries()) {
+                const id = 990 + index;
+                const enemyKind = kind as 'patrol' | 'lancer';
+                sim.enemies.add([
+                    {
+                        id,
+                        kind: enemyKind,
+                        x: 3400,
+                        y: index * 200,
+                        home: { x: 3400, y: index * 200 },
+                        phase: 0,
+                    },
+                ]);
+                const enemy = sim.enemies.enemies.get(id)!;
+                enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+                const health = enemy.health;
+                sim.bullets.set(id, {
+                    id,
+                    x: 3350,
+                    y: index * 200,
+                    vx: 3000,
+                    vy: 0,
+                    life: 1,
+                    team: 'player',
+                    damage: STINGER_AMMO[mode].damage,
+                    stingerAmmo: mode,
+                });
+                sim.step(idle);
+                assert.ok(
+                    Math.abs(
+                        health -
+                            enemy.health -
+                            STINGER_AMMO[mode].damage * STINGER_AMMO[mode][enemyKind],
+                    ) < 1e-8,
+                );
+            }
+        } finally {
+            sim.dispose();
+        }
+    }
+});
+test('Stinger saved ammunition upgrades boost both modes and held buttons respect their shared cycle', () => {
+    for (const mode of ['light', 'armor'] as const) {
+        const campaign = newCampaign();
+        campaign.ship!.hull = 'stinger';
+        campaign.ship!.drill = 2;
+        const loaded = parseCampaign(JSON.stringify(campaign))!;
+        const sim = new MissionSimulation(loaded, 71);
+        try {
+            clean(sim);
+            sim.ship.setTranslation({ x: 30, y: 0 }, true);
+            const input = { ...idle, fire: mode === 'light', mine: mode === 'armor' };
+            sim.step(input);
+            assert.equal(sim.bullets.size, 4);
+            assert.ok(
+                [...sim.bullets.values()].every(
+                    (bullet) => bullet.damage === STINGER_AMMO[mode].damage * 1.5,
+                ),
+            );
+            sim.bullets.clear();
+            sim.step({ ...idle, fire: true, mine: true });
+            assert.equal(sim.bullets.size, 0);
+            for (let frame = 0; frame < Math.ceil(STINGER_AMMO[mode].interval / GAME.step); frame++)
+                sim.step(idle);
+            sim.step(input);
+            assert.equal(sim.bullets.size, 4);
+            assert.equal(sim.laserBeams.length, 0);
+        } finally {
+            sim.dispose();
+        }
+    }
 });
 test('Aegis support shields absorb damage temporarily, enforce cooldown and rebuild a destroyed drone', () => {
     const world = new RAPIER.World({ x: 0, y: 0 });
@@ -767,8 +884,8 @@ test('Harpoon joint and jaw upgrades persist and improve actual reach and crushi
     assert.equal(shipUpgradeDefinition('harpoon', 'drill').title, 'Siłowniki szczęk');
     assert.equal(shipUpgradeDefinition('prospector', 'drill').title, 'Laser wydobywczy');
 });
-test('nine distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
-    assert.equal(Object.keys(HULLS).length, 9);
+test('ten distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
+    assert.equal(Object.keys(HULLS).length, 10);
     assert.deepEqual(
         Object.values(HULLS).map((h) => [h.guns.length, h.lasers.length, h.grabbers.length]),
         [
@@ -781,6 +898,7 @@ test('nine distinct hulls have the requested gun, laser and gripper layouts and 
             [0, 0, 4],
             [0, 0, 4],
             [1, 0, 1],
+            [4, 0, 1],
         ],
     );
     assert.equal(HULLS.swift.name, 'Widmo');

@@ -23,6 +23,7 @@ export const HULL_PALETTES = {
     atlas: { hull: 0x72766e, panel: 0x949c8d, edge: 0xb7c0ad, cargo: 0xad8f55 },
     harpoon: { hull: 0x586e79, panel: 0x7d959b, edge: 0xacc4c5, cargo: 0xaf8b4e },
     aegis: { hull: 0x788b98, panel: 0xa8b9c2, edge: 0xc8d8de, cargo: 0x749baf },
+    stinger: { hull: 0x596462, panel: 0x85918a, edge: 0xb7c4b6, cargo: 0xc7b955 },
 } as const satisfies Record<HullId, { hull: number; panel: number; edge: number; cargo: number }>;
 const S = SHIP_COLORS;
 
@@ -185,6 +186,57 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         roundedHull(g, [-33, 0, -19, -8, 3, -7, 30, 0, 3, 7, -19, 8], 2, palette.panel);
         g.poly([4, -2.5, 9, 0, 4, 2.5]).fill(0x8ae6e0);
         visor(g, -13, 0, 11, 7);
+    } else if (hull === 'stinger') {
+        for (const side of [-1, 1]) {
+            roundedHull(
+                g,
+                [
+                    -25,
+                    side * 9,
+                    -32,
+                    side * 46,
+                    -17,
+                    side * 46,
+                    -6,
+                    side * 30,
+                    12,
+                    side * 44,
+                    25,
+                    side * 40,
+                    7,
+                    side * 12,
+                ],
+                1.5,
+            );
+            roundedPanel(
+                g,
+                [
+                    -23,
+                    side * 16,
+                    -28,
+                    side * 41,
+                    -20,
+                    side * 41,
+                    -7,
+                    side * 25,
+                    15,
+                    side * 40,
+                    20,
+                    side * 37,
+                    3,
+                    side * 15,
+                ],
+                1,
+                palette.panel,
+                palette.panel,
+            );
+            g.beginPath()
+                .poly([-17, side * 18, -10, side * 25, 13, side * 40, 16, side * 38, -8, side * 21])
+                .fill(palette.cargo);
+        }
+        roundedHull(g, [-36, -7, -15, -12, 17, -7, 43, 0, 17, 7, -15, 12, -36, 7], 2);
+        roundedHull(g, [-26, -5, -10, -8, 21, 0, -10, 8, -26, 5], 2, palette.panel);
+        visor(g, 4, 0, 14, 7);
     } else if (hull === 'mule') {
         // Broad forward crossbar and a narrower rear spine read as a T from above.
         roundedHull(g, [-36, -12, 15, -12, 22, -32, 39, -32, 39, 32, 22, 32, 15, 12, -36, 12], 4);

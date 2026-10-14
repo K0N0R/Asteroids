@@ -78,7 +78,9 @@ export class MissionHud extends Container {
                   ? 'rakieta'
                   : sim.hullId === 'mule'
                     ? 'lasery'
-                    : 'ogień',
+                    : sim.hullId === 'stinger'
+                      ? 'lekka'
+                      : 'ogień',
             355,
             845,
         );
@@ -95,7 +97,9 @@ export class MissionHud extends Container {
                       ? 'kamuflaż'
                       : sim.hullId === 'mule'
                         ? 'zestaw'
-                        : 'laser',
+                        : sim.hullId === 'stinger'
+                          ? 'AP'
+                          : 'laser',
             453,
             845,
         );

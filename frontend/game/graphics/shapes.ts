@@ -50,7 +50,7 @@ export class ShipView extends Container {
         const hull = modules.hull ?? 'prospector',
             config = (this.config = HULLS[hull]),
             S = SHIP_COLORS,
-            weapon = WEAPONS[modules.weapon ?? 'standard'];
+            weapon = WEAPONS[hull === 'stinger' ? 'standard' : (modules.weapon ?? 'standard')];
         this.addChild(this.flame, this.retro, shipUnderbody(hull));
         if (hull === 'harpoon') {
             drawHarpoonArms(
@@ -62,7 +62,7 @@ export class ShipView extends Container {
         for (const mount of config.guns) {
             const gun = new Container();
             gun.position.set(mount.x, mount.y);
-            gun.rotation = mount.x < 0 ? Math.PI : 0;
+            gun.rotation = hull !== 'stinger' && mount.x < 0 ? Math.PI : 0;
             gun.addChild(
                 hull === 'aegis'
                     ? new Graphics()
@@ -84,7 +84,7 @@ export class ShipView extends Container {
                           .roundRect(weapon.length - 4, -3, 4, 6, 1)
                           .fill(S.engine),
             );
-            if (hull !== 'aegis' && modules.weapon === 'rail')
+            if (hull !== 'aegis' && hull !== 'stinger' && modules.weapon === 'rail')
                 gun.addChild(
                     new Graphics()
                         .roundRect(10, -7, weapon.length - 9, 3, 1)
@@ -94,7 +94,7 @@ export class ShipView extends Container {
                         .rect(14, 3, 13, 2)
                         .fill({ color: C.cyan, alpha: 0.7 }),
                 );
-            if (hull !== 'aegis' && modules.weapon === 'pulse')
+            if (hull !== 'aegis' && hull !== 'stinger' && modules.weapon === 'pulse')
                 gun.addChild(
                     new Graphics()
                         .roundRect(3, -7, 13, 14, 3)

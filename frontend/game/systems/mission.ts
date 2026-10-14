@@ -4,7 +4,7 @@ import { AegisSupport } from './aegisSupport';
 import { ResearchEscort, ESCORT } from './escort';
 import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
 import type { SoundCue } from './audioPolicy';
-import { AEGIS, ATLAS_WEAPONS, JOBS, WIDMO, WEAPONS, type WeaponId } from '../config';
+import { AEGIS, ATLAS_WEAPONS, JOBS, STINGER_AMMO, WIDMO, WEAPONS, type WeaponId } from '../config';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { DRONES, GAME, HULLS, OUTPOST, RECOVERY, SCAN, ScanSiteId } from '../config';
 import { Campaign, Cargo, capacity, shipHealth, deliverSalvage } from '../state/campaign';
@@ -52,6 +52,7 @@ export interface Projectile extends Point {
     life: number;
     team: 'player' | 'enemy';
     heavy?: boolean;
+    stingerAmmo?: keyof typeof STINGER_AMMO;
     damage: number;
     explosive?: 'rocket' | 'grenade';
     targetId?: number;
@@ -874,7 +875,10 @@ export class MissionSimulation {
         this.enforceShield();
         if (this.harpoonArms) this.updateHarpoon(input, dt);
         else if (this.modules.hull === 'atlas') this.updateAtlas(input, dt);
-        else {
+        else if (this.modules.hull === 'stinger') {
+            if ((input.fire || input.mine) && this.shotCooldown <= 0 && this.bullets.size <= 76)
+                this.fireStinger(input.mine ? 'armor' : 'light');
+        } else {
             if (this.modules.hull === 'fighter') this.updateGrenades(input, dt);
             if (
                 input.fire &&
@@ -1778,6 +1782,40 @@ export class MissionSimulation {
         drone.body.setRotation(angle, true);
         this.events.push({ ...position, kind: 'shot', sound: 'standard' });
     }
+    get stingerDamageMultiplier() {
+        return (1 + this.modules.drill * 0.25) * (this.installed.includes('guns') ? 1.35 : 1);
+    }
+    private fireStinger(mode: keyof typeof STINGER_AMMO) {
+        const ammo = STINGER_AMMO[mode];
+        for (const mount of this.hullConfig.guns) {
+            const position = mountPosition(
+                this.position,
+                this.ship.rotation(),
+                this.hullConfig.size,
+                mount,
+            );
+            const angle = aimAngle(position, this.aimTarget, this.ship.rotation());
+            const id = ++this.ids;
+            this.bullets.set(id, {
+                id,
+                x: position.x + Math.cos(angle) * GAME.gunLength * this.hullConfig.size,
+                y: position.y + Math.sin(angle) * GAME.gunLength * this.hullConfig.size,
+                vx: this.velocity.x + Math.cos(angle) * ammo.speed,
+                vy: this.velocity.y + Math.sin(angle) * ammo.speed,
+                life: ammo.life,
+                team: 'player',
+                heavy: mode === 'armor',
+                stingerAmmo: mode,
+                damage: ammo.damage * this.stingerDamageMultiplier,
+            });
+        }
+        this.shotCooldown = ammo.interval;
+        this.events.push({
+            ...this.position,
+            kind: 'shot',
+            sound: mode === 'armor' ? 'rail' : 'pulse',
+        });
+    }
     private fire() {
         if (this.aegis) {
             const position = mountPosition(
@@ -1935,7 +1973,10 @@ export class MissionSimulation {
                             enemy.charge = 0;
                             this.aegis?.hostiles.add(enemy.id);
                         }
-                        this.damageEnemy(enemy, bullet.damage, contact);
+                        const multiplier = bullet.stingerAmmo
+                            ? STINGER_AMMO[bullet.stingerAmmo][enemy.kind]
+                            : 1;
+                        this.damageEnemy(enemy, bullet.damage * multiplier, contact);
                     }
                 } else if (hit.collider.handle === this.shipCollider.handle) {
                     if (bullet.shooterId !== undefined) this.aegis?.hostiles.add(bullet.shooterId);

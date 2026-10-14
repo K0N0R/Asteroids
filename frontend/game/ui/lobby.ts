@@ -1,4 +1,4 @@
-import { AEGIS, ATLAS_WEAPONS, GAME, WIDMO, WEAPONS, type WeaponId } from '../config';
+import { AEGIS, ATLAS_WEAPONS, GAME, STINGER_AMMO, WIDMO, WEAPONS, type WeaponId } from '../config';
 import { HarpoonArms, HARPOON_ARMS } from '../systems/harpoonArms';
 import { Container, Graphics } from 'pixi.js';
 import {
@@ -171,7 +171,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.29', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.30', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -571,7 +571,7 @@ export class LobbyView extends Container {
                             ? 'Granaty: wybuch 65 m · zapalnik 0,7 s'
                             : modules.hull === 'tug'
                               ? 'Laser 320 m · dwa niezależne hole'
-                              : `Laser ${config.laserRange} m · chwytaki ${config.grabberRange} m`,
+                              : `${config.lasers.length ? `Laser ${config.laserRange} m · ` : ''}chwytaki ${config.grabberRange} m`,
                 1072,
                 522,
                 15,
@@ -623,6 +623,48 @@ export class LobbyView extends Container {
             ship = c.ship;
         if (!ship) {
             label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
+            return;
+        }
+        if (ship.hull === 'stinger') {
+            this.art(hullPreview(ship), 625, 430);
+            label(ui, 'UZBROJENIE / ŻĄDŁO', 1072, 244, 13, C.muted);
+            label(ui, 'Cztery działka', 1072, 279, 30, C.text, 456);
+            const multiplier = 1 + ship.drill * 0.25;
+            stat(
+                ui,
+                'LPM / LEKKIE',
+                `4 × ${(STINGER_AMMO.light.damage * STINGER_AMMO.light.patrol * multiplier).toFixed(1)}`,
+                1072,
+                365,
+            );
+            stat(
+                ui,
+                'PPM / PANCERZ',
+                `4 × ${(STINGER_AMMO.armor.damage * STINGER_AMMO.armor.lancer * multiplier).toFixed(1)}`,
+                1298,
+                365,
+            );
+            stat(ui, 'CYKL LPM', `${STINGER_AMMO.light.interval} s`, 1072, 446);
+            stat(ui, 'CYKL PPM', `${STINGER_AMMO.armor.interval} s`, 1298, 446);
+            label(
+                ui,
+                'Po 2 działka na skrzydło · dziób bez broni\nBrak lasera · jeden chwytak',
+                1072,
+                541,
+                17,
+                C.muted,
+                456,
+            );
+            label(
+                ui,
+                'LPM: lekki patrol ×1,5 · Lancer ×0,4\nPPM: lekki patrol ×0,45 · Lancer ×1,5\nWspólny cykl salwy · PPM ma pierwszeństwo',
+                1072,
+                604,
+                15,
+                C.muted,
+                456,
+            );
+            label(ui, 'Stałe uzbrojenie · ulepszaj układ amunicji.', 1072, 719, 16, C.mint, 456);
             return;
         }
         if (ship.hull === 'mule') {

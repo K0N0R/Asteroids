@@ -221,3 +221,11 @@ Atlas i Harpun według nowej referencji: grenadier z rakietami namierzanymi po 3
 ## Etap 0.28 - wdrożony
 
 Aegis: działko energetyczne blokujące strzelanie wroga, impuls odnawiający tarczę matki i czasowo osłaniający sojuszników oraz reaktywny dron odbudowywany za zestaw naprawczy. Specjalne moduły rozwijają działko, drona i impuls. Katalog ma dziewięć typów, bez zmiany limitu floty i formatu zapisu. [Opis etapu](implementation-v0.28.md).
+
+## Etap 0.29 - wdrożony
+
+Widmo zastępuje Swifta nową sylwetką i kamuflażem optycznym na PPM. Mule produkuje zestawy z ładowni, Manta holuje dwie jednostki, Bastion używa granatów, a mocowania i obrażenia laserów rozwijają role floty. [Opis etapu](implementation-v0.29.md).
+
+## Etap 0.30 - wdrożony
+
+Żądło: szybki glass cannon z czterema działkami na szerokich rozwidlonych skrzydłach (po dwa na stronę), bez uzbrojenia dziobu, lasera i kamuflażu. LPM jest skuteczny przeciw lekkim patrolom, PPM przeciw opancerzonym Lancerom. Własny model Pixi, zakup od warsztatu II, dziesięć typów w stoczni bez zwiększenia limitu floty. [Opis etapu](implementation-v0.30.md). Następny koncept floty: Feniks. Załoga pokładowa pozostaje dalszym kierunkiem planu; praca offline i wznowienie wypraw nadal są odłożone.
