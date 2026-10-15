@@ -145,7 +145,7 @@ test('v18 migration preserves the old campaign and independent repositories neve
     assert.ok(story.save(fresh));
     assert.equal(values.get(SAVE_KEY), JSON.stringify(old));
     const migrated = new SaveRepository(storage).load();
-    assert.equal(migrated.version, 25);
+    assert.equal(migrated.version, 27);
     assert.equal(migrated.story, null);
     assert.deepEqual(migrated.bank, legacy.bank);
     assert.deepEqual(parseCampaign(JSON.stringify(fresh)), fresh);

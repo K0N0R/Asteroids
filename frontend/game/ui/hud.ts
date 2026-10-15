@@ -57,7 +57,7 @@ export class MissionHud extends Container {
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
-        if (sim.surfaceUnlocked || sim.venusSector)
+        if (sim.surfaceUnlocked || sim.orbitalBaseSector || sim.mercurySector)
             this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
         if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
             this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
@@ -215,8 +215,20 @@ export class MissionHud extends Container {
         }
     }
     private refresh() {
+        if (this.sim.mercurySector)
+            this.defenseStatus?.setColor(
+                this.sim.solar.heat >= 85
+                    ? C.red
+                    : this.sim.solar.phase === 'calm'
+                      ? C.cyan
+                      : C.gold,
+            );
         this.defenseStatus?.setText(
-            this.sim.venusSector || this.sim.area === 'surface' ? this.sim.defenseSummary : '',
+            this.sim.mercurySector
+                ? this.sim.solar.summary
+                : this.sim.orbitalBaseSector || this.sim.area === 'surface'
+                  ? this.sim.defenseSummary
+                  : '',
         );
         if (this.areaRevision !== this.sim.areaRevision) {
             this.areaRevision = this.sim.areaRevision;

@@ -93,6 +93,11 @@ test('v19 journals migrate new building objectives without losing previous secto
     for (const key of Object.keys(old.story.progress))
         if (key.startsWith('mars-') || key.startsWith('venus-') || key === 'earth-debrief')
             delete old.story.progress[key];
+    for (const key of Object.keys(old.story.progress))
+        if (key.startsWith('mercury-')) delete old.story.progress[key];
+    for (const key of Object.keys(old.story.progress))
+        if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
+            delete old.story.progress[key];
     old.story.version = 1;
     for (const key of [
         'lunar-foundation',
@@ -104,7 +109,7 @@ test('v19 journals migrate new building objectives without losing previous secto
         delete old.story.progress[key];
     const parsed = parseCampaign(JSON.stringify(old))!;
     assert.ok(parsed);
-    assert.equal(parsed.version, 25);
+    assert.equal(parsed.version, 27);
     assert.deepEqual(parsed.story!.claimed, c.story!.claimed);
     assert.equal(parsed.story!.progress['lunar-foundation'], 0);
     old.story.progress.unknown = 0;

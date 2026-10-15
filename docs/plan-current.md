@@ -1,6 +1,6 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-15, wersja 0.44.
+Stan: 2026-10-16, wersja 0.47.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
@@ -77,13 +77,25 @@ Mars odblokowuje się po końcowym raporcie aktu I. Zwiad przekaźnika i neutral
 
 Powrót z raportem o blokadzie pasa udostępnia przy Ziemi odprawę Nowy kierunek. Zatwierdzenie planu wskazuje Merkurego jako cel pozyskania technologii, zamyka mechaniczny ciąg aktu II i otwiera Wenus. Początek aktu III: zwiad orbity, pomiary miejsca pod przyszłą placówkę oraz trwały projekt 32 rudy. Cele mają przypisane akty, więc późniejsze zadania na Ziemi nie blokują wcześniejszego ukończenia aktu I. [Zakres, zapis i weryfikacja](implementation-v0.44.md).
 
+## Etap 0.45 — placówka Wenus i mechaniczne domknięcie aktu III wdrożone
+
+W miejscu pomiarów powstaje orbitalna placówka: E przez 2 s po zatwierdzeniu miejsca i zgromadzeniu 32 rudy. Zbudowany obiekt jest trwały, a ruda nie jest pobierana ponownie. Potem można równolegle przygotować osłonę słoneczną za 12 komponentów i obronić placówkę przed trzema kontaktami AI. Obrona wymaga bezpiecznego powrotu z raportem. Jej ukończenie i gotowy projekt osłony domykają mechaniczny ciąg aktu III. Osłona jest trwałą gotowością ekspedycji; działanie w nowym środowisku termicznym będzie częścią Merkurego. [Zakres, zapis i weryfikacja](implementation-v0.45.md).
+
+## Etap 0.46 — Merkury i mechaniczny ciąg aktu IV wdrożone
+
+Gotowa i obroniona placówka Wenus wraz z osłoną słoneczną otwierają Merkurego. Sektor ma temperaturę, zapowiadane rozbłyski i cień rzeczywistych dużych asteroid. Osłona zmniejsza nagrzewanie; przegrzanie uszkadza kadłub i przerywa pracę. Pomiary podejścia, walka z patrolem i Lancerem oraz odzyskanie pakietu danych kończą się bezpiecznymi powrotami. Zabezpieczona technologia jest trwałą gotowością do dalszej drogi; nie określa jej fabularnej natury. [Zakres, zapis i weryfikacja](implementation-v0.46.md).
+
+## Etap 0.47 — baza marsjańska i mechaniczny ciąg aktu V wdrożone
+
+Po bezpiecznym odzyskaniu technologii powrót na Marsa otwiera nowe projekty: 40 rudy i 10 komponentów, montaż bazy, obronę przed trzema kontaktami oraz niezależne zabezpieczenie korytarza z patrolem i dwoma Lancerami. Oba cele bojowe można wykonywać w dowolnej kolejności. Są też opcjonalne pomiary dalszej trasy. Dziennik aktu II pozostaje dostępny na drugiej stronie, a wcześniejsze akty zachowują ukończenie. [Zakres, migracja i weryfikacja](implementation-v0.47.md).
+
 ## Następne kroki kampanii
 
 - Przeprowadzić testy graczy całego aktu I, dopracować tempo, trudność i komunikowanie wymagań.
 - Uzupełnić dialogi i oprawę fabularnego zwrotu aktu I po ustaleniu jego treści przez autora.
-- Rozwinąć akt III: budowa placówki przy Wenus po zatwierdzeniu miejsca i zgromadzeniu materiałów, opracowanie osłony słonecznej oraz obrona przygotowań przed atakami. Następnie otwarcie trudnej wyprawy na Merkurego. Sandbox pozostaje niezależnym narzędziem regresji.
+- Rozpocząć akt VI: osobny odcinek przejścia pasa asteroid, dostępny po technologii z Merkurego i zabezpieczeniu bazy marsjańskiej. Następnie przygotować kierunek Jowisz. Natura technologii i fabularny reveal anomalii pozostają do ustalenia. Sandbox pozostaje niezależnym narzędziem regresji.
 
-Zarys nie wprowadza mechaniki paliwa statków ani sterowania wieloma jednostkami jednocześnie. Prawda o anomalii, tożsamość przeciwnika i dokładna treść kluczowych zwrotów pozostają do napisania. Wersja 0.42 domknęła ciąg mechanik aktu I, a 0.44 domyka mechaniczny ciąg aktu II i otwiera pierwsze przygotowania przy Wenus. Akt III nie jest ukończony. Merkury i dalsze akty nie są jeszcze grywalne.
+Zarys nie wprowadza mechaniki paliwa statków ani sterowania wieloma jednostkami jednocześnie. Prawda o anomalii, tożsamość przeciwnika i dokładna treść kluczowych zwrotów pozostają do napisania. Wersja 0.42 domknęła ciąg mechanik aktu I, 0.44 aktu II, 0.45 przygotowania i obronę aktu III, 0.46 wyprawę aktu IV, a 0.47 bazę i walki aktu V. Dialogi, sceny oraz tempo aktów wymagają dalszego opracowania. Przejście pasa z aktu VI nie jest jeszcze grywalne.
 
 Balans pozostaje iteracyjny. Pierwsza runda pokazała różnice specjalizacji i dostępność ekonomii; kolejne testy graczy powinny szczególnie ocenić bazowe Widmo przeciw zwrotnym patrolom, wygodę broni wymagających ponawiania naciśnięć oraz tempo rozwoju. Będą też potrzebne dłuższe sesje renderowania i próby na słabszym sprzęcie. Nie są to automatyczne zgody na nowe statki, liftingi ani systemy części.
 
@@ -96,4 +108,4 @@ Wymienne modele części, nowe profesje personelu i kolejne placówki/role przec
 - Produkcja przy zamkniętej grze. Obecnie postępuje wyłącznie w czasie symulacji wyprawy.
 - Wznowienie aktywnej wyprawy. Odświeżenie nadal rozlicza ją jako przegraną, zgodnie z przyjętą zasadą.
 
-Kampania ma zarys autora, przechodnie mechanicznie akty I–II, początek aktu III i kolejność dalszych prac opisaną wyżej. Osobne systemy frakcji oraz multiplayer nie mają uzgodnionego zakresu wdrożenia.
+Kampania ma zarys autora, przechodnie mechanicznie akty I–V i kolejność dalszych prac opisaną wyżej. Osobne systemy frakcji oraz multiplayer nie mają uzgodnionego zakresu wdrożenia.

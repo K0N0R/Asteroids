@@ -35,12 +35,20 @@ export const STORY_SECTORS = {
         seed: 150074,
         radius: 2800,
     },
+    mercury: {
+        act: 4,
+        shortName: 'Merkury',
+        name: 'Orbita Merkurego',
+        size: 'L',
+        seed: 150075,
+        radius: 3000,
+    },
 } as const;
 export type StorySectorId = keyof typeof STORY_SECTORS;
 export interface StoryTask {
     id: string;
     sector: StorySectorId;
-    act: 1 | 2 | 3;
+    act: 1 | 2 | 3 | 4 | 5;
     title: string;
     detail: string;
     required: boolean;
@@ -348,20 +356,144 @@ export const STORY_TASKS: readonly StoryTask[] = [
         dependencies: ['venus-build'],
         reward: { ore: 30, parts: 8 },
     },
+    {
+        id: 'mercury-survey',
+        sector: 'mercury',
+        act: 4,
+        title: 'Podejście do Słońca',
+        required: true,
+        detail: '7 wskazuje punkt pomiarowy w cieniu dużej skały. Zbierz odczyt przez E i wróć. Podczas rozbłysków chłodź statek za asteroidami.',
+        kind: 'scan',
+        site: 'relay',
+        target: 1,
+        dependencies: [],
+        reward: { ore: 20, parts: 6 },
+    },
+    {
+        id: 'mercury-patrol',
+        sector: 'mercury',
+        act: 4,
+        title: 'Osłona wyprawy',
+        required: true,
+        detail: 'Po zwiadzie odeprzyj dwa kontakty AI, w tym Lancera. F wskazuje przeciwnika. Raporty wymagają powrotu; można podzielić walki na wyprawy.',
+        kind: 'patrol',
+        target: 2,
+        dependencies: ['mercury-survey'],
+        reward: { ore: 28, parts: 8 },
+    },
+    {
+        id: 'mercury-technology',
+        sector: 'mercury',
+        act: 4,
+        title: 'Technologia przejścia',
+        required: true,
+        detail: 'Po zabezpieczeniu sektora: 8 wskazuje węzeł danych. Zbierz pakiet przez E i wróć. Dopiero bezpieczny powrót zabezpiecza technologię pasa.',
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        dependencies: ['mercury-survey', 'mercury-patrol'],
+        reward: { ore: 35, parts: 10 },
+    },
+    {
+        id: 'mercury-reserve',
+        sector: 'mercury',
+        act: 4,
+        title: 'Zapas ekspedycji',
+        required: false,
+        detail: 'Przekaż 24 rudy na zaplecze wyprawy. Zadanie dodatkowe nie blokuje odzyskania technologii.',
+        kind: 'ore',
+        target: 24,
+        dependencies: [],
+        reward: { ore: 12, parts: 5 },
+    },
+    {
+        id: 'mars-base-ore',
+        sector: 'mars',
+        act: 5,
+        title: 'Poszycie bazy marsjańskiej',
+        required: true,
+        detail: 'Po odzyskaniu technologii przekaż w stacji 40 rudy na bazę przy Marsie. Wpłaty mogą pochodzić z wielu wypraw.',
+        kind: 'ore',
+        target: 40,
+        dependencies: ['mercury-technology'],
+        reward: { ore: 0, parts: 0 },
+    },
+    {
+        id: 'mars-base-parts',
+        sector: 'mars',
+        act: 5,
+        title: 'Wyposażenie bazy',
+        required: true,
+        detail: 'Przekaż 10 komponentów na instalacje bazy. Rudę i komponenty możesz gromadzić równolegle.',
+        kind: 'parts',
+        target: 10,
+        dependencies: ['mercury-technology'],
+        reward: { ore: 0, parts: 0 },
+    },
+    {
+        id: 'mars-base-build',
+        sector: 'mars',
+        act: 5,
+        title: 'Montaż bazy marsjańskiej',
+        required: true,
+        detail: 'Po dostawach: 7 wskazuje bazę. Przytrzymaj E przez 2 s przy spokojnym statku. Materiały zostały już opłacone.',
+        kind: 'construction',
+        target: 1,
+        dependencies: ['mars-base-ore', 'mars-base-parts'],
+        reward: { ore: 0, parts: 0 },
+    },
+    {
+        id: 'mars-base-defense',
+        sector: 'mars',
+        act: 5,
+        title: 'Obrona bazy marsjańskiej',
+        required: true,
+        detail: 'Po montażu: G przez 2 s przy bazie rozpoczyna trzy kontakty AI. Obroń obiekt i wróć z raportem do Satuk 15.',
+        kind: 'assault',
+        target: 1,
+        dependencies: ['mars-base-build'],
+        reward: { ore: 30, parts: 8 },
+    },
+    {
+        id: 'mars-corridor',
+        sector: 'mars',
+        act: 5,
+        title: 'Zabezpieczenie korytarza',
+        required: true,
+        detail: 'Po montażu neutralizuj trzy patrole w dalszym obszarze, w tym dwa Lancery. F wskazuje przeciwnika. Możesz wracać po każdym kontakcie.',
+        kind: 'patrol',
+        target: 3,
+        dependencies: ['mars-base-build'],
+        reward: { ore: 40, parts: 12 },
+    },
+    {
+        id: 'mars-route',
+        sector: 'mars',
+        act: 5,
+        title: 'Pomiary dalszej trasy',
+        required: false,
+        detail: 'Dodatkowy zwiad: po montażu bazy 8 wskazuje dalszy punkt. Zbierz pomiary przez E i wróć. Nie blokuje przygotowania przejścia pasa.',
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        dependencies: ['mars-base-build'],
+        reward: { ore: 18, parts: 5 },
+    },
 ];
+export const MARS_BASE = { x: -2600, y: 1200 } as const;
 export const VENUS_EXPANSION_TASKS = ['venus-build', 'venus-shield', 'venus-defense'];
 export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 7;
+    version: 9;
     sector: StorySectorId;
     progress: Record<string, number>;
     claimed: string[];
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 7,
+    version: 9,
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
     claimed: [],
@@ -392,23 +524,39 @@ export function storySectorUnlocked(p: StoryProgress, sector: StorySectorId) {
             return actOneComplete(p);
         case 'venus':
             return p.claimed.includes('earth-debrief');
+        case 'mercury':
+            return storySectorComplete(p, 'venus') && solarShieldReady(p);
     }
 }
 export function storyAct(p: StoryProgress) {
-    return p.sector === 'venus'
-        ? 'AKT III'
-        : p.sector === 'mars' || (p.sector === 'earth' && p.claimed.includes('mars-belt'))
-          ? 'AKT II'
-          : 'AKT I';
+    if (p.sector === 'mars' && beltTechnologyReady(p)) return 'AKT V';
+    return p.sector === 'mercury'
+        ? 'AKT IV'
+        : p.sector === 'venus'
+          ? 'AKT III'
+          : p.sector === 'mars' || (p.sector === 'earth' && p.claimed.includes('mars-belt'))
+            ? 'AKT II'
+            : 'AKT I';
 }
 export function actTwoComplete(p: StoryProgress) {
     return storySectorComplete(p, 'mars') && p.claimed.includes('earth-debrief');
 }
 export function storyVisibleTasks(p: StoryProgress) {
-    return STORY_TASKS.filter(
+    const tasks = STORY_TASKS.filter(
         (t) =>
-            t.sector === p.sector && (t.id !== 'earth-debrief' || p.claimed.includes('mars-belt')),
+            t.sector === p.sector &&
+            (t.id !== 'earth-debrief' || p.claimed.includes('mars-belt')) &&
+            (t.act !== 5 || beltTechnologyReady(p)),
     );
+    return p.sector === 'mars' && beltTechnologyReady(p)
+        ? tasks.sort((a, b) => b.act - a.act)
+        : tasks;
+}
+export function marsBaseReady(p: StoryProgress) {
+    return ['mars-base-ore', 'mars-base-parts'].every((id) => p.claimed.includes(id));
+}
+export function beltPassageReady(p: StoryProgress) {
+    return beltTechnologyReady(p) && storySectorComplete(p, 'mars', 5);
 }
 export function venusPreparationComplete(p: StoryProgress) {
     return ['venus-site', 'venus-stockpile'].every((id) => p.claimed.includes(id));
@@ -416,12 +564,40 @@ export function venusPreparationComplete(p: StoryProgress) {
 export function solarShieldReady(p: StoryProgress) {
     return p.claimed.includes('venus-shield');
 }
+export function beltTechnologyReady(p: StoryProgress) {
+    return p.claimed.includes('mercury-technology');
+}
 export function storyNextStep(p: StoryProgress) {
+    if (beltPassageReady(p))
+        return 'Akt V ukończony. Baza i korytarz zabezpieczone. Ekspedycja gotowa do kolejnego etapu: przejścia pasa asteroid.';
+    if (p.sector === 'mars' && beltTechnologyReady(p)) {
+        if (!p.claimed.includes('mars-base-build'))
+            return marsBaseReady(p)
+                ? 'Materiały gotowe. Wyrusz do bazy wskazywanej przez 7 i przytrzymaj E przez 2 s, aby ją zamontować.'
+                : 'Przekaż 40 rudy i 10 komponentów na bazę. Projekty możesz realizować równolegle; wcześniejsze cele Marsa pozostają zapisane.';
+        if (p.claimed.includes('mars-base-defense'))
+            return 'Baza obroniona. Zabezpiecz dalszy korytarz: F wskazuje kontakty. Wyniki walk zatwierdzasz po bezpiecznym powrocie.';
+        if (p.claimed.includes('mars-corridor'))
+            return 'Korytarz zabezpieczony. Obroń bazę: 7 wskazuje obiekt, G przez 2 s rozpoczyna atak. Wróć z raportem.';
+        return 'Obroń bazę przez G przy obiekcie i zabezpiecz dalszy korytarz. Te cele możesz wykonywać równolegle; raporty wymagają powrotu.';
+    }
+    if (beltTechnologyReady(p))
+        return 'Akt IV ukończony. Technologia przejścia pasa zabezpieczona. Następny etap: powrót na Marsa i przygotowanie dalszej ekspedycji.';
+    if (p.sector === 'mercury')
+        return p.claimed.includes('mercury-patrol')
+            ? '8 wskazuje pakiet technologii. Zbierz dane i wróć do Satuk 15. Utrata statku przed powrotem oznacza utratę pakietu.'
+            : p.claimed.includes('mercury-survey')
+              ? 'Zabezpiecz podejście i wróć z raportami. W cieniu dużych asteroid statek chłodzi się; nie niszcz osłon bez potrzeby.'
+              : '7 wskazuje pomiary podejścia. 3 i 4 wskazują schronienia; 5 pojawi się po zwiadzie. Chłodź statek w zaznaczonym cieniu dużych skał.';
     if (p.sector === 'venus') {
         if (storySectorComplete(p, 'venus'))
             return 'Akt III ukończony. Placówka obroniona, osłona słoneczna gotowa. Następny kierunek: Merkury.';
         if (p.claimed.includes('venus-build'))
-            return 'Przekaż komponenty na osłonę w stacji i obroń placówkę: 8 wskazuje obiekt, G przez 2 s rozpoczyna atak. Wróć z raportem.';
+            return p.claimed.includes('venus-defense')
+                ? 'Placówka obroniona. Przekaż brakujące komponenty na osłonę słoneczną w stacji, aby zakończyć przygotowania.'
+                : solarShieldReady(p)
+                  ? 'Osłona gotowa. Obroń placówkę: 8 wskazuje obiekt, G przez 2 s rozpoczyna atak. Wróć z raportem do Satuk 15.'
+                  : 'Przekaż komponenty na osłonę w stacji i obroń placówkę: 8 wskazuje obiekt, G przez 2 s rozpoczyna atak. Wróć z raportem.';
         if (venusPreparationComplete(p))
             return 'Miejsce i materiały przygotowane. Wyrusz do placówki wskazywanej przez 8 i przytrzymaj E przez 2 s, aby ją zbudować.';
         return p.claimed.includes('venus-survey')
@@ -444,6 +620,8 @@ export function marsApproachOpen(p: StoryProgress) {
     return ['mars-trail', 'mars-patrol'].every((id) => p.claimed.includes(id));
 }
 export function storyRadius(p: StoryProgress) {
+    if (p.sector === 'mercury' && p.claimed.includes('mercury-survey')) return 4700;
+    if (p.sector === 'mars' && p.claimed.includes('mars-base-build')) return 5400;
     if (p.sector === 'mars' && marsApproachOpen(p)) return 4600;
     if (p.sector === 'venus' && p.claimed.includes('venus-survey')) return 3900;
     return p.sector === 'earth' &&
@@ -458,7 +636,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 7 ||
+        p.version !== 9 ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -588,7 +766,7 @@ export function migrateStoryV4(value: unknown) {
         progress: {
             ...p.progress,
             ...Object.fromEntries(
-                STORY_TASKS.filter((t) => t.sector === 'mars').map((t) => [t.id, 0]),
+                STORY_TASKS.filter((t) => t.sector === 'mars' && t.act === 2).map((t) => [t.id, 0]),
             ),
         },
     };
@@ -597,7 +775,7 @@ export function migrateStoryV5(value: unknown) {
     if (!value || typeof value !== 'object') return value;
     const p = value as StoryProgress;
     if ((p.version as number) !== 5 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => t.act === 1 || t.sector === 'mars');
+    const previous = STORY_TASKS.filter((t) => t.act === 1 || (t.sector === 'mars' && t.act === 2));
     if (
         Object.keys(p.progress).length !== previous.length ||
         previous.some((t) => !Object.hasOwn(p.progress, t.id))
@@ -618,7 +796,7 @@ export function migrateStoryV6(value: unknown) {
     if (!value || typeof value !== 'object') return value;
     const p = value as StoryProgress;
     if ((p.version as number) !== 6 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => !VENUS_EXPANSION_TASKS.includes(t.id));
+    const previous = STORY_TASKS.filter((t) => t.act <= 3 && !VENUS_EXPANSION_TASKS.includes(t.id));
     if (
         Object.keys(p.progress).length !== previous.length ||
         previous.some((t) => !Object.hasOwn(p.progress, t.id))
@@ -632,6 +810,63 @@ export function migrateStoryV6(value: unknown) {
             ...Object.fromEntries(VENUS_EXPANSION_TASKS.map((id) => [id, 0])),
         },
     };
+}
+export function migrateStoryV7(value: unknown) {
+    if (!value || typeof value !== 'object') return value;
+    const p = value as StoryProgress;
+    if ((p.version as number) !== 7 || !p.progress || typeof p.progress !== 'object') return value;
+    const previous = STORY_TASKS.filter((t) => t.act <= 3);
+    if (
+        Object.keys(p.progress).length !== previous.length ||
+        previous.some((t) => !Object.hasOwn(p.progress, t.id))
+    )
+        return value;
+    return {
+        ...p,
+        version: 8,
+        progress: {
+            ...p.progress,
+            ...Object.fromEntries(
+                STORY_TASKS.filter((t) => t.sector === 'mercury').map((t) => [t.id, 0]),
+            ),
+        },
+    };
+}
+export function migrateStoryV8(value: unknown) {
+    if (!value || typeof value !== 'object') return value;
+    const p = value as StoryProgress;
+    if ((p.version as number) !== 8 || !p.progress || typeof p.progress !== 'object') return value;
+    const previous = STORY_TASKS.filter((t) => t.act <= 4);
+    if (
+        Object.keys(p.progress).length !== previous.length ||
+        previous.some((t) => !Object.hasOwn(p.progress, t.id))
+    )
+        return value;
+    return {
+        ...p,
+        version: 9,
+        progress: {
+            ...p.progress,
+            ...Object.fromEntries(STORY_TASKS.filter((t) => t.act === 5).map((t) => [t.id, 0])),
+        },
+    };
+}
+export function recordOrbitalConstruction(c: Campaign) {
+    const p = c.story;
+    const id =
+        p?.sector === 'mars' ? 'mars-base-build' : p?.sector === 'venus' ? 'venus-build' : '';
+    const task = STORY_TASKS.find((t) => t.id === id);
+    if (
+        !p ||
+        !task ||
+        c.activeRun?.sector !== p.sector ||
+        c.activeRun.area ||
+        !storyTaskAvailable(p, task) ||
+        p.claimed.includes(task.id)
+    )
+        return null;
+    p.progress[task.id] = 1;
+    return settle(c);
 }
 export function recordVenusConstruction(c: Campaign) {
     const p = c.story,
@@ -750,8 +985,13 @@ export function recordStoryReturn(
     assaultWon = false,
     patrolKills = 0,
     venusDefenseWon = false,
+    marsDefenseWon = false,
 ) {
     if (!c.story || c.story.sector !== sector || c.activeRun?.sector !== sector) return null;
+    if (sector === 'mars' && marsDefenseWon) {
+        const task = STORY_TASKS.find((t) => t.id === 'mars-base-defense')!;
+        if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
+    }
     if (sector === 'venus' && venusDefenseWon) {
         const task = STORY_TASKS.find((t) => t.id === 'venus-defense')!;
         if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
@@ -759,9 +999,19 @@ export function recordStoryReturn(
     const final = STORY_TASKS.find((t) => t.id === 'lunar-attack')!;
     if (sector === 'lunar' && assaultWon && storyTaskAvailable(c.story, final))
         c.story.progress[final.id] = 1;
-    if (sector === 'mars' && Number.isInteger(patrolKills) && patrolKills > 0) {
-        const patrol = STORY_TASKS.find((t) => t.id === 'mars-patrol')!;
-        if (storyTaskAvailable(c.story, patrol))
+    if (
+        (sector === 'mars' || sector === 'mercury') &&
+        Number.isInteger(patrolKills) &&
+        patrolKills > 0
+    ) {
+        const patrol = STORY_TASKS.find(
+            (t) =>
+                t.sector === sector &&
+                t.kind === 'patrol' &&
+                storyTaskAvailable(c.story!, t) &&
+                !c.story!.claimed.includes(t.id),
+        );
+        if (patrol)
             c.story.progress[patrol.id] = Math.min(
                 patrol.target,
                 c.story.progress[patrol.id] + patrolKills,
@@ -798,24 +1048,32 @@ export function storyObjectives(
     assaultWon = false,
     patrolKills = 0,
     venusDefenseWon = false,
+    marsDefenseWon = false,
 ) {
     const p = c.story!;
-    return storyVisibleTasks(p).map((task) => ({
-        id: task.id,
-        title: task.title,
-        progress: p.claimed.includes(task.id)
-            ? ''
-            : !storyTaskAvailable(p, task)
-              ? '· później'
-              : task.kind === 'assault' && (task.sector === 'venus' ? venusDefenseWon : assaultWon)
-                ? '· wróć z raportem'
-                : task.kind === 'patrol'
-                  ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wróć z raportem' : ''}`
-                  : task.kind === 'ore' || task.kind === 'parts' || task.kind === 'delivery'
-                    ? `${p.progress[task.id]}/${task.target}`
-                    : task.site && data.includes(task.site)
-                      ? '· wróć z danymi'
-                      : '',
-        complete: p.claimed.includes(task.id),
-    }));
+    return storyVisibleTasks(p)
+        .filter((t) => p.sector !== 'mars' || !beltTechnologyReady(p) || t.act === 5)
+        .map((task) => ({
+            id: task.id,
+            title: task.title,
+            progress: p.claimed.includes(task.id)
+                ? ''
+                : !storyTaskAvailable(p, task)
+                  ? '· później'
+                  : task.kind === 'assault' &&
+                      (task.sector === 'mars'
+                          ? marsDefenseWon
+                          : task.sector === 'venus'
+                            ? venusDefenseWon
+                            : assaultWon)
+                    ? '· wróć z raportem'
+                    : task.kind === 'patrol'
+                      ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wróć z raportem' : ''}`
+                      : task.kind === 'ore' || task.kind === 'parts' || task.kind === 'delivery'
+                        ? `${p.progress[task.id]}/${task.target}`
+                        : task.site && data.includes(task.site)
+                          ? '· wróć z danymi'
+                          : '',
+            complete: p.claimed.includes(task.id),
+        }));
 }

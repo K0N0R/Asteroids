@@ -354,6 +354,7 @@ export class GameSession {
                           this.mission.simulation.lunarAssault.state === 'complete',
                           this.mission.simulation.storyPatrolKills,
                           this.mission.simulation.venusAssault.state === 'complete',
+                          this.mission.simulation.marsAssault.state === 'complete',
                       )
                     : undefined),
             objectivesTitle:
@@ -516,6 +517,7 @@ export class GameSession {
                               simulation.lunarAssault.state === 'complete',
                               simulation.storyPatrolKills,
                               simulation.venusAssault.state === 'complete',
+                              simulation.marsAssault.state === 'complete',
                           )
                     : undefined,
                 this.campaign.story
@@ -627,6 +629,7 @@ export class GameSession {
                     wreckVisited: sim.wreckVisited,
                     assaultWon: sim.lunarAssault.state === 'complete',
                     venusDefenseWon: sim.venusAssault.state === 'complete',
+                    marsDefenseWon: sim.marsAssault.state === 'complete',
                     patrolKills: sim.storyPatrolKills,
                     securedId: sim.recoverySecured ? sim.recoverySignal?.id : undefined,
                     data: [...sim.surveyData],

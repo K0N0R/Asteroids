@@ -1,6 +1,12 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.44** dodaje **odprawę po powrocie na Ziemię i trasę do Wenus**. Zatwierdzenie planu po rozpoznaniu pasa mechanicznie kończy akt II. Początek aktu III obejmuje zwiad Wenus, pomiary miejsca pod placówkę i gromadzenie materiałów. Budowa placówki oraz osłona przed Słońcem to kolejny zakres. [Zakres i weryfikacja](docs/implementation-v0.44.md) · [Aktualny plan](docs/plan-current.md).
+Aktualna wersja **0.47** dodaje **bazę marsjańską i mechaniczny ciąg aktu V**. Po powrocie z technologią Merkurego przygotuj 40 rudy i 10 komponentów, zmontuj bazę przez E i wykonaj dwa równoległe cele bojowe: obronę obiektu oraz zabezpieczenie korytarza. Raporty wymagają bezpiecznego powrotu, a wcześniejszy dziennik Marsa pozostaje zachowany. Następny zakres to akt VI — przejście pasa asteroid. [Zakres i weryfikacja](docs/implementation-v0.47.md) · [Aktualny plan](docs/plan-current.md).
+
+Wersja **0.46** dodała **Merkurego i mechaniczny ciąg aktu IV**: temperaturę, cykliczne rozbłyski, chłodzenie w cieniu rzeczywistych asteroid oraz wyprawę po pakiet technologii przejścia pasa. Osłona przygotowana przy Wenus ogranicza nagrzewanie. Pomiary, walka i odzyskanie danych wymagają bezpiecznych powrotów. [Zakres i weryfikacja](docs/implementation-v0.46.md) · [Aktualny plan](docs/plan-current.md).
+
+Wersja **0.45** dodała **budowę placówki przy Wenus, projekt osłony słonecznej i obronę przed AI**. Po wcześniejszych pomiarach i zgromadzeniu 32 rudy przytrzymaj E przy obiekcie wskazywanym przez 8. Następnie przekaż w stacji 12 komponentów na osłonę oraz odeprzyj atak rozpoczynany przez G przy placówce. Bezpieczny powrót z raportem i gotowa osłona mechanicznie zamykają akt III. [Zakres i weryfikacja](docs/implementation-v0.45.md) · [Aktualny plan](docs/plan-current.md).
+
+Wersja **0.44** dodała **odprawę po powrocie na Ziemię i trasę do Wenus**. Zatwierdzenie planu po rozpoznaniu pasa mechanicznie kończy akt II. Początek aktu III obejmuje zwiad Wenus, pomiary miejsca pod placówkę i gromadzenie materiałów. [Zakres i weryfikacja](docs/implementation-v0.44.md) · [Aktualny plan](docs/plan-current.md).
 
 Wersja **0.43** rozpoczęła **akt II przy Marsie**: równoległy zwiad i walka z patrolami, otwarcie dalszego obszaru oraz odczyt blokady pasa asteroid. Raporty wymagają bezpiecznego powrotu. Ziemia i Księżyc pozostają dostępne, a zapis zachowuje postęp aktu I. [Zakres i weryfikacja](docs/implementation-v0.43.md) · [Aktualny plan](docs/plan-current.md).
 
@@ -12,7 +18,7 @@ Wersja **0.40** dodała lot nad powierzchnią Księżyca i budowę stacji paliw:
 
 Wersja **0.39** rozpoczęła kampanię **Satuk 15**: trwałe sektory, równoległe zadania, stopniowe otwieranie orbity Ziemi i trasa księżycowa. Kampania ma osobny zapis; **Stary zapis testowy** zachowuje dostęp do wcześniejszej gry, a sandbox pozostaje dostępny w obu profilach. [Zakres](docs/implementation-v0.39.md).
 
-Projekt kampanii: [Satuk 15 — 10 aktów w Układzie Słonecznym](docs/campaign-outline.md). Akt I ma przechodni ciąg mechanik wraz z finałowym atakiem i podsumowaniem. Akt II łączy podejście do Marsa, rozpoznanie blokady i odprawę ziemską; na Wenus rozpoczyna się akt III. Oprawa fabularna, balans i pozostała część kampanii pozostają do rozwinięcia. Prawda o anomalii i zwroty fabularne nadal czekają na ustalenia autora.
+Projekt kampanii: [Satuk 15 — 10 aktów w Układzie Słonecznym](docs/campaign-outline.md). Akt I ma przechodni ciąg mechanik wraz z finałowym atakiem i podsumowaniem. Akt II łączy podejście do Marsa, rozpoznanie blokady i odprawę ziemską; akt III obejmuje przygotowanie i obronę placówki Wenus, IV wyprawę na Merkurego, a V powrót i bazę marsjańską. Oprawa fabularna, balans i pozostała część kampanii pozostają do rozwinięcia. Prawda o anomalii i zwroty fabularne nadal czekają na ustalenia autora.
 
 Wersja **0.38** domknęła techniczny audyt fundamentów: zwalnianie kontekstów grafiki, pomiary FPS/pamięci i licznik osłon Aegisa. Wykonano 224 próby porównawcze oraz przejście ekonomii do warsztatu II. [Wyniki i ograniczenia](docs/implementation-v0.38.md).
 

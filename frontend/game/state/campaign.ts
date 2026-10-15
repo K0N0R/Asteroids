@@ -6,12 +6,17 @@ import {
     migrateStoryV4,
     migrateStoryV5,
     migrateStoryV6,
+    migrateStoryV7,
+    migrateStoryV8,
     storyRadius,
     constructionManifest,
     validStory,
     STORY_SECTORS,
     recordStoryReturn,
     actOneComplete,
+    beltTechnologyReady,
+    beltPassageReady,
+    storySectorComplete,
     type StoryProgress,
     type StorySectorId,
 } from './story';
@@ -80,7 +85,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 25;
+    version: 27;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
@@ -144,7 +149,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 25,
+        version: 27,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
@@ -183,7 +188,7 @@ export function parseCampaign(json: string | null): Campaign | null {
             !object(p) ||
             ![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                24, 25,
+                24, 25, 26, 27,
             ].includes(p.version as number) ||
             !cargo(p.bank) ||
             !object(p.station)
@@ -537,6 +542,10 @@ export function parseCampaign(json: string | null): Campaign | null {
             p.story = migrateStoryV5(p.story) as StoryProgress;
         if ((p.version as number) < 25 && p.story)
             p.story = migrateStoryV6(p.story) as StoryProgress;
+        if ((p.version as number) < 26 && p.story)
+            p.story = migrateStoryV7(p.story) as StoryProgress;
+        if ((p.version as number) < 27 && p.story)
+            p.story = migrateStoryV8(p.story) as StoryProgress;
         if (p.story !== null && !validStory(p.story)) return null;
         if (
             object(p.activeRun) &&
@@ -563,7 +572,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         if (p.story?.claimed.includes('earth-workshop') && (p.station.workshop as number) < 1)
             return null;
         if (!p.story && object(p.activeRun) && p.activeRun.sector !== undefined) return null;
-        p.version = 25;
+        p.version = 27;
         const campaign = p as unknown as Campaign;
         if (campaign.activeRun?.freight !== undefined) {
             const initial = campaign.activeRun.freight;
@@ -857,6 +866,7 @@ export function finishRun(
         wreckVisited?: boolean;
         assaultWon?: boolean;
         venusDefenseWon?: boolean;
+        marsDefenseWon?: boolean;
         patrolKills?: number;
         recycledWreck?: 'patrol' | 'lancer';
         lossPosition?: Point;
@@ -992,8 +1002,12 @@ export function finishRun(
             crystals;
         c.recovered++;
         if (active.sector && c.story) {
+            const closingMars = !beltPassageReady(c.story);
+            const closingTechnology = !beltTechnologyReady(c.story);
             const closingAct = !c.story.claimed.includes('lunar-attack');
             const closingBelt = active.sector === 'mars' && !c.story.claimed.includes('mars-belt');
+            const closingVenus =
+                active.sector === 'venus' && !storySectorComplete(c.story, 'venus');
             const change = recordStoryReturn(
                 c,
                 active.sector,
@@ -1002,6 +1016,7 @@ export function finishRun(
                 !!recovery.assaultWon,
                 recovery.patrolKills ?? 0,
                 !!recovery.venusDefenseWon,
+                !!recovery.marsDefenseWon,
             );
             if (change) {
                 result.reward.ore += change.reward.ore;
@@ -1013,6 +1028,15 @@ export function finishRun(
                 if (closingBelt && c.story.claimed.includes('mars-belt'))
                     result.reason =
                         'Pas asteroid blokuje pościg. Dalszy przelot wymaga nowej technologii.';
+                if (closingVenus && storySectorComplete(c.story, 'venus'))
+                    result.reason =
+                        'Akt III ukończony. Placówka obroniona, osłona gotowa. Następny kierunek: Merkury.';
+                if (closingTechnology && beltTechnologyReady(c.story))
+                    result.reason =
+                        'Akt IV ukończony. Technologia przejścia pasa zabezpieczona. Następny kierunek: Mars.';
+                if (closingMars && beltPassageReady(c.story))
+                    result.reason =
+                        'Akt V ukończony. Baza i korytarz zabezpieczone. Ekspedycja gotowa do przejścia pasa.';
                 result.contractText = change.titles.length
                     ? `Zadania ukończone: ${change.titles.join(' · ')}`
                     : 'Postęp sektora zachowany. Surowce możesz przekazać w panelu wyprawy.';

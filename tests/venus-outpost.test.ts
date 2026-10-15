@@ -33,7 +33,7 @@ function ready(built = false) {
     const c = newStoryCampaign();
     c.station.workshop = 1;
     for (const t of STORY_TASKS.filter(
-        (t) => t.required && !VENUS_EXPANSION_TASKS.includes(t.id),
+        (t) => t.act <= 3 && t.required && !VENUS_EXPANSION_TASKS.includes(t.id),
     )) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
@@ -118,6 +118,7 @@ test('orbital construction requires both preparation goals and a quiet two-secon
         assert.ok(s.deliveryRevision > 0);
         assert.deepEqual(c.bank, bank);
         assert.equal(s.venusOutpostStage, 1);
+        assert.equal(s.landmarks.find((l) => l.key === 8)!.name, 'Placówka badawcza Wenus');
         const restored = parseCampaign(JSON.stringify(c))!;
         assert.ok(restored);
         finishRun(restored, false, empty, 5, 'refresh');
@@ -145,6 +146,36 @@ test('solar shielding accepts components only after building, supports partial p
     assert.equal(built.bank.parts, 2);
     assert.equal(storySectorComplete(built.story!, 'venus'), false);
     assert.ok(parseCampaign(JSON.stringify(built)));
+});
+
+test('defense can precede shielding; the final component payment closes Act III without replaying combat rewards', () => {
+    const c = ready(true);
+    beginRun(c, 1);
+    const result = finishRun(c, true, empty, 1, 'dock', c.activeRun!.repairKits, {
+        venusDefenseWon: true,
+    })!;
+    assert.deepEqual(result.reward, { ore: 30, parts: 8 });
+    assert.equal(storySectorComplete(c.story!, 'venus'), false);
+    assert.equal(solarShieldReady(c.story!), false);
+    const bank = { ...c.bank };
+    contributeStory(c, 'venus-shield');
+    assert.ok(storySectorComplete(c.story!, 'venus'));
+    assert.deepEqual(c.bank, { ore: bank.ore, parts: bank.parts - 12 });
+    beginRun(c, 1);
+    const s = new MissionSimulation(c, c.activeRun!.seed);
+    try {
+        assert.equal(s.assaultAvailable, false);
+        at(s, VENUS_OUTPOST);
+        hold(s, { ...idle, sabotage: true });
+        assert.equal(s.venusAssault.state, 'idle');
+        const again = finishRun(c, true, empty, 1, 'dock', s.repairKits, {
+            venusDefenseWon: true,
+        })!;
+        assert.deepEqual(again.reward, empty);
+        assert.ok(parseCampaign(JSON.stringify(c)));
+    } finally {
+        s.dispose();
+    }
 });
 
 test('stock Prospector builds through normal flight, prepares the shield and repels actual AI before returning the report', () => {
@@ -193,6 +224,7 @@ test('stock Prospector builds through normal flight, prepares the shield and rep
         })!;
         assert.equal(result.reward.ore, 30);
         assert.equal(result.reward.parts, 8);
+        assert.ok(result.reason.includes('Akt III ukończony'));
         assert.ok(storySectorComplete(c.story!, 'venus'));
         assert.ok(parseCampaign(JSON.stringify(c)));
         assert.equal(finishRun(c, true, empty, 1, 'again', 0, { venusDefenseWon: true }), null);
@@ -211,7 +243,7 @@ test('AI can destroy the outpost; retry restores its health and keeps constructi
         at(s, { x: VENUS_OUTPOST.x, y: VENUS_OUTPOST.y + 1100 });
         let targeted = false;
         for (let f = 0; f < 60 * 120 && s.venusAssault.active; f++) {
-            s.step(idle);
+            s.step({ ...idle, sabotage: true });
             s.events.length = 0;
             targeted ||= [...s.enemies.enemies.values()].some((e) => e.target === 'station');
         }
@@ -220,6 +252,9 @@ test('AI can destroy the outpost; retry restores its health and keeps constructi
         assert.equal(s.venusAssault.health, 0);
         assert.equal(s.enemies.enemies.size, 0);
         assert.equal(s.bullets.size, 0);
+        at(s, VENUS_OUTPOST);
+        hold(s, { ...idle, sabotage: true });
+        assert.equal(s.venusAssault.state, 'failed'); // Held G cannot restart automatically.
         start(s);
         assert.equal(s.venusAssault.health, 180);
         assert.ok(solarShieldReady(c.story!));
@@ -275,12 +310,17 @@ test('v24 migration preserves prepared materials and active markers without inve
         if (active) beginRun(c, 1);
         const old = JSON.parse(JSON.stringify(c));
         old.version = 24;
+        for (const key of Object.keys(old.story.progress))
+            if (key.startsWith('mercury-')) delete old.story.progress[key];
+        for (const key of Object.keys(old.story.progress))
+            if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
+                delete old.story.progress[key];
         old.story.version = 6;
         for (const id of VENUS_EXPANSION_TASKS) delete old.story.progress[id];
         const next = parseCampaign(JSON.stringify(old))!;
         assert.ok(next);
-        assert.equal(next.version, 25);
-        assert.equal(next.story!.version, 7);
+        assert.equal(next.version, 27);
+        assert.equal(next.story!.version, 9);
         assert.deepEqual(next.activeRun, c.activeRun);
         assert.deepEqual(next.bank, c.bank);
         assert.deepEqual(next.story!.claimed, c.story!.claimed);

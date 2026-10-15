@@ -1,4 +1,5 @@
-import { generateStorySector } from '../worlds/storySector';
+import { SolarExposure, inSolarShadow } from './solarExposure';
+import { generateStorySector, marsCorridorFleet } from '../worlds/storySector';
 import {
     storyRadius,
     deliverLunarCargo,
@@ -6,7 +7,12 @@ import {
     recordLunarDefense,
     VENUS_OUTPOST,
     venusPreparationComplete,
-    recordVenusConstruction,
+    recordOrbitalConstruction,
+    MARS_BASE,
+    marsBaseReady,
+    beltTechnologyReady,
+    beltPassageReady,
+    solarShieldReady,
 } from '../state/story';
 import { LunarDefense, LUNAR_DEFENSE, type DefenseHost } from './lunarDefense';
 import { LunarAssault, type AssaultHost } from './lunarAssault';
@@ -192,7 +198,9 @@ export class MissionSimulation {
     readonly lunarDefense = new LunarDefense();
     readonly lunarAssault = new LunarAssault();
     readonly venusAssault = new LunarAssault();
-    private venusBuildProgress = 0;
+    readonly marsAssault = new LunarAssault();
+    readonly solar = new SolarExposure();
+    private orbitalBuildProgress = 0;
     private stationCollider: RAPIER.Collider | null = null;
     private assaultSequence = 100000;
     defenseStartProgress = 0;
@@ -318,6 +326,74 @@ export class MissionSimulation {
                 : null;
         this.previous = this.position;
     }
+    get mercurySector() {
+        return this.campaign.story?.sector === 'mercury';
+    }
+    get solarCovered() {
+        if (this.distanceHome < 650) return true;
+        return [...this.rocks.values()].some((r) => {
+            const p = r.body.translation();
+            return inSolarShadow(this.position, { x: p.x * P, y: p.y * P, radius: r.radius });
+        });
+    }
+    private updateSolarExposure(dt: number) {
+        if (!this.mercurySector) return;
+        const damage = this.solar.step(
+            dt,
+            this.solarCovered,
+            solarShieldReady(this.campaign.story!),
+        );
+        if (damage <= 0) return;
+        this.statistics.hullDamage += Math.min(this.hull, damage);
+        this.hull = Math.max(0, this.hull - damage);
+        this.deathReason = 'Przegrzanie w promieniowaniu słonecznym zniszczyło kadłub.';
+        this.damageCooldown = 0.5;
+        this.scanProgress = 0;
+        this.repairProgress = 0;
+    }
+    get marsBaseSector() {
+        return this.campaign.story?.sector === 'mars' && beltTechnologyReady(this.campaign.story);
+    }
+    get orbitalBaseSector() {
+        return this.venusSector || this.marsBaseSector;
+    }
+    get orbitalBuildReady() {
+        return this.marsBaseSector ? marsBaseReady(this.campaign.story!) : this.venusBuildReady;
+    }
+    get orbitalBaseStage() {
+        if (this.marsBaseSector)
+            return this.campaign.story!.claimed.includes('mars-base-build')
+                ? this.campaign.story!.claimed.includes('mars-base-defense')
+                    ? 2
+                    : 1
+                : 0;
+        return this.venusOutpostStage;
+    }
+    get orbitalBaseName() {
+        return this.marsBaseSector ? 'Baza marsjańska' : 'Placówka badawcza Wenus';
+    }
+    get nearbyOrbitalBase() {
+        return (
+            this.orbitalBaseSector &&
+            Math.hypot(this.position.x - this.assaultSite.x, this.position.y - this.assaultSite.y) <
+                180
+        );
+    }
+    get marsBaseStatus() {
+        const p = this.campaign.story;
+        if (!this.marsBaseSector || !p) return '';
+        if (beltPassageReady(p)) return 'Akt V ukończony · baza i korytarz zabezpieczone';
+        if (p.claimed.includes('mars-base-defense'))
+            return 'Baza obroniona · F wskaż kontakt w dalszym korytarzu · wróć z raportem';
+        if (this.marsAssault.state !== 'idle') return this.marsAssault.summary;
+        if (p.claimed.includes('mars-base-build'))
+            return 'Baza gotowa · G przy obiekcie rozpoczyna obronę · F kontakty w korytarzu';
+        return this.orbitalBuildProgress > 0
+            ? `Montaż bazy · ${Math.floor((this.orbitalBuildProgress / 2) * 100)}%`
+            : this.orbitalBuildReady
+              ? '7 baza · E przez 2 s montuje opłacone instalacje'
+              : 'Baza wymaga 40 rudy i 10 komponentów · przekaż materiały w stacji';
+    }
     get venusBuildReady() {
         return !!this.campaign.story && venusPreparationComplete(this.campaign.story);
     }
@@ -335,10 +411,18 @@ export class MissionSimulation {
         return this.campaign.story?.sector === 'venus';
     }
     get activeAssault() {
-        return this.venusSector ? this.venusAssault : this.lunarAssault;
+        return this.marsBaseSector
+            ? this.marsAssault
+            : this.venusSector
+              ? this.venusAssault
+              : this.lunarAssault;
     }
     get assaultSite() {
-        return this.venusSector ? VENUS_OUTPOST : MOON.construction;
+        return this.marsBaseSector
+            ? MARS_BASE
+            : this.venusSector
+              ? VENUS_OUTPOST
+              : MOON.construction;
     }
     get nearbyVenusOutpost() {
         return (
@@ -355,10 +439,10 @@ export class MissionSimulation {
                 : 'Placówka obroniona · przekaż w stacji 12 komponentów na osłonę';
         if (this.venusAssault.state !== 'idle') return this.venusAssault.summary;
         if (p.claimed.includes('venus-build'))
-            return 'Placówka gotowa · G przy obiekcie rozpoczyna obronę · osłona: projekt w stacji';
+            return `Placówka gotowa · G przy obiekcie rozpoczyna obronę · osłona: ${p.claimed.includes('venus-shield') ? 'gotowa' : 'projekt w stacji'}`;
         if (venusPreparationComplete(p))
-            return this.venusBuildProgress > 0
-                ? `Budowa placówki · ${Math.floor((this.venusBuildProgress / 2) * 100)}%`
+            return this.orbitalBuildProgress > 0
+                ? `Budowa placówki · ${Math.floor((this.orbitalBuildProgress / 2) * 100)}%`
                 : '8 placówka · E przez 2 s przy obiekcie rozpoczyna budowę';
         return '';
     }
@@ -382,6 +466,7 @@ export class MissionSimulation {
         );
     }
     get defenseSummary() {
+        if (this.marsBaseSector) return this.marsBaseStatus;
         if (this.venusSector) return this.venusStatus;
         if (this.campaign.story?.claimed.includes('lunar-attack'))
             return 'Akt I ukończony · stacja księżycowa obroniona';
@@ -392,6 +477,11 @@ export class MissionSimulation {
         return this.defenseAvailable ? this.lunarDefense.summary : '';
     }
     get assaultAvailable() {
+        if (this.marsBaseSector)
+            return (
+                !!this.campaign.story?.claimed.includes('mars-base-build') &&
+                !this.campaign.story.claimed.includes('mars-base-defense')
+            );
         if (this.venusSector)
             return (
                 !!this.campaign.story?.claimed.includes('venus-build') &&
@@ -405,7 +495,11 @@ export class MissionSimulation {
         );
     }
     get landmarks() {
-        return this.sector.landmarks.filter((l) => (l.area ?? 'orbit') === this.area);
+        return this.sector.landmarks.filter(
+            (l) =>
+                (l.area ?? 'orbit') === this.area &&
+                (!this.marsBaseSector || this.orbitalBaseStage > 0 || l.siteId !== 'archive'),
+        );
     }
     get mapCenter(): Point {
         return this.area === 'surface' ? MOON.center : { x: 0, y: 0 };
@@ -427,6 +521,8 @@ export class MissionSimulation {
         );
     }
     get surfaceContext() {
+        if (this.marsBaseSector)
+            return this.nearbyOrbitalBase || this.marsAssault.active ? this.marsBaseStatus : '';
         if (this.venusSector)
             return this.nearbyVenusOutpost || this.venusAssault.active ? this.venusStatus : '';
         if (this.lunarAssault.active && this.area === 'surface')
@@ -1140,12 +1236,13 @@ export class MissionSimulation {
                 this.deliverTow(item);
         this.collectLoot(dt);
 
+        this.updateSolarExposure(dt);
         this.updateRepair(input, dt);
         this.updateEscort(input, dt);
         this.updateRecovery(input, dt);
         this.updateSalvage(input, dt);
         this.updateSurface(input, dt);
-        this.updateVenusOutpost(input, dt);
+        this.updateOrbitalBase(input, dt);
         this.updateLunarDefense(input, dt);
         this.updateScan(input, dt);
         if (
@@ -2817,8 +2914,8 @@ export class MissionSimulation {
         if (!input.sabotage) this.defenseArmed = true;
         const ready =
             this.assaultAvailable &&
-            (this.venusSector
-                ? this.nearbyVenusOutpost
+            (this.orbitalBaseSector
+                ? this.nearbyOrbitalBase
                 : this.area === 'surface' && this.nearbyConstruction) &&
             this.defenseArmed &&
             input.sabotage &&
@@ -2843,7 +2940,7 @@ export class MissionSimulation {
         }
         if (!a.active) return;
         if (
-            (!this.venusSector && this.area !== 'surface') ||
+            (!this.orbitalBaseSector && this.area !== 'surface') ||
             this.hull <= 0 ||
             Math.hypot(this.position.x - this.assaultSite.x, this.position.y - this.assaultSite.y) >
                 1350
@@ -2860,7 +2957,7 @@ export class MissionSimulation {
         }
     }
     private updateLunarDefense(input: FlightInput, dt: number) {
-        if (this.venusSector) {
+        if (this.orbitalBaseSector) {
             this.updateAssault(input, dt);
             return;
         }
@@ -2926,12 +3023,17 @@ export class MissionSimulation {
             }
         } else if (d.state === 'failed') this.setNotice(d.summary);
     }
-    private updateVenusOutpost(input: FlightInput, dt: number) {
+    private updateOrbitalBase(input: FlightInput, dt: number) {
         const p = this.campaign.story;
-        if (!this.venusSector || !p || p.claimed.includes('venus-build')) return;
+        if (
+            !this.orbitalBaseSector ||
+            !p ||
+            p.claimed.includes(this.marsBaseSector ? 'mars-base-build' : 'venus-build')
+        )
+            return;
         const ready =
-            this.nearbyVenusOutpost &&
-            venusPreparationComplete(p) &&
+            this.nearbyOrbitalBase &&
+            this.orbitalBuildReady &&
             input.interact &&
             !input.sabotage &&
             !input.fire &&
@@ -2942,17 +3044,22 @@ export class MissionSimulation {
             this.hull > 0 &&
             this.damageCooldown <= 0;
         if (!ready) {
-            this.venusBuildProgress = 0;
+            this.orbitalBuildProgress = 0;
             return;
         }
-        this.venusBuildProgress += dt;
-        if (this.venusBuildProgress + 1e-8 >= 2 && recordVenusConstruction(this.campaign)) {
-            this.venusBuildProgress = 0;
+        this.orbitalBuildProgress += dt;
+        if (this.orbitalBuildProgress + 1e-8 >= 2 && recordOrbitalConstruction(this.campaign)) {
+            this.orbitalBuildProgress = 0;
+            const site = this.sector.landmarks.find((l) => l.key === (this.marsBaseSector ? 7 : 8));
+            if (site) site.name = this.orbitalBaseName;
             this.deliveryRevision++;
+            if (this.marsBaseSector) this.enemies.add(marsCorridorFleet(p));
             this.setNotice(
-                'Placówka zbudowana · postęp zapisany · przygotuj osłonę w stacji i osłoń obiekt przed atakiem',
+                this.marsBaseSector
+                    ? 'Baza zbudowana · postęp zapisany · obroń obiekt i zabezpiecz dalszy korytarz'
+                    : 'Placówka zbudowana · postęp zapisany · przygotuj osłonę w stacji i osłoń obiekt przed atakiem',
             );
-            this.events.push({ ...VENUS_OUTPOST, kind: 'collect', sound: 'complete' });
+            this.events.push({ ...this.assaultSite, kind: 'collect', sound: 'complete' });
         }
     }
     private updateSurface(input: FlightInput, dt: number) {

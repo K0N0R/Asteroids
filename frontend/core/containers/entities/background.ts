@@ -54,7 +54,7 @@ export class Background extends Container {
         this.mask = viewportMask;
         this.update(0);
     }
-    setRegion(region: 'earth' | 'lunar' | 'mars' | 'venus' | null) {
+    setRegion(region: 'earth' | 'lunar' | 'mars' | 'venus' | 'mercury' | null) {
         this.planet.visible = region === null;
         const g = this.regionArt.clear();
         if (region === 'earth') {
@@ -75,6 +75,17 @@ export class Background extends Container {
                 .stroke({ color: 0xd4e8ea, width: 11, alpha: 0.4 })
                 .circle(1370, 210, 138)
                 .stroke({ color: 0x8ddaf1, width: 2, alpha: 0.5 });
+        } else if (region === 'mercury') {
+            g.circle(1370, 210, 138)
+                .fill(0x77736d)
+                .circle(1320, 178, 26)
+                .fill(0x565450)
+                .circle(1405, 247, 34)
+                .fill(0x565450)
+                .circle(1370, 210, 138)
+                .stroke({ color: 0xe6ac66, width: 3, alpha: 0.5 });
+            for (let i = 10; i > 0; i--)
+                g.circle(1600, 430, 65 + i * 8).fill({ color: 0xf0a543, alpha: 0.018 });
         } else if (region === 'venus') {
             g.circle(1370, 210, 145)
                 .fill({ color: 0xe0bf79, alpha: 0.12 })

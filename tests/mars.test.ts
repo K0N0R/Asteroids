@@ -123,6 +123,11 @@ test('v22 journals migrate without unlocking Mars early, resetting Act I, or rep
         if (completed) travelStory(c, 'lunar');
         const old = JSON.parse(JSON.stringify(c));
         old.version = 22;
+        for (const key of Object.keys(old.story.progress))
+            if (key.startsWith('mercury-')) delete old.story.progress[key];
+        for (const key of Object.keys(old.story.progress))
+            if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
+                delete old.story.progress[key];
         old.story.version = 4;
         for (const key of Object.keys(old.story.progress))
             if (key.startsWith('venus-') || key === 'earth-debrief') delete old.story.progress[key];
@@ -130,8 +135,8 @@ test('v22 journals migrate without unlocking Mars early, resetting Act I, or rep
             delete old.story.progress[task.id];
         const restored = parseCampaign(JSON.stringify(old))!;
         assert.ok(restored);
-        assert.equal(restored.version, 25);
-        assert.equal(restored.story!.version, 7);
+        assert.equal(restored.version, 27);
+        assert.equal(restored.story!.version, 9);
         assert.deepEqual(restored.story!.claimed, c.story!.claimed);
         assert.deepEqual(restored.bank, c.bank);
         assert.equal(storySectorUnlocked(restored.story!, 'mars'), completed);

@@ -202,11 +202,16 @@ test('v21 migration retains all previously completed goals without inventing vic
     for (const key of Object.keys(old.story.progress))
         if (key.startsWith('mars-') || key.startsWith('venus-') || key === 'earth-debrief')
             delete old.story.progress[key];
+    for (const key of Object.keys(old.story.progress))
+        if (key.startsWith('mercury-')) delete old.story.progress[key];
+    for (const key of Object.keys(old.story.progress))
+        if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
+            delete old.story.progress[key];
     old.story.version = 3;
     delete old.story.progress['lunar-attack'];
     const next = parseCampaign(JSON.stringify(old))!;
     assert.ok(next);
-    assert.equal(next.version, 25);
+    assert.equal(next.version, 27);
     assert.equal(next.story!.progress['lunar-attack'], 0);
     assert.ok(next.story!.claimed.includes('lunar-defense'));
     assert.equal(actOneComplete(next.story!), false);

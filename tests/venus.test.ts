@@ -42,7 +42,9 @@ const idle: FlightInput = {
 function marsReported() {
     const c = newStoryCampaign();
     c.station.workshop = 1;
-    for (const t of STORY_TASKS.filter((t) => t.required && (t.act === 1 || t.sector === 'mars'))) {
+    for (const t of STORY_TASKS.filter(
+        (t) => t.required && (t.act === 1 || (t.sector === 'mars' && t.act === 2)),
+    )) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
     }
@@ -130,13 +132,18 @@ test('v23 saves preserve Mars reports and active runs while adding an unaccepted
         if (active) beginRun(c, 1);
         const old = JSON.parse(JSON.stringify(c));
         old.version = 23;
+        for (const key of Object.keys(old.story.progress))
+            if (key.startsWith('mercury-')) delete old.story.progress[key];
+        for (const key of Object.keys(old.story.progress))
+            if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
+                delete old.story.progress[key];
         old.story.version = 5;
         for (const t of STORY_TASKS.filter((t) => t.id === 'earth-debrief' || t.sector === 'venus'))
             delete old.story.progress[t.id];
         const next = parseCampaign(JSON.stringify(old))!;
         assert.ok(next);
-        assert.equal(next.version, 25);
-        assert.equal(next.story!.version, 7);
+        assert.equal(next.version, 27);
+        assert.equal(next.story!.version, 9);
         assert.deepEqual(next.story!.claimed, c.story!.claimed);
         assert.deepEqual(next.bank, c.bank);
         assert.deepEqual(next.activeRun, c.activeRun);

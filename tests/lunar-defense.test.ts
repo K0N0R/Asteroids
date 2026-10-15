@@ -214,12 +214,17 @@ test('v20 migration preserves commissioned installations and adds an unfinished 
     for (const key of Object.keys(old.story.progress))
         if (key.startsWith('mars-') || key.startsWith('venus-') || key === 'earth-debrief')
             delete old.story.progress[key];
+    for (const key of Object.keys(old.story.progress))
+        if (key.startsWith('mercury-')) delete old.story.progress[key];
+    for (const key of Object.keys(old.story.progress))
+        if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
+            delete old.story.progress[key];
     old.story.version = 2;
     delete old.story.progress['lunar-defense'];
     delete old.story.progress['lunar-attack'];
     const next = parseCampaign(JSON.stringify(old))!;
     assert.ok(next);
-    assert.equal(next.version, 25);
+    assert.equal(next.version, 27);
     assert.ok(next.story!.claimed.includes('lunar-commission'));
     assert.equal(next.story!.progress['lunar-defense'], 0);
     assert.deepEqual(next.bank, c.bank);

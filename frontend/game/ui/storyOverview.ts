@@ -37,7 +37,7 @@ export function storyOverview(
             unlocked = storySectorUnlocked(p, id);
         button(
             ui,
-            `${def.shortName}${unlocked ? ` · ${def.size}` : ' · blokada'}`,
+            `${def.shortName}${unlocked ? ` · ${def.size}` : ' · ×'}`,
             280 + i * (tabWidth + 12),
             213,
             tabWidth,
@@ -118,7 +118,7 @@ export function storyOverview(
                 available && task.kind === 'delivery'
                     ? `Dostawa na powierzchni · ${task.resource === 'ore' ? 'ruda' : 'komponenty'} · E przy budowie`
                     : available && task.kind === 'construction'
-                      ? '8 placówka · E przez 2 s · budowa podczas wyprawy'
+                      ? `${p.sector === 'mars' ? '7 baza' : '8 placówka'} · E przez 2 s · budowa podczas wyprawy`
                       : available
                         ? `Premia: ${task.reward.ore} rudy · ${task.reward.parts} komponentów`
                         : 'Zadanie zostanie udostępnione później.',
@@ -177,21 +177,25 @@ export function storyOverview(
     label(ui, def.name, 1072, 276, 27, C.text, 456);
     label(
         ui,
-        p.sector === 'earth' && p.claimed.includes('mars-belt')
-            ? EARTH_BRIEFING
-            : p.sector === 'venus'
-              ? complete
-                  ? storyNextStep(p)
-                  : 'Przed wyprawą na Merkurego potrzebujesz zaplecza przy Wenus. Rozpoznaj orbitę, wybierz miejsce pod placówkę i zgromadź materiały. Ziemia, Księżyc i Mars pozostają dostępne.'
-              : p.sector === 'mars'
-                ? complete
-                    ? storyNextStep(p)
-                    : 'Podejmij pościg w stronę Marsa. Rozpoznaj przekaźnik i zabezpiecz podejście, aby dotrzeć do pasa asteroid. Dalszy przelot wymaga nowej technologii.'
-                : actOneComplete(p)
-                  ? 'Stacja paliw działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
-                  : p.sector === 'earth'
-                    ? 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
-                    : 'Rozpoznaj trasę i zbuduj księżycową stację paliw: 48 rudy na fundamenty, potem 12 komponentów na instalacje. Ziemia pozostaje dostępna.',
+        storyAct(p) === 'AKT V'
+            ? storyNextStep(p)
+            : p.sector === 'mercury'
+              ? storyNextStep(p)
+              : p.sector === 'earth' && p.claimed.includes('mars-belt')
+                ? EARTH_BRIEFING
+                : p.sector === 'venus'
+                  ? complete || p.claimed.includes('venus-build')
+                      ? storyNextStep(p)
+                      : 'Przed wyprawą na Merkurego potrzebujesz zaplecza przy Wenus. Rozpoznaj orbitę, wybierz miejsce pod placówkę i zgromadź materiały. Ziemia, Księżyc i Mars pozostają dostępne.'
+                  : p.sector === 'mars'
+                    ? complete
+                        ? storyNextStep(p)
+                        : 'Podejmij pościg w stronę Marsa. Rozpoznaj przekaźnik i zabezpiecz podejście, aby dotrzeć do pasa asteroid. Dalszy przelot wymaga nowej technologii.'
+                    : actOneComplete(p)
+                      ? 'Stacja paliw działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
+                      : p.sector === 'earth'
+                        ? 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
+                        : 'Rozpoznaj trasę i zbuduj księżycową stację paliw: 48 rudy na fundamenty, potem 12 komponentów na instalacje. Ziemia pozostaje dostępna.',
         1072,
         320,
         17,
@@ -250,13 +254,17 @@ export function storyOverview(
     );
     label(
         ui,
-        p.sector === 'venus'
-            ? '7 przekaźnik · 8 placówka · 2 złoże · 1 powrót. E odczyt / budowa / dokowanie · G obrona przy placówce. Osłona: komponenty w stacji.'
-            : p.sector === 'mars'
-              ? 'F przeciwnik · 7 ślad pościgu · 8 pas po rozpoznaniu · 1 powrót. E odczyt / dokowanie. Przelot przez pas wymaga technologii.'
-              : p.sector === 'lunar'
-                ? 'Orbita: 3 Księżyc po zwiadzie. Powierzchnia: 7 budowa · 2 złoże · 1 wyjście. E odczyt / dostawa / przejście.'
-                : '2 złoże · 7 łączność · 8 dalszy węzeł po odblokowaniu · 1 powrót · E odczyt / dokowanie',
+        storyAct(p) === 'AKT V'
+            ? '7 baza · E montaż / dokowanie · G obrona przy bazie · F patrole w korytarzu · 8 pomiary po montażu. Raporty zabezpieczysz po powrocie.'
+            : p.sector === 'mercury'
+              ? '7 pomiary · F przeciwnik · 8 technologia po raportach. 3 / 4 / 5 schronienia: lewa strona dużych skał. Nie niszcz osłon bez potrzeby.'
+              : p.sector === 'venus'
+                ? '7 przekaźnik · 8 placówka · 2 złoże · 1 powrót. E odczyt / budowa / dokowanie · G obrona przy placówce. Osłona: komponenty w stacji.'
+                : p.sector === 'mars'
+                  ? 'F przeciwnik · 7 ślad pościgu · 8 pas po rozpoznaniu · 1 powrót. E odczyt / dokowanie. Przelot przez pas wymaga technologii.'
+                  : p.sector === 'lunar'
+                    ? 'Orbita: 3 Księżyc po zwiadzie. Powierzchnia: 7 budowa · 2 złoże · 1 wyjście. E odczyt / dostawa / przejście.'
+                    : '2 złoże · 7 łączność · 8 dalszy węzeł po odblokowaniu · 1 powrót · E odczyt / dokowanie',
         1072,
         657,
         14,

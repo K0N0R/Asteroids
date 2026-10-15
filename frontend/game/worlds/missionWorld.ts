@@ -43,13 +43,13 @@ import type { Point } from './sector';
 import { outpostView } from '../graphics/outpostView';
 import { impactParticleCount } from '../systems/impact';
 import { CACHE } from '../systems/prototypes';
-import { VenusOutpostView } from '../graphics/venusOutpost';
+import { OrbitalOutpostView } from '../graphics/venusOutpost';
 import { MoonSurfaceView } from '../graphics/moonSurface';
 
 const interpolate = (a: number, b: number, t: number) => a + (b - a) * t;
 export class MissionWorld extends Container {
     private moon: MoonSurfaceView;
-    private venusOutpost = new VenusOutpostView();
+    private venusOutpost = new OrbitalOutpostView();
     readonly audio = createMissionAudio();
     readonly camera = new Container();
     readonly shipView;
@@ -76,6 +76,8 @@ export class MissionWorld extends Container {
         blast?: boolean;
     }[] = [];
     private shield = new Graphics();
+    private solarShadows = new Graphics();
+    private solarGlare = new Graphics().rect(0, 0, 1600, 900).fill(0xf0a04c);
     private kineticView = new Graphics();
     private atlasLockView = new Graphics();
     private burningView = new Graphics();
@@ -116,7 +118,7 @@ export class MissionWorld extends Container {
         this.shipView.scale.set(simulation.hullConfig.size);
         this.camera.rotation = -Math.PI / 2 - simulation.ship.rotation();
         this.moon = new MoonSurfaceView(!!simulation.surfaceUnlocked);
-        this.camera.addChild(this.moon, this.venusOutpost);
+        this.camera.addChild(this.moon, this.venusOutpost, this.solarShadows);
         this.camera.addChild(this.navigation, this.shield, this.home);
         label(this.home, simulation.stationName, -65, 165, 18, C.mint);
         const wreck = wreckView(),
@@ -246,7 +248,9 @@ export class MissionWorld extends Container {
             this.recoveryView.position.set(signal.x, signal.y);
             this.camera.addChild(this.recoveryRing, this.recoveryView);
         }
-        this.addChild(this.camera);
+        this.solarGlare.visible = simulation.mercurySector;
+        this.solarGlare.alpha = 0;
+        this.addChild(this.camera, this.solarGlare);
         this.render(1);
     }
     private holHealthBar(g: Graphics, p: Point, health: number, max: number, color: number) {
@@ -413,6 +417,31 @@ export class MissionWorld extends Container {
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
             p = s.position;
+        this.solarGlare.alpha = s.mercurySector
+            ? (s.solar.phase === 'flare' ? 0.06 : 0.01) + s.solar.heat * 0.0008
+            : 0;
+        this.solarShadows.clear();
+        if (s.mercurySector)
+            for (const rock of s.rocks.values()) {
+                if (rock.radius < 60) continue;
+                const p = rock.body.translation(),
+                    x = p.x * GAME.pixelsPerMeter,
+                    y = p.y * GAME.pixelsPerMeter,
+                    r = rock.radius;
+                this.solarShadows
+                    .poly([
+                        x - r,
+                        y - r * 0.72,
+                        x - 650,
+                        y - r * 0.72,
+                        x - 650,
+                        y + r * 0.72,
+                        x - r,
+                        y + r * 0.72,
+                    ])
+                    .fill({ color: C.cyan, alpha: 0.09 })
+                    .stroke({ color: C.cyan, width: 1, alpha: 0.2 });
+            }
         this.venusOutpost.update(s, this.camera.rotation);
         this.moon.update(s.area === 'surface', s.buildStage, this.camera.rotation);
         this.moon.updateDefense(
@@ -781,6 +810,7 @@ export class MissionWorld extends Container {
             const view = this.surveyViews.get(site.siteId)!;
             view.visible =
                 !(s.venusSector && site.siteId === 'archive' && s.venusOutpostStage >= 0) &&
+                !(s.marsBaseSector && site.siteId === 'archive' && s.orbitalBaseStage < 1) &&
                 this.inView(site, site.siteId === 'fortress' ? site.radius : 0);
             if (!view.visible) continue;
             const title = this.surveyLabels.get(site.siteId)!;

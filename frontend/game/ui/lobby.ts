@@ -215,7 +215,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.45', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.47', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -308,24 +308,32 @@ export class LobbyView extends Container {
                 this.storyPageSector = p.sector;
             }
             this.section(
-                p.sector === 'venus'
-                    ? 'Akt III · Przygotowania'
-                    : storyAct(p) === 'AKT II'
-                      ? 'Akt II · Nowy kierunek'
-                      : actOneComplete(p)
-                        ? 'Akt I ukończony'
-                        : 'Dowodzenie Satuk 15',
-                p.sector === 'venus'
-                    ? 'Zbuduj placówkę, przygotuj osłonę i zabezpiecz wyprawę na Merkurego.'
-                    : actTwoComplete(p)
-                      ? 'Akt II ukończony. Trasa do Wenus otwarta.'
-                      : p.claimed.includes('mars-belt')
-                        ? 'Pas blokuje pościg. Odbierz odprawę w sektorze Ziemi.'
-                        : p.sector === 'mars'
-                          ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'
+                storyAct(p) === 'AKT V'
+                    ? 'Akt V · Baza marsjańska'
+                    : p.sector === 'mercury'
+                      ? 'Akt IV · Blisko Słońca'
+                      : p.sector === 'venus'
+                        ? 'Akt III · Przygotowania'
+                        : storyAct(p) === 'AKT II'
+                          ? 'Akt II · Nowy kierunek'
                           : actOneComplete(p)
-                            ? 'Atak odparty. Stacja paliw działa. Następny kierunek: Mars.'
-                            : 'Akt I · Pierwsze sygnały. Wybierz sektor i przygotuj wyprawę.',
+                            ? 'Akt I ukończony'
+                            : 'Dowodzenie Satuk 15',
+                storyAct(p) === 'AKT V'
+                    ? 'Zbuduj bazę i zabezpiecz dalszą ekspedycję przed wrogimi jednostkami.'
+                    : p.sector === 'mercury'
+                      ? 'Wykorzystaj osłonę słoneczną i cień skał. Zabezpiecz dane potrzebne do dalszej drogi.'
+                      : p.sector === 'venus'
+                        ? 'Zbuduj placówkę, przygotuj osłonę i zabezpiecz wyprawę na Merkurego.'
+                        : actTwoComplete(p)
+                          ? 'Akt II ukończony. Trasa do Wenus otwarta.'
+                          : p.claimed.includes('mars-belt')
+                            ? 'Pas blokuje pościg. Odbierz odprawę w sektorze Ziemi.'
+                            : p.sector === 'mars'
+                              ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'
+                              : actOneComplete(p)
+                                ? 'Atak odparty. Stacja paliw działa. Następny kierunek: Mars.'
+                                : 'Akt I · Pierwsze sygnały. Wybierz sektor i przygotuj wyprawę.',
             );
             storyOverview(ui, this.campaign, {
                 contribute: this.actions.contribute,

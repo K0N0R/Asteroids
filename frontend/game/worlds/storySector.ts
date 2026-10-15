@@ -1,7 +1,32 @@
-import { generateSector, random, type RockSpec } from './sector';
-import { storyRadius, marsApproachOpen, STORY_SECTORS, type StoryProgress } from '../state/story';
+import { generateSector, random, type RockSpec, type EnemySpec } from './sector';
+import {
+    storyRadius,
+    marsApproachOpen,
+    beltTechnologyReady,
+    MARS_BASE,
+    STORY_SECTORS,
+    type StoryProgress,
+} from '../state/story';
+import { MERCURY_SHELTERS } from '../systems/solarExposure';
 import { MOON } from './moon';
 
+const MARS_CORRIDOR_POINTS = [
+    { x: 1400, y: -1500 },
+    { x: 2500, y: -800 },
+    { x: 3900, y: 1700 },
+];
+export function marsCorridorFleet(progress: StoryProgress): EnemySpec[] {
+    return progress.claimed.includes('mars-base-build')
+        ? MARS_CORRIDOR_POINTS.slice(progress.progress['mars-corridor']).map((point, i) => ({
+              ...point,
+              home: { ...point },
+              id: 9000 + i,
+              phase: 0,
+              kind: point.x > 2000 ? 'lancer' : 'patrol',
+              storyPatrol: true,
+          }))
+        : [];
+}
 export function generateStorySector(progress: StoryProgress) {
     const def = STORY_SECTORS[progress.sector],
         sector = generateSector(def.seed);
@@ -149,7 +174,9 @@ export function generateStorySector(progress: StoryProgress) {
                       {
                           x: 3600,
                           y: 600,
-                          name: 'Pas asteroid · przelot zablokowany',
+                          name: beltTechnologyReady(progress)
+                              ? 'Podejście do pasa · technologia zabezpieczona'
+                              : 'Pas asteroid · przelot zablokowany',
                           key: 8,
                           kind: 'archive' as const,
                           siteId: 'archive' as const,
@@ -174,6 +201,37 @@ export function generateStorySector(progress: StoryProgress) {
         sector.rocks = sector.rocks.filter((r) =>
             [...sector.landmarks.filter((l) => l.siteId), ...contacts].every(
                 (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 330,
+            ),
+        );
+    }
+    if (progress.sector === 'mars' && beltTechnologyReady(progress)) {
+        sector.landmarks = [
+            { x: 1100, y: 0, name: 'Złoże marsjańskie', key: 2, kind: 'field', radius: 330 },
+            {
+                ...MARS_BASE,
+                name: progress.claimed.includes('mars-base-build')
+                    ? 'Baza marsjańska'
+                    : 'Plac budowy bazy',
+                key: 7,
+                kind: 'construction',
+                radius: 180,
+            },
+            { x: 850, y: -550, name: 'Pozostałości na trasie', key: 4, kind: 'wreck', radius: 100 },
+            {
+                x: 4300,
+                y: -1700,
+                name: 'Pomiary dalszej trasy',
+                key: 8,
+                kind: 'archive',
+                siteId: 'archive',
+                radius: 180,
+            },
+        ];
+        const contacts = MARS_CORRIDOR_POINTS;
+        sector.enemies = marsCorridorFleet(progress);
+        sector.rocks = sector.rocks.filter((r) =>
+            [MARS_BASE, ...contacts, ...sector.landmarks.filter((l) => l.siteId)].every(
+                (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 360,
             ),
         );
     }
@@ -218,6 +276,86 @@ export function generateStorySector(progress: StoryProgress) {
                 .filter((l) => l.siteId)
                 .every((l) => Math.hypot(r.x - l.x, r.y - l.y) > r.radius + 360),
         );
+    }
+    if (progress.sector === 'mercury') {
+        const expanded = progress.claimed.includes('mercury-survey');
+        sector.landmarks = [
+            { x: 1100, y: -300, name: 'Złoże przy Merkurym', key: 2, kind: 'field', radius: 300 },
+            {
+                ...MERCURY_SHELTERS[0],
+                name: 'Pomiary podejścia · cień skały',
+                key: 7,
+                kind: 'relay',
+                siteId: 'relay',
+                radius: 180,
+            },
+            {
+                ...MERCURY_SHELTERS[0],
+                name: 'Bliskie schronienie · skała od strony Słońca',
+                key: 3,
+                kind: 'field',
+                radius: 100,
+            },
+            {
+                ...MERCURY_SHELTERS[1],
+                name: 'Schronienie na podejściu',
+                key: 4,
+                kind: 'field',
+                radius: 100,
+            },
+            ...(expanded
+                ? [
+                      {
+                          ...MERCURY_SHELTERS[2],
+                          name: 'Dalsze schronienie',
+                          key: 5,
+                          kind: 'field' as const,
+                          radius: 100,
+                      },
+                  ]
+                : []),
+            ...(progress.claimed.includes('mercury-patrol')
+                ? [
+                      {
+                          ...MERCURY_SHELTERS[2],
+                          name: 'Pakiet technologii przejścia',
+                          key: 8,
+                          kind: 'archive' as const,
+                          siteId: 'archive' as const,
+                          radius: 180,
+                      },
+                  ]
+                : []),
+        ];
+        const contacts = [
+            { x: 2200, y: -850 },
+            { x: 3400, y: 200 },
+        ];
+        sector.enemies = expanded
+            ? contacts.slice(progress.progress['mercury-patrol']).map((point, i) => ({
+                  ...point,
+                  home: { ...point },
+                  id: 8000 + i,
+                  kind: (point.x > 3000 ? 'lancer' : 'patrol') as 'lancer' | 'patrol',
+                  phase: 0,
+                  storyPatrol: true,
+              }))
+            : [];
+        sector.rocks = sector.rocks.filter((r) =>
+            [...MERCURY_SHELTERS, ...contacts].every(
+                (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 420,
+            ),
+        );
+        for (const point of MERCURY_SHELTERS.slice(0, expanded ? 3 : 2))
+            sector.rocks.push({
+                x: point.x + 240,
+                y: point.y,
+                radius: 110,
+                rich: false,
+                variant: 42,
+                vx: 0,
+                vy: 0,
+            });
     }
     return sector;
 }
