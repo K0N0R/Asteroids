@@ -1,13 +1,12 @@
-import { phaseBladeScale } from '../config';
 import { Container, Graphics } from 'pixi.js';
+import { fittedArmor } from './hullArmor';
 import type { HullId, Mount } from '../config';
 import type { ShipModules } from '../state/campaign';
 import { HULL_PALETTES, engineHousing, drawTank, roundedPanel } from './shipHull';
 
 // Fitted sockets are local to each silhouette, rather than a universal strip on the deck.
-export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[] }> = {
+export const EQUIPMENT_SOCKETS: Record<HullId, { jets: Mount[] }> = {
     prospector: {
-        ribs: [],
         jets: [
             { x: 0, y: 20 },
             { x: -15, y: 17 },
@@ -15,10 +14,6 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     swift: {
-        ribs: [
-            [-30, -18, -16, -22, 0, -12],
-            [-30, 18, -16, 22, 0, 12],
-        ],
         jets: [
             { x: -18, y: 24 },
             { x: 3, y: 16 },
@@ -26,7 +21,6 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     mule: {
-        ribs: [],
         jets: [
             { x: 29, y: 31 },
             { x: 4, y: 13 },
@@ -34,10 +28,6 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     fighter: {
-        ribs: [
-            [-12, -19, 1, -18, 12, -11],
-            [-12, 19, 1, 18, 12, 11],
-        ],
         jets: [
             { x: 0, y: 23 },
             { x: -15, y: 16 },
@@ -45,10 +35,6 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     tug: {
-        ribs: [
-            [-25, 0, -2, -10, 12, -33, 24, -27],
-            [-25, 0, -2, 10, 12, 33, 24, 27],
-        ],
         jets: [
             { x: 11, y: 39 },
             { x: 27, y: 30 },
@@ -56,10 +42,6 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     falcon: {
-        ribs: [
-            [-24, -20, -32, -8, -32, 8, -24, 20],
-            [20, -20, 36, -15, 36, -10],
-        ],
         jets: [
             { x: -6, y: 32 },
             { x: -23, y: 25 },
@@ -67,32 +49,18 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     widmo: {
-        ribs: [
-            [11, -44, -2, -47, -14, -43],
-            [11, 44, -2, 47, -14, 43],
-        ],
         jets: [],
     },
     atlas: {
-        ribs: [
-            [-30, -11, 23, -11, 35, -6],
-            [-30, 11, 23, 11, 35, 6],
-        ],
         jets: [],
     },
     harpoon: {
-        ribs: [],
         jets: [],
     },
     aegis: {
-        ribs: [],
         jets: [],
     },
     stinger: {
-        ribs: [
-            [-27, -37, -22, -38, -9, -23, 10, -34],
-            [-27, 37, -22, 38, -9, 23, 10, 34],
-        ],
         jets: [
             { x: -22, y: 43 },
             { x: 17, y: 40 },
@@ -100,17 +68,9 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     phoenix: {
-        ribs: [
-            [-26, -26, -15, -20, 1, -11],
-            [-26, 26, -15, 20, 1, 11],
-        ],
         jets: [],
     },
     raider: {
-        ribs: [
-            [-22, -20, -14, -25, 8, -22],
-            [-22, 20, -14, 25, 8, 22],
-        ],
         jets: [
             { x: -12, y: 27 },
             { x: 14, y: 23 },
@@ -118,10 +78,6 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     lancer: {
-        ribs: [
-            [-22, -20, -14, -25, 8, -22],
-            [-22, 20, -14, 25, 8, 22],
-        ],
         jets: [
             { x: -12, y: 27 },
             { x: 14, y: 23 },
@@ -241,26 +197,7 @@ export function cargoEquipment(hull: HullId, level: number, underbody = false) {
 }
 
 export function fittedEquipment(hull: HullId, modules: ShipModules) {
-    const g = new Graphics(),
-        sockets = EQUIPMENT_SOCKETS[hull],
-        palette = HULL_PALETTES[hull];
-    g.context.save();
-    if (hull === 'widmo')
-        g.context.scale(1 + modules.handling * 0.025, phaseBladeScale(modules.handling));
-    for (let level = 0; level < modules.armor; level++) {
-        for (const rib of sockets.ribs) {
-            g.beginPath();
-            for (let i = 0; i < rib.length; i += 2) {
-                const x = rib[i] * (1 - level * 0.04),
-                    y = rib[i + 1] * (1 - level * 0.04);
-                if (i === 0) g.moveTo(x, y);
-                else g.lineTo(x, y);
-            }
-            g.stroke({ color: palette.edge, width: 0.8, alpha: 0.5 + modules.armor * 0.1 });
-        }
-    }
-    g.context.restore();
-    return g;
+    return fittedArmor(hull, modules);
 }
 
 export function outerArmor(hull: HullId, level: number) {

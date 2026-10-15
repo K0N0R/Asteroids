@@ -62,3 +62,7 @@ Kadłub Prospectora otrzymał łagodnie spłaszczony dziób i rufę zamiast peł
 ## Poszycie Mule’a
 
 Usunięto prostokątne nakładki przy laserach i cienkie linie wzmocnień. Pancerz ma dodatkowe poszycie dopasowane do kadłuba w kształcie T: poziom I wzmacnia poprzeczkę i przednie przewężenie, II środkową część trzonu, III jego tylną część. Płyty mają pełne powierzchnie i obramowanie zamiast nakładanych linii. Statystyki bez zmian. Weryfikacja: 80 testów, TypeScript, lint zmienionych plików, build i porównanie kolejnych poziomów w przeglądarce.
+
+## Domknięcie pancerzy całej floty
+
+Dziesięć pozostałych zestawów wzmocnień otrzymało pełne poszycie dopasowane do kadłubów. Dawną tabelę cienkich linii zastąpiły osobne zestawy płyt. [Szczegóły, weryfikacja i dalsze propozycje](hull-armor.md).

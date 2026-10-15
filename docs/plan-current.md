@@ -26,7 +26,13 @@ Odzysk technologii i wrogich kadłubów, Swift/Widmo, warianty uzbrojenia wszyst
 
 Czytelne parametry i podgląd modułów w stoczni, wyposażenie dopasowane do kadłubów, nieregularny Aegis oraz szersze Widmo z ulepszanym dashem, smugą i wychodzeniem z przeszkód do przodu. [Szczegóły](implementation-v0.35.md).
 
+## Pancerz floty — wdrożony
+
+Wszystkie kadłuby mają poszycie, pogrubione obramowania lub osobne płyty zamiast cienkich linii ulepszeń. [Zestawy, kontrola wizualna i propozycje dalszych kroków](hull-armor.md).
+
 ## Następny proponowany etap
+
+Przed dalszą rozbudową wizualną proponowane są indywidualny podgląd wybranego modułu i poziomu oraz subtelna wizualizacja uszkodzeń. Nie zostały jeszcze wdrożone.
 
 Ręczna sesja balansu: nowa kampania, droga od Prospectora do warsztatu II, porównanie przychodów z wydobycia, walki i odzysku, kosztów strat oraz użyteczności załogi. Bez tej sesji nie deklarujemy docelowego balansu ani stabilnych 60 FPS.
 

@@ -204,8 +204,8 @@ export class ShipView extends Container {
         this.addChild(maneuveringJets(hull, modules.handling));
         this.addChild(
             shipHull(hull, modules),
-            cargoEquipment(hull, modules.cargo),
             fittedEquipment(hull, modules),
+            cargoEquipment(hull, modules.cargo),
         );
         for (const mount of config.grabbers)
             this.addChild(
