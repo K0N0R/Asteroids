@@ -61,7 +61,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 15;
+    version: 17;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
@@ -120,7 +120,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 15,
+        version: 17,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
@@ -156,7 +156,9 @@ export function parseCampaign(json: string | null): Campaign | null {
         const p: unknown = JSON.parse(json ?? 'null');
         if (
             !object(p) ||
-            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(p.version as number) ||
+            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(
+                p.version as number,
+            ) ||
             !cargo(p.bank) ||
             !object(p.station)
         )
@@ -238,10 +240,14 @@ export function parseCampaign(json: string | null): Campaign | null {
             if (object(p.activeRun)) p.activeRun.repairKits = 0;
         }
         if ((p.version as number) < 10 && object(p.crew)) p.crew.quartermaster = false;
+        if ((p.version as number) < 16 && object(p.crew)) p.crew.mechanicAboard = false;
+        if ((p.version as number) < 17 && object(p.crew)) p.crew.quartermasterAboard = false;
         if (
             !object(p.crew) ||
             typeof p.crew.mechanic !== 'boolean' ||
+            typeof p.crew.mechanicAboard !== 'boolean' ||
             typeof p.crew.quartermaster !== 'boolean' ||
+            typeof p.crew.quartermasterAboard !== 'boolean' ||
             !integer(p.repairKits, CREW.kitLimit) ||
             !integer(p.crew.completed) ||
             !integer(p.crew.nextJobId) ||
@@ -278,8 +284,24 @@ export function parseCampaign(json: string | null): Campaign | null {
                 return null;
         if (new Set(p.crew.jobs.map((job) => job.id)).size !== p.crew.jobs.length) return null;
         if (
+            p.crew.mechanicAboard &&
+            (!p.crew.mechanic ||
+                p.crew.jobs.some(
+                    (job) => JOBS[job.kind as keyof typeof JOBS].worker === 'mechanic',
+                ))
+        )
+            return null;
+        if (
             p.activeRun !== null &&
             (!object(p.activeRun) || !integer(p.activeRun.repairKits, CREW.embarkKits))
+        )
+            return null;
+        if (
+            p.crew.quartermasterAboard &&
+            (!p.crew.quartermaster ||
+                p.crew.jobs.some(
+                    (job) => JOBS[job.kind as keyof typeof JOBS].worker === 'quartermaster',
+                ))
         )
             return null;
         if (p.version === 2) {
@@ -463,7 +485,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         if ((p.version as number) < 15)
             for (const ship of [p.ship, ...p.reserveShips, ...p.recoverySignals.map((s) => s.ship)])
                 if (ship) ship.shield ??= 0;
-        p.version = 15;
+        p.version = 17;
         const campaign = p as unknown as Campaign;
         if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
             return null;
@@ -844,6 +866,16 @@ export function finishRun(
         c.pilots = c.pilots.filter((p) => p.id !== active.pilotId);
         c.selectedPilot = c.pilots[0]?.id ?? 0;
         c.ship = null;
+        if (c.crew.mechanicAboard) {
+            c.crew.mechanic = false;
+            c.crew.mechanicAboard = false;
+            result.recoveryText += ' Mechanik pokładowy został utracony.';
+        }
+        if (c.crew.quartermasterAboard) {
+            c.crew.quartermaster = false;
+            c.crew.quartermasterAboard = false;
+            result.recoveryText += ' Intendent pokładowy został utracony.';
+        }
         if (!signal?.pilot) c.lostPilots++;
     }
     c.activeRun = null;

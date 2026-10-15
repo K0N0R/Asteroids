@@ -196,7 +196,7 @@ test('v3 migration keeps fleet, crew and interrupted marker without inventing pa
     delete old.activeRun.lastPosition;
     const loaded = parseCampaign(JSON.stringify(old))!;
     assert.ok(loaded);
-    assert.equal(loaded.version, 15);
+    assert.equal(loaded.version, newCampaign().version);
     assert.deepEqual(
         loaded.reserveShips,
         c.reserveShips.map((ship) => ({

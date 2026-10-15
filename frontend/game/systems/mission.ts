@@ -7,6 +7,7 @@ import type { SoundCue } from './audioPolicy';
 import {
     AEGIS,
     ATLAS_WEAPONS,
+    CREW,
     JOBS,
     PHOENIX,
     STINGER_AMMO,
@@ -149,6 +150,10 @@ export class MissionSimulation {
     dockProgress = 0;
     engineFault = false;
     repairProgress = 0;
+    automaticRepair = false;
+    readonly mechanicAboard: boolean;
+    readonly quartermasterAboard: boolean;
+    kitProgress = 0;
     repairKits: number;
     wreckVisited = false;
     notice = '';
@@ -224,6 +229,12 @@ export class MissionSimulation {
         );
         this.hull = this.maxHull;
         this.repairKits = campaign.activeRun?.repairKits ?? 0;
+        this.mechanicAboard =
+            !!campaign.activeRun && campaign.crew.mechanicAboard && campaign.crew.mechanic;
+        this.quartermasterAboard =
+            !!campaign.activeRun &&
+            campaign.crew.quartermasterAboard &&
+            campaign.crew.quartermaster;
         this.world.timestep = GAME.step;
         this.ship = this.world.createRigidBody(
             RAPIER.RigidBodyDesc.dynamic()
@@ -529,7 +540,7 @@ export class MissionSimulation {
                 ? `Skanowanie · ${Math.floor((this.scanProgress / SCAN.seconds) * 100)}%`
                 : 'Przytrzymaj E · skan 3 s · bez ciągu i ognia, poniżej 60 m/s';
         if (this.repairProgress > 0)
-            return `${this.aegis && !this.aegis.drone ? 'Odbudowa drona' : 'Naprawa napędu / kadłuba'} · ${Math.ceil((this.repairProgress / GAME.repairSeconds) * 100)}%`;
+            return `${this.automaticRepair ? 'Mechanik pokładowy' : this.aegis && !this.aegis.drone ? 'Odbudowa drona' : 'Naprawa napędu / kadłuba'} · ${Math.ceil((this.repairProgress / this.repairSeconds) * 100)}%`;
         if (this.aegis && !this.aegis.drone)
             return this.repairKits > 0
                 ? 'Dron zniszczony · przytrzymaj R, aby odbudować'
@@ -648,12 +659,13 @@ export class MissionSimulation {
             this.modules.hull === 'mule' &&
             input.mine &&
             this.repairKits === 0 &&
+            this.campaign.repairKits < CREW.kitLimit &&
             this.cargo.ore >= this.repairKitCost.ore &&
             this.cargo.parts >= this.repairKitCost.parts
         ) {
             this.cargo.ore -= this.repairKitCost.ore;
             this.cargo.parts -= this.repairKitCost.parts;
-            this.repairKits = 1;
+            this.supplyRepairKit();
             this.setNotice('Utworzono zestaw naprawczy · przytrzymaj R, aby użyć.');
             this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
         }
@@ -919,6 +931,7 @@ export class MissionSimulation {
             if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < GAME.dockRadius)
                 this.deliverTow(item);
         this.collectLoot(dt);
+        this.updateQuartermaster(dt);
         this.updateRepair(input, dt);
         this.updateEscort(input, dt);
         this.updateRecovery(input, dt);
@@ -1508,15 +1521,66 @@ export class MissionSimulation {
             });
         }
     }
-    private updateRepair(input: FlightInput, dt: number) {
+    get repairSeconds() {
+        return this.automaticRepair ? CREW.fieldRepairSeconds : GAME.repairSeconds;
+    }
+    get quartermasterStatus() {
+        if (!this.quartermasterAboard) return 'Brak intendenta na pokładzie';
+        if (this.repairKits > 0) return `Zestaw gotowy · zapas ${this.repairKits}`;
+        if (this.campaign.repairKits >= CREW.kitLimit) return 'Limit zapasu zestawów';
+        if (this.cargo.parts < CREW.fieldKitParts)
+            return `Brak komponentów · wymagane ${CREW.fieldKitParts}`;
+        return `Produkcja zestawu ${Math.floor((this.kitProgress / CREW.fieldKitSeconds) * 100)}%`;
+    }
+    private supplyRepairKit() {
+        this.repairKits++;
+        if (this.campaign.activeRun)
+            this.campaign.activeRun.repairKits = Math.max(
+                this.campaign.activeRun.repairKits,
+                this.repairKits,
+            );
+    }
+    private updateQuartermaster(dt: number) {
         if (
-            !input.repair ||
-            this.thrusting ||
-            input.fire ||
-            input.mine ||
-            input.interact ||
-            input.sabotage ||
-            this.speed > GAME.repairSpeed ||
+            !this.quartermasterAboard ||
+            this.repairKits > 0 ||
+            this.campaign.repairKits >= CREW.kitLimit ||
+            this.cargo.parts < CREW.fieldKitParts
+        ) {
+            this.kitProgress = 0;
+            return;
+        }
+        this.kitProgress += dt;
+        if (this.kitProgress + 1e-8 < CREW.fieldKitSeconds) return;
+        this.cargo.parts -= CREW.fieldKitParts;
+        this.supplyRepairKit();
+        this.kitProgress = 0;
+        this.setNotice('Intendent przygotował zestaw naprawczy.');
+        this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
+    }
+    get mechanicStatus() {
+        if (!this.mechanicAboard) return 'Brak mechanika na pokładzie';
+        if (this.repairKits <= 0) return 'Brak zestawów naprawczych';
+        if (this.automaticRepair && this.repairProgress > 0)
+            return `Naprawa ${Math.ceil((this.repairProgress / this.repairSeconds) * 100)}%`;
+        return `Gotowość · zestawy ${this.repairKits}`;
+    }
+    private updateRepair(input: FlightInput, dt: number) {
+        const automatic =
+            this.mechanicAboard &&
+            !input.repair &&
+            (this.engineFault || this.hull < this.maxHull * CREW.fieldRepairThreshold);
+        if (this.automaticRepair !== automatic) this.repairProgress = 0;
+        this.automaticRepair = automatic;
+        if (
+            (!input.repair && !automatic) ||
+            (!automatic &&
+                (this.thrusting ||
+                    input.fire ||
+                    input.mine ||
+                    input.interact ||
+                    input.sabotage ||
+                    this.speed > GAME.repairSpeed)) ||
             this.repairKits <= 0 ||
             this.hull <= 0 ||
             (!this.engineFault && this.hull >= this.maxHull && (!this.aegis || this.aegis.drone))
@@ -1541,7 +1605,7 @@ export class MissionSimulation {
             );
             this.events.push({ ...point, kind: 'weld', strength: 3, velocity: this.velocity });
         }
-        if (this.repairProgress + 1e-8 >= GAME.repairSeconds) {
+        if (this.repairProgress + 1e-8 >= this.repairSeconds) {
             this.repairKits--;
             this.engineFault = false;
             this.repairProgress = 0;

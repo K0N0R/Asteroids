@@ -233,3 +233,11 @@ Widmo zastępuje Swifta nową sylwetką i kamuflażem optycznym na PPM. Mule pro
 ## Etap 0.31 - wdrożony
 
 Feniks: uniwersalny szturmowiec z centralnym czerwonym laserem bojowym na LPM, wydobyciem i odnawianym podpaleniem oraz rakietą Atlasa na PPM. Dwa krótkie chwytaki, ładownia 55, sylwetka według referencji, własne ulepszenia projektora i rakiet. Jedenaście typów w katalogu, bez zmiany limitu floty i formatu zapisu. [Opis etapu](implementation-v0.31.md). Sześć konceptów floty jest wdrożonych; załoga pokładowa pozostaje kolejnym większym kierunkiem planu.
+
+## Etap 0.32 - wdrożony
+
+Pierwsza załoga pokładowa: zatrudniona mechanik Ada Vale ma przydział Stacja / Pokład. Na pokładzie naprawia automatycznie napęd i poważne uszkodzenia kadłuba, zużywając zestawy, bez zatrzymywania pilotażu. Przydział wyklucza produkcję w bazie, wymaga pustej kolejki i jest zablokowany podczas wyprawy. Powrót zachowuje mechanika; strata statku oznacza jego stratę. Panel pokładu pokazuje zadanie. Migracja do zapisu 16 zachowuje starszą załogę w stacji. [Opis etapu](implementation-v0.32.md). Kolejne profesje i zadania pokładowe pozostają dalszą rozbudową; praca offline i wznowienie wypraw nadal są odłożone.
+
+## Etap 0.33 - wdrożony
+
+Intendent pokładowy: Niko Rell ma przydział Stacja / Pokład, wykluczający recykling w bazie. Przy zerowym zapasie na pokładzie przygotowuje zestaw w 30 s za 8 komponentów z ładowni i współpracuje z automatyczną naprawą mechanika. Rozliczenie obejmuje zestawy wytworzone w locie, limit zapasów i brak podwójnej produkcji na Mule. Stan zadania jest na pokładzie TAB; strata statku obejmuje obu przydzielonych pracowników. Migracja do zapisu 17 zachowuje przydział mechanika. [Opis etapu](implementation-v0.33.md). Dalszy zakres załogi i wymiennych części pozostaje rozwijalny; praca offline oraz wznowienie wypraw nadal są późniejszymi etapami.

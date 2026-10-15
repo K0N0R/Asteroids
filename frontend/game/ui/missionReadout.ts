@@ -91,7 +91,7 @@ export function flightHint(s: MissionSimulation) {
     if (s.outpost.download > 0)
         return `E  Przechwyt · ${percent(s.outpost.download, OUTPOST.downloadSeconds)}`;
     if (s.repairProgress > 0)
-        return `R  Naprawa · ${percent(s.repairProgress, GAME.repairSeconds)}`;
+        return `${s.automaticRepair ? 'Mechanik' : 'R  Naprawa'} · ${percent(s.repairProgress, s.repairSeconds)}`;
     if (s.salvageProgress > 0)
         return `E Holowanie wraku · ${percent(s.salvageProgress, s.salvageSeconds)}`;
     if (s.recoveryProgress > 0)

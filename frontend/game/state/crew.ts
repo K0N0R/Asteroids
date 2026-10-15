@@ -8,14 +8,18 @@ export interface CrewJob {
 }
 export interface CrewState {
     mechanic: boolean;
+    mechanicAboard: boolean;
     quartermaster: boolean;
+    quartermasterAboard: boolean;
     jobs: CrewJob[];
     nextJobId: number;
     completed: number;
 }
 export const newCrew = (): CrewState => ({
     mechanic: false,
+    mechanicAboard: false,
     quartermaster: false,
+    quartermasterAboard: false,
     jobs: [],
     nextJobId: 1,
     completed: 0,
@@ -27,6 +31,24 @@ export function jobStorage(kind: JobKind) {
 }
 export function workerJobs(c: Campaign, role: CrewRole) {
     return c.crew.jobs.filter((job) => JOBS[job.kind].worker === role);
+}
+export function assignMechanic(c: Campaign, aboard: boolean) {
+    return assignCrew(c, 'mechanic', aboard);
+}
+export function crewAboard(c: Campaign, role: CrewRole) {
+    return role === 'mechanic' ? c.crew.mechanicAboard : c.crew.quartermasterAboard;
+}
+export function assignCrew(c: Campaign, role: CrewRole, aboard: boolean) {
+    if (
+        c.activeRun ||
+        typeof aboard !== 'boolean' ||
+        !c.crew[role] ||
+        crewAboard(c, role) === aboard ||
+        (aboard && workerJobs(c, role).length > 0)
+    )
+        return false;
+    c.crew[role === 'mechanic' ? 'mechanicAboard' : 'quartermasterAboard'] = aboard;
+    return true;
 }
 // Reserve enough room for either a refund or the finished output.
 export function reservedResources(c: Campaign) {
@@ -55,6 +77,7 @@ export function hireQuartermaster(c: Campaign) {
 export function queueJob(c: Campaign, kind: JobKind) {
     if (c.activeRun || !Object.hasOwn(JOBS, kind)) return false;
     const recipe = JOBS[kind];
+    if (crewAboard(c, recipe.worker)) return false;
     if ('workshop' in recipe && c.station.workshop < recipe.workshop) return false;
     if (!c.crew[recipe.worker] || workerJobs(c, recipe.worker).length >= CREW.queueLimit)
         return false;
@@ -85,6 +108,7 @@ export function advanceCrew(c: Campaign, seconds: number): number {
     let completed = 0;
     for (const role of ['mechanic', 'quartermaster'] as const) {
         if (!c.crew[role]) continue;
+        if (crewAboard(c, role)) continue;
         let available = seconds;
         for (const job of workerJobs(c, role)) {
             if (available <= 0) break;

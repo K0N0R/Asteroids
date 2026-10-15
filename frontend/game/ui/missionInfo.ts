@@ -177,17 +177,36 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             C.gold,
             460,
         );
-        label(root, 'ZAŁOGA W BAZIE', 860, 503, 13, C.muted);
+        label(root, 'ZAŁOGA / POKŁAD I STACJA', 860, 503, 13, C.muted);
         (['mechanic', 'quartermaster'] as const).forEach((role, i) => {
             const jobs = workerJobs(c, role),
                 head = jobs[0];
-            const title = role === 'mechanic' ? 'Mechanik' : 'Intendent';
+            const aboard = role === 'mechanic' ? s.mechanicAboard : s.quartermasterAboard;
+            const title = aboard
+                ? role === 'mechanic'
+                    ? 'Pokład · Ada Vale'
+                    : 'Pokład · Niko Rell'
+                : role === 'mechanic'
+                  ? 'Mechanik'
+                  : 'Intendent';
             const state = !c.crew[role]
                 ? 'niezatrudniony'
-                : !head
-                  ? 'brak zadań'
-                  : `${JOBS[head.kind].title} · ${Math.ceil(head.remaining)} s${jobs.length > 1 ? ` · +${jobs.length - 1} w kolejce` : ''}`;
-            label(root, `${title}: ${state}`, 860, 532 + i * 36, 15, head ? C.mint : C.muted, 460);
+                : aboard
+                  ? role === 'mechanic'
+                      ? s.mechanicStatus
+                      : s.quartermasterStatus
+                  : !head
+                    ? 'brak zadań'
+                    : `${JOBS[head.kind].title} · ${Math.ceil(head.remaining)} s${jobs.length > 1 ? ` · +${jobs.length - 1} w kolejce` : ''}`;
+            label(
+                root,
+                `${title}: ${state}`,
+                860,
+                532 + i * 36,
+                15,
+                head || aboard ? C.mint : C.muted,
+                460,
+            );
         });
         label(root, 'ODZYSK', 860, 635, 13, C.muted);
         label(

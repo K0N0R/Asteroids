@@ -39,7 +39,7 @@ import {
     scrapRefund,
     pilotSlots,
 } from '../state/campaign';
-import { workerJobs, jobStorage } from '../state/crew';
+import { workerJobs, jobStorage, crewAboard } from '../state/crew';
 import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
 import { MAX_PILOT_XP, pilotLevel, pilotPoints, pilotName } from '../state/pilots';
@@ -77,7 +77,9 @@ export interface LobbyActions {
     scrapShip: (id: number) => void;
     rescue: () => void;
     hireMechanic: () => void;
+    assignMechanic: (aboard: boolean) => void;
     hireQuartermaster: () => void;
+    assignQuartermaster: (aboard: boolean) => void;
     queueJob: (kind: JobKind) => void;
     cancelJob: (id: number) => void;
 }
@@ -180,7 +182,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.31', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.33', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -1391,7 +1393,8 @@ export class LobbyView extends Container {
             role = this.crewRole,
             hired = c.crew[role],
             jobs = workerJobs(c, role),
-            quartermaster = role === 'quartermaster';
+            quartermaster = role === 'quartermaster',
+            aboard = crewAboard(c, role);
         this.section(
             'Załoga trzyma wszystko w ruchu.',
             'Zaplanuj pracę warsztatu na czas swojej wyprawy.',
@@ -1413,48 +1416,109 @@ export class LobbyView extends Container {
                 38,
             );
         });
-        this.art(workshopScene(this.recipe), 625, 441);
+        this.art(
+            workshopScene(
+                quartermaster && aboard ? 'kit' : this.recipe,
+                quartermaster && aboard ? CREW.fieldKitParts : 0,
+            ),
+            625,
+            441,
+        );
         label(
             ui,
-            quartermaster ? 'NIKO RELL / INTENDENT BAZY' : 'ADA VALE / MECHANIK STACJI',
+            quartermaster
+                ? aboard
+                    ? 'NIKO RELL / INTENDENT POKŁADOWY'
+                    : 'NIKO RELL / INTENDENT BAZY'
+                : aboard
+                  ? 'ADA VALE / MECHANIK POKŁADOWY'
+                  : 'ADA VALE / MECHANIK STACJI',
             388,
             286,
             16,
             hired ? C.mint : C.muted,
         );
-        ((quartermaster ? ['recycle'] : ['refine', 'kit', 'crystallize']) as JobKind[]).forEach(
-            (kind, i) => {
-                const job = JOBS[kind],
-                    card = choiceCard(
-                        ui,
-                        280 + i * 240,
-                        650,
-                        225,
-                        141,
-                        this.recipe === kind,
-                        () => {
-                            this.recipe = kind;
-                            this.refresh();
-                        },
-                    );
-                label(card, job.title, 16, 23, 20, C.text, 190);
-                label(
-                    card,
-                    `${job.seconds} s · ${kind === 'crystallize' ? '1 kryształ' : kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
-                    20,
-                    64,
-                    15,
-                    C.muted,
+        if (hired) {
+            button(
+                ui,
+                'Stacja',
+                400,
+                590,
+                225,
+                () =>
+                    quartermaster
+                        ? this.actions.assignQuartermaster(false)
+                        : this.actions.assignMechanic(false),
+                !aboard,
+                true,
+                36,
+            );
+            button(
+                ui,
+                'Pokład',
+                640,
+                590,
+                225,
+                () =>
+                    quartermaster
+                        ? this.actions.assignQuartermaster(true)
+                        : this.actions.assignMechanic(true),
+                aboard,
+                jobs.length === 0,
+                36,
+            );
+            if (jobs.length)
+                label(ui, 'Przydział zablokowany · aktywna kolejka', 400, 632, 13, C.muted);
+        }
+        (
+            (quartermaster
+                ? aboard
+                    ? ['kit']
+                    : ['recycle']
+                : ['refine', 'kit', 'crystallize']) as JobKind[]
+        ).forEach((kind, i) => {
+            const job =
+                    quartermaster && aboard
+                        ? {
+                              ...JOBS.kit,
+                              ore: 0,
+                              parts: CREW.fieldKitParts,
+                              seconds: CREW.fieldKitSeconds,
+                          }
+                        : JOBS[kind],
+                card = choiceCard(
+                    ui,
+                    280 + i * 240,
+                    650,
+                    225,
+                    141,
+                    this.recipe === kind || (quartermaster && aboard),
+                    () => {
+                        if (!quartermaster || !aboard) this.recipe = kind;
+                        this.refresh();
+                    },
                 );
-                cost(card, job.ore, job.parts, 20, 99);
-            },
-        );
+            label(card, job.title, 16, 23, 20, C.text, 190);
+            label(
+                card,
+                `${job.seconds} s · ${kind === 'crystallize' ? '1 kryształ' : kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
+                20,
+                64,
+                15,
+                C.muted,
+            );
+            cost(card, job.ore, job.parts, 20, 99);
+        });
         label(
             ui,
             hired
-                ? quartermaster
-                    ? 'ODZYSK / KOLEJKA'
-                    : 'WARSZTAT / KOLEJKA'
+                ? aboard
+                    ? quartermaster
+                        ? 'POKŁAD / INTENDENT'
+                        : 'POKŁAD / MECHANIK'
+                    : quartermaster
+                      ? 'ODZYSK / KOLEJKA'
+                      : 'WARSZTAT / KOLEJKA'
                 : quartermaster
                   ? 'ZAŁOGA / INTENDENT'
                   : 'ZAŁOGA / MECHANIK',
@@ -1466,7 +1530,11 @@ export class LobbyView extends Container {
         label(
             ui,
             hired
-                ? `Zadania ${jobs.length}/${CREW.queueLimit}`
+                ? aboard
+                    ? quartermaster
+                        ? 'Niko Rell'
+                        : 'Ada Vale'
+                    : `Zadania ${jobs.length}/${CREW.queueLimit}`
                 : quartermaster
                   ? 'Niko Rell'
                   : 'Ada Vale',
@@ -1525,7 +1593,7 @@ export class LobbyView extends Container {
         }
         label(
             ui,
-            quartermaster
+            quartermaster && !aboard
                 ? 'Recykling · 1 komponent → 5 rudy'
                 : `Zestawy w bazie ${c.repairKits}/${CREW.kitLimit}`,
             1072,
@@ -1533,7 +1601,50 @@ export class LobbyView extends Container {
             16,
             C.muted,
         );
-        if (!jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
+        if (aboard) {
+            label(ui, 'Dyżur na pokładzie', 1072, 404, 21, C.mint);
+            label(
+                ui,
+                quartermaster
+                    ? `Produkcja zestawu · ${CREW.fieldKitSeconds} s`
+                    : `Naprawa automatyczna · ${CREW.fieldRepairSeconds} s`,
+                1072,
+                447,
+                17,
+                C.text,
+            );
+            label(
+                ui,
+                quartermaster
+                    ? `${CREW.fieldKitParts} komponentów z ładowni`
+                    : 'Awaria napędu / kadłub poniżej 60%',
+                1072,
+                480,
+                15,
+                C.muted,
+            );
+            label(
+                ui,
+                quartermaster
+                    ? 'Zapas pokładowy · maks. 1 zestaw'
+                    : `1 zestaw · kadłub +${GAME.repairHull}`,
+                1072,
+                513,
+                15,
+                C.muted,
+            );
+            label(
+                ui,
+                quartermaster
+                    ? 'Utrata statku oznacza stratę intendenta.'
+                    : 'Utrata statku oznacza stratę mechanika.',
+                1072,
+                558,
+                15,
+                C.red,
+                456,
+            );
+        } else if (!jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
         jobs.forEach((job, i) => {
             const y = 370 + i * 77;
             label(ui, `${i + 1}. ${JOBS[job.kind].title}`, 1072, y, 18);
@@ -1559,9 +1670,40 @@ export class LobbyView extends Container {
             );
             button(ui, '×', 1468, y + 4, 60, () => this.actions.cancelJob(job.id), false, true, 36);
         });
-        label(ui, 'Praca podczas lotu · stanowiska działają równolegle.', 1072, 615, 14, C.muted);
-        label(ui, recipe.title, 1072, 654, 17);
-        cost(ui, recipe.ore, recipe.parts, 1072, 680);
+        label(
+            ui,
+            aboard
+                ? 'Stanowisko w bazie nieaktywne.'
+                : 'Praca podczas lotu · stanowiska działają równolegle.',
+            1072,
+            615,
+            14,
+            C.muted,
+        );
+        label(
+            ui,
+            aboard ? (quartermaster ? 'Zestaw naprawczy' : 'Wyposażenie na start') : recipe.title,
+            1072,
+            654,
+            17,
+        );
+        if (aboard && !quartermaster)
+            label(
+                ui,
+                `${Math.min(c.repairKits, CREW.embarkKits)} zest. naprawczych`,
+                1072,
+                680,
+                15,
+                C.muted,
+            );
+        else
+            cost(
+                ui,
+                aboard ? 0 : recipe.ore,
+                aboard ? CREW.fieldKitParts : recipe.parts,
+                1072,
+                680,
+            );
         const noStorage =
             storageUsed(c) + jobStorage(this.recipe) - recipe.ore - recipe.parts >
             storageCapacity(c);
@@ -1572,21 +1714,26 @@ export class LobbyView extends Container {
                     CREW.kitLimit;
         button(
             ui,
-            full
-                ? 'KOLEJKA PEŁNA'
-                : kitsFull
-                  ? 'LIMIT ZESTAWÓW'
-                  : noStorage
-                    ? 'MAGAZYN PEŁNY'
-                    : this.recipe === 'crystallize' && c.station.workshop < 1
-                      ? 'WYMAGANY WARSZTAT I'
-                      : 'DODAJ ZADANIE →',
+            aboard
+                ? quartermaster
+                    ? 'INTENDENT NA POKŁADZIE'
+                    : 'MECHANIK NA POKŁADZIE'
+                : full
+                  ? 'KOLEJKA PEŁNA'
+                  : kitsFull
+                    ? 'LIMIT ZESTAWÓW'
+                    : noStorage
+                      ? 'MAGAZYN PEŁNY'
+                      : this.recipe === 'crystallize' && c.station.workshop < 1
+                        ? 'WYMAGANY WARSZTAT I'
+                        : 'DODAJ ZADANIE →',
             1072,
             728,
             456,
             () => this.actions.queueJob(this.recipe),
             true,
-            !full &&
+            !aboard &&
+                !full &&
                 (this.recipe !== 'crystallize' || c.station.workshop >= 1) &&
                 !kitsFull &&
                 c.bank.ore >= recipe.ore &&

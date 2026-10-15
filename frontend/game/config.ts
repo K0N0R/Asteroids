@@ -522,6 +522,10 @@ export const CREW = {
     queueLimit: 3,
     kitLimit: 10,
     embarkKits: 2,
+    fieldRepairSeconds: 8,
+    fieldRepairThreshold: 0.6,
+    fieldKitSeconds: 30,
+    fieldKitParts: 8,
 } as const;
 export const PILOT_PROGRESSION = {
     thresholds: [0, 20, 50, 90, 140],

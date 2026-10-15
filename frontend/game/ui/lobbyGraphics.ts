@@ -336,7 +336,7 @@ export function stationScene(level: number, selected: 'workshop' | 'storage') {
     return root;
 }
 
-export function workshopScene(kind: 'refine' | 'kit' | 'recycle' | 'crystallize') {
+export function workshopScene(kind: 'refine' | 'kit' | 'recycle' | 'crystallize', kitParts = 0) {
     const root = new Container(),
         g = new Graphics();
     g.poly([-265, 76, -215, 128, 215, 128, 265, 76, 215, -115, -215, -115])
@@ -350,7 +350,10 @@ export function workshopScene(kind: 'refine' | 'kit' | 'recycle' | 'crystallize'
         .lineTo(80, 80)
         .stroke({ color: C.cyan, width: 5, alpha: 0.55 });
     for (let i = 0; i < 4; i++) g.rect(-180 + i * 120, 117, 50, 7).fill(C.gold);
-    const input = lobbyIcon(kind === 'recycle' || kind === 'crystallize' ? 'parts' : 'ore', C.gold);
+    const input = lobbyIcon(
+        kitParts > 0 || kind === 'recycle' || kind === 'crystallize' ? 'parts' : 'ore',
+        C.gold,
+    );
     input.scale.set(3);
     input.position.set(-135, 0);
     const output = lobbyIcon(
@@ -374,13 +377,15 @@ export function workshopScene(kind: 'refine' | 'kit' | 'recycle' | 'crystallize'
     root.addChild(g, input, output);
     label(
         root,
-        kind === 'crystallize'
-            ? '5 komponentów'
-            : kind === 'recycle'
-              ? '1 komponent'
-              : kind === 'refine'
-                ? '8 rudy'
-                : '6 rudy + 1 komponent',
+        kitParts > 0
+            ? `${kitParts} komponentów`
+            : kind === 'crystallize'
+              ? '5 komponentów'
+              : kind === 'recycle'
+                ? '1 komponent'
+                : kind === 'refine'
+                  ? '8 rudy'
+                  : '6 rudy + 1 komponent',
         -190,
         56,
         15,

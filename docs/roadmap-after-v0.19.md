@@ -35,7 +35,7 @@
 - Holowanie wraku do doku Aurory i natychmiastowy recykling bez kończenia rundy; normalne dokowanie E również zalicza hol. Można dostarczyć wiele obiektów, widocznych w podsumowaniu, zachowanych po późniejszej śmierci/refresh. [Opis etapu](implementation-v0.24.md).
 - Jasne zasady wyboru celu holu, miejsca na pokładzie, kolizji i przerwania operacji; dotychczasowe akcje ratunkowe pozostają odrębnym celem.
 
-Załoga pokładowa i jej zadania w locie pozostają w ogólnym planie. Wznowienie wypraw i praca offline są późniejszymi etapami.
+Pierwsza załoga pokładowa jest wdrożona w [0.32](implementation-v0.32.md): przydział mechanika do stacji lub na pokład, automatyczna naprawa w locie, zużycie zestawów i ryzyko straty. [0.33](implementation-v0.33.md) dodaje intendenta pokładowego z przygotowywaniem zestawów z komponentów w ładowni oraz współpracę obu profesji. Dalsze zadania pozostają w ogólnym planie. Wznowienie wypraw i praca offline są późniejszymi etapami.
 
 ## Kolejne etapy — eskorty i ochrona statków
 

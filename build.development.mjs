@@ -7,6 +7,7 @@ import { generatePreloadConfig } from './generate-preload-config.mjs';
 import { copyFrontendFiles, copyAssets } from './build.snippets.mjs';
 
 const OUT_DIR = 'dist/development';
+const watchEnabled = !process.argv.includes('--no-watch');
 const liveReloadPort = 3456;
 const reloadScript = `
     <script>
@@ -54,7 +55,7 @@ const liveReloadPlugin = {
 async function prepareFiles() {
     await fs.rm(OUT_DIR, { recursive: true, force: true });
     await fs.mkdir(`${OUT_DIR}/public/assets`, { recursive: true });
-    await copyFrontendFiles(OUT_DIR, reloadScript);
+    await copyFrontendFiles(OUT_DIR, watchEnabled ? reloadScript : '');
 }
 
 async function buildBackend() {
@@ -67,7 +68,7 @@ async function buildBackend() {
             platform: 'node',
             outfile: `${OUT_DIR}/server.js`,
             sourcemap: true,
-            plugins: [liveReloadPlugin],
+            plugins: watchEnabled ? [liveReloadPlugin] : [],
         });
 
         backendProcess = spawn('node', [`${OUT_DIR}/server.js`], {
@@ -82,15 +83,20 @@ async function buildBackend() {
 
 async function buildFrontend() {
     try {
-        frontendContext = await esbuild.context({
+        const options = {
             entryPoints: ['frontend/index.ts'],
             bundle: true,
             outfile: `${OUT_DIR}/public/index.js`,
             sourcemap: true,
             format: 'esm',
-            plugins: [liveReloadPlugin],
+            plugins: watchEnabled ? [liveReloadPlugin] : [],
             define: { DEBUG: 'true' },
-        });
+        };
+        if (watchEnabled) {
+            frontendContext = await esbuild.context(options);
+        } else {
+            await esbuild.build(options);
+        }
         console.log('✅ Frontend build');
     } catch (err) {
         console.error('❌ Frontend build error:', err);
@@ -153,8 +159,10 @@ async function main() {
     await generatePreloadConfig();
     await prepareFiles();
     await Promise.all([buildCss(), buildFrontend(), buildBackend()]);
-    setupWebSocketServer();
-    startWatchers(frontendContext);
+    if (watchEnabled) {
+        setupWebSocketServer();
+        startWatchers(frontendContext);
+    }
 }
 
 main();

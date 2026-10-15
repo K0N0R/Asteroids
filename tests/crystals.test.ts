@@ -32,7 +32,7 @@ test('version 11 migrates with zero crystals, preserving resources, pilot and in
     const old = JSON.parse(JSON.stringify(c));
     old.version = 11;
     const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.equal(loaded.version, 15);
+    assert.equal(loaded.version, newCampaign().version);
     assert.equal(loaded.bank.crystals ?? 0, 0);
     assert.equal(loaded.bank.parts, 12);
     assert.equal(loaded.activeRun!.seed, 71);
