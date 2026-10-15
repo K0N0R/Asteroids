@@ -8,6 +8,17 @@ import { ShipView } from '../frontend/game/graphics/shapes';
 import { drawKineticShield } from '../frontend/game/graphics/kineticShieldView';
 import { KineticShield, shieldProfile } from '../frontend/game/systems/kineticShield';
 
+test('Widmo blade upgrades progressively enlarge its wings', () => {
+    const hulls = [0, 1, 2, 3].map((handling) =>
+        shipHull('widmo', { ...newShip(1, 'widmo'), handling }),
+    );
+    try {
+        for (let i = 1; i < hulls.length; i++) assert.ok(hulls[i].height > hulls[i - 1].height);
+    } finally {
+        hulls.forEach((hull) => hull.destroy());
+    }
+});
+
 test('Atlas aims its forward missile launcher independently beneath the deck', () => {
     const view = new ShipView(newShip(1, 'atlas'));
     try {

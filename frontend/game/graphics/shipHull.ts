@@ -1,3 +1,4 @@
+import { phaseBladeScale } from '../config';
 import { Graphics } from 'pixi.js';
 import type { HullId } from '../config';
 import type { ShipModules } from '../state/campaign';
@@ -90,6 +91,18 @@ function seam(g: Graphics, points: number[], width = 1.4) {
     g.beginPath().moveTo(points[0], points[1]);
     for (let i = 2; i < points.length; i += 2) g.lineTo(points[i], points[i + 1]);
     g.stroke({ color: 0x333b40, width });
+}
+function prospectorOutline(g: Graphics) {
+    return g
+        .beginPath()
+        .moveTo(33, -8)
+        .lineTo(33, 8)
+        .bezierCurveTo(33, 16, 15, 22, -1, 22)
+        .bezierCurveTo(-20, 22, -32, 18, -32, 10)
+        .lineTo(-32, -10)
+        .bezierCurveTo(-32, -18, -20, -22, -1, -22)
+        .bezierCurveTo(15, -22, 33, -16, 33, -8)
+        .closePath();
 }
 export function drawTank(
     g: Graphics,
@@ -184,10 +197,15 @@ export function shipHull(hull: HullId, modules: ShipModules) {
     const tank = (target: Graphics, x: number, y: number, w: number, h: number) =>
         drawTank(target, x, y, w, h, palette.cargo);
     if (hull === 'prospector') {
-        g.ellipse(0, 0, 37, 22).fill(S.hull).stroke({ color: S.reinforcement, width: 1.4 });
-        g.ellipse(2, -1, 32, 18).fill(palette.panel);
+        prospectorOutline(g)
+            .fill(S.hull)
+            .stroke({ color: S.reinforcement, width: 1.4 + modules.armor * 1.25 });
+        g.context.save();
+        g.context.translate(1, 0);
+        g.context.scale(0.88, 0.84);
+        prospectorOutline(g).fill(palette.panel);
+        g.context.restore();
         tank(g, -26, -12, 14, 24);
-        seam(g, [-5, -19, 8, -15, 13, 0, 8, 15, -5, 19]);
         g.roundRect(-7, -8, 8, 16, 3).fill(S.engine);
         visor(g, 17, 0, 12, 14);
     } else if (hull === 'swift') {
@@ -223,43 +241,85 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         roundedHull(g, [-24, -10, 20, -12, 34, 0, 20, 12, -24, 10], 4, palette.panel);
         visor(g, 14, 0, heavy ? 13 : 10, 8);
     } else if (hull === 'widmo') {
+        const bladeScale = phaseBladeScale(modules.handling),
+            lengthScale = 1 + modules.handling * 0.025;
         g.context.save();
-        g.context.rotate(Math.PI);
+        g.context.scale(lengthScale, bladeScale);
         for (const side of [-1, 1]) {
             g.beginPath()
-                .moveTo(36, side * 32)
-                .bezierCurveTo(19, side * 53, -5, side * 59, -25, side * 49)
-                .lineTo(-34, side * 40)
-                .quadraticCurveTo(-12, side * 47, -8, side * 32)
-                .lineTo(-12, side * 8)
-                .lineTo(4, side * 7)
-                .quadraticCurveTo(19, side * 16, 36, side * 32)
+                .moveTo(42, side * 29)
+                .bezierCurveTo(23, side * 48, -5, side * 58, -30, side * 49)
+                .lineTo(-39, side * 36)
+                .quadraticCurveTo(-20, side * 43, -16, side * 27)
+                // Keep the roots inside the fixed fuselage as the outer blades grow.
+                .lineTo(-8 / lengthScale, (side * 7) / bladeScale)
+                .lineTo(7 / lengthScale, (side * 7) / bladeScale)
+                .quadraticCurveTo(2, side * 33, 25, side * 34)
+                .quadraticCurveTo(34, side * 35, 42, side * 29)
                 .closePath()
                 .fill(palette.hull)
                 .stroke({ color: palette.edge, width: 1.3 });
-            g.moveTo(35, side * 32)
-                .bezierCurveTo(17, side * 52, -7, side * 58, -25, side * 49)
-                .stroke({ color: 0xc2d8df, width: 1.6 });
             roundedPanel(
                 g,
-                [25, side * 38, 8, side * 49, -13, side * 49, -8, side * 38, 4, side * 32],
+                [
+                    29,
+                    side * 38,
+                    14,
+                    side * 47,
+                    -6,
+                    side * 51,
+                    -22,
+                    side * 46,
+                    -14,
+                    side * 35,
+                    1,
+                    side * 29,
+                    12,
+                    side * 37,
+                ],
                 2,
                 palette.panel,
                 palette.panel,
             );
+            g.moveTo(32, side * 35)
+                .bezierCurveTo(13, side * 48, -8, side * 52, -28, side * 46)
+                .stroke({ color: 0xb2ccd3, width: 1.3 + modules.handling * 0.4 });
+            g.moveTo(17, side * 40)
+                .lineTo(20, side * 44)
+                .moveTo(-15, side * 38)
+                .lineTo(-20, side * 48)
+                .stroke({ color: 0x2b3d47, width: 1.6 });
+            g.roundRect(-8, side * 34 - 2, 17, 4, 1.5)
+                .fill(0x263e48)
+                .stroke({ color: 0x719ba8, width: 0.6 });
+            g.roundRect(-5, side * 34 - 0.8, 11, 1.6, 0.5).fill(0x93c4d0);
+            g.circle(-18, side * 47, 1.5)
+                .fill(0x263e48)
+                .stroke({ color: palette.edge, width: 0.6 });
         }
         g.context.restore();
         roundedHull(
             g,
             [
-                -47, 0, -29, -5, -16, -12, 4, -10, 26, -6, 44, -3, 44, 3, 26, 6, 4, 10, -16, 12,
-                -29, 5,
+                -44, 0, -25, -5, -17, -10, -4, -12, 10, -9, 26, -5, 45, -4, 51, -3, 44, 0, 51, 3,
+                45, 4, 26, 5, 10, 9, -4, 12, -17, 10, -25, 5,
             ],
-            1.6,
+            1.8,
         );
-        roundedHull(g, [-33, 0, -19, -8, 3, -7, 30, 0, 3, 7, -19, 8], 2, palette.panel);
-        g.poly([4, -2.5, 9, 0, 4, 2.5]).fill(0x9ccfe3);
-        visor(g, -13, 0, 11, 7);
+        roundedHull(
+            g,
+            [-34, 0, -18, -6, -8, -9, 8, -6, 24, -3, 38, 0, 24, 3, 8, 6, -8, 9, -18, 6],
+            2,
+            palette.panel,
+        );
+        g.moveTo(-30, 0)
+            .lineTo(-21, -5)
+            .moveTo(-30, 0)
+            .lineTo(-21, 5)
+            .stroke({ color: palette.edge, width: 0.8 });
+        roundedPanel(g, [0, -5, 8, -5, 14, 0, 8, 5, 0, 5, -3, 0], 1.5, 0x293f49, palette.edge);
+        g.poly([3, -2, 8, 0, 3, 2]).fill(0x9ccfe3);
+        visor(g, -14, 0, 12, 7);
     } else if (hull === 'stinger') {
         for (const side of [-1, 1]) {
             roundedHull(
@@ -516,8 +576,7 @@ export function shipHull(hull: HullId, modules: ShipModules) {
             [-35, -8, -12, -12, -4, -18, 27, -18, 35, -9, 35, 9, 27, 18, -4, 18, -12, 12, -35, 8],
             3,
         );
-        tank(g, 28, -6, 12, 12);
-        tank(g, -12, -16, 13, 32);
+        tank(g, -13, -18, 16, 36);
         g.roundRect(-31, -5, 18, 10, 2).fill(palette.panel);
         for (const side of [-1, 1]) {
             g.roundRect(2, side * 18 - 5, 12, 10, 2)
@@ -527,8 +586,8 @@ export function shipHull(hull: HullId, modules: ShipModules) {
                 .fill(S.engine)
                 .stroke({ color: S.cargo, width: 1.5 });
         }
-        g.circle(11, 0, 17).fill(palette.panel).stroke({ color: S.engine, width: 2 });
-        visor(g, 11, 0, 13, 13);
+        g.circle(22, 0, 17).fill(palette.panel).stroke({ color: S.engine, width: 2 });
+        visor(g, 22, 0, 13, 13);
     } else {
         g.ellipse(-5, 0, 34, 34).fill(S.hull).stroke({ color: S.reinforcement, width: 1.8 });
         g.ellipse(-5, 0, 29, 29).fill(palette.panel);

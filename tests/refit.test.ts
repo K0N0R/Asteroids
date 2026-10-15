@@ -36,11 +36,13 @@ function arena(
     hull: HullId = 'widmo',
     weapon: 'standard' | 'pulse' | 'rail' = 'standard',
     drill = 0,
+    handling = 0,
 ) {
     const c = newCampaign();
     c.ship!.hull = hull;
     c.ship!.weapon = weapon;
     c.ship!.drill = drill;
+    c.ship!.handling = handling;
     c.ship!.weapons = weapon === 'standard' ? ['standard'] : ['standard', weapon];
     beginRun(c, 71);
     const sim = new MissionSimulation(c, 71);
@@ -228,6 +230,28 @@ test('Widmo dash sweeps through an enemy once, has no guns, and cannot repeat wh
         assert.equal(sim.dashTime, 0);
     } finally {
         sim.dispose();
+    }
+});
+
+test('larger phase blades hit enemies just outside the base blade span', () => {
+    for (const handling of [0, 3]) {
+        const { sim } = arena('widmo', 'standard', 0, handling);
+        try {
+            sim.enemies.add([
+                { id: 999, kind: 'lancer', x: 3200, y: 120, home: { x: 3200, y: 120 }, phase: 0 },
+            ]);
+            const enemy = sim.enemies.enemies.get(999)!;
+            const edge = HULLS.widmo.hitbox[1] * HULLS.widmo.size + enemy.config.radius + 4;
+            enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+            enemy.body.setTranslation({ x: 32, y: edge / 100 }, true);
+            enemy.health = 1000;
+            enemy.cooldown = 999;
+            sim.step({ ...idle, fire: true });
+            for (let i = 0; i < 30; i++) sim.step(idle);
+            assert.equal(enemy.health, handling ? 1000 - sim.dashDamage : 1000);
+        } finally {
+            sim.dispose();
+        }
     }
 });
 

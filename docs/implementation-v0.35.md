@@ -46,3 +46,15 @@ Usunięto przedni zbiornik oraz dwie wystające osłony z dziobu Atlasa. Boczne 
 ## Lifting Aegis
 
 Niebieskie panele podzielono na przednie i tylne wkładki mieszczące się wewnątrz jasnego poszycia. Usunięto boczne światła. Działko energetyczne ma nową zwartą obudowę, osłoniętą lufę i widoczne ogniwa poziomów ulepszenia zamiast wydłużanego niebieskiego prostokąta. Ulepszenia pancerza nie rysują linii przez wizjery: poziom I dodaje zewnętrzne płyty dziobowe, II kolejne płyty rufowe, III boczne osłony łączące. Wizjery pozostają odsłonięte; sylwetka nadal jest segmentowa. Statystyki bez zmian. Kontrola wizualna obejmuje kadłub bazowy i wszystkie trzy poziomy pancerza.
+
+## Nowa sylwetka Widma
+
+Widmo ma smukły, warstwowy kadłub, rozwidlony dziób i segmentowe zakrzywione ostrza inspirowane referencją. Obecny silnik rufowy zachowano. Trzy segmenty ładowni przeniesiono przed kokpit: środkowy poprzecznie, boczne ukośnie. Poziomy napędu ostrzowego powiększają skrzydła (+6% rozpiętości na poziom); wzmocnienia pancerza dopasowują się do ich kształtu. Szerokość trafień dasha i powidoki korzystają z tej samej skali. Weryfikacja: 80 testów floty, uzbrojenia, efektów i zmian 0.34/0.35, w tym wzrost geometrii i trafienie poza bazową rozpiętością; TypeScript, lint, build oraz porównanie kadłuba bazowego, pancerza III, ostrzy III i kompletu modułów w przeglądarce.
+
+## Układ Harpuna i przedni zderzak
+
+Usunięto przedni mały zbiornik, wizjer przesunięto do przedniej krawędzi, a środkowy bazowy zbiornik powiększono. Ulepszenia pancerza zastępują wewnętrzne linie przednim zderzakiem: poziom I dodaje segment środkowy, II dwa segmenty boczne, III zwiększa grubość i wysunięcie tych trzech segmentów. Ramiona i silniki zachowują dotychczasowe mocowania. Statystyki pozostają bez zmian. Kontrola: 80 testów, TypeScript, lint zmienionych plików, build i porównanie wariantu bazowego z poziomami pancerza w przeglądarce.
+
+## Obrys Prospectora
+
+Kadłub Prospectora otrzymał łagodnie spłaszczony dziób i rufę zamiast pełnej elipsy. Usunięto wewnętrzne linie i nakładki wzmocnień. Poziomy pancerza zwiększają szerokość jasnego obramowania kadłuba, zachowując odsłonięty wizjer i zbiorniki. Zmiana wizualna, bez zmiany statystyk. Weryfikacja: 16 testów grafiki/efektów, TypeScript, lint zmienionych plików, build i podgląd kolejnych poziomów pancerza w przeglądarce.

@@ -1,3 +1,4 @@
+import { phaseBladeScale } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import type { HullId, Mount } from '../config';
 import type { ShipModules } from '../state/campaign';
@@ -6,10 +7,7 @@ import { HULL_PALETTES, engineHousing, drawTank, roundedPanel } from './shipHull
 // Fitted sockets are local to each silhouette, rather than a universal strip on the deck.
 export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[] }> = {
     prospector: {
-        ribs: [
-            [-28, -10, -32, 0, -28, 10],
-            [-10, -16, 1, -12, 5, -9],
-        ],
+        ribs: [],
         jets: [
             { x: 0, y: 20 },
             { x: -15, y: 17 },
@@ -73,8 +71,8 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
     },
     widmo: {
         ribs: [
-            [8, -46, -4, -45, -17, -39],
-            [8, 46, -4, 45, -17, 39],
+            [11, -44, -2, -47, -14, -43],
+            [11, 44, -2, 47, -14, 43],
         ],
         jets: [],
     },
@@ -86,10 +84,7 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         jets: [],
     },
     harpoon: {
-        ribs: [
-            [-29, -7, -17, -8, -17, 8, -29, 7],
-            [21, -12, 28, -12, 30, -7],
-        ],
+        ribs: [],
         jets: [],
     },
     aegis: {
@@ -190,9 +185,9 @@ const CARGO_EXTENSIONS: Record<HullId, CargoSegment[]> = {
         { x: -11, y: 0, w: 6, h: 17 },
     ],
     widmo: [
-        { x: -1, y: -14, w: 11, h: 4 },
-        { x: -1, y: 14, w: 11, h: 4 },
-        { x: 0, y: 0, w: 5, h: 16 },
+        { x: 13, y: -10, w: 12, h: 5, angle: -0.35 },
+        { x: 13, y: 10, w: 12, h: 5, angle: 0.35 },
+        { x: 14, y: 0, w: 5, h: 12 },
     ],
     atlas: [
         { x: 1, y: -27, w: 10, h: 20 },
@@ -252,6 +247,9 @@ export function fittedEquipment(hull: HullId, modules: ShipModules) {
     const g = new Graphics(),
         sockets = EQUIPMENT_SOCKETS[hull],
         palette = HULL_PALETTES[hull];
+    g.context.save();
+    if (hull === 'widmo')
+        g.context.scale(1 + modules.handling * 0.025, phaseBladeScale(modules.handling));
     for (let level = 0; level < modules.armor; level++) {
         for (const rib of sockets.ribs) {
             g.beginPath();
@@ -264,17 +262,55 @@ export function fittedEquipment(hull: HullId, modules: ShipModules) {
             g.stroke({ color: palette.edge, width: 0.8, alpha: 0.5 + modules.armor * 0.1 });
         }
     }
-    if (hull === 'widmo' && modules.handling) {
-        for (const side of [-1, 1])
-            g.moveTo(15, side * 48)
-                .quadraticCurveTo(-7, side * 50, -24, side * 37)
-                .stroke({ color: 0xb4d7e6, width: 0.7 + modules.handling * 0.4 });
-    }
+    g.context.restore();
     return g;
 }
 
 export function outerArmor(hull: HullId, level: number) {
     const g = new Graphics();
+    if (hull === 'harpoon' && level > 0) {
+        const palette = HULL_PALETTES.harpoon;
+        const extension = level === 3 ? 2 : 0;
+        roundedPanel(
+            g,
+            [36, -10, 43, -14, 48 + extension, -10, 48 + extension, 10, 43, 14, 36, 10],
+            2.5,
+            palette.panel,
+            palette.edge,
+        );
+        g.moveTo(44 + extension, -8)
+            .lineTo(44 + extension, 8)
+            .stroke({ color: 0xb3bfc0, width: 1.4 });
+        if (level >= 2)
+            for (const side of [-1, 1]) {
+                roundedPanel(
+                    g,
+                    [
+                        24,
+                        side * 16,
+                        31,
+                        side * 12,
+                        41,
+                        side * 15,
+                        43 + extension,
+                        side * 22,
+                        34,
+                        side * (26 + extension),
+                        23,
+                        side * 24,
+                    ],
+                    2.5,
+                    palette.hull,
+                    palette.edge,
+                );
+                g.moveTo(29, side * 22)
+                    .lineTo(35, side * (23 + extension))
+                    .lineTo(40 + extension, side * 20)
+                    .stroke({ color: 0xadbfc1, width: 1.2 });
+                g.circle(27, side * 19, 1.3).fill(0x293d43);
+            }
+        return g;
+    }
     if (hull !== 'aegis' || !level) return g;
     const palette = HULL_PALETTES.aegis;
     for (const side of [-1, 1]) {

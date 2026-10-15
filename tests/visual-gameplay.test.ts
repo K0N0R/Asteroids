@@ -69,7 +69,7 @@ test('Stinger renders two forward-facing guns beneath each wing, with no nose gu
         view.destroy({ children: true });
     }
 });
-test('Widmo wings have plain shaded panels without bright decorative strips', () => {
+test('Widmo wings have segmented shaded panels with restrained accents', () => {
     const hull = shipHull('widmo', newCampaign().ship!);
     try {
         const strokes = hull.context.instructions.filter(
@@ -81,11 +81,6 @@ test('Widmo wings have plain shaded panels without bright decorative strips', ()
                 .length,
             2,
         );
-        for (const stroke of strokes)
-            assert.equal(
-                stroke.data.path.instructions.some((part) => part.action === 'roundRect'),
-                false,
-            );
         for (const instruction of hull.context.instructions)
             if (instruction.action === 'fill' || instruction.action === 'stroke')
                 assert.notEqual(instruction.data.style.color, 0x76e3d4);

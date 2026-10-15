@@ -803,7 +803,7 @@ export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
         return {
             ...definition,
             title: 'Napęd ostrzowy',
-            detail: 'Dash: obrażenia +25%, dystans +10%, odnowienie +15% / poziom',
+            detail: 'Dash: obrażenia +25%, dystans +10%, odnowienie +15%, ostrza +6% / poziom',
         };
     if (hull === 'widmo' && upgrade === 'drill')
         return {
@@ -992,6 +992,7 @@ export const WEAPONS = {
 export type WeaponId = keyof typeof WEAPONS;
 
 export const FORTRESS_WALL_HALF_WIDTH = 55;
+export const phaseBladeScale = (level: number) => 1 + Math.max(0, Math.min(3, level)) * 0.06;
 export const PHASE_DASH = { seconds: 0.32, speed: 1600, cooldown: 5, damage: 65 } as const;
 export const ARMAMENT_KITS = {
     standard: { power: 1, range: 1, cooldown: 1 },

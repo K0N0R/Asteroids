@@ -1,3 +1,4 @@
+import { phaseBladeScale } from '../config';
 import { ARMAMENT_KITS, PHASE_DASH, FORTRESS_WALL_HALF_WIDTH } from '../config';
 import { KineticShield, shieldProfile } from './kineticShield';
 import { HarpoonArms, HARPOON_ARMS } from './harpoonArms';
@@ -2020,7 +2021,10 @@ export class MissionSimulation {
             dy = to.y - from.y;
         const length = Math.hypot(dx, dy);
         this.dashTrail.push({ ...to, angle: this.dashAngle, age: 0 });
-        const bladeRadius = this.hullConfig.hitbox[1] * this.hullConfig.size;
+        const bladeRadius =
+            this.hullConfig.hitbox[1] *
+            this.hullConfig.size *
+            phaseBladeScale(this.modules.handling);
         const touches = (p: Point, radius: number) => {
             const t = clamp(
                 ((p.x - from.x) * dx + (p.y - from.y) * dy) / (length * length || 1),
