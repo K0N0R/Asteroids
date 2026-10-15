@@ -1,3 +1,4 @@
+import { ARMAMENT_KITS, PHASE_DASH, FORTRESS_WALL_HALF_WIDTH } from '../config';
 import { KineticShield, shieldProfile } from './kineticShield';
 import { HarpoonArms, HARPOON_ARMS } from './harpoonArms';
 import { AegisSupport } from './aegisSupport';
@@ -141,7 +142,14 @@ export class MissionSimulation {
     laserBeam: { from: Point; to: Point } | null = null;
     readonly laserBeams: { from: Point; to: Point }[] = [];
     readonly burning = new Map<number, { remaining: number; damage: number }>();
-    cloakEnabled = false;
+    dashTime = 0;
+    dashCooldown = 0;
+    private dashPressed = false;
+    private dashAngle = 0;
+    readonly dashTrail: { x: number; y: number; angle: number; age: number }[] = [];
+    private dashHits = new Set<number>();
+    readonly destroyedFortressWalls = new Set<number>();
+    readonly structureHealth = new Map<number, number>();
     opticalCloakTime = 0;
     opticalCloakCooldown = 0;
     private opticalCloakPressed = false;
@@ -150,10 +158,6 @@ export class MissionSimulation {
     dockProgress = 0;
     engineFault = false;
     repairProgress = 0;
-    automaticRepair = false;
-    readonly mechanicAboard: boolean;
-    readonly quartermasterAboard: boolean;
-    kitProgress = 0;
     repairKits: number;
     wreckVisited = false;
     notice = '';
@@ -191,7 +195,7 @@ export class MissionSimulation {
             const dx = wall.to.x - wall.from.x,
                 dy = wall.to.y - wall.from.y;
             const collider = this.world.createCollider(
-                RAPIER.ColliderDesc.cuboid(Math.hypot(dx, dy) / 2 / P, 12 / P)
+                RAPIER.ColliderDesc.cuboid(Math.hypot(dx, dy) / 2 / P, FORTRESS_WALL_HALF_WIDTH / P)
                     .setTranslation(
                         (wall.from.x + wall.to.x) / 2 / P,
                         (wall.from.y + wall.to.y) / 2 / P,
@@ -201,6 +205,7 @@ export class MissionSimulation {
                     .setFriction(0.2),
             );
             this.fortressColliders.add(collider.handle);
+            this.structureHealth.set(collider.handle, 180);
         }
         const core = this.world.createCollider(
             RAPIER.ColliderDesc.ball(100 / P)
@@ -229,12 +234,6 @@ export class MissionSimulation {
         );
         this.hull = this.maxHull;
         this.repairKits = campaign.activeRun?.repairKits ?? 0;
-        this.mechanicAboard =
-            !!campaign.activeRun && campaign.crew.mechanicAboard && campaign.crew.mechanic;
-        this.quartermasterAboard =
-            !!campaign.activeRun &&
-            campaign.crew.quartermasterAboard &&
-            campaign.crew.quartermaster;
         this.world.timestep = GAME.step;
         this.ship = this.world.createRigidBody(
             RAPIER.RigidBodyDesc.dynamic()
@@ -339,7 +338,13 @@ export class MissionSimulation {
         return WEAPONS[this.modules.weapon];
     }
     get gunDamage() {
-        return this.weaponConfig.damage * (this.installed.includes('guns') ? 1.35 : 1);
+        return (
+            this.weaponConfig.damage *
+            (this.installed.includes('guns') ? 1.35 : 1) *
+            (this.hullId === 'raider' || this.hullId === 'lancer'
+                ? 1 + this.modules.drill * 0.25
+                : 1)
+        );
     }
     get salvageSeconds() {
         return SALVAGE.seconds / this.hullConfig.towPickupSpeed;
@@ -439,13 +444,7 @@ export class MissionSimulation {
         );
     }
     get cloaked() {
-        return (
-            this.opticalCloak ||
-            (this.modules.hull !== 'swift' &&
-                this.cloakEnabled &&
-                this.revealTime <= 0 &&
-                this.hullConfig.cloak > 0)
-        );
+        return this.opticalCloak;
     }
     get opticalCloak() {
         return this.opticalCloakTime > 1e-8;
@@ -454,24 +453,21 @@ export class MissionSimulation {
         return WIDMO.cooldown / (1 + this.modules.drill * 0.2);
     }
     get enemySignature() {
-        return this.opticalCloak ? 0 : this.cloaked ? 1 - this.hullConfig.cloak : 1;
+        return this.opticalCloak ? 0 : 1 - this.hullConfig.radarJamming;
     }
     toggleCloak() {
         if (this.ended || this.disposed || this.choice) return;
-        if (this.modules.hull === 'swift') {
-            this.setNotice('Kamuflaż optyczny · PPM: 3 s / odnowienie 12 s.');
-            return;
-        }
-        if (!this.hullConfig.cloak) {
-            this.setNotice('Ten kadłub nie posiada kamuflażu.');
-            return;
-        }
-        this.cloakEnabled = !this.cloakEnabled;
         this.setNotice(
-            this.cloakEnabled
-                ? 'Kamuflaż włączony · ogień, laser i boost ujawniają statek.'
-                : 'Kamuflaż wyłączony.',
+            this.hullId === 'widmo'
+                ? 'PPM: kamuflaż optyczny.'
+                : `Pasywne zakłócanie radarów: ${Math.round(this.hullConfig.radarJamming * 100)}%.`,
         );
+    }
+    get armament() {
+        return ARMAMENT_KITS[this.modules.weapon];
+    }
+    get dashDamage() {
+        return PHASE_DASH.damage * this.armament.power * (1 + this.modules.handling * 0.25);
     }
     get distanceHome() {
         const p = this.position;
@@ -540,7 +536,7 @@ export class MissionSimulation {
                 ? `Skanowanie · ${Math.floor((this.scanProgress / SCAN.seconds) * 100)}%`
                 : 'Przytrzymaj E · skan 3 s · bez ciągu i ognia, poniżej 60 m/s';
         if (this.repairProgress > 0)
-            return `${this.automaticRepair ? 'Mechanik pokładowy' : this.aegis && !this.aegis.drone ? 'Odbudowa drona' : 'Naprawa napędu / kadłuba'} · ${Math.ceil((this.repairProgress / this.repairSeconds) * 100)}%`;
+            return `${this.aegis && !this.aegis.drone ? 'Odbudowa drona' : 'Naprawa napędu / kadłuba'} · ${Math.ceil((this.repairProgress / this.repairSeconds) * 100)}%`;
         if (this.aegis && !this.aegis.drone)
             return this.repairKits > 0
                 ? 'Dron zniszczony · przytrzymaj R, aby odbudować'
@@ -580,7 +576,7 @@ export class MissionSimulation {
                         : 'LPM · rakieta    /    PPM · granaty'
                 : this.aegis
                   ? `LPM · energia    /    PPM · impuls ${this.aegis.cooldown > 0 ? `${Math.ceil(this.aegis.cooldown)} s` : 'gotowy'}`
-                  : this.hullId === 'swift'
+                  : this.hullId === 'widmo'
                     ? this.opticalCloak
                         ? `Kamuflaż optyczny · ${this.opticalCloakTime.toFixed(1)} s`
                         : `PPM · kamuflaż ${this.opticalCloakCooldown > 1e-8 ? `${Math.ceil(this.opticalCloakCooldown)} s` : 'gotowy'}`
@@ -639,7 +635,7 @@ export class MissionSimulation {
         this.laserBeam = null;
         this.laserBeams.length = 0;
         this.revealTime = Math.max(0, this.revealTime - dt);
-        if (this.modules.hull === 'swift') {
+        if (this.modules.hull === 'widmo') {
             this.opticalCloakTime = Math.max(0, this.opticalCloakTime - dt);
             this.opticalCloakCooldown = Math.max(0, this.opticalCloakCooldown - dt);
             if (input.mine && !this.opticalCloakPressed && this.opticalCloakCooldown <= 1e-8) {
@@ -839,9 +835,16 @@ export class MissionSimulation {
                 y: velocity.y * P,
             });
         }
+        this.updateDash(input, dt);
+        const dashFrom = { ...this.position };
         this.world.step(this.queue);
         this.queue.drainCollisionEvents((a, b, started) => {
             if (!started) return;
+            if (
+                this.dashTime > 0 &&
+                (a === this.shipCollider.handle || b === this.shipCollider.handle)
+            )
+                return;
             const ca = this.world.getCollider(a),
                 cb = this.world.getCollider(b);
             if (!ca || !cb) return;
@@ -863,6 +866,7 @@ export class MissionSimulation {
             for (const handle of [a, b]) {
                 if (
                     handle === this.shipCollider.handle &&
+                    this.dashTime <= 0 &&
                     this.damageCooldown <= 0 &&
                     this.distanceHome >= DRONES.safeRadius
                 ) {
@@ -896,14 +900,17 @@ export class MissionSimulation {
                 }
             }
         });
+        if (this.dashTime > 0) this.damageDash(dashFrom);
         this.enforceShield();
         if (this.harpoonArms) this.updateHarpoon(input, dt);
-        else if (this.modules.hull === 'atlas') this.updateAtlas(input, dt);
+        else if (this.modules.hull === 'widmo') {
+            /* LPM is the phase drive. */
+        } else if (this.modules.hull === 'atlas') this.updateAtlas(input, dt);
         else if (this.modules.hull === 'phoenix') {
             this.updateRocketLock(input, dt);
             if (input.mine && this.shotCooldown <= 0 && this.bullets.size < 80) {
                 this.launchAtlas('rocket');
-                this.shotCooldown = ATLAS_WEAPONS.rocket.interval;
+                this.shotCooldown = ATLAS_WEAPONS.rocket.interval * this.armament.cooldown;
             }
         } else if (this.modules.hull === 'stinger') {
             if ((input.fire || input.mine) && this.shotCooldown <= 0 && this.bullets.size <= 76)
@@ -931,7 +938,7 @@ export class MissionSimulation {
             if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < GAME.dockRadius)
                 this.deliverTow(item);
         this.collectLoot(dt);
-        this.updateQuartermaster(dt);
+
         this.updateRepair(input, dt);
         this.updateEscort(input, dt);
         this.updateRecovery(input, dt);
@@ -1098,7 +1105,7 @@ export class MissionSimulation {
         const exposed = this.outpost.sees(
             this.position,
             this.elapsed,
-            this.enemySignature,
+            this.opticalCloak ? 0 : 1,
             this.enemies.lineClear(spec, this.position, (collider) =>
                 this.asteroidColliders.has(collider.handle),
             ),
@@ -1279,7 +1286,7 @@ export class MissionSimulation {
             if (item.source === 'recovery') this.recoveryDelivered = true;
             this.salvage.remove(item);
             this.deliveryRevision++;
-            this.setNotice('Hol przekazany Aurorze · możesz kontynuować wyprawę.');
+            this.setNotice(`Dostawa: ${record.description}`);
             this.events.push({ ...p, kind: 'collect', sound: 'complete', rich: true });
         }
         this.syncTow();
@@ -1405,7 +1412,7 @@ export class MissionSimulation {
             a = enemy.body.rotation(),
             v = enemy.body.linvel(),
             id = ++this.ids;
-        this.bullets.set(id, {
+        this.addBullet(id, {
             id,
             x: p.x + Math.cos(a) * (enemy.config.radius + 11),
             y: p.y + Math.sin(a) * (enemy.config.radius + 11),
@@ -1522,65 +1529,21 @@ export class MissionSimulation {
         }
     }
     get repairSeconds() {
-        return this.automaticRepair ? CREW.fieldRepairSeconds : GAME.repairSeconds;
-    }
-    get quartermasterStatus() {
-        if (!this.quartermasterAboard) return 'Brak intendenta na pokładzie';
-        if (this.repairKits > 0) return `Zestaw gotowy · zapas ${this.repairKits}`;
-        if (this.campaign.repairKits >= CREW.kitLimit) return 'Limit zapasu zestawów';
-        if (this.cargo.parts < CREW.fieldKitParts)
-            return `Brak komponentów · wymagane ${CREW.fieldKitParts}`;
-        return `Produkcja zestawu ${Math.floor((this.kitProgress / CREW.fieldKitSeconds) * 100)}%`;
+        return GAME.repairSeconds;
     }
     private supplyRepairKit() {
         this.repairKits++;
-        if (this.campaign.activeRun)
-            this.campaign.activeRun.repairKits = Math.max(
-                this.campaign.activeRun.repairKits,
-                this.repairKits,
-            );
-    }
-    private updateQuartermaster(dt: number) {
-        if (
-            !this.quartermasterAboard ||
-            this.repairKits > 0 ||
-            this.campaign.repairKits >= CREW.kitLimit ||
-            this.cargo.parts < CREW.fieldKitParts
-        ) {
-            this.kitProgress = 0;
-            return;
-        }
-        this.kitProgress += dt;
-        if (this.kitProgress + 1e-8 < CREW.fieldKitSeconds) return;
-        this.cargo.parts -= CREW.fieldKitParts;
-        this.supplyRepairKit();
-        this.kitProgress = 0;
-        this.setNotice('Intendent przygotował zestaw naprawczy.');
-        this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
-    }
-    get mechanicStatus() {
-        if (!this.mechanicAboard) return 'Brak mechanika na pokładzie';
-        if (this.repairKits <= 0) return 'Brak zestawów naprawczych';
-        if (this.automaticRepair && this.repairProgress > 0)
-            return `Naprawa ${Math.ceil((this.repairProgress / this.repairSeconds) * 100)}%`;
-        return `Gotowość · zestawy ${this.repairKits}`;
+        if (this.campaign.activeRun) this.campaign.activeRun.repairKits = this.repairKits;
     }
     private updateRepair(input: FlightInput, dt: number) {
-        const automatic =
-            this.mechanicAboard &&
-            !input.repair &&
-            (this.engineFault || this.hull < this.maxHull * CREW.fieldRepairThreshold);
-        if (this.automaticRepair !== automatic) this.repairProgress = 0;
-        this.automaticRepair = automatic;
         if (
-            (!input.repair && !automatic) ||
-            (!automatic &&
-                (this.thrusting ||
-                    input.fire ||
-                    input.mine ||
-                    input.interact ||
-                    input.sabotage ||
-                    this.speed > GAME.repairSpeed)) ||
+            !input.repair ||
+            this.thrusting ||
+            input.fire ||
+            input.mine ||
+            input.interact ||
+            input.sabotage ||
+            this.speed > GAME.repairSpeed ||
             this.repairKits <= 0 ||
             this.hull <= 0 ||
             (!this.engineFault && this.hull >= this.maxHull && (!this.aegis || this.aegis.drone))
@@ -1607,6 +1570,7 @@ export class MissionSimulation {
         }
         if (this.repairProgress + 1e-8 >= this.repairSeconds) {
             this.repairKits--;
+            if (this.campaign.activeRun) this.campaign.activeRun.repairKits = this.repairKits;
             this.engineFault = false;
             this.repairProgress = 0;
             this.hull = Math.min(this.maxHull, this.hull + GAME.repairHull);
@@ -1635,7 +1599,7 @@ export class MissionSimulation {
         return this.isAtlas || this.modules.hull === 'phoenix';
     }
     get phoenixLaserMultiplier() {
-        return this.laserPowerMultiplier * (1 + this.modules.drill * 0.25);
+        return this.laserPowerMultiplier * (1 + this.modules.drill * 0.25) * this.armament.power;
     }
     get hullId() {
         return this.modules.hull;
@@ -1644,7 +1608,9 @@ export class MissionSimulation {
         return 1 + this.modules.drill;
     }
     get rocketDamage() {
-        return ATLAS_WEAPONS.rocket.damage * (1 + this.modules.handling * 0.25);
+        return (
+            ATLAS_WEAPONS.rocket.damage * (1 + this.modules.handling * 0.25) * this.armament.power
+        );
     }
     private clearAtlasTarget(id: number) {
         this.burning.delete(id);
@@ -1682,7 +1648,7 @@ export class MissionSimulation {
         this.updateRocketLock(input, dt);
         if (input.fire && this.shotCooldown <= 0 && this.bullets.size < 80) {
             this.launchAtlas('rocket');
-            this.shotCooldown = ATLAS_WEAPONS.rocket.interval;
+            this.shotCooldown = ATLAS_WEAPONS.rocket.interval * this.armament.cooldown;
         }
         this.updateGrenades(input, dt);
     }
@@ -1695,16 +1661,27 @@ export class MissionSimulation {
                     'grenade',
                     (index - (count - 1) / 2) * ATLAS_WEAPONS.grenade.spread,
                 );
-            this.grenadeCooldown = ATLAS_WEAPONS.grenade.interval;
+            this.grenadeCooldown = ATLAS_WEAPONS.grenade.interval * this.armament.cooldown;
         }
     }
     private launchAtlas(kind: 'rocket' | 'grenade', offset = 0) {
         const config = ATLAS_WEAPONS[kind];
-        const position = this.position;
+        const position =
+            this.modules.hull === 'atlas' && kind === 'rocket'
+                ? mountPosition(
+                      this.position,
+                      this.ship.rotation(),
+                      this.hullConfig.size,
+                      ATLAS_WEAPONS.launcher,
+                  )
+                : this.position;
         const angle = aimAngle(position, this.aimTarget, this.ship.rotation()) + offset;
         const id = ++this.ids;
-        const muzzle = 65 * this.hullConfig.size;
-        this.bullets.set(id, {
+        const muzzle =
+            (this.modules.hull === 'atlas' && kind === 'rocket'
+                ? ATLAS_WEAPONS.launcher.length
+                : 65) * this.hullConfig.size;
+        this.addBullet(id, {
             id,
             x: position.x + Math.cos(angle) * muzzle,
             y: position.y + Math.sin(angle) * muzzle,
@@ -1713,7 +1690,7 @@ export class MissionSimulation {
             life: config.life,
             team: 'player',
             explosive: kind,
-            damage: kind === 'rocket' ? this.rocketDamage : config.damage,
+            damage: kind === 'rocket' ? this.rocketDamage : config.damage * this.armament.power,
             ...(kind === 'rocket' && this.atlasLock.locked !== null
                 ? { targetId: this.atlasLock.locked }
                 : {}),
@@ -1778,6 +1755,7 @@ export class MissionSimulation {
     get energyDamage() {
         return (
             AEGIS.damage *
+            this.armament.power *
             (1 + this.modules.drill * 0.25) *
             (this.installed.includes('guns') ? 1.35 : 1)
         );
@@ -1859,13 +1837,14 @@ export class MissionSimulation {
                 drone.collider,
                 undefined,
                 (collider) =>
-                    collider.handle === this.shipCollider.handle || this.isObstacle(collider),
+                    (this.dashTime <= 0 && collider.handle === this.shipCollider.handle) ||
+                    this.isObstacle(collider),
             );
         });
         if (!target) return;
         const angle = aimAngle(position, enemyPosition(target), this.ship.rotation());
         const id = ++this.ids;
-        this.bullets.set(id, {
+        this.addBullet(id, {
             id,
             x: position.x + Math.cos(angle) * 16,
             y: position.y + Math.sin(angle) * 16,
@@ -1881,7 +1860,11 @@ export class MissionSimulation {
         this.events.push({ ...position, kind: 'shot', sound: 'standard' });
     }
     get stingerDamageMultiplier() {
-        return (1 + this.modules.drill * 0.25) * (this.installed.includes('guns') ? 1.35 : 1);
+        return (
+            (1 + this.modules.drill * 0.25) *
+            this.armament.power *
+            (this.installed.includes('guns') ? 1.35 : 1)
+        );
     }
     private fireStinger(mode: keyof typeof STINGER_AMMO) {
         const ammo = STINGER_AMMO[mode];
@@ -1894,10 +1877,10 @@ export class MissionSimulation {
             );
             const angle = aimAngle(position, this.aimTarget, this.ship.rotation());
             const id = ++this.ids;
-            this.bullets.set(id, {
+            this.addBullet(id, {
                 id,
-                x: position.x + Math.cos(angle) * GAME.gunLength * this.hullConfig.size,
-                y: position.y + Math.sin(angle) * GAME.gunLength * this.hullConfig.size,
+                x: position.x + Math.cos(angle) * this.weaponConfig.length * this.hullConfig.size,
+                y: position.y + Math.sin(angle) * this.weaponConfig.length * this.hullConfig.size,
                 vx: this.velocity.x + Math.cos(angle) * ammo.speed,
                 vy: this.velocity.y + Math.sin(angle) * ammo.speed,
                 life: ammo.life,
@@ -1907,7 +1890,7 @@ export class MissionSimulation {
                 damage: ammo.damage * this.stingerDamageMultiplier,
             });
         }
-        this.shotCooldown = ammo.interval;
+        this.shotCooldown = ammo.interval * this.armament.cooldown;
         this.events.push({
             ...this.position,
             kind: 'shot',
@@ -1924,7 +1907,7 @@ export class MissionSimulation {
             );
             const angle = aimAngle(position, this.aimTarget, this.ship.rotation());
             const id = ++this.ids;
-            this.bullets.set(id, {
+            this.addBullet(id, {
                 id,
                 x: position.x + Math.cos(angle) * 24,
                 y: position.y + Math.sin(angle) * 24,
@@ -1935,7 +1918,7 @@ export class MissionSimulation {
                 energy: true,
                 damage: this.energyDamage,
             });
-            this.shotCooldown = AEGIS.interval;
+            this.shotCooldown = AEGIS.interval * this.armament.cooldown;
             this.events.push({ ...position, kind: 'shot', sound: 'pulse' });
             return;
         }
@@ -1949,7 +1932,7 @@ export class MissionSimulation {
             a = aimAngle(p, this.aimTarget, this.ship.rotation());
         this.gunIndex = (this.gunIndex + 1) % this.hullConfig.guns.length;
         const id = ++this.ids;
-        this.bullets.set(id, {
+        this.addBullet(id, {
             id,
             x: p.x + Math.cos(a) * this.weaponConfig.length * this.hullConfig.size,
             y: p.y + Math.sin(a) * this.weaponConfig.length * this.hullConfig.size,
@@ -1962,6 +1945,157 @@ export class MissionSimulation {
         });
         this.shotCooldown = this.weaponConfig.interval;
         this.events.push({ ...p, kind: 'shot', sound: this.modules.weapon });
+    }
+    private updateDash(input: FlightInput, dt: number) {
+        if (this.hullId !== 'widmo') return;
+        this.dashCooldown = Math.max(0, this.dashCooldown - dt);
+        for (const point of this.dashTrail) point.age += dt;
+        while (this.dashTrail.length && this.dashTrail[0].age > 0.36) this.dashTrail.shift();
+        if (this.dashTime > 0) {
+            this.dashTime = Math.max(0, this.dashTime - dt);
+            if (this.dashTime === 0) {
+                // Do not leave the ship embedded in geometry at the end of a phase.
+                let blocked = false;
+                this.world.intersectionsWithShape(
+                    this.ship.translation(),
+                    this.ship.rotation(),
+                    this.shipCollider.shape,
+                    (collider) => {
+                        if (
+                            this.isObstacle(collider) ||
+                            this.enemies.colliders.has(collider.handle)
+                        )
+                            blocked = true;
+                        return true;
+                    },
+                    undefined,
+                    undefined,
+                    this.shipCollider,
+                );
+                if (blocked) {
+                    // Continue the physical sweep until the whole hull clears the obstacle.
+                    // Never jump back to an earlier position.
+                    this.dashTime = dt;
+                } else {
+                    this.shipCollider.setSensor(false);
+                    this.ship.setLinvel({ x: 0, y: 0 }, true);
+                }
+            }
+        }
+        if (input.fire && !this.dashPressed && this.dashCooldown <= 0) {
+            this.dashAngle = aimAngle(this.position, input.target, this.ship.rotation());
+            this.dashTime = PHASE_DASH.seconds;
+            this.dashCooldown =
+                (PHASE_DASH.cooldown * this.armament.cooldown) / (1 + this.modules.handling * 0.15);
+            this.dashHits.clear();
+            this.shipCollider.setSensor(true);
+            this.events.push({ ...this.position, kind: 'shield', strength: 50 });
+        }
+        this.dashPressed = !!input.fire;
+        if (this.dashTime > 0) {
+            this.ship.setRotation(this.dashAngle, true);
+            this.ship.setAngvel(0, true);
+            this.ship.setLinvel(
+                {
+                    x:
+                        (Math.cos(this.dashAngle) *
+                            PHASE_DASH.speed *
+                            this.armament.range *
+                            (1 + this.modules.handling * 0.1)) /
+                        P,
+                    y:
+                        (Math.sin(this.dashAngle) *
+                            PHASE_DASH.speed *
+                            this.armament.range *
+                            (1 + this.modules.handling * 0.1)) /
+                        P,
+                },
+                true,
+            );
+        }
+    }
+    private damageDash(from: Point) {
+        const to = this.position,
+            dx = to.x - from.x,
+            dy = to.y - from.y;
+        const length = Math.hypot(dx, dy);
+        this.dashTrail.push({ ...to, angle: this.dashAngle, age: 0 });
+        const bladeRadius = this.hullConfig.hitbox[1] * this.hullConfig.size;
+        const touches = (p: Point, radius: number) => {
+            const t = clamp(
+                ((p.x - from.x) * dx + (p.y - from.y) * dy) / (length * length || 1),
+                0,
+                1,
+            );
+            return Math.hypot(p.x - from.x - t * dx, p.y - from.y - t * dy) <= radius + bladeRadius;
+        };
+        for (const rock of [...this.rocks.values()]) {
+            if (this.dashHits.has(rock.collider.handle)) continue;
+            const p = rock.body.translation(),
+                point = { x: p.x * P, y: p.y * P };
+            if (!touches(point, rock.radius)) continue;
+            this.dashHits.add(rock.collider.handle);
+            const damage = this.dashDamage * 0.12;
+            rock.health -= damage;
+            this.events.push({ ...point, kind: 'hit', strength: damage, rich: rock.rich });
+            if (rock.health <= 0) this.breakRock(rock);
+        }
+
+        for (const enemy of [...this.enemies.enemies.values()]) {
+            if (this.dashHits.has(enemy.collider.handle)) continue;
+            const p = enemyPosition(enemy);
+            if (!touches(p, enemy.config.radius)) continue;
+            this.dashHits.add(enemy.collider.handle);
+            this.damageEnemy(enemy, this.dashDamage, p);
+        }
+        if (!length) return;
+        const ray = new RAPIER.Ray(
+            { x: from.x / P, y: from.y / P },
+            { x: dx / length, y: dy / length },
+        );
+        for (const [handle, health] of this.structureHealth) {
+            if (this.dashHits.has(handle)) continue;
+            const collider = this.world.getCollider(handle);
+            if (!collider?.castRayAndGetNormal(ray, (length + 24) / P, true)) continue;
+            this.dashHits.add(handle);
+            const remaining = health - this.dashDamage;
+            this.events.push({ ...to, kind: 'hit', strength: 40 });
+            if (remaining > 0) this.structureHealth.set(handle, remaining);
+            else {
+                const index = [...this.fortressColliders].indexOf(handle);
+                this.destroyedFortressWalls.add(index);
+                // Keep handles in the set to preserve wall indices for the view.
+                this.structureHealth.delete(handle);
+                this.world.removeCollider(collider, true);
+            }
+        }
+    }
+    private addBullet(id: number, bullet: Projectile) {
+        // Check the whole breech-to-muzzle segment, including a muzzle beyond a thin wall.
+        if (bullet.team === 'player' && bullet.source !== 'drone') {
+            const from = this.position,
+                dx = bullet.x - from.x,
+                dy = bullet.y - from.y;
+            const length = Math.hypot(dx, dy);
+            if (
+                length > 0 &&
+                this.world.castRay(
+                    new RAPIER.Ray(
+                        { x: from.x / P, y: from.y / P },
+                        { x: dx / length, y: dy / length },
+                    ),
+                    length / P,
+                    true,
+                    undefined,
+                    undefined,
+                    this.shipCollider,
+                    undefined,
+                    (collider) => this.isObstacle(collider),
+                )
+            )
+                return;
+        }
+        this.bullets.set(id, bullet);
     }
     private updateBullets(dt: number) {
         for (const bullet of this.bullets.values()) {
@@ -2003,7 +2137,7 @@ export class MissionSimulation {
                                 collider.handle === this.escort.collider.handle))) ||
                     (bullet.team === 'player'
                         ? this.enemies.colliders.has(collider.handle)
-                        : collider.handle === this.shipCollider.handle),
+                        : this.dashTime <= 0 && collider.handle === this.shipCollider.handle),
             );
             const next = { x: bullet.x + bullet.vx * dt, y: bullet.y + bullet.vy * dt };
             const shield = shieldEntry(bullet, next, DRONES.safeRadius);
@@ -2109,7 +2243,7 @@ export class MissionSimulation {
             -angle,
         );
         const strike = arms.update(
-            dt,
+            dt / this.armament.cooldown,
             { x: local.x / size, y: local.y / size },
             !!input.mine,
             input.fire,
@@ -2186,6 +2320,7 @@ export class MissionSimulation {
                 const damage =
                     HARPOON_ARMS.rockDamage *
                     arms.damageMultiplier *
+                    this.armament.power *
                     this.pilot.mining *
                     this.laserPowerMultiplier;
                 rock.health -= damage;
@@ -2200,6 +2335,7 @@ export class MissionSimulation {
                         enemy,
                         HARPOON_ARMS.shipDamage *
                             arms.damageMultiplier *
+                            this.armament.power *
                             (this.installed.includes('guns') ? 1.35 : 1),
                         point,
                     );
@@ -2231,7 +2367,7 @@ export class MissionSimulation {
         const direction = { x: Math.cos(a), y: Math.sin(a) };
         const hit = this.world.castRay(
             new RAPIER.Ray({ x: from.x / P, y: from.y / P }, direction),
-            this.laserRange / P,
+            (this.laserRange * this.armament.range) / P,
             true,
             undefined,
             undefined,
@@ -2239,7 +2375,7 @@ export class MissionSimulation {
             undefined,
             (collider) => this.isObstacle(collider) || this.enemies.colliders.has(collider.handle),
         );
-        const distance = hit ? hit.timeOfImpact * P : this.laserRange;
+        const distance = hit ? hit.timeOfImpact * P : this.laserRange * this.armament.range;
         const to = { x: from.x + direction.x * distance, y: from.y + direction.y * distance };
         this.laserBeam = { from, to };
         this.laserBeams.push({ from, to });
@@ -2263,6 +2399,7 @@ export class MissionSimulation {
             this.damageEnemy(
                 enemy,
                 GAME.laserShipDamage *
+                    this.armament.power *
                     this.laserPowerMultiplier *
                     dt *
                     this.hullConfig.miningPower *
@@ -2277,6 +2414,7 @@ export class MissionSimulation {
         if (!rock) return;
         rock.health -=
             (this.modules.hull === 'phoenix' ? PHOENIX.rockDamage : GAME.laserDamage) *
+            this.armament.power *
             this.laserPowerMultiplier *
             dt *
             this.hullConfig.miningPower *
@@ -2386,6 +2524,10 @@ export class MissionSimulation {
         if (this.disposed) return;
         this.disposed = true;
         this.choice = null;
+        this.dashHits.clear();
+        this.dashTrail.length = 0;
+        this.structureHealth.clear();
+        this.destroyedFortressWalls.clear();
         this.aegis?.dispose();
         this.escort?.dispose();
         this.salvage.dispose();

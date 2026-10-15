@@ -2,19 +2,32 @@ import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { random } from '../worlds/sector';
 import { EnemyKind, HullId, ScanSiteId, WeaponId, WEAPONS } from '../config';
 import { ShipModules } from '../state/campaign';
-import { GAME, HULLS } from '../config';
+import { GAME, HULLS, ATLAS_WEAPONS } from '../config';
 import { aimAngle, rotateVector } from '../systems/flight';
 import { HarpoonArms, type HarpoonArmPose } from '../systems/harpoonArms';
 import { drawHarpoonArms } from './harpoonArmsView';
 import type { Point } from '../worlds/sector';
 import {
     SHIP_COLORS,
+    HULL_PALETTES,
     shipHull,
     shipUnderbody,
     engineHousing,
     roundedPanel,
     visor,
 } from './shipHull';
+
+import {
+    fittedEquipment,
+    outerArmor,
+    aegisCannon,
+    cargoEquipment,
+    maneuveringJets,
+    maneuveringFlame,
+    laserTint,
+    laserBarrelLength,
+    laserUpgradeLevel,
+} from './shipEquipment';
 
 export const C = {
     ink: 0x07121e,
@@ -32,8 +45,12 @@ export { SHIP_COLORS } from './shipHull';
 export class ShipView extends Container {
     readonly guns: Container[] = [];
     readonly lasers: Container[] = [];
+    readonly rocketLauncher: Container | null;
     readonly flame = new Graphics();
     readonly retro = new Graphics();
+    readonly maneuvering = new Graphics();
+    private visualModules: ShipModules;
+    private hullId: HullId;
     readonly harpoonView = new Graphics();
     readonly config;
     constructor(
@@ -47,15 +64,46 @@ export class ShipView extends Container {
         },
     ) {
         super();
+        this.visualModules = modules;
+        this.hullId = modules.hull ?? 'prospector';
         const hull = modules.hull ?? 'prospector',
             config = (this.config = HULLS[hull]),
-            S = SHIP_COLORS,
-            weapon = WEAPONS[hull === 'stinger' ? 'standard' : (modules.weapon ?? 'standard')];
-        this.addChild(this.flame, this.retro, shipUnderbody(hull));
+            S = {
+                ...SHIP_COLORS,
+                gun: HULL_PALETTES[hull].edge,
+                gunInset: HULL_PALETTES[hull].panel,
+            },
+            weapon = WEAPONS[modules.weapon ?? 'standard'];
+        this.addChild(this.flame, this.retro, this.maneuvering, shipUnderbody(hull));
+        this.addChild(cargoEquipment(hull, modules.cargo, true), outerArmor(hull, modules.armor));
+        this.rocketLauncher = hull === 'atlas' ? new Container() : null;
+        if (this.rocketLauncher) {
+            const mount = ATLAS_WEAPONS.launcher;
+            this.rocketLauncher.position.set(mount.x, mount.y);
+            const launcher = new Graphics()
+                .circle(0, 0, 8)
+                .fill(S.engine)
+                .roundRect(-8, -8, 19, 16, 3)
+                .fill(HULL_PALETTES[hull].panel)
+                .stroke({ color: HULL_PALETTES[hull].edge, width: 0.9 })
+                .roundRect(3, -6, mount.length - 3, 12, 2)
+                .fill(0x596b70)
+                .stroke({ color: 0xa7b5b2, width: 0.8 });
+            for (const side of [-1, 1]) {
+                launcher.roundRect(8, side * 3 - 1.5, mount.length - 8, 3, 1).fill(0x263942);
+                launcher.roundRect(mount.length - 5, side * 3 - 1, 3, 2, 0.5).fill(0xc1ab7c);
+                for (let i = 0; i < modules.handling; i++)
+                    launcher.rect(10 + i * 5, side * 6 - 0.6, 2, 1.2).fill(0xb0c6ce);
+            }
+            this.rocketLauncher.addChild(launcher);
+            this.addChild(this.rocketLauncher);
+        }
         if (hull === 'harpoon') {
             drawHarpoonArms(
                 this.harpoonView,
                 new HarpoonArms(modules.handling, modules.drill).poses,
+                modules.handling,
+                modules.drill,
             );
             this.addChild(this.harpoonView);
         }
@@ -65,14 +113,7 @@ export class ShipView extends Container {
             gun.rotation = hull !== 'stinger' && mount.x < 0 ? Math.PI : 0;
             gun.addChild(
                 hull === 'aegis'
-                    ? new Graphics()
-                          .roundRect(-7, -5, 25, 10, 2)
-                          .fill(S.engine)
-                          .stroke({ color: 0xa3c8d9, width: 1 })
-                          .roundRect(0, -3, 24, 6, 2)
-                          .fill(0x528ead)
-                          .rect(5, -1, 22, 2)
-                          .fill(0xc7f4ff)
+                    ? aegisCannon(modules.drill)
                     : new Graphics()
                           .circle(0, 0, 7)
                           .fill(S.engine)
@@ -106,6 +147,7 @@ export class ShipView extends Container {
             this.guns.push(gun);
             this.addChild(gun);
         }
+        const laserLevel = laserUpgradeLevel(hull, modules.drill);
         for (const mount of config.lasers) {
             const laser = new Container();
             laser.position.set(mount.x, mount.y);
@@ -113,18 +155,18 @@ export class ShipView extends Container {
             laser.addChild(
                 hull === 'phoenix'
                     ? new Graphics()
-                          .roundRect(-8, -5, 27, 10, 2)
+                          .roundRect(-8, -5, laserBarrelLength(laserLevel) + 3, 10, 2)
                           .fill(S.engine)
                           .stroke({ color: 0xc5d2d7, width: 1 })
-                          .roundRect(3, -3, 19, 6, 1)
+                          .roundRect(3, -3, laserBarrelLength(laserLevel) - 5, 6, 1)
                           .fill(0x7b4242)
                           .rect(7, -1, 16, 2)
-                          .fill(0xff5547)
+                          .fill(laserTint(laserLevel, true))
                     : new Graphics()
-                          .roundRect(-5, -4, 24 + modules.drill, 8, 3)
-                          .fill(S.laser)
+                          .roundRect(-5, -4, laserBarrelLength(laserLevel), 8, 3)
+                          .fill(laserTint(laserLevel))
                           .stroke({ color: S.gunInset, width: 0.7 })
-                          .roundRect(3, -1.5, 13 + modules.drill, 3, 1)
+                          .roundRect(3, -1.5, laserBarrelLength(laserLevel) - 11, 3, 1)
                           .fill(S.visor)
                           .circle(0, 0, 4)
                           .fill(S.engine),
@@ -132,8 +174,38 @@ export class ShipView extends Container {
             this.lasers.push(laser);
             this.addChild(laser);
         }
-        for (const engine of config.engines) this.addChild(engineHousing(engine.x, engine.y));
-        this.addChild(shipHull(hull, modules));
+        const kit = modules.weapon ?? 'standard';
+        const tint =
+            kit === 'rail'
+                ? HULL_PALETTES[hull].cargo
+                : kit === 'pulse'
+                  ? 0x8aaebb
+                  : HULL_PALETTES[hull].panel;
+        for (const emitter of [...this.guns, ...this.lasers]) {
+            emitter.addChild(
+                new Graphics()
+                    .roundRect(-4, -5, 7, 10, 2)
+                    .fill(tint)
+                    .stroke({ color: HULL_PALETTES[hull].edge, width: 0.6 }),
+            );
+        }
+        if (hull === 'widmo') {
+            for (const side of [-1, 1])
+                this.addChild(
+                    new Graphics()
+                        .roundRect(-9, side * 9 - 2, 19, 4, 2)
+                        .fill(tint)
+                        .stroke({ color: 0x94bccb, width: 0.6 }),
+                );
+        }
+        for (const engine of config.engines)
+            this.addChild(engineHousing(engine.x, engine.y, modules.engine));
+        this.addChild(maneuveringJets(hull, modules.handling));
+        this.addChild(
+            shipHull(hull, modules),
+            cargoEquipment(hull, modules.cargo),
+            fittedEquipment(hull, modules),
+        );
         for (const mount of config.grabbers)
             this.addChild(
                 new Graphics()
@@ -151,11 +223,26 @@ export class ShipView extends Container {
         );
         for (const gun of [...this.guns, ...this.lasers])
             gun.rotation = aimAngle(gun.position, local, 0);
+        if (this.rocketLauncher)
+            this.rocketLauncher.rotation = aimAngle(this.rocketLauncher.position, local, 0);
     }
     updateArms(poses: readonly HarpoonArmPose[]) {
-        drawHarpoonArms(this.harpoonView, poses);
+        drawHarpoonArms(
+            this.harpoonView,
+            poses,
+            this.visualModules.handling,
+            this.visualModules.drill,
+        );
     }
-    updateDrive(forward: boolean, reverse: boolean, fault: boolean, boost: boolean, time: number) {
+    updateDrive(
+        forward: boolean,
+        reverse: boolean,
+        fault: boolean,
+        boost: boolean,
+        time: number,
+        turn = 0,
+    ) {
+        maneuveringFlame(this.maneuvering, this.hullId, this.visualModules.handling, turn, time);
         this.flame.clear();
         this.retro.clear();
         const length = (boost ? 48 : 27) * (0.85 + Math.sin(time * 37) * 0.12);

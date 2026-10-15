@@ -155,7 +155,7 @@ test('shield upgrades charge atomically, respect workshop levels, and contribute
 test('v14 fleets and salvage signals gain level-zero shields while malformed new shield levels fail', () => {
     const c = newCampaign();
     c.nextShipId = 4;
-    c.reserveShips = [newShip(2, 'swift')];
+    c.reserveShips = [newShip(2, 'widmo')];
     c.recoverySignals = [{ id: 3, seed: 71, x: 3000, y: 0, pilot: null, ship: newShip(3, 'tug') }];
     const old = JSON.parse(JSON.stringify(c));
     old.version = 14;

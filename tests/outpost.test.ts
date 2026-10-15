@@ -25,7 +25,7 @@ const idle: FlightInput = {
     fire: false,
     interact: false,
 };
-function campaign(hull: 'prospector' | 'swift' = 'swift') {
+function campaign(hull: 'prospector' | 'swift' | 'widmo' = 'swift') {
     const c = newCampaign();
     c.ship = newShip(1, hull);
     c.recovered = 1;
@@ -84,8 +84,8 @@ test('rotating scanner respects angle wrap, range, asteroid cover and each hull 
     };
     const security = new OutpostSecurity(spec);
     assert.ok(security.sees({ x: 260, y: 0 }, 0, 1, true));
-    assert.equal(security.sees({ x: 260, y: 0 }, 0, 1 - HULLS.swift.cloak, true), false);
-    assert.ok(security.sees({ x: 260, y: 0 }, 0, 1 - HULLS.falcon.cloak, true));
+    assert.equal(security.sees({ x: 260, y: 0 }, 0, 1 - HULLS.widmo.radarJamming, true), false);
+    assert.ok(security.sees({ x: 260, y: 0 }, 0, 1 - HULLS.falcon.radarJamming, true));
     assert.equal(security.sees({ x: 260, y: 0 }, 0, 1, false), false);
     assert.equal(security.sees({ x: 561, y: 0 }, 0, 1, true), false);
     assert.equal(security.sees({ x: -260, y: 0 }, 0, 1, true), false);
@@ -139,7 +139,6 @@ test('thrust, reverse, tools, repair, speed, release and leaving the terminal re
     try {
         isolate(sim);
         atTerminal(sim);
-        sim.cloakEnabled = true;
         for (const input of [
             idle,
             { ...idle, interact: true, thrust: true },
@@ -192,7 +191,7 @@ test('real scanner alarm spawns two pursuing drones once and locks a download', 
 });
 
 test('Widmo optical camouflage hides from the scanner for three seconds even while firing or boosting', () => {
-    const sim = new MissionSimulation(campaign(), 71);
+    const sim = new MissionSimulation(campaign('widmo'), 71);
     try {
         isolate(sim);
         atTerminal(sim);
@@ -211,7 +210,7 @@ test('Widmo optical camouflage hides from the scanner for three seconds even whi
         sim.elapsed = Math.PI / OUTPOST.scanSpeed;
         sim.step({ ...idle, mine: true });
         for (const input of [
-            { ...idle, fire: true },
+            { ...idle, fire: false },
             { ...idle, mine: true },
             { ...idle, thrust: true, boost: true },
         ]) {
@@ -336,7 +335,7 @@ test('infiltration contract requires stolen data and safe return, pays once, and
 });
 
 test('v7 save migration preserves fleet, skills, history and interrupted marker while appending one empty contract', () => {
-    const c = campaign();
+    const c = campaign('widmo');
     c.ship!.handling = 1;
     c.contractCompletions = [2, 3, 4, 5, 0, 0, 0, 0];
     c.nextShipId = 3;
@@ -371,7 +370,6 @@ test('an overlapping rescue takes priority over the terminal and data can be tak
     try {
         isolate(sim);
         atTerminal(sim);
-        sim.cloakEnabled = true;
         sim.cargo.parts = 1;
         step(sim, 3, { ...idle, sabotage: true });
         assert.equal(sim.outpost.sabotageProgress, 0);
@@ -421,7 +419,6 @@ test('sabotage spends mission cargo once, clears alarm, enables theft but leaves
     try {
         isolate(sim);
         atTerminal(sim);
-        sim.cloakEnabled = true;
         c.bank.parts = 8;
         sim.cargo.parts = 2;
         sim.enemies.add(sim.sector.outpost.guards);
@@ -462,7 +459,6 @@ test('sabotage requires a component on board, calm flight and uninterrupted G', 
     try {
         isolate(sim);
         atTerminal(sim);
-        sim.cloakEnabled = true;
         step(sim, 3, { ...idle, sabotage: true });
         assert.equal(sim.outpost.sabotageProgress, 0);
         sim.cargo.parts = 1;

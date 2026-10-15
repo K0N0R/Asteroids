@@ -1,5 +1,7 @@
 # Asteroids — plan pierwszej grywalnej wersji
 
+> Dokument historyczny. Bieżące zadania i świadomie odłożone kierunki opisuje [aktualny plan](plan-current.md). Starsze zapowiedzi poniżej mogą dotyczyć funkcji już wdrożonych.
+
 Data: 2026-10-13. Plan zaktualizowany po odpowiedziach użytkownika; implementacja prototypu wydobywczego została rozpoczęta i jest grywalna. Aktualny zakres oraz uruchomienie opisuje README.md.
 
 Wdrożono kolejny etap 0.2: mechanika stacji, kolejkę trzech zadań podczas lotu, produkcję komponentów i zestawów, awarię napędu oraz naprawę w locie. Szczegóły i weryfikacja znajdują się w `implementation-v0.2.md`. Dalsza rozbudowa załogi, praca offline i infiltracja pozostają poza obecnym prototypem.

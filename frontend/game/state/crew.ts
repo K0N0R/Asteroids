@@ -8,8 +8,10 @@ export interface CrewJob {
 }
 export interface CrewState {
     mechanic: boolean;
+    /** Legacy save compatibility: normalized to false since v18. */
     mechanicAboard: boolean;
     quartermaster: boolean;
+    /** Legacy save compatibility: normalized to false since v18. */
     quartermasterAboard: boolean;
     jobs: CrewJob[];
     nextJobId: number;
@@ -40,6 +42,7 @@ export function crewAboard(c: Campaign, role: CrewRole) {
 }
 export function assignCrew(c: Campaign, role: CrewRole, aboard: boolean) {
     if (
+        aboard ||
         c.activeRun ||
         typeof aboard !== 'boolean' ||
         !c.crew[role] ||

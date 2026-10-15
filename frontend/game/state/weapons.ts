@@ -1,19 +1,10 @@
-import { HULLS, WEAPONS, type WeaponId } from '../config';
+import { WEAPONS, type WeaponId } from '../config';
 import type { Campaign } from './campaign';
 
 /** Purchased mounts belong to a hull; switching an owned mount is free, only in base. */
 export function equipWeapon(c: Campaign, id: WeaponId) {
     const ship = c.ship;
-    if (
-        c.activeRun ||
-        !ship ||
-        ship.hull === 'aegis' ||
-        ship.hull === 'stinger' ||
-        !HULLS[ship.hull].guns.length ||
-        !Object.hasOwn(WEAPONS, id) ||
-        ship.weapon === id
-    )
-        return false;
+    if (c.activeRun || !ship || !Object.hasOwn(WEAPONS, id) || ship.weapon === id) return false;
     const weapon = WEAPONS[id];
     if (!ship.weapons.includes(id)) {
         if (

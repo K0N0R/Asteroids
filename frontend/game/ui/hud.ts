@@ -50,7 +50,7 @@ export class MissionHud extends Container {
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
-        if (sim.aegis || sim.hullId === 'swift' || sim.hullId === 'mule')
+        if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
             this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
         this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
         label(this, CONTRACTS[contract].title, 1320, 285, 16, C.text, 250);
@@ -82,7 +82,9 @@ export class MissionHud extends Container {
                       ? 'lekka'
                       : sim.hullId === 'phoenix'
                         ? 'laser'
-                        : 'ogień',
+                        : sim.hullId === 'widmo'
+                          ? 'dash'
+                          : 'ogień',
             355,
             845,
         );
@@ -95,7 +97,7 @@ export class MissionHud extends Container {
                   ? 'granaty'
                   : sim.aegis
                     ? 'impuls'
-                    : sim.hullId === 'swift'
+                    : sim.hullId === 'widmo'
                       ? 'kamuflaż'
                       : sim.hullId === 'mule'
                         ? 'zestaw'
@@ -111,8 +113,7 @@ export class MissionHud extends Container {
         keyHint(this, '0–9/T/H', 'cel', 644, 845, 66);
         keyHint(this, 'E', 'akcja', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
-        if (sim.hullConfig.cloak && sim.hullId !== 'swift')
-            keyHint(this, 'C', 'kamuflaż', 990, 845);
+
         const details = keyHint(this, 'TAB', 'pokład', 1170, 845, 40);
         details.eventMode = 'static';
         details.cursor = 'pointer';
@@ -184,7 +185,7 @@ export class MissionHud extends Container {
             this.supportStatus?.setText(
                 `Impuls ${s.aegis.cooldown > 0 ? `${Math.ceil(s.aegis.cooldown)} s` : 'gotowy'} · dron ${s.aegis.drone ? `${Math.ceil(s.aegis.drone.hull)}/${Math.round(s.aegis.droneHull)}` : 'zniszczony'}${!s.aegis.drone ? ` · zestawy ${s.repairKits}` : ''}`,
             );
-        else if (s.hullId === 'swift')
+        else if (s.hullId === 'widmo')
             this.supportStatus?.setText(
                 s.opticalCloak
                     ? `Kamuflaż ${s.opticalCloakTime.toFixed(1)} s`

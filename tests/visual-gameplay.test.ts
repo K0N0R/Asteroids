@@ -70,14 +70,14 @@ test('Stinger renders two forward-facing guns beneath each wing, with no nose gu
     }
 });
 test('Widmo wings have plain shaded panels without bright decorative strips', () => {
-    const hull = shipHull('swift', newCampaign().ship!);
+    const hull = shipHull('widmo', newCampaign().ship!);
     try {
         const strokes = hull.context.instructions.filter(
             (instruction) => instruction.action === 'stroke',
         );
         assert.ok(strokes.length > 0);
         assert.equal(
-            strokes.filter((stroke) => stroke.data.style.color === HULL_PALETTES.swift.panel)
+            strokes.filter((stroke) => stroke.data.style.color === HULL_PALETTES.widmo.panel)
                 .length,
             2,
         );

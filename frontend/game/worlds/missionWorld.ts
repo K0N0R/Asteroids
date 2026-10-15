@@ -1,9 +1,11 @@
 import { drawKineticShield } from '../graphics/kineticShieldView';
 import { researchShipView, researchAnomalyView } from '../graphics/researchView';
+import { laserTint, laserUpgradeLevel } from '../graphics/shipEquipment';
 import { salvagePosition } from '../systems/salvage';
 import { fortressView } from '../graphics/fortressView';
 import { createMissionAudio } from '../systems/audio';
 import { Container, Graphics } from 'pixi.js';
+import { shipHull } from '../graphics/shipHull';
 import { MissionSimulation, FlightInput } from '../systems/mission';
 import {
     C,
@@ -46,6 +48,8 @@ export class MissionWorld extends Container {
     readonly audio = createMissionAudio();
     readonly camera = new Container();
     readonly shipView;
+    private dashGhosts: Container[] = [];
+    private dashTrailView = new Container();
     private rocks = new Map<number, Graphics>();
     private bullets = new Map<number, Graphics>();
     private researchView = researchShipView();
@@ -75,6 +79,7 @@ export class MissionWorld extends Container {
     private rockLayer = new Container();
     private effectLayer = new Container();
     private shapes = new ShapeLibrary();
+    private fortressRevision = 0;
     private accumulator = 0;
     private clock = 0;
     private navigation = new Graphics();
@@ -95,7 +100,7 @@ export class MissionWorld extends Container {
     private cacheLabels = new Map<number, ReturnType<typeof label>>();
     constructor(
         readonly simulation: MissionSimulation,
-        modules: Ship,
+        private readonly modules: Ship,
     ) {
         super();
         this.eventMode = 'none';
@@ -107,6 +112,25 @@ export class MissionWorld extends Container {
             w = simulation.sector.landmarks[2];
         wreck.position.set(w.x, w.y);
         this.camera.addChild(wreck, this.rockLayer, this.effectLayer, this.shipView);
+        if (modules.hull === 'widmo') {
+            const trail = this.dashTrailView;
+            for (let i = 0; i < 22; i++) {
+                const ghost = new Container();
+                // Offset translucent silhouettes soften the afterimage without a filter
+                // render target, which clips large transformed world coordinates.
+                for (const offset of [-1.2, 0, 1.2]) {
+                    const silhouette = shipHull('widmo', modules);
+                    silhouette.position.set(offset, -offset);
+                    silhouette.alpha = 0.34;
+                    ghost.addChild(silhouette);
+                }
+                ghost.scale.set(simulation.hullConfig.size);
+                ghost.visible = false;
+                this.dashGhosts.push(ghost);
+                trail.addChild(ghost);
+            }
+            this.camera.addChildAt(trail, this.camera.getChildIndex(this.shipView));
+        }
         this.camera.addChild(this.enemyStatus, this.effectLayer, this.salvageStatus);
         this.camera.addChild(this.atlasLockView, this.burningView);
         this.supportDrone.addChild(
@@ -121,6 +145,13 @@ export class MissionWorld extends Container {
                 .rect(-15, -6, 3, 12)
                 .fill(0x83d4f0),
         );
+        for (let i = 0; i < modules.handling && modules.hull === 'aegis'; i++)
+            this.supportDrone.addChild(
+                new Graphics()
+                    .roundRect(-10 + i * 6, -9, 4, 18, 1)
+                    .fill(0x58788e)
+                    .stroke({ color: 0xa8cbdc, width: 0.7 }),
+            );
         this.camera.addChild(this.supportDrone, this.supportShields);
         this.camera.addChildAt(this.kineticView, this.camera.getChildIndex(this.shipView) + 1);
         this.camera.addChildAt(this.laser, this.camera.getChildIndex(this.shipView));
@@ -466,6 +497,7 @@ export class MissionWorld extends Container {
                 s.hullConfig.size *
                 (1 + (0.35 * (s.aegis?.shields.get('player')?.time ?? 0)) / AEGIS.duration),
             this.clock,
+            this.modules.shield,
         );
         this.shipView.aimAt(s.aimTarget);
         if (s.harpoonArms) this.shipView.updateArms(s.harpoonArms.poses);
@@ -475,8 +507,34 @@ export class MissionWorld extends Container {
             s.engineFault,
             s.boosting,
             this.clock,
+            s.ship.angvel(),
         );
-        this.shipView.alpha = s.cloaked ? 0.4 : 1;
+        this.dashTrailView.position.copyFrom(this.shipView.position);
+        this.dashGhosts.forEach((ghost, i) => {
+            const sample = s.dashTrail[s.dashTrail.length - 1 - i];
+            ghost.visible = !!sample;
+            if (sample) {
+                ghost.position.set(sample.x - this.shipView.x, sample.y - this.shipView.y);
+                ghost.rotation = sample.angle;
+                ghost.alpha = 0.3 * (1 - sample.age / 0.36) ** 2;
+            }
+        });
+        this.shipView.alpha = s.dashTime > 0 ? 0.25 : s.opticalCloak ? 0.3 : 1;
+        if (s.destroyedFortressWalls.size !== this.fortressRevision) {
+            this.fortressRevision = s.destroyedFortressWalls.size;
+            const old = this.surveyViews.get('fortress');
+            if (old) {
+                const next = fortressView(s.sector.fortress, s.destroyedFortressWalls);
+                next.position.copyFrom(old.position);
+                this.camera.addChildAt(next, this.camera.getChildIndex(old));
+                this.surveyViews.set('fortress', next);
+                this.surveyLabels.set(
+                    'fortress',
+                    label(next, 'Twierdza Aegis', -100, 103, 17, C.cyan),
+                );
+                old.destroy({ children: true });
+            }
+        }
         this.supportShields.clear();
         this.supportDrone.visible = !!s.aegis?.drone;
         if (s.aegis) {
@@ -501,7 +559,9 @@ export class MissionWorld extends Container {
                     }
                 }
                 if (!position) continue;
-                radius *= 1.2 + (0.15 * shield.time) / AEGIS.duration;
+                radius *=
+                    (1 + this.modules.shield * 0.08) *
+                    (1.2 + (0.15 * shield.time) / AEGIS.duration);
                 const opacity =
                     Math.min(1, shield.time) * (0.25 + (shield.charge / shield.capacity) * 0.4);
                 this.supportShields
@@ -532,19 +592,24 @@ export class MissionWorld extends Container {
         this.camera.position.set(800, 450);
         this.laser.clear();
         for (const { from, to } of s.laserBeams) {
-            const combat = s.hullId === 'phoenix';
-            this.laser
-                .beginPath()
-                .moveTo(from.x, from.y)
-                .lineTo(to.x, to.y)
-                .stroke({ color: combat ? 0xff4438 : C.gold, width: combat ? 11 : 8, alpha: 0.18 });
+            const combat = s.hullId === 'phoenix',
+                level = laserUpgradeLevel(s.hullId, this.modules.drill);
             this.laser
                 .beginPath()
                 .moveTo(from.x, from.y)
                 .lineTo(to.x, to.y)
                 .stroke({
-                    color: combat ? 0xff493e : C.mint,
-                    width: combat ? 3.5 : 2.5,
+                    color: laserTint(level, combat),
+                    width: combat ? 11 : 8,
+                    alpha: 0.18,
+                });
+            this.laser
+                .beginPath()
+                .moveTo(from.x, from.y)
+                .lineTo(to.x, to.y)
+                .stroke({
+                    color: laserTint(level, combat),
+                    width: (combat ? 3.5 : 2.5) + level * 0.5,
                     alpha: 0.9,
                 });
             this.laser
@@ -1004,8 +1069,21 @@ export class MissionWorld extends Container {
                             .poly([-13, -4, 8, -4, 16, 0, 8, 4, -13, 4])
                             .fill(0xc7d4cf)
                             .rect(-6, -4, 4, 8)
-                            .fill(0xad8150)
-                            .poly([-13, -4, -17, -8, -6, -4, -6, 4, -17, 8, -13, 4])
+                            .fill(laserTint(this.modules.handling, true))
+                            .poly([
+                                -13,
+                                -4,
+                                -17,
+                                -8 - this.modules.handling,
+                                -6,
+                                -4,
+                                -6,
+                                4,
+                                -17,
+                                8 + this.modules.handling,
+                                -13,
+                                4,
+                            ])
                             .fill(0x859996)
                       : bullet.explosive === 'grenade'
                         ? new Graphics()

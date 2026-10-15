@@ -1,11 +1,16 @@
+import { FORTRESS_WALL_HALF_WIDTH } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import type { generateSector } from '../worlds/sector';
 
-export function fortressView(fortress: ReturnType<typeof generateSector>['fortress']) {
+export function fortressView(
+    fortress: ReturnType<typeof generateSector>['fortress'],
+    destroyed: ReadonlySet<number> = new Set(),
+) {
     const view = new Container(),
         walls = new Graphics(),
         core = new Graphics();
-    for (const wall of fortress.walls) {
+    for (const [index, wall] of fortress.walls.entries()) {
+        if (destroyed.has(index)) continue;
         const ax = wall.from.x - fortress.x,
             ay = wall.from.y - fortress.y;
         const bx = wall.to.x - fortress.x,
@@ -14,9 +19,9 @@ export function fortressView(fortress: ReturnType<typeof generateSector>['fortre
             .beginPath()
             .moveTo(ax, ay)
             .lineTo(bx, by)
-            .stroke({ color: 0x263a47, width: 32 })
-            .stroke({ color: 0x758997, width: 24 })
-            .stroke({ color: 0x455966, width: 16 })
+            .stroke({ color: 0x263a47, width: FORTRESS_WALL_HALF_WIDTH * 2 + 8 })
+            .stroke({ color: 0x758997, width: FORTRESS_WALL_HALF_WIDTH * 2 })
+            .stroke({ color: 0x455966, width: FORTRESS_WALL_HALF_WIDTH * 2 - 12 })
             .stroke({ color: 0xb87963, width: 2, alpha: 0.6 });
         for (let t = 0; t < 1; t += 0.125) {
             const x = ax + (bx - ax) * t,

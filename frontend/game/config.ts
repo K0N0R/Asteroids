@@ -111,6 +111,7 @@ export interface Mount {
     y: number;
 }
 export interface HullDefinition {
+    salvageOnly?: boolean;
     name: string;
     role: string;
     detail: string;
@@ -128,7 +129,7 @@ export interface HullDefinition {
     workshop: number;
     recovery: number;
     boost: number;
-    cloak: number;
+    radarJamming: number;
     guns: readonly Mount[];
     lasers: readonly Mount[];
     engines: readonly Mount[];
@@ -157,7 +158,7 @@ export const HULLS = {
         workshop: 0,
         recovery: 0.1,
         boost: 1.45,
-        cloak: 0,
+        radarJamming: 0,
         guns: [{ x: 25, y: -14 }],
         lasers: [{ x: 25, y: 14 }],
         engines: [{ x: -32, y: 0 }],
@@ -168,28 +169,28 @@ export const HULLS = {
         hitbox: [32, 20],
     },
     swift: {
-        name: 'Widmo',
+        name: 'Swift',
         role: 'Zwiadowca',
-        detail: 'PPM: kamuflaż optyczny na 3 s uniemożliwia wrogom celowanie. Odnowienie 12 s.',
+        detail: 'Lekki zwiadowca: działko, laser i skuteczne zakłócanie radarów.',
         health: 60,
-        shield: { capacity: 35, regen: 9, delay: 3.5 },
+        shield: { capacity: 30, regen: 9, delay: 3.5 },
         cargo: 24,
         thrust: 1500,
         brake: 880,
         turnSpeed: 2.35,
-        maxSpeed: 620,
+        maxSpeed: 520,
         size: 0.9,
         miningPower: 1,
-        ore: 65,
-        parts: 4,
-        workshop: 1,
+        ore: 35,
+        parts: 2,
+        workshop: 0,
         recovery: 0.18,
         boost: 1.6,
-        cloak: 0.6,
+        radarJamming: 0.6,
         guns: [{ x: 32, y: 0 }],
-        lasers: [],
+        lasers: [{ x: -18, y: 0 }],
         engines: [{ x: -32, y: 0 }],
-        laserRange: 0,
+        laserRange: 180,
         grabbers: [{ x: 0, y: 18 }],
         grabberRange: 140,
         towPickupSpeed: 1,
@@ -213,7 +214,7 @@ export const HULLS = {
         workshop: 1,
         recovery: 0.22,
         boost: 1.25,
-        cloak: 0,
+        radarJamming: 0,
         guns: [],
         lasers: [
             { x: 10, y: -29 },
@@ -251,7 +252,7 @@ export const HULLS = {
         workshop: 1,
         recovery: 0.18,
         boost: 1.65,
-        cloak: 0.2,
+        radarJamming: 0.2,
         guns: [
             { x: 0, y: -23 },
             { x: 0, y: 23 },
@@ -282,7 +283,7 @@ export const HULLS = {
         workshop: 1,
         recovery: 0.3,
         boost: 1.25,
-        cloak: 0.25,
+        radarJamming: 0.25,
         guns: [{ x: 24, y: -20 }],
         lasers: [{ x: 24, y: 20 }],
         engines: [
@@ -316,7 +317,7 @@ export const HULLS = {
         workshop: 1,
         recovery: 0.22,
         boost: 2.1,
-        cloak: 0.4,
+        radarJamming: 0.4,
         guns: [
             { x: 27, y: -12 },
             { x: 27, y: 12 },
@@ -331,6 +332,34 @@ export const HULLS = {
         grabberRange: 140,
         towPickupSpeed: 1,
         hitbox: [36, 32],
+    },
+    widmo: {
+        name: 'Widmo',
+        role: 'Infiltrator fazowy',
+        detail: 'LPM: fazowy dash przez struktury i wrogów. PPM: kamuflaż optyczny.',
+        health: 60,
+        shield: { capacity: 35, regen: 9, delay: 3.5 },
+        cargo: 24,
+        thrust: 1500,
+        brake: 880,
+        turnSpeed: 2.35,
+        maxSpeed: 620,
+        size: 0.9,
+        miningPower: 1,
+        ore: 165,
+        parts: 14,
+        workshop: 2,
+        recovery: 0.18,
+        boost: 1.6,
+        radarJamming: 0.6,
+        guns: [],
+        lasers: [],
+        engines: [{ x: -32, y: 0 }],
+        laserRange: 0,
+        grabbers: [{ x: 0, y: 18 }],
+        grabberRange: 140,
+        towPickupSpeed: 1,
+        hitbox: [44, 54],
     },
     atlas: {
         name: 'Atlas',
@@ -350,7 +379,7 @@ export const HULLS = {
         workshop: 2,
         recovery: 0.25,
         boost: 1.2,
-        cloak: 0,
+        radarJamming: 0,
         guns: [],
         lasers: [],
         engines: [
@@ -386,7 +415,7 @@ export const HULLS = {
         workshop: 2,
         recovery: 0.3,
         boost: 1.4,
-        cloak: 0.35,
+        radarJamming: 0.35,
         guns: [],
         lasers: [],
         engines: [
@@ -422,7 +451,7 @@ export const HULLS = {
         workshop: 2,
         recovery: 0.3,
         boost: 1.35,
-        cloak: 0,
+        radarJamming: 0,
         guns: [{ x: 45, y: 0 }],
         lasers: [],
         engines: [
@@ -453,7 +482,7 @@ export const HULLS = {
         workshop: 2,
         recovery: 0.14,
         boost: 1.95,
-        cloak: 0,
+        radarJamming: 0,
         guns: [
             { x: -20, y: -42 },
             { x: 16, y: -36 },
@@ -489,7 +518,7 @@ export const HULLS = {
         workshop: 2,
         recovery: 0.2,
         boost: 1.7,
-        cloak: 0,
+        radarJamming: 0,
         guns: [],
         lasers: [{ x: 42, y: 0 }],
         engines: [
@@ -504,6 +533,70 @@ export const HULLS = {
         grabberRange: 140,
         towPickupSpeed: 1,
         hitbox: [43, 39],
+    },
+    raider: {
+        name: 'Raider odzyskany',
+        role: 'Przechwycony',
+        detail: 'Odbudowany wrak przeciwnika. Dostępny wyłącznie przez odzysk.',
+        health: 80,
+        shield: { capacity: 45, regen: 10, delay: 4.5 },
+        cargo: 30,
+        thrust: 1000,
+        brake: 720,
+        turnSpeed: 1.65,
+        maxSpeed: 410,
+        size: 1,
+        miningPower: 1,
+        ore: 70,
+        parts: 5,
+        workshop: 2,
+        recovery: 0.18,
+        boost: 1.65,
+        radarJamming: 0.2,
+        salvageOnly: true,
+        guns: [
+            { x: 0, y: -23 },
+            { x: 0, y: 23 },
+        ],
+        lasers: [],
+        engines: [{ x: -27, y: 0 }],
+        laserRange: 0,
+        grabbers: [{ x: 0, y: 22 }],
+        grabberRange: 220,
+        towPickupSpeed: 1,
+        hitbox: [32, 23],
+    },
+    lancer: {
+        name: 'Lancer odzyskany',
+        role: 'Przechwycony',
+        detail: 'Odbudowany wrak przeciwnika. Dostępny wyłącznie przez odzysk.',
+        health: 160,
+        shield: { capacity: 110, regen: 10, delay: 4.5 },
+        cargo: 30,
+        thrust: 1000,
+        brake: 720,
+        turnSpeed: 1.65,
+        maxSpeed: 290,
+        size: 1,
+        miningPower: 1,
+        ore: 110,
+        parts: 9,
+        workshop: 2,
+        recovery: 0.18,
+        boost: 1.65,
+        radarJamming: 0.2,
+        salvageOnly: true,
+        guns: [
+            { x: 0, y: -23 },
+            { x: 0, y: 23 },
+        ],
+        lasers: [],
+        engines: [{ x: -27, y: 0 }],
+        laserRange: 0,
+        grabbers: [{ x: 0, y: 22 }],
+        grabberRange: 220,
+        towPickupSpeed: 1,
+        hitbox: [32, 23],
     },
 } as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
@@ -684,6 +777,7 @@ export const AEGIS = {
 } as const;
 
 export const ATLAS_WEAPONS = {
+    launcher: { x: 34, y: 0, length: 35 },
     lockTime: 3,
     rocket: { speed: 240, life: 12, radius: 180, damage: 160, interval: 1.8, turn: 2.8 },
     grenade: { speed: 320, life: 0.7, radius: 65, damage: 45, interval: 0.55, spread: 0.16 },
@@ -691,6 +785,8 @@ export const ATLAS_WEAPONS = {
 
 export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
     const definition = UPGRADES[upgrade];
+    if ((hull === 'raider' || hull === 'lancer') && upgrade === 'drill')
+        return { ...definition, title: 'Układ bojowy', detail: 'Obrażenia działek +25% / poziom' };
     if (hull === 'stinger' && upgrade === 'drill')
         return {
             ...definition,
@@ -703,11 +799,17 @@ export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
             title: 'Projektor bojowy',
             detail: 'Wiązka, podpalenie i wydobycie +25% / poziom',
         };
-    if (hull === 'swift' && upgrade === 'drill')
+    if (hull === 'widmo' && upgrade === 'handling')
+        return {
+            ...definition,
+            title: 'Napęd ostrzowy',
+            detail: 'Dash: obrażenia +25%, dystans +10%, odnowienie +15% / poziom',
+        };
+    if (hull === 'widmo' && upgrade === 'drill')
         return {
             ...definition,
             title: 'Projektor kamuflażu',
-            detail: 'Szybkość odnowienia +20% / poziom; czas działania 3 s',
+            detail: 'Szybkość odnowienia kamuflażu +20% / poziom; czas działania 3 s',
         };
     if (hull === 'aegis' && upgrade === 'drill')
         return {
@@ -888,3 +990,30 @@ export const WEAPONS = {
     },
 } as const;
 export type WeaponId = keyof typeof WEAPONS;
+
+export const FORTRESS_WALL_HALF_WIDTH = 55;
+export const PHASE_DASH = { seconds: 0.32, speed: 1600, cooldown: 5, damage: 65 } as const;
+export const ARMAMENT_KITS = {
+    standard: { power: 1, range: 1, cooldown: 1 },
+    pulse: { power: 0.8, range: 1.2, cooldown: 0.7 },
+    rail: { power: 1.45, range: 0.85, cooldown: 1.4 },
+} as const;
+export function armamentName(hull: HullId, weapon: WeaponId) {
+    const system =
+        hull === 'widmo'
+            ? 'Napęd fazowy'
+            : hull === 'mule'
+              ? 'Lasery górnicze'
+              : hull === 'harpoon'
+                ? 'Szczęki odzysku'
+                : hull === 'aegis'
+                  ? 'Ogniwo EMP'
+                  : hull === 'atlas'
+                    ? 'Arsenał rakietowy'
+                    : hull === 'phoenix'
+                      ? 'Projektor bojowy'
+                      : hull === 'stinger'
+                        ? 'Bateria skrzydłowa'
+                        : 'Uzbrojenie';
+    return `${system} · ${weapon === 'standard' ? 'standard' : weapon === 'pulse' ? 'impulsowy' : 'ciężki'}`;
+}

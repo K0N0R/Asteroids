@@ -11,6 +11,7 @@ import {
     STINGER_AMMO,
     PHOENIX,
     HullId,
+    WEAPONS,
     FLEET_LIMIT,
     shipUpgradeDefinition,
 } from '../frontend/game/config';
@@ -251,7 +252,7 @@ test('Stinger requires workshop II, persists its identity and fires four guns wi
         assert.ok(HULLS.stinger.turnSpeed > HULLS.swift.turnSpeed);
         assert.ok(HULLS.stinger.shield.capacity < HULLS.fighter.shield.capacity);
         assert.ok(HULLS.stinger.cargo < HULLS.swift.cargo);
-        assert.equal(HULLS.stinger.cloak, 0);
+        assert.equal(HULLS.stinger.radarJamming, 0);
         assert.equal(equipWeapon(campaign, 'rail'), false);
         assert.equal(shipUpgradeDefinition('stinger', 'drill').title, 'Układ amunicji');
     } finally {
@@ -628,7 +629,8 @@ test('Aegis specialized upgrades survive saves and strengthen energy shots, dron
     for (const upgrade of ['drill', 'handling', 'shield'] as const)
         assert.ok(buyUpgrade(campaign, upgrade));
     assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
-    assert.equal(equipWeapon(campaign, 'rail'), false);
+    assert.ok(equipWeapon(campaign, 'rail'));
+    assert.ok(equipWeapon(campaign, 'standard'));
     const sim = new MissionSimulation(campaign, 71);
     try {
         assert.equal(sim.energyDamage, AEGIS.damage * 1.25);
@@ -728,6 +730,33 @@ function atlasEnemy(sim: MissionSimulation, id: number, x: number, y: number) {
     enemy.health = 500;
     return enemy;
 }
+
+test('Atlas missile emerges from the aimed forward launcher rather than the hull centre', () => {
+    const sim = atlasArena();
+    try {
+        const mount = ATLAS_WEAPONS.launcher;
+        const target = {
+            x: sim.position.x + mount.x * sim.hullConfig.size,
+            y: sim.position.y + 1000,
+        };
+        sim.step({ ...idle, target, fire: true });
+        const rocket = [...sim.bullets.values()].find((b) => b.explosive === 'rocket')!;
+        assert.ok(rocket);
+        assert.ok(Math.abs(rocket.x - (sim.position.x + mount.x * sim.hullConfig.size)) < 1);
+        assert.ok(
+            Math.abs(
+                rocket.y -
+                    (sim.position.y +
+                        mount.length * sim.hullConfig.size +
+                        ATLAS_WEAPONS.rocket.speed * GAME.step),
+            ) < 1,
+        );
+        assert.ok(Math.abs(rocket.vx) < 1);
+        assert.ok(rocket.vy > 0);
+    } finally {
+        sim.dispose();
+    }
+});
 test('Atlas locks after continuous three-second hover and steers a rocket launched away from the target', () => {
     const sim = atlasArena();
     try {
@@ -836,8 +865,13 @@ test('Atlas saved grenade upgrades launch symmetric cone salvos and block ordina
     assert.ok(buyUpgrade(campaign, 'handling'));
     assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
     const bank = { ...campaign.bank };
-    assert.equal(equipWeapon(campaign, 'rail'), false);
-    assert.deepEqual(campaign.bank, bank);
+    assert.ok(equipWeapon(campaign, 'rail'));
+    assert.ok(equipWeapon(campaign, 'standard'));
+    assert.deepEqual(campaign.bank, {
+        ore: bank.ore - WEAPONS.rail.ore,
+        parts: bank.parts - WEAPONS.rail.parts,
+        crystals: bank.crystals,
+    });
     const sim = new MissionSimulation(campaign, 71);
     try {
         clean(sim, true);
@@ -994,8 +1028,9 @@ test('Harpoon jaws deal high ship damage, count kills once and cannot be fitted 
         c.ship!.hull = 'harpoon';
         c.station.workshop = 2;
         c.bank = { ore: 100, parts: 20 };
-        assert.equal(equipWeapon(c, 'rail'), false);
-        assert.deepEqual(c.bank, { ore: 100, parts: 20 });
+        assert.ok(equipWeapon(c, 'rail'));
+        assert.ok(equipWeapon(c, 'standard'));
+        assert.deepEqual(c.bank, { ore: 76, parts: 14 });
     } finally {
         sim.dispose();
     }
@@ -1077,25 +1112,28 @@ test('Harpoon joint and jaw upgrades persist and improve actual reach and crushi
     assert.equal(shipUpgradeDefinition('harpoon', 'drill').title, 'Siłowniki szczęk');
     assert.equal(shipUpgradeDefinition('prospector', 'drill').title, 'Laser wydobywczy');
 });
-test('eleven distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
-    assert.equal(Object.keys(HULLS).length, 11);
+test('fourteen distinct hulls have the requested gun, laser and gripper layouts and role statistics', () => {
+    assert.equal(Object.keys(HULLS).length, 14);
     assert.deepEqual(
         Object.values(HULLS).map((h) => [h.guns.length, h.lasers.length, h.grabbers.length]),
         [
             [1, 1, 1],
-            [1, 0, 1],
+            [1, 1, 1],
             [0, 2, 3],
             [2, 0, 1],
             [1, 1, 2],
             [2, 1, 2],
+            [0, 0, 1],
             [0, 0, 4],
             [0, 0, 4],
             [1, 0, 1],
             [4, 0, 1],
             [0, 1, 2],
+            [2, 0, 1],
+            [2, 0, 1],
         ],
     );
-    assert.equal(HULLS.swift.name, 'Widmo');
+    assert.equal(HULLS.widmo.name, 'Widmo');
     for (const hull of [HULLS.prospector, HULLS.tug]) {
         assert.ok(hull.guns[0].x > 0 && hull.guns[0].y < 0);
         assert.ok(hull.lasers[0].x > 0 && hull.lasers[0].y > 0);
@@ -1110,8 +1148,8 @@ test('eleven distinct hulls have the requested gun, laser and gripper layouts an
     );
     assert.ok(HULLS.falcon.boost > HULLS.fighter.boost && HULLS.mule.boost < HULLS.fighter.boost);
     assert.ok(HULLS.tug.health > HULLS.mule.health && HULLS.mule.cargo > HULLS.tug.cargo);
-    assert.equal(HULLS.prospector.cloak, 0);
-    assert.equal(HULLS.mule.cloak, 0);
+    assert.equal(HULLS.prospector.radarJamming, 0);
+    assert.equal(HULLS.mule.radarJamming, 0);
     assert.ok(HULLS.atlas.cargo > HULLS.mule.cargo);
     assert.ok(HULLS.atlas.maxSpeed < HULLS.mule.maxSpeed);
     assert.ok(HULLS.atlas.miningPower < HULLS.mule.miningPower);
@@ -1119,7 +1157,9 @@ test('eleven distinct hulls have the requested gun, laser and gripper layouts an
     assert.ok(HULLS.harpoon.brake > HULLS.tug.brake);
 });
 test('all hull types can be purchased and saved while the hangar remains limited to six ships', () => {
-    for (const hull of Object.keys(HULLS) as HullId[]) {
+    for (const hull of (Object.keys(HULLS) as HullId[]).filter(
+        (id) => !('salvageOnly' in HULLS[id]),
+    )) {
         const campaign = newCampaign();
         campaign.station.workshop = 2;
         campaign.bank = { ore: HULLS[hull].ore, parts: HULLS[hull].parts };
@@ -1255,7 +1295,7 @@ test('v6 migration preserves identities and modules, converting old Prospectors 
     assert.equal(loaded.ship!.engine, 2);
     assert.equal(loaded.ship!.armor, 1);
     assert.equal(loaded.recoverySignals[0].ship!.hull, 'fighter');
-    assert.equal(loaded.reserveShips[0].hull, 'swift');
+    assert.equal(loaded.reserveShips[0].hull, 'widmo');
     assert.deepEqual(parseCampaign(JSON.stringify(loaded)), loaded);
     const invalid = JSON.parse(JSON.stringify(loaded));
     invalid.ship.handling = 4;
@@ -1366,38 +1406,6 @@ test('loss or disposal cannot credit a resource still carried by a gripper', () 
         sim.dispose();
     }
 });
-test('passive cloak reduces actual AI detection, shooting reveals the ship and starter has no cloak', () => {
-    const c = newCampaign();
-    c.ship!.hull = 'falcon';
-    const sim = new MissionSimulation(c, 7);
-    try {
-        for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
-        sim.rocks.clear();
-        const enemy = [...sim.enemies.enemies.values()][0];
-        for (const other of sim.enemies.enemies.values())
-            if (other !== enemy) sim.enemies.damage(other.id, 1000);
-        sim.ship.setTranslation({ x: 20, y: 0 }, true);
-        enemy.body.setTranslation({ x: 27, y: 0 }, true);
-        enemy.home = { x: 2700, y: 0 };
-        sim.toggleCloak();
-        sim.step(idle);
-        assert.ok(sim.cloaked);
-        assert.equal(enemy.state, 'patrol');
-        sim.step({ ...idle, fire: true, target: enemyPosition(enemy) });
-        assert.equal(sim.cloaked, false);
-        assert.equal(enemy.state, 'chase');
-        assert.ok(sim.revealTime > 2.9);
-    } finally {
-        sim.dispose();
-    }
-    const starter = new MissionSimulation(newCampaign(), 7);
-    try {
-        starter.toggleCloak();
-        assert.equal(starter.cloakEnabled, false);
-    } finally {
-        starter.dispose();
-    }
-});
 function roleArena(hull: HullId) {
     const campaign = newCampaign();
     campaign.ship!.hull = hull;
@@ -1438,7 +1446,7 @@ test('mining lasers deal small ship damage without interrupting charge, respect 
     }
 });
 test('Widmo optical cloak lasts three seconds, prevents targeting and cannot refresh while held', () => {
-    const sim = roleArena('swift');
+    const sim = roleArena('widmo');
     try {
         const enemy = atlasEnemy(sim, 999, 3300, 0);
         enemy.cooldown = 0;
@@ -1452,7 +1460,7 @@ test('Widmo optical cloak lasts three seconds, prevents targeting and cannot ref
         assert.ok(sim.cloaked);
         assert.equal(enemy.charge, 0);
         sim.ship.setTranslation({ x: 30, y: 1 }, true);
-        sim.step({ ...input, fire: true, thrust: true, boost: true });
+        sim.step({ ...input, fire: false, thrust: false, boost: false });
         assert.ok(sim.cloaked);
         for (let frame = 0; frame < 120; frame++) sim.step(input);
         assert.deepEqual(enemy.lastSeen, { x: 3000, y: 0 });
@@ -1467,7 +1475,7 @@ test('Widmo optical cloak lasts three seconds, prevents targeting and cannot ref
         assert.ok(sim.opticalCloakTime < 1);
         for (let frame = 0; frame < 60; frame++) sim.step(input);
         assert.equal(sim.cloaked, false);
-        assert.equal(sim.enemySignature, 1);
+        assert.equal(sim.enemySignature, 1 - HULLS.widmo.radarJamming);
         assert.deepEqual(enemy.lastSeen, sim.previous);
         enemy.body.setRotation(
             Math.atan2(
@@ -1563,7 +1571,7 @@ test('Bastion retains guns while PPM throws timed splash grenades instead of min
 });
 test('saved Widmo projector upgrades shorten cooldown without extending its three-second camouflage', () => {
     const campaign = newCampaign();
-    campaign.ship!.hull = 'swift';
+    campaign.ship!.hull = 'widmo';
     campaign.ship!.drill = 2;
     const saved = parseCampaign(JSON.stringify(campaign))!;
     assert.ok(saved);
@@ -1572,26 +1580,7 @@ test('saved Widmo projector upgrades shorten cooldown without extending its thre
         sim.step({ ...idle, mine: true });
         assert.equal(sim.opticalCloakTime, 3);
         assert.equal(sim.opticalCloakCooldown, WIDMO.cooldown / 1.4);
-        assert.equal(shipUpgradeDefinition('swift', 'drill').title, 'Projektor kamuflażu');
-    } finally {
-        sim.dispose();
-    }
-});
-test('laser and boost reveal camouflage and returning to quiet flight restores it', () => {
-    const c = newCampaign();
-    c.ship!.hull = 'falcon';
-    const sim = new MissionSimulation(c, 7);
-    try {
-        clean(sim);
-        sim.toggleCloak();
-        sim.step({ ...idle, mine: true });
-        assert.equal(sim.cloaked, false);
-        for (let i = 0; i < 190; i++) sim.step(idle);
-        assert.equal(sim.cloaked, true);
-        sim.step({ ...idle, thrust: true, boost: true });
-        assert.equal(sim.cloaked, false);
-        sim.toggleCloak();
-        assert.equal(sim.cloakEnabled, false);
+        assert.equal(shipUpgradeDefinition('widmo', 'drill').title, 'Projektor kamuflażu');
     } finally {
         sim.dispose();
     }

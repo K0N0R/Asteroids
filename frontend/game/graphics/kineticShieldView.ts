@@ -6,8 +6,10 @@ export function drawKineticShield(
     shield: KineticShield,
     radius: number,
     time: number,
+    level = 0,
 ) {
     g.clear();
+    radius *= 1 + level * 0.08;
     const ratio = shield.charge / shield.profile.capacity,
         flash = shield.flash / 0.35;
     if (ratio <= 0 && flash <= 0) return;
@@ -15,7 +17,7 @@ export function drawKineticShield(
         color = 0x79baff;
     g.beginPath()
         .circle(0, 0, radius)
-        .stroke({ color, width: 10, alpha: alpha * 0.22 })
+        .stroke({ color, width: 10 + level * 2, alpha: alpha * 0.22 })
         .circle(0, 0, radius)
         .stroke({ color, width: 2, alpha: alpha * 0.55 });
     for (let i = 0; i < 12; i++) {
@@ -25,7 +27,7 @@ export function drawKineticShield(
             y = Math.sin(a) * radius;
         const points = Array.from({ length: 6 }, (_, j) => {
             const angle = (j / 6) * Math.PI * 2;
-            return [x + Math.cos(angle) * 9, y + Math.sin(angle) * 9];
+            return [x + Math.cos(angle) * (9 + level * 2), y + Math.sin(angle) * (9 + level * 2)];
         }).flat();
         g.beginPath()
             .poly(points)

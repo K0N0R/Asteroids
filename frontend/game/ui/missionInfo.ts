@@ -76,8 +76,10 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                             ? `4 działa · LPM ${(STINGER_AMMO.light.damage * s.stingerDamageMultiplier).toFixed(1)} / PPM ${(STINGER_AMMO.armor.damage * s.stingerDamageMultiplier).toFixed(1)} · zestawy ${s.repairKits}`
                             : s.hullId === 'phoenix'
                               ? `Laser ${(PHOENIX.laserDamage * s.phoenixLaserMultiplier).toFixed(0)}/s · ogień ${(PHOENIX.burnDamage * s.phoenixLaserMultiplier).toFixed(0)}/s · rakieta ${s.rocketDamage}`
-                              : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń${s.hullId === 'fighter' ? ` · granaty ×${s.grenadeCount}` : ''} · zestawy ${s.repairKits}`,
-                `Kamuflaż: ${s.hullId === 'swift' ? (s.opticalCloak ? `${s.opticalCloakTime.toFixed(1)} s` : s.opticalCloakCooldown > 1e-8 ? `odnowienie ${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy / PPM') : !s.hullConfig.cloak ? 'brak' : s.cloaked ? 'aktywny' : s.cloakEnabled ? `ujawniony (${Math.ceil(s.revealTime)} s)` : 'wyłączony'}`,
+                              : s.hullId === 'widmo'
+                                ? `Dash ${s.dashDamage.toFixed(0)} obrażeń · odnowienie ${Math.ceil(s.dashCooldown)} s`
+                                : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń${s.hullId === 'fighter' ? ` · granaty ×${s.grenadeCount}` : ''} · zestawy ${s.repairKits}`,
+                `Zakłócanie radarów: ${Math.round(s.hullConfig.radarJamming * 100)}%${s.hullId === 'widmo' ? ` · kamuflaż ${s.opticalCloak ? 'aktywny' : `${Math.ceil(s.opticalCloakCooldown)} s`} · dash ${Math.ceil(s.dashCooldown)} s` : ''}`,
             ].join('\n'),
             280,
             282,
@@ -177,36 +179,17 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             C.gold,
             460,
         );
-        label(root, 'ZAŁOGA / POKŁAD I STACJA', 860, 503, 13, C.muted);
+        label(root, 'ZAŁOGA STACJI', 860, 503, 13, C.muted);
         (['mechanic', 'quartermaster'] as const).forEach((role, i) => {
             const jobs = workerJobs(c, role),
                 head = jobs[0];
-            const aboard = role === 'mechanic' ? s.mechanicAboard : s.quartermasterAboard;
-            const title = aboard
-                ? role === 'mechanic'
-                    ? 'Pokład · Ada Vale'
-                    : 'Pokład · Niko Rell'
-                : role === 'mechanic'
-                  ? 'Mechanik'
-                  : 'Intendent';
+            const title = role === 'mechanic' ? 'Mechanik' : 'Intendent';
             const state = !c.crew[role]
                 ? 'niezatrudniony'
-                : aboard
-                  ? role === 'mechanic'
-                      ? s.mechanicStatus
-                      : s.quartermasterStatus
-                  : !head
-                    ? 'brak zadań'
-                    : `${JOBS[head.kind].title} · ${Math.ceil(head.remaining)} s${jobs.length > 1 ? ` · +${jobs.length - 1} w kolejce` : ''}`;
-            label(
-                root,
-                `${title}: ${state}`,
-                860,
-                532 + i * 36,
-                15,
-                head || aboard ? C.mint : C.muted,
-                460,
-            );
+                : !head
+                  ? 'brak zadań'
+                  : `${JOBS[head.kind].title} · ${Math.ceil(head.remaining)} s${jobs.length > 1 ? ` · +${jobs.length - 1} w kolejce` : ''}`;
+            label(root, `${title}: ${state}`, 860, 532 + i * 36, 15, head ? C.mint : C.muted, 460);
         });
         label(root, 'ODZYSK', 860, 635, 13, C.muted);
         label(

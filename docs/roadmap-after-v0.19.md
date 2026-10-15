@@ -1,5 +1,7 @@
 # Propozycje rozwoju po 0.19
 
+> Historia wdrożeń po 0.19. Aktualny backlog znajduje się w [plan-current.md](plan-current.md).
+
 Źródło: lista użytkownika i referencja portretów. Postacie mają być ludzkimi sylwetkami **bez oczu, nosa, ust ani innych rysów twarzy**. Styl pozostaje oparty na figurach Pixi.
 
 ## Pierwsza paczka — 0.20

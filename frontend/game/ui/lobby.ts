@@ -1,14 +1,5 @@
-import {
-    AEGIS,
-    ATLAS_WEAPONS,
-    GAME,
-    PHOENIX,
-    STINGER_AMMO,
-    WIDMO,
-    WEAPONS,
-    type WeaponId,
-} from '../config';
-import { HarpoonArms, HARPOON_ARMS } from '../systems/harpoonArms';
+import { ARMAMENT_KITS, armamentName } from '../config';
+import { ATLAS_WEAPONS, GAME, PHOENIX, STINGER_AMMO, WEAPONS, type WeaponId } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import {
     CONTRACTS,
@@ -37,9 +28,10 @@ import {
     ownedShips,
     shipHealth,
     scrapRefund,
+    canScrapShip,
     pilotSlots,
 } from '../state/campaign';
-import { workerJobs, jobStorage, crewAboard } from '../state/crew';
+import { workerJobs, jobStorage } from '../state/crew';
 import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
 import { MAX_PILOT_XP, pilotLevel, pilotPoints, pilotName } from '../state/pilots';
@@ -77,9 +69,7 @@ export interface LobbyActions {
     scrapShip: (id: number) => void;
     rescue: () => void;
     hireMechanic: () => void;
-    assignMechanic: (aboard: boolean) => void;
     hireQuartermaster: () => void;
-    assignQuartermaster: (aboard: boolean) => void;
     queueJob: (kind: JobKind) => void;
     cancelJob: (id: number) => void;
 }
@@ -105,6 +95,8 @@ export class LobbyView extends Container {
     private weaponFocus: WeaponId = 'standard';
     private shopHull: HullId = 'swift';
     private shopPage = 0;
+    private hullDetailMode: 'stats' | 'upgrades' = 'stats';
+    private shopPreviewLevel = 0;
     private pilotMode: 'roster' | 'recruit' = 'roster';
     private chosenPilotId: number | null = null;
     private recruit = 0;
@@ -182,7 +174,7 @@ export class LobbyView extends Container {
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.33', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.35', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -351,7 +343,9 @@ export class LobbyView extends Container {
     private hangar(ui: Container) {
         const c = this.campaign,
             ships = ownedShips(c),
-            catalogue = Object.keys(HULLS) as HullId[];
+            catalogue = (Object.keys(HULLS) as HullId[]).filter(
+                (id) => !('salvageOnly' in HULLS[id]),
+            );
         this.section(
             'Twój statek. Twój styl.',
             'Wybierz kadłub, zmień statek lub zamontuj moduły.',
@@ -405,6 +399,25 @@ export class LobbyView extends Container {
         }
         const ship = ships.find((entry) => entry.id === this.chosenShipId);
         const modules = this.hangarMode === 'shop' ? bareModules(this.shopHull) : ship;
+        if (modules && this.hangarMode === 'shop' && this.hullDetailMode === 'upgrades') {
+            for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const)
+                modules[key] = this.shopPreviewLevel;
+            for (const [i, title] of ['Bazowy', 'Moduły III'].entries())
+                button(
+                    ui,
+                    title,
+                    280,
+                    285 + i * 42,
+                    145,
+                    () => {
+                        this.shopPreviewLevel = i * 3;
+                        this.refresh();
+                    },
+                    this.shopPreviewLevel === i * 3,
+                    true,
+                    34,
+                );
+        }
         if (modules) this.art(hullPreview(modules), 625, 430);
         else {
             label(ui, 'Hangar czeka na nowy statek.', 392, 431, 25, C.muted);
@@ -486,41 +499,89 @@ export class LobbyView extends Container {
             456,
         );
         label(ui, config.role, 1072, 318, 15, C.muted);
-        stat(ui, 'KADŁUB', `${config.health + modules.armor * 25}`, 1072, 358, 'health');
-        stat(ui, 'ŁADOWNIA', `${config.cargo + modules.cargo * 15}`, 1230, 358, 'cargo');
-        stat(ui, 'PRĘDKOŚĆ', `${config.maxSpeed}`, 1390, 358);
-        label(
-            ui,
-            `Tarcza ${Math.round(config.shield.capacity * (1 + modules.shield * 0.25))} · regeneracja ${(config.shield.regen * (1 + modules.shield * 0.15)).toFixed(1)}/s`,
-            1072,
-            400,
-            13,
-            C.cyan,
-        );
-        if (owned && ship) {
+        for (const [i, mode] of (['stats', 'upgrades'] as const).entries())
+            button(
+                ui,
+                mode === 'stats' ? 'Parametry' : 'Ulepszenia',
+                1072 + i * 234,
+                350,
+                222,
+                () => {
+                    this.hullDetailMode = mode;
+                    this.refresh();
+                },
+                this.hullDetailMode === mode,
+                true,
+                34,
+            );
+        if (this.hullDetailMode === 'upgrades')
+            this.shipModules(
+                ui,
+                {
+                    ...modules,
+                    id: ship?.id ?? 0,
+                    weapon: modules.weapon ?? 'standard',
+                    weapons: ship?.weapons ?? ['standard'],
+                },
+                !owned,
+            );
+        else {
+            stat(ui, 'KADŁUB', `${config.health + modules.armor * 25}`, 1072, 408, 'health');
+            stat(
+                ui,
+                'TARCZA',
+                `${Math.round(config.shield.capacity * (1 + modules.shield * 0.25))}`,
+                1230,
+                408,
+                'shield',
+            );
+            stat(ui, 'ŁADOWNIA', `${config.cargo + modules.cargo * 15}`, 1390, 408, 'cargo');
             label(
                 ui,
-                modules.hull === 'harpoon'
-                    ? `Ramiona 2 · chwytaki ${config.grabbers.length} · zasięg ${Math.round(new HarpoonArms(modules.handling).reach * config.size)} m`
-                    : modules.hull === 'atlas'
-                      ? `Rakieta · salwa ${1 + modules.drill} granatów · 4 chwytaki`
-                      : modules.hull === 'aegis'
-                        ? `Energia · dron ${AEGIS.droneHull * (1 + modules.handling * 0.25)} HP · impuls · 1 chwytak`
-                        : modules.hull === 'swift'
-                          ? `Działko · kamuflaż 3 s / ${(WIDMO.cooldown / (1 + modules.drill * 0.2)).toFixed(1)} s · 1 chwytak`
-                          : modules.hull === 'mule'
-                            ? `Lasery 2 · zestaw ${JOBS.kit.ore * 2}/${JOBS.kit.parts * 2} · chwytaki 3`
-                            : modules.hull === 'fighter'
-                              ? `Działa 2 · granaty ${1 + modules.drill} · 1 chwytak`
-                              : modules.hull === 'tug'
-                                ? 'Działko · laser · 2 hole · 2 chwytaki'
-                                : `Działa ${config.guns.length} · lasery ${config.lasers.length} · chwytaki ${config.grabbers.length} · skręt ${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
-                1072,
-                421,
-                14,
-                C.muted,
+                `+${(config.shield.regen * (1 + modules.shield * 0.15)).toFixed(1)}/s`,
+                1264,
+                455,
+                13,
+                C.cyan,
             );
-            this.shipModules(ui, ship);
+            stat(ui, 'PRĘDKOŚĆ', `${config.maxSpeed}`, 1072, 486);
+            stat(
+                ui,
+                'SKRĘT',
+                `${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
+                1230,
+                486,
+            );
+            stat(ui, 'BOOST', `×${config.boost}`, 1390, 486);
+            label(
+                ui,
+                `Zakłócanie radarów ${Math.round(config.radarJamming * 100)}%`,
+                1072,
+                550,
+                15,
+                C.cyan,
+            );
+            label(
+                ui,
+                modules.hull === 'widmo'
+                    ? 'Dash LPM · kamuflaż optyczny PPM'
+                    : modules.hull === 'atlas'
+                      ? 'Rakiety · granaty · 4 chwytaki'
+                      : modules.hull === 'harpoon'
+                        ? '2 ramiona bojowe · 4 chwytaki'
+                        : modules.hull === 'aegis'
+                          ? 'Działko energetyczne · dron · impuls ochronny'
+                          : modules.hull === 'phoenix'
+                            ? 'Projektor bojowy · rakiety · chwytak'
+                            : `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
+                1072,
+                578,
+                15,
+                C.text,
+            );
+            label(ui, config.detail, 1072, 605, 14, C.muted, 456);
+        }
+        if (owned && ship) {
             if (c.ship?.id !== ship.id) {
                 button(
                     ui,
@@ -537,58 +598,6 @@ export class LobbyView extends Container {
                 });
             } else label(ui, '● Aktywny statek na następną wyprawę', 1072, 754, 15, C.mint);
         } else {
-            stat(ui, 'SKRĘT', `${config.turnSpeed.toFixed(2)}`, 1072, 427);
-            stat(ui, 'BOOST', `×${config.boost}`, 1230, 427);
-            stat(
-                ui,
-                'KAMUFLAŻ',
-                modules.hull === 'swift'
-                    ? '3 s / PPM'
-                    : !config.cloak
-                      ? 'Brak'
-                      : config.cloak >= 0.5
-                        ? 'Dobry'
-                        : config.cloak >= 0.35
-                          ? 'Średni'
-                          : 'Słaby',
-                1390,
-                427,
-            );
-            label(
-                ui,
-                modules.hull === 'harpoon'
-                    ? '2 ramiona bojowe · 4 chwytaki'
-                    : modules.hull === 'atlas'
-                      ? 'Rakieta · granaty · 4 chwytaki'
-                      : modules.hull === 'aegis'
-                        ? 'Działko energetyczne · dron · 1 chwytak'
-                        : `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
-                1072,
-                493,
-                16,
-                C.text,
-            );
-            label(
-                ui,
-                modules.hull === 'harpoon'
-                    ? `Ramiona ${Math.round(HARPOON_ARMS.reach * config.size)} m · chwytaki ${config.grabberRange} m`
-                    : modules.hull === 'atlas'
-                      ? 'Namierzanie 3 s · granaty 0,7 s'
-                      : modules.hull === 'aegis'
-                        ? 'Impuls tarcz 420 m · ochrona 6 s'
-                        : modules.hull === 'swift'
-                          ? 'Kamuflaż 3 s · odnowienie 12 s'
-                          : modules.hull === 'fighter'
-                            ? 'Granaty: wybuch 65 m · zapalnik 0,7 s'
-                            : modules.hull === 'tug'
-                              ? 'Laser 320 m · dwa niezależne hole'
-                              : `${config.lasers.length ? `Laser ${config.laserRange} m · ` : ''}chwytaki ${config.grabberRange} m`,
-                1072,
-                522,
-                15,
-                C.muted,
-            );
-            label(ui, config.detail, 1072, 564, 16, C.muted, 456);
             const locked = c.station.workshop < config.workshop,
                 full = ships.length >= FLEET_LIMIT;
             label(
@@ -597,18 +606,18 @@ export class LobbyView extends Container {
                     ? `Wymagany warsztat ${config.workshop === 2 ? 'II' : 'I'}`
                     : full
                       ? 'Hangar pełny · zwolnij miejsce we flocie'
-                      : 'KOSZT NOWEGO STATKU',
+                      : 'ZAKUP KADŁUBA BAZOWEGO',
                 1072,
-                639,
-                13,
+                680,
+                12,
                 locked || full ? C.gold : C.muted,
             );
-            cost(ui, config.ore, config.parts, 1072, 671);
+            cost(ui, config.ore, config.parts, 1072, 699);
             button(
                 ui,
                 locked ? 'ROZBUDUJ WARSZTAT →' : full ? 'OTWÓRZ FLOTĘ →' : 'KUP STATEK →',
                 1072,
-                719,
+                741,
                 456,
                 () => {
                     if (locked) {
@@ -625,7 +634,7 @@ export class LobbyView extends Container {
                 },
                 true,
                 locked || full || (c.bank.ore >= config.ore && c.bank.parts >= config.parts),
-                52,
+                40,
             );
         }
     }
@@ -636,302 +645,12 @@ export class LobbyView extends Container {
             label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
             return;
         }
-        if (ship.hull === 'phoenix') {
-            this.art(hullPreview(ship), 625, 430);
-            label(ui, 'UZBROJENIE / FENIKS', 1072, 244, 13, C.muted);
-            label(ui, 'Laser i rakieta', 1072, 279, 30, C.text, 456);
-            const multiplier = 1 + ship.drill * 0.25;
-            stat(ui, 'LASER / HP/S', `${PHOENIX.laserDamage * multiplier}`, 1072, 365);
-            stat(
-                ui,
-                'PODPALENIE',
-                `${PHOENIX.burnDamage * multiplier}/s · ${PHOENIX.burnSeconds} s`,
-                1298,
-                365,
-            );
-            stat(ui, 'LASER / ZASIĘG', `${HULLS.phoenix.laserRange} m`, 1072, 446);
-            stat(
-                ui,
-                'RAKIETA / HP',
-                `${ATLAS_WEAPONS.rocket.damage * (1 + ship.handling * 0.25)}`,
-                1298,
-                446,
-            );
-            label(
-                ui,
-                `Wydobycie ${PHOENIX.rockDamage * multiplier}/s · 2 krótkie chwytaki\nRakieta ${ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life} m · cykl ${ATLAS_WEAPONS.rocket.interval} s`,
-                1072,
-                541,
-                17,
-                C.muted,
-                456,
-            );
-            label(
-                ui,
-                'LPM: wiązka bojowa i wydobycie\nPPM: rakieta · namierzanie kursorem 3 s\nPodpalenie odnawia czas, nie kumuluje siły.',
-                1072,
-                604,
-                15,
-                C.muted,
-                456,
-            );
-            label(
-                ui,
-                'Stałe uzbrojenie · projektor i układ rakietowy.',
-                1072,
-                719,
-                16,
-                C.mint,
-                456,
-            );
-            return;
-        }
-        if (ship.hull === 'stinger') {
-            this.art(hullPreview(ship), 625, 430);
-            label(ui, 'UZBROJENIE / ŻĄDŁO', 1072, 244, 13, C.muted);
-            label(ui, 'Cztery działka', 1072, 279, 30, C.text, 456);
-            const multiplier = 1 + ship.drill * 0.25;
-            stat(
-                ui,
-                'LPM / LEKKIE',
-                `4 × ${(STINGER_AMMO.light.damage * STINGER_AMMO.light.patrol * multiplier).toFixed(1)}`,
-                1072,
-                365,
-            );
-            stat(
-                ui,
-                'PPM / PANCERZ',
-                `4 × ${(STINGER_AMMO.armor.damage * STINGER_AMMO.armor.lancer * multiplier).toFixed(1)}`,
-                1298,
-                365,
-            );
-            stat(ui, 'CYKL LPM', `${STINGER_AMMO.light.interval} s`, 1072, 446);
-            stat(ui, 'CYKL PPM', `${STINGER_AMMO.armor.interval} s`, 1298, 446);
-            label(
-                ui,
-                'Po 2 działka na skrzydło · dziób bez broni\nBrak lasera · jeden chwytak',
-                1072,
-                541,
-                17,
-                C.muted,
-                456,
-            );
-            label(
-                ui,
-                'LPM: lekki patrol ×1,5 · Lancer ×0,4\nPPM: lekki patrol ×0,45 · Lancer ×1,5\nWspólny cykl salwy · PPM ma pierwszeństwo',
-                1072,
-                604,
-                15,
-                C.muted,
-                456,
-            );
-            label(ui, 'Stałe uzbrojenie · ulepszaj układ amunicji.', 1072, 719, 16, C.mint, 456);
-            return;
-        }
-        if (ship.hull === 'mule') {
-            this.art(hullPreview(ship), 625, 430);
-            label(ui, 'WYDOBYCIE / MULE', 1072, 244, 13, C.muted);
-            label(ui, 'Lasery i naprawy', 1072, 279, 30, C.text, 456);
-            stat(
-                ui,
-                'LASERY / MOC',
-                `2 × ${(GAME.laserDamage * HULLS.mule.miningPower * (1 + ship.drill * 0.25)).toFixed(0)}/s`,
-                1072,
-                365,
-            );
-            stat(ui, 'ZASIĘG', `${HULLS.mule.laserRange} m`, 1298, 365);
-            stat(ui, 'ZESTAW / RUDA', `${JOBS.kit.ore * 2}`, 1072, 446);
-            stat(ui, 'KOMPONENTY', `${JOBS.kit.parts * 2}`, 1298, 446);
-            label(ui, 'Produkcja przy zapasie 0 · surowce z ładowni', 1072, 526, 15, C.muted, 456);
-            label(
-                ui,
-                'Brak działek · lasery zadają małe obrażenia statkom',
-                1072,
-                570,
-                15,
-                C.muted,
-                456,
-            );
-            button(
-                ui,
-                'MODUŁY WYDOBYWCZE →',
-                1072,
-                719,
-                456,
-                () => {
-                    this.hangarMode = 'owned';
-                    this.chosenShipId = ship.id;
-                    this.moduleFocus = 'drill';
-                    this.refresh();
-                },
-                true,
-            );
-            return;
-        }
-        if (ship.hull === 'aegis') {
-            this.art(hullPreview(ship), 625, 430);
-            label(ui, 'OBROŃCA / AEGIS', 1072, 244, 13, C.muted);
-            label(ui, 'Energia i osłony', 1072, 279, 30, C.text, 456);
-            stat(ui, 'DZIAŁKO / OBRAŻENIA', `${AEGIS.damage * (1 + ship.drill * 0.25)}`, 1072, 365);
-            stat(ui, 'BLOKADA BRONI', `${AEGIS.disable} s`, 1298, 365);
-            stat(
-                ui,
-                'DRON / ATAK / HP',
-                `${AEGIS.droneDamage * (1 + ship.handling * 0.25)} / ${AEGIS.droneHull * (1 + ship.handling * 0.25)}`,
-                1072,
-                446,
-            );
-            stat(
-                ui,
-                'ODNOWIENIE IMPULSU',
-                `${(AEGIS.cooldown / (1 + ship.shield * 0.2)).toFixed(1)} s`,
-                1298,
-                446,
-            );
-            label(
-                ui,
-                `Osłony ${AEGIS.range} m · ${AEGIS.duration} s · bufor ${AEGIS.buffer * (1 + ship.shield * 0.25)}`,
-                1072,
-                526,
-                15,
-                C.muted,
-                456,
-            );
-            label(
-                ui,
-                'Ogniwo: obrażenia · system drona: atak i kadłub\nImpuls: szybsze odnowienie i mocniejsze tarcze',
-                1072,
-                570,
-                15,
-                C.muted,
-                456,
-            );
-            button(
-                ui,
-                'MODUŁY WSPARCIA →',
-                1072,
-                719,
-                456,
-                () => {
-                    this.hangarMode = 'owned';
-                    this.chosenShipId = ship.id;
-                    this.moduleFocus = 'drill';
-                    this.refresh();
-                },
-                true,
-            );
-            return;
-        }
-        if (ship.hull === 'atlas') {
-            this.art(hullPreview(ship), 625, 430);
-            label(ui, 'GRENADIER / ATLAS', 1072, 244, 13, C.muted);
-            label(ui, 'Rakiety i granaty', 1072, 279, 30, C.text, 456);
-            stat(
-                ui,
-                'RAKIETA / OBRAŻENIA',
-                `${ATLAS_WEAPONS.rocket.damage * (1 + ship.handling * 0.25)}`,
-                1072,
-                365,
-            );
-            stat(ui, 'PROMIEŃ WYBUCHU', `${ATLAS_WEAPONS.rocket.radius} m`, 1298, 365);
-            stat(
-                ui,
-                'GRANATY / SALWA',
-                `${1 + ship.drill} × ${ATLAS_WEAPONS.grenade.damage}`,
-                1072,
-                446,
-            );
-            stat(
-                ui,
-                'PROMIEŃ / ZAPALNIK',
-                `${ATLAS_WEAPONS.grenade.radius} m / ${ATLAS_WEAPONS.grenade.life} s`,
-                1298,
-                446,
-            );
-            label(ui, 'Rakieta · namierzanie 3 s · zasięg 2880 m', 1072, 526, 15, C.muted, 456);
-            label(
-                ui,
-                shipUpgradeDefinition('atlas', 'handling').detail,
-                1072,
-                565,
-                15,
-                C.muted,
-                456,
-            );
-            label(ui, shipUpgradeDefinition('atlas', 'drill').detail, 1072, 617, 15, C.muted, 456);
-            button(
-                ui,
-                'MODUŁY UZBROJENIA →',
-                1072,
-                719,
-                456,
-                () => {
-                    this.hangarMode = 'owned';
-                    this.chosenShipId = ship.id;
-                    this.moduleFocus = 'drill';
-                    this.refresh();
-                },
-                true,
-            );
-            return;
-        }
-        if (ship.hull === 'harpoon') {
-            const arms = new HarpoonArms(ship.handling, ship.drill);
-            this.art(hullPreview(ship), 625, 430);
-            label(ui, 'RAMIONA / HARPUN', 1072, 244, 13, C.muted);
-            label(ui, 'Szczęki hydrauliczne', 1072, 279, 30, C.text, 456);
-            stat(
-                ui,
-                'SKAŁY / ZACISK',
-                `${HARPOON_ARMS.rockDamage * arms.damageMultiplier}`,
-                1072,
-                365,
-            );
-            stat(
-                ui,
-                'STATKI / ZACISK',
-                `${HARPOON_ARMS.shipDamage * arms.damageMultiplier}`,
-                1298,
-                365,
-            );
-            stat(ui, 'ZASIĘG', `${Math.round(arms.reach * HULLS.harpoon.size)} m`, 1072, 446);
-            stat(ui, 'CYKL SZCZĘK', `${HARPOON_ARMS.cycle} s`, 1298, 446);
-            label(
-                ui,
-                shipUpgradeDefinition('harpoon', 'handling').detail,
-                1072,
-                544,
-                16,
-                C.muted,
-                456,
-            );
-            label(
-                ui,
-                shipUpgradeDefinition('harpoon', 'drill').detail,
-                1072,
-                582,
-                16,
-                C.muted,
-                456,
-            );
-            button(
-                ui,
-                'MODUŁY RAMION →',
-                1072,
-                719,
-                456,
-                () => {
-                    this.hangarMode = 'owned';
-                    this.chosenShipId = ship.id;
-                    this.moduleFocus = 'drill';
-                    this.refresh();
-                },
-                true,
-            );
-            return;
-        }
         const id = this.weaponFocus,
             w = WEAPONS[id],
+            special = ['widmo', 'mule', 'atlas', 'harpoon', 'aegis', 'stinger', 'phoenix'].includes(
+                ship.hull,
+            ),
+            beam = ship.hull === 'mule' || ship.hull === 'phoenix',
             owned = ship.weapons.includes(id),
             mounted = ship.weapon === id;
         this.art(hullPreview({ ...ship, weapon: id }), 625, 430);
@@ -942,10 +661,24 @@ export class LobbyView extends Container {
                     this.weaponFocus = key;
                     this.refresh();
                 });
-            label(card, definition.name, 18, 22, 24);
             label(
                 card,
-                `${definition.damage} DMG · ${(1 / definition.interval).toFixed(1)}/s`,
+                special
+                    ? key === 'standard'
+                        ? 'Standard'
+                        : key === 'pulse'
+                          ? 'Impulsowy'
+                          : 'Ciężki'
+                    : definition.name,
+                18,
+                22,
+                24,
+            );
+            label(
+                card,
+                special
+                    ? `Moc ×${ARMAMENT_KITS[key].power} · ${beam ? `zasięg ×${ARMAMENT_KITS[key].range}` : `cykl ×${ARMAMENT_KITS[key].cooldown}`}`
+                    : `${definition.damage} DMG · ${(1 / definition.interval).toFixed(1)}/s`,
                 18,
                 66,
                 15,
@@ -964,37 +697,42 @@ export class LobbyView extends Container {
                 ship.weapon === key ? C.mint : C.muted,
             );
         });
-        label(ui, 'DZIAŁKA / AKTYWNY STATEK', 1072, 244, 13, C.muted);
-        label(ui, w.name, 1072, 279, 34);
-        label(ui, w.detail, 1072, 341, 18, C.muted, 456);
-        stat(ui, 'OBRAŻENIA', `${w.damage}`, 1072, 429);
-        stat(ui, 'STRZAŁY / S', (1 / w.interval).toFixed(1), 1298, 429);
-        stat(ui, 'ZASIĘG', `${Math.round(w.speed * w.life)} m`, 1072, 516);
-        stat(ui, 'POCISK', `${w.speed} m/s`, 1298, 516);
+        label(ui, 'SYSTEM UZBROJENIA / AKTYWNY STATEK', 1072, 244, 13, C.muted);
+        label(ui, special ? armamentName(ship.hull, id) : w.name, 1072, 279, 26, C.text, 456);
         label(
             ui,
-            ship.hull === 'fighter'
-                ? `Granaty: ${1 + ship.drill} × ${ATLAS_WEAPONS.grenade.damage} · wybuch ${ATLAS_WEAPONS.grenade.radius} m`
-                : ship.hull === 'swift'
-                  ? `Kamuflaż optyczny ${WIDMO.duration} s · odnowienie ${(WIDMO.cooldown / (1 + ship.drill * 0.2)).toFixed(1)} s`
-                  : 'Zmienia wszystkie działka kadłuba.\nLasery: wydobycie i małe obrażenia statkom.',
+            special
+                ? 'Wariant wyspecjalizowanego uzbrojenia tego kadłuba. Zachowuje jego rolę i sposób obsługi.'
+                : w.detail,
             1072,
-            602,
-            15,
+            341,
+            18,
             C.muted,
             456,
         );
-        if (!owned) cost(ui, w.ore, w.parts, 1072, 679);
-        else label(ui, 'Zmiana posiadanej broni jest bezpłatna.', 1072, 679, 15, C.muted);
+        stat(
+            ui,
+            special ? 'MOC' : 'OBRAŻENIA',
+            special ? `×${ARMAMENT_KITS[id].power}` : `${w.damage}`,
+            1072,
+            429,
+        );
+        stat(
+            ui,
+            special ? (beam ? 'ZASIĘG WIĄZKI' : 'CZAS CYKLU') : 'STRZAŁY / S',
+            special
+                ? beam
+                    ? `${Math.round(HULLS[ship.hull].laserRange * ARMAMENT_KITS[id].range)} m`
+                    : `×${ARMAMENT_KITS[id].cooldown}`
+                : (1 / w.interval).toFixed(1),
+            1298,
+            429,
+        );
+        label(ui, HULLS[ship.hull].detail, 1072, 530, 17, C.muted, 456);
+        cost(ui, w.ore, w.parts, 1072, 674);
         button(
             ui,
-            mounted
-                ? 'ZAMONTOWANE'
-                : !owned && c.station.workshop < w.workshop
-                  ? 'WYMAGANY WARSZTAT I'
-                  : owned
-                    ? 'ZAMONTUJ →'
-                    : 'KUP I ZAMONTUJ →',
+            mounted ? 'ZAMONTOWANE' : owned ? 'ZAMONTUJ →' : 'KUP I ZAMONTUJ →',
             1072,
             728,
             456,
@@ -1008,15 +746,23 @@ export class LobbyView extends Container {
             48,
         );
     }
-    private shipModules(ui: Container, ship: ReturnType<typeof ownedShips>[number]) {
+    private shipModules(
+        ui: Container,
+        ship: ReturnType<typeof ownedShips>[number],
+        preview = false,
+    ) {
         const c = this.campaign,
             active = c.ship?.id === ship.id,
-            limit = c.station.workshop + 1;
+            limit = preview ? 3 : c.station.workshop + 1;
         label(
             ui,
-            active ? `MODUŁY · LIMIT ${limit}` : 'MODUŁY · AKTYWUJ STATEK, ABY ZMIENIAĆ',
+            preview
+                ? 'DOSTĘPNE MODUŁY · CENY POZIOMU I'
+                : active
+                  ? `MODUŁY · LIMIT ${limit}`
+                  : 'AKTYWUJ STATEK, ABY KUPOWAĆ MODUŁY',
             1072,
-            454,
+            399,
             12,
             C.muted,
         );
@@ -1024,20 +770,43 @@ export class LobbyView extends Container {
             ui,
             shipUpgradeDefinition(ship.hull, this.moduleFocus).detail,
             1072,
-            733,
+            645,
             13,
             C.muted,
+            456,
         );
         (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).forEach((key, i) => {
             const level = ship[key],
-                price = upgradePrice({ ...c, ship }, key),
+                price = upgradePrice(
+                    {
+                        ...c,
+                        ship: preview
+                            ? {
+                                  ...ship,
+                                  engine: 0,
+                                  handling: 0,
+                                  cargo: 0,
+                                  drill: 0,
+                                  armor: 0,
+                                  shield: 0,
+                              }
+                            : ship,
+                    },
+                    key,
+                ),
                 definition = shipUpgradeDefinition(ship.hull, key),
-                y = 487 + i * 40;
-            label(ui, definition.title, 1072, y, 16);
+                y = 435 + i * 34;
+            const title = label(ui, definition.title, 1072, y, 16);
+            title.eventMode = 'static';
+            title.cursor = 'help';
+            title.on('pointerenter', () => {
+                this.moduleFocus = key;
+                hint.setText(definition.detail);
+            });
             segments(ui, level, 3, 1288, y + 5, 69);
             const buy = button(
                 ui,
-                level >= limit
+                !preview && level >= limit
                     ? 'MAX'
                     : `${price.ore}R ${price.parts}K${price.crystals ? ` ${price.crystals}◆` : ''}`,
                 1390,
@@ -1045,14 +814,16 @@ export class LobbyView extends Container {
                 138,
                 () => {
                     this.moduleFocus = key;
-                    this.actions.upgrade(key);
+                    if (preview) this.refresh();
+                    else this.actions.upgrade(key);
                 },
                 false,
-                active &&
-                    level < limit &&
-                    c.bank.ore >= price.ore &&
-                    c.bank.parts >= price.parts &&
-                    (c.bank.crystals ?? 0) >= (price.crystals ?? 0),
+                preview ||
+                    (active &&
+                        level < limit &&
+                        c.bank.ore >= price.ore &&
+                        c.bank.parts >= price.parts &&
+                        (c.bank.crystals ?? 0) >= (price.crystals ?? 0)),
                 30,
             );
             buy.config.onHover = () => {
@@ -1389,16 +1160,12 @@ export class LobbyView extends Container {
     }
     private crew(ui: Container) {
         const c = this.campaign,
-            recipe = JOBS[this.recipe],
             role = this.crewRole,
-            hired = c.crew[role],
-            jobs = workerJobs(c, role),
-            quartermaster = role === 'quartermaster',
-            aboard = crewAboard(c, role);
-        this.section(
-            'Załoga trzyma wszystko w ruchu.',
-            'Zaplanuj pracę warsztatu na czas swojej wyprawy.',
-        );
+            hired = c.crew[role];
+        const jobs = workerJobs(c, role),
+            recipe = JOBS[this.recipe];
+        const quartermaster = role === 'quartermaster';
+        this.section('Załoga dba o Aurorę.', 'Zaplanuj pracę stacji na czas swojej wyprawy.');
         (['mechanic', 'quartermaster'] as const).forEach((worker, i) => {
             button(
                 ui,
@@ -1416,88 +1183,24 @@ export class LobbyView extends Container {
                 38,
             );
         });
-        this.art(
-            workshopScene(
-                quartermaster && aboard ? 'kit' : this.recipe,
-                quartermaster && aboard ? CREW.fieldKitParts : 0,
-            ),
-            625,
-            441,
-        );
+        this.art(workshopScene(this.recipe), 625, 441);
         label(
             ui,
-            quartermaster
-                ? aboard
-                    ? 'NIKO RELL / INTENDENT POKŁADOWY'
-                    : 'NIKO RELL / INTENDENT BAZY'
-                : aboard
-                  ? 'ADA VALE / MECHANIK POKŁADOWY'
-                  : 'ADA VALE / MECHANIK STACJI',
+            quartermaster ? 'NIKO RELL / INTENDENT BAZY' : 'ADA VALE / MECHANIK STACJI',
             388,
             286,
             16,
             hired ? C.mint : C.muted,
         );
-        if (hired) {
-            button(
-                ui,
-                'Stacja',
-                400,
-                590,
-                225,
-                () =>
-                    quartermaster
-                        ? this.actions.assignQuartermaster(false)
-                        : this.actions.assignMechanic(false),
-                !aboard,
-                true,
-                36,
-            );
-            button(
-                ui,
-                'Pokład',
-                640,
-                590,
-                225,
-                () =>
-                    quartermaster
-                        ? this.actions.assignQuartermaster(true)
-                        : this.actions.assignMechanic(true),
-                aboard,
-                jobs.length === 0,
-                36,
-            );
-            if (jobs.length)
-                label(ui, 'Przydział zablokowany · aktywna kolejka', 400, 632, 13, C.muted);
-        }
-        (
-            (quartermaster
-                ? aboard
-                    ? ['kit']
-                    : ['recycle']
-                : ['refine', 'kit', 'crystallize']) as JobKind[]
-        ).forEach((kind, i) => {
-            const job =
-                    quartermaster && aboard
-                        ? {
-                              ...JOBS.kit,
-                              ore: 0,
-                              parts: CREW.fieldKitParts,
-                              seconds: CREW.fieldKitSeconds,
-                          }
-                        : JOBS[kind],
-                card = choiceCard(
-                    ui,
-                    280 + i * 240,
-                    650,
-                    225,
-                    141,
-                    this.recipe === kind || (quartermaster && aboard),
-                    () => {
-                        if (!quartermaster || !aboard) this.recipe = kind;
-                        this.refresh();
-                    },
-                );
+        const recipes = (
+            quartermaster ? ['recycle'] : ['refine', 'kit', 'crystallize']
+        ) as JobKind[];
+        recipes.forEach((kind, i) => {
+            const job = JOBS[kind],
+                card = choiceCard(ui, 280 + i * 240, 650, 225, 141, this.recipe === kind, () => {
+                    this.recipe = kind;
+                    this.refresh();
+                });
             label(card, job.title, 16, 23, 20, C.text, 190);
             label(
                 card,
@@ -1509,32 +1212,11 @@ export class LobbyView extends Container {
             );
             cost(card, job.ore, job.parts, 20, 99);
         });
+        label(ui, quartermaster ? 'ODZYSK / STACJA' : 'WARSZTAT / STACJA', 1072, 244, 13, C.muted);
         label(
             ui,
             hired
-                ? aboard
-                    ? quartermaster
-                        ? 'POKŁAD / INTENDENT'
-                        : 'POKŁAD / MECHANIK'
-                    : quartermaster
-                      ? 'ODZYSK / KOLEJKA'
-                      : 'WARSZTAT / KOLEJKA'
-                : quartermaster
-                  ? 'ZAŁOGA / INTENDENT'
-                  : 'ZAŁOGA / MECHANIK',
-            1072,
-            244,
-            13,
-            C.muted,
-        );
-        label(
-            ui,
-            hired
-                ? aboard
-                    ? quartermaster
-                        ? 'Niko Rell'
-                        : 'Ada Vale'
-                    : `Zadania ${jobs.length}/${CREW.queueLimit}`
+                ? `Zadania ${jobs.length}/${CREW.queueLimit}`
                 : quartermaster
                   ? 'Niko Rell'
                   : 'Ada Vale',
@@ -1549,197 +1231,74 @@ export class LobbyView extends Container {
                 quartermaster ? 92 : 91,
             );
             portrait.scale.set(0.6);
-            portrait.position.set(1300, 447);
+            portrait.position.set(1285, 479);
             ui.addChild(portrait);
-            label(
-                ui,
-                quartermaster
-                    ? 'Odzyska rudę z nadmiarowych komponentów.'
-                    : 'Uruchomi rafinację i produkcję zestawów.',
-                1072,
-                567,
-                17,
-                C.muted,
-                456,
-            );
-            label(ui, 'KOSZT ZATRUDNIENIA', 1072, 649, 12, C.muted);
-            cost(
-                ui,
-                quartermaster ? CREW.quartermasterOre : CREW.hireOre,
-                quartermaster ? CREW.quartermasterParts : 0,
-                1072,
-                674,
-            );
+            const ore = quartermaster ? CREW.quartermasterOre : CREW.hireOre;
+            const parts = quartermaster ? CREW.quartermasterParts : 0;
+            cost(ui, ore, parts, 1072, 671);
             button(
                 ui,
-                quartermaster && c.station.workshop < 1
-                    ? 'WYMAGANY WARSZTAT I'
-                    : quartermaster
-                      ? 'ZATRUDNIJ INTENDENTA →'
-                      : 'ZATRUDNIJ MECHANIKA →',
+                'ZATRUDNIJ →',
                 1072,
                 719,
                 456,
-                quartermaster ? this.actions.hireQuartermaster : this.actions.hireMechanic,
+                () =>
+                    quartermaster ? this.actions.hireQuartermaster() : this.actions.hireMechanic(),
                 true,
-                quartermaster
-                    ? c.station.workshop >= 1 &&
-                          c.bank.ore >= CREW.quartermasterOre &&
-                          c.bank.parts >= CREW.quartermasterParts
-                    : c.bank.ore >= CREW.hireOre,
+                c.bank.ore >= ore &&
+                    c.bank.parts >= parts &&
+                    (!quartermaster || c.station.workshop >= 1),
                 52,
             );
             return;
         }
-        label(
-            ui,
-            quartermaster && !aboard
-                ? 'Recykling · 1 komponent → 5 rudy'
-                : `Zestawy w bazie ${c.repairKits}/${CREW.kitLimit}`,
-            1072,
-            326,
-            16,
-            C.muted,
-        );
-        if (aboard) {
-            label(ui, 'Dyżur na pokładzie', 1072, 404, 21, C.mint);
-            label(
-                ui,
-                quartermaster
-                    ? `Produkcja zestawu · ${CREW.fieldKitSeconds} s`
-                    : `Naprawa automatyczna · ${CREW.fieldRepairSeconds} s`,
-                1072,
-                447,
-                17,
-                C.text,
-            );
-            label(
-                ui,
-                quartermaster
-                    ? `${CREW.fieldKitParts} komponentów z ładowni`
-                    : 'Awaria napędu / kadłub poniżej 60%',
-                1072,
-                480,
-                15,
-                C.muted,
-            );
-            label(
-                ui,
-                quartermaster
-                    ? 'Zapas pokładowy · maks. 1 zestaw'
-                    : `1 zestaw · kadłub +${GAME.repairHull}`,
-                1072,
-                513,
-                15,
-                C.muted,
-            );
-            label(
-                ui,
-                quartermaster
-                    ? 'Utrata statku oznacza stratę intendenta.'
-                    : 'Utrata statku oznacza stratę mechanika.',
-                1072,
-                558,
-                15,
-                C.red,
-                456,
-            );
-        } else if (!jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
+        label(ui, `Zestawy w bazie ${c.repairKits}/${CREW.kitLimit}`, 1072, 326, 16, C.muted);
+        if (!jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
         jobs.forEach((job, i) => {
             const y = 370 + i * 77;
             label(ui, `${i + 1}. ${JOBS[job.kind].title}`, 1072, y, 18);
             label(
                 ui,
-                `${Math.ceil(job.remaining)} s${i ? ' · w kolejce' : ' · następne do wykonania'}`,
+                `${Math.ceil(job.remaining)} s${i ? ' · w kolejce' : ' · następne'}`,
                 1072,
                 y + 28,
                 13,
                 C.muted,
             );
-            ui.addChild(
-                new Graphics()
-                    .rect(1072, y + 52, 365, 3)
-                    .fill(C.line)
-                    .rect(
-                        1072,
-                        y + 52,
-                        Math.max(1, 365 * (1 - job.remaining / JOBS[job.kind].seconds)),
-                        3,
-                    )
-                    .fill(C.mint),
-            );
-            button(ui, '×', 1468, y + 4, 60, () => this.actions.cancelJob(job.id), false, true, 36);
+            button(ui, '×', 1470, y, 58, () => this.actions.cancelJob(job.id), false, true, 34);
         });
-        label(
-            ui,
-            aboard
-                ? 'Stanowisko w bazie nieaktywne.'
-                : 'Praca podczas lotu · stanowiska działają równolegle.',
-            1072,
-            615,
-            14,
-            C.muted,
-        );
-        label(
-            ui,
-            aboard ? (quartermaster ? 'Zestaw naprawczy' : 'Wyposażenie na start') : recipe.title,
-            1072,
-            654,
-            17,
-        );
-        if (aboard && !quartermaster)
-            label(
-                ui,
-                `${Math.min(c.repairKits, CREW.embarkKits)} zest. naprawczych`,
-                1072,
-                680,
-                15,
-                C.muted,
-            );
-        else
-            cost(
-                ui,
-                aboard ? 0 : recipe.ore,
-                aboard ? CREW.fieldKitParts : recipe.parts,
-                1072,
-                680,
-            );
-        const noStorage =
-            storageUsed(c) + jobStorage(this.recipe) - recipe.ore - recipe.parts >
+        label(ui, recipe.title, 1072, 654, 17);
+        cost(ui, recipe.ore, recipe.parts, 1072, 680);
+        const full = jobs.length >= CREW.queueLimit;
+        const kitLimit =
+            this.recipe === 'kit' &&
+            c.repairKits + c.crew.jobs.filter((j) => j.kind === 'kit').length >= CREW.kitLimit;
+        const room =
+            storageUsed(c) + jobStorage(this.recipe) - recipe.ore - recipe.parts <=
             storageCapacity(c);
-        const full = jobs.length >= CREW.queueLimit,
-            kitsFull =
-                this.recipe === 'kit' &&
-                c.repairKits + c.crew.jobs.filter((job) => job.kind === 'kit').length >=
-                    CREW.kitLimit;
+        const workshop = this.recipe !== 'crystallize' || c.station.workshop >= 1;
         button(
             ui,
-            aboard
-                ? quartermaster
-                    ? 'INTENDENT NA POKŁADZIE'
-                    : 'MECHANIK NA POKŁADZIE'
-                : full
-                  ? 'KOLEJKA PEŁNA'
-                  : kitsFull
-                    ? 'LIMIT ZESTAWÓW'
-                    : noStorage
-                      ? 'MAGAZYN PEŁNY'
-                      : this.recipe === 'crystallize' && c.station.workshop < 1
-                        ? 'WYMAGANY WARSZTAT I'
-                        : 'DODAJ ZADANIE →',
+            full
+                ? 'KOLEJKA PEŁNA'
+                : kitLimit
+                  ? 'LIMIT ZESTAWÓW'
+                  : !room
+                    ? 'MAGAZYN PEŁNY'
+                    : !workshop
+                      ? 'WYMAGANY WARSZTAT I'
+                      : 'DODAJ ZADANIE →',
             1072,
             728,
             456,
             () => this.actions.queueJob(this.recipe),
             true,
-            !aboard &&
-                !full &&
-                (this.recipe !== 'crystallize' || c.station.workshop >= 1) &&
-                !kitsFull &&
+            !full &&
+                !kitLimit &&
+                room &&
+                workshop &&
                 c.bank.ore >= recipe.ore &&
-                c.bank.parts >= recipe.parts &&
-                storageUsed(c) + jobStorage(this.recipe) - recipe.ore - recipe.parts <=
-                    storageCapacity(c),
+                c.bank.parts >= recipe.parts,
             48,
         );
     }
@@ -1868,9 +1427,7 @@ export class LobbyView extends Container {
             return;
         }
         const refund = scrapRefund(ship),
-            room =
-                storageUsed(this.campaign) + refund.ore + refund.parts <=
-                storageCapacity(this.campaign);
+            room = canScrapShip(this.campaign, ship.id);
         const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.88 });
         shade.eventMode = 'static';
         ui.addChild(shade);
@@ -1878,7 +1435,7 @@ export class LobbyView extends Container {
         label(ui, `Zezłomować ${HULLS[ship.hull].name} #${ship.id}?`, 469, 302, 29);
         label(ui, 'Kadłub i zamontowane moduły zostaną usunięte.', 469, 360, 18, C.red);
         label(ui, 'ODZYSKANE SUROWCE', 469, 409, 12, C.muted);
-        cost(ui, refund.ore, refund.parts, 469, 435);
+        cost(ui, refund.ore, refund.parts, 469, 435, false, refund.crystals ?? 0);
         if (!room) label(ui, 'Brak miejsca w magazynie na odzysk.', 469, 482, 16, C.gold);
         button(ui, 'Anuluj', 469, 544, 300, () => {
             this.scrapCandidate = null;

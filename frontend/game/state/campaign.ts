@@ -1,3 +1,4 @@
+import { random } from '../worlds/sector';
 import { SALVAGE } from '../systems/salvage';
 import { WEAPONS, type WeaponId } from '../config';
 import {
@@ -61,7 +62,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 17;
+    version: 18;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
@@ -120,7 +121,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 17,
+        version: 18,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
@@ -156,7 +157,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         const p: unknown = JSON.parse(json ?? 'null');
         if (
             !object(p) ||
-            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(
+            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(
                 p.version as number,
             ) ||
             !cargo(p.bank) ||
@@ -485,7 +486,16 @@ export function parseCampaign(json: string | null): Campaign | null {
         if ((p.version as number) < 15)
             for (const ship of [p.ship, ...p.reserveShips, ...p.recoverySignals.map((s) => s.ship)])
                 if (ship) ship.shield ??= 0;
-        p.version = 17;
+        if ((p.version as number) < 18) {
+            for (const ship of [
+                ...ships,
+                ...p.recoverySignals.map((signal) => signal.ship).filter(Boolean),
+            ] as Ship[])
+                if (ship.hull === 'swift') ship.hull = 'widmo';
+        }
+        p.crew.mechanicAboard = false;
+        p.crew.quartermasterAboard = false;
+        p.version = 18;
         const campaign = p as unknown as Campaign;
         if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
             return null;
@@ -531,13 +541,19 @@ export function scrapRefund(ship: Ship): Cargo {
         ...(crystals >= 2 ? { crystals: Math.floor(crystals / 2) } : {}),
     };
 }
-export function scrapShip(c: Campaign, id: number): boolean {
+export function canScrapShip(c: Campaign, id: number): boolean {
     if (c.activeRun) return false;
     const ship = c.reserveShips.find((ship) => ship.id === id);
     if (!ship) return false;
     const refund = scrapRefund(ship);
-    if (storageUsed(c) + refund.ore + refund.parts + (refund.crystals ?? 0) > storageCapacity(c))
-        return false;
+    return (
+        storageUsed(c) + refund.ore + refund.parts + (refund.crystals ?? 0) <= storageCapacity(c)
+    );
+}
+export function scrapShip(c: Campaign, id: number): boolean {
+    if (!canScrapShip(c, id)) return false;
+    const ship = c.reserveShips.find((ship) => ship.id === id)!;
+    const refund = scrapRefund(ship);
     c.bank.ore += refund.ore;
     c.bank.parts += refund.parts;
     if (refund.crystals) c.bank.crystals = (c.bank.crystals ?? 0) + refund.crystals;
@@ -604,6 +620,7 @@ export function buyShip(c: Campaign, hull: HullId = 'prospector'): boolean {
     if (c.activeRun || !Object.hasOwn(HULLS, hull) || ownedShips(c).length >= FLEET_LIMIT)
         return false;
     const config = HULLS[hull];
+    if ('salvageOnly' in config) return false;
     if (
         c.station.workshop < config.workshop ||
         c.bank.ore < config.ore ||
@@ -636,6 +653,8 @@ export function beginRun(c: Campaign, seed: number, recoveryId: number | null = 
         return false;
     const signal = c.recoverySignals.find((signal) => signal.id === recoveryId);
     if (recoveryId !== null && !signal) return false;
+    c.crew.mechanicAboard = false;
+    c.crew.quartermasterAboard = false;
     const repairKits = Math.min(c.repairKits, CREW.embarkKits);
     c.repairKits -= repairKits;
     c.activeRun = {
@@ -688,6 +707,25 @@ export function deliverSalvage(
             ...(recipe.crystals ? { crystals: recipe.crystals } : {}),
         };
         description = `Wrak ${source === 'lancer' ? 'Lancer' : 'drona'} #${id}`;
+        const rng = random(active.seed ^ Math.imul(id, 0x45d9f3b) ^ 0x16a4c2);
+        const rebuild = rng() < 0.3;
+        if (rebuild && ownedShips(c).length < FLEET_LIMIT) {
+            const ship = newShip(c.nextShipId++, source === 'lancer' ? 'lancer' : 'raider');
+            c.reserveShips.push(ship);
+            description += ` · odbudowano ${HULLS[ship.hull].name} #${ship.id}`;
+        } else {
+            // Upgrade a docked reserve; never change the active ship's loadout mid-flight.
+            const options = c.reserveShips.flatMap((ship) =>
+                (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const)
+                    .filter((key) => ship[key] < Math.min(3, c.station.workshop + 1))
+                    .map((key) => ({ ship, key })),
+            );
+            if (options.length) {
+                const { ship, key } = options[Math.floor(rng() * options.length)];
+                ship[key]++;
+                description += ` · ${HULLS[ship.hull].name} #${ship.id}: ${UPGRADES[key].title} +1`;
+            } else description += ' · brak wolnego kadłuba do modernizacji';
+        }
     }
     const free = Math.max(0, storageCapacity(c) - storageUsed(c));
     const crystals = Math.min(free, refund.crystals ?? 0),
@@ -866,16 +904,6 @@ export function finishRun(
         c.pilots = c.pilots.filter((p) => p.id !== active.pilotId);
         c.selectedPilot = c.pilots[0]?.id ?? 0;
         c.ship = null;
-        if (c.crew.mechanicAboard) {
-            c.crew.mechanic = false;
-            c.crew.mechanicAboard = false;
-            result.recoveryText += ' Mechanik pokładowy został utracony.';
-        }
-        if (c.crew.quartermasterAboard) {
-            c.crew.quartermaster = false;
-            c.crew.quartermasterAboard = false;
-            result.recoveryText += ' Intendent pokładowy został utracony.';
-        }
         if (!signal?.pilot) c.lostPilots++;
     }
     c.activeRun = null;

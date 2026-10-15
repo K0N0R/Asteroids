@@ -450,39 +450,6 @@ test('field repair requires uninterrupted calm flight, consumes one kit and rest
     }
 });
 
-test('onboard mechanic repairs during thrust and fire in eight seconds using exactly one kit', () => {
-    for (const aboard of [false, true]) {
-        const c = newCampaign();
-        c.bank.ore = 12;
-        assert.ok(hireMechanic(c));
-        if (aboard) assert.ok(assignMechanic(c, true));
-        beginRun(c, 7);
-        const sim = new MissionSimulation(c, 7);
-        try {
-            sim.enemies.dispose();
-            for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
-            sim.rocks.clear();
-            sim.engineFault = true;
-            sim.hull = sim.maxHull - 40;
-            for (let frame = 0; frame < 479; frame++)
-                sim.step({ ...idle, thrust: true, fire: true });
-            assert.equal(sim.engineFault, true);
-            assert.equal(sim.repairKits, 1);
-            assert.ok(sim.speed > GAME.repairSpeed);
-            assert.equal(sim.repairProgress > 0, aboard);
-            sim.step({ ...idle, thrust: true, fire: true });
-            assert.equal(sim.engineFault, !aboard);
-            assert.equal(sim.repairKits, aboard ? 0 : 1);
-            assert.equal(sim.hull, sim.maxHull - (aboard ? 15 : 40));
-            for (let frame = 0; frame < 120; frame++) sim.step(idle);
-            assert.equal(sim.repairKits, aboard ? 0 : 1);
-            assert.equal(sim.repairProgress, 0);
-        } finally {
-            sim.dispose();
-        }
-    }
-});
-
 test('engine fault reduces acceleration and fast flight prevents repair progress', () => {
     const speedAfterThrust = (fault: boolean) => {
         const c = newCampaign();
@@ -503,157 +470,6 @@ test('engine fault reduces acceleration and fast flight prevents repair progress
         }
     };
     assert.ok(speedAfterThrust(true) < speedAfterThrust(false) * 0.5);
-});
-
-test('onboard mechanic conserves kits above the hull threshold and cannot work without a kit', () => {
-    const c = newCampaign();
-    c.bank.ore = 12;
-    assert.ok(hireMechanic(c));
-    assert.ok(assignMechanic(c, true));
-    beginRun(c, 7);
-    const sim = new MissionSimulation(c, 7);
-    try {
-        sim.hull = sim.maxHull * 0.6;
-        sim.step(idle);
-        assert.equal(sim.repairProgress, 0);
-        assert.equal(sim.repairKits, 1);
-        sim.hull--;
-        sim.step(idle);
-        assert.ok(sim.repairProgress > 0);
-        assert.equal(sim.automaticRepair, true);
-        assert.equal(sim.repairSeconds, 8);
-        sim.step({ ...idle, repair: true });
-        assert.equal(sim.automaticRepair, false);
-        assert.equal(sim.repairSeconds, 5);
-        assert.ok(sim.repairProgress < 0.02);
-        sim.repairKits = 0;
-        sim.step(idle);
-        assert.equal(sim.repairProgress, 0);
-        assert.equal(sim.mechanicStatus, 'Brak zestawów naprawczych');
-    } finally {
-        sim.dispose();
-    }
-});
-
-function quartermasterArena(aboard = true, mechanic = false, hull: HullId = 'prospector') {
-    const c = newCampaign();
-    c.ship!.hull = hull;
-    c.bank = { ore: 100, parts: 12 };
-    c.station.workshop = 1;
-    assert.ok(hireQuartermaster(c));
-    if (aboard) assert.ok(assignCrew(c, 'quartermaster', true));
-    if (mechanic) {
-        assert.ok(hireMechanic(c));
-        assert.ok(assignMechanic(c, true));
-    }
-    c.repairKits = 0;
-    beginRun(c, 7);
-    const sim = new MissionSimulation(c, 7);
-    sim.enemies.dispose();
-    for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
-    sim.rocks.clear();
-    return { c, sim };
-}
-test('onboard quartermaster crafts one kit in thirty seconds from cargo and unused field kits return safely', () => {
-    for (const aboard of [false, true]) {
-        const { c, sim } = quartermasterArena(aboard);
-        try {
-            sim.cargo.ore = 32;
-            sim.cargo.parts = 8;
-            const bank = { ...c.bank };
-            for (let frame = 0; frame < 900; frame++) sim.step({ ...idle, fire: true });
-            if (aboard) assert.equal(sim.quartermasterStatus, 'Produkcja zestawu 50%');
-            for (let frame = 0; frame < 899; frame++) sim.step({ ...idle, fire: true });
-            assert.equal(sim.repairKits, 0);
-            assert.equal(sim.cargo.parts, 8);
-            sim.step(idle);
-            assert.equal(sim.repairKits, aboard ? 1 : 0);
-            assert.equal(sim.cargo.parts, aboard ? 0 : 8);
-            assert.equal(sim.cargo.ore, 32);
-            assert.deepEqual(c.bank, bank);
-            assert.equal(c.activeRun!.repairKits, aboard ? 1 : 0);
-            for (let frame = 0; frame < 1800; frame++) sim.step(idle);
-            assert.equal(sim.repairKits, aboard ? 1 : 0);
-            assert.equal(sim.kitProgress, 0);
-            finishRun(c, true, sim.cargo, sim.elapsed, 'dock', sim.repairKits);
-            assert.equal(c.repairKits, aboard ? 1 : 0);
-            assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-        } finally {
-            sim.dispose();
-        }
-    }
-});
-test('Mule immediate fabrication cancels quartermaster work without double charging or producing two kits', () => {
-    const { c, sim } = quartermasterArena(true, false, 'mule');
-    try {
-        sim.cargo.ore = 32;
-        sim.cargo.parts = 8;
-        for (let frame = 0; frame < 1799; frame++) sim.step(idle);
-        assert.ok(sim.kitProgress > 29);
-        sim.step({ ...idle, mine: true });
-        assert.equal(sim.repairKits, 1);
-        assert.equal(sim.kitProgress, 0);
-        assert.equal(sim.cargo.ore, 32 - sim.repairKitCost.ore);
-        assert.equal(sim.cargo.parts, 8 - sim.repairKitCost.parts);
-        assert.equal(c.activeRun!.repairKits, 1);
-        finishRun(c, true, sim.cargo, sim.elapsed, 'dock', sim.repairKits);
-        assert.equal(c.repairKits, 1);
-        assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-    } finally {
-        sim.dispose();
-    }
-});
-test('onboard quartermaster resets interrupted work and respects cargo and total kit limits', () => {
-    const { c, sim } = quartermasterArena();
-    try {
-        sim.cargo.parts = 8;
-        for (let frame = 0; frame < 60; frame++) sim.step(idle);
-        assert.ok(sim.kitProgress > 0);
-        sim.cargo.parts = 7;
-        sim.step(idle);
-        assert.equal(sim.kitProgress, 0);
-        assert.equal(sim.cargo.parts, 7);
-        sim.cargo.parts = 8;
-        c.repairKits = 10;
-        sim.step(idle);
-        assert.equal(sim.kitProgress, 0);
-        assert.equal(sim.repairKits, 0);
-        assert.equal(sim.quartermasterStatus, 'Limit zapasu zestawów');
-        c.repairKits = 9;
-        for (let frame = 0; frame < 1800; frame++) sim.step(idle);
-        assert.equal(sim.repairKits, 1);
-        finishRun(c, true, sim.cargo, sim.elapsed, 'dock', sim.repairKits);
-        assert.equal(c.repairKits, 10);
-        assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-    } finally {
-        sim.dispose();
-    }
-});
-test('onboard quartermaster supplies the mechanic without duplicating kits and completed runs freeze production', () => {
-    const { sim } = quartermasterArena(true, true);
-    try {
-        sim.engineFault = true;
-        sim.hull = sim.maxHull - 40;
-        sim.cargo.parts = 8;
-        for (let frame = 0; frame < 1800; frame++) sim.step(idle);
-        assert.equal(sim.repairKits, 1);
-        assert.equal(sim.engineFault, true);
-        assert.ok(sim.repairProgress > 0);
-        for (let frame = 0; frame < 479; frame++) sim.step(idle);
-        assert.equal(sim.repairKits, 0);
-        assert.equal(sim.engineFault, false);
-        assert.equal(sim.hull, sim.maxHull - 15);
-        sim.cargo.parts = 8;
-        sim.step(idle);
-        const progress = sim.kitProgress;
-        sim.ended = 'returned';
-        for (let frame = 0; frame < 1800; frame++) sim.step(idle);
-        assert.equal(sim.kitProgress, progress);
-        assert.equal(sim.cargo.parts, 8);
-        assert.equal(sim.repairKits, 0);
-    } finally {
-        sim.dispose();
-    }
 });
 
 test('wreck salvage is awarded once and an ended mission cannot keep updating', () => {
@@ -689,7 +505,7 @@ test('buying and selecting hulls keeps each ship loadout and charges exactly onc
     const original = c.ship!.id;
     assert.ok(buyShip(c, 'swift'));
     assert.equal(c.ship!.hull, 'swift');
-    assert.deepEqual(c.bank, { ore: 75, parts: 5 });
+    assert.deepEqual(c.bank, { ore: 105, parts: 7 });
     const swift = c.ship!.id;
     assert.equal(c.ship!.cargo, 0);
     assert.ok(selectShip(c, original));
@@ -706,7 +522,7 @@ test('buying and selecting hulls keeps each ship loadout and charges exactly onc
 test('ship purchases enforce workshop, bank, fleet capacity and active-run locks', () => {
     const c = newCampaign();
     c.bank = { ore: 140, parts: 9 };
-    assert.equal(buyShip(c, 'swift'), false);
+    assert.equal(buyShip(c, 'mule'), false);
     assert.equal(c.bank.ore, 140);
     c.station.workshop = 1;
     assert.ok(buyShip(c, 'swift'));

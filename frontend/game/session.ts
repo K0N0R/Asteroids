@@ -26,15 +26,7 @@ import { MissionHud } from './ui/hud';
 import { button, clear, label, panel } from './ui/primitives';
 import { C } from './graphics/shapes';
 import { SoundManager } from '../core/systems/soundManager';
-import {
-    advanceCrew,
-    assignMechanic,
-    assignCrew,
-    cancelJob,
-    hireMechanic,
-    hireQuartermaster,
-    queueJob,
-} from './state/crew';
+import { advanceCrew, cancelJob, hireMechanic, hireQuartermaster, queueJob } from './state/crew';
 import { selectContract } from './state/contracts';
 import { trainPilot } from './state/pilots';
 import { PROTOTYPES, PrototypeId } from './systems/prototypes';
@@ -110,24 +102,10 @@ export class GameSession {
                 ),
             hireMechanic: () =>
                 this.change(() => hireMechanic(this.campaign), 'Mechanik stacji gotowy do pracy.'),
-            assignMechanic: (aboard) =>
-                this.change(
-                    () => assignMechanic(this.campaign, aboard),
-                    aboard
-                        ? 'Mechanik przydzielony na pokład.'
-                        : 'Mechanik wrócił do warsztatu stacji.',
-                ),
             hireQuartermaster: () =>
                 this.change(
                     () => hireQuartermaster(this.campaign),
                     'Intendent uruchomił stanowisko odzysku.',
-                ),
-            assignQuartermaster: (aboard) =>
-                this.change(
-                    () => assignCrew(this.campaign, 'quartermaster', aboard),
-                    aboard
-                        ? 'Intendent przydzielony na pokład.'
-                        : 'Intendent wrócił do stanowiska w stacji.',
                 ),
             queueJob: (kind) =>
                 this.change(

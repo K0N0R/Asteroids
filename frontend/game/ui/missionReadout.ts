@@ -90,8 +90,7 @@ export function flightHint(s: MissionSimulation) {
         return `E  Magazyn · ${percent(s.outpost.equipmentProgress, OUTPOST.equipmentSeconds)}`;
     if (s.outpost.download > 0)
         return `E  Przechwyt · ${percent(s.outpost.download, OUTPOST.downloadSeconds)}`;
-    if (s.repairProgress > 0)
-        return `${s.automaticRepair ? 'Mechanik' : 'R  Naprawa'} · ${percent(s.repairProgress, s.repairSeconds)}`;
+    if (s.repairProgress > 0) return `R  Naprawa · ${percent(s.repairProgress, s.repairSeconds)}`;
     if (s.salvageProgress > 0)
         return `E Holowanie wraku · ${percent(s.salvageProgress, s.salvageSeconds)}`;
     if (s.recoveryProgress > 0)
@@ -174,5 +173,7 @@ export function flightHint(s: MissionSimulation) {
         return 'E  Przeszukaj wrak';
     if (s.cargoUsed >= s.cargoCapacity) return 'Ładownia pełna · 1  Baza';
     if (s.hull < s.maxHull && s.repairKits > 0) return 'R  Napraw kadłub · przytrzymaj 5 s';
+    if (s.hullId === 'widmo')
+        return `LPM Dash ${s.dashCooldown > 0 ? `${Math.ceil(s.dashCooldown)} s` : 'gotowy'} · PPM Kamuflaż ${s.opticalCloak ? 'aktywny' : s.opticalCloakCooldown > 0 ? `${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy'}`;
     return '';
 }

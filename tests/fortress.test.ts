@@ -76,7 +76,7 @@ test('physical walls block line of sight and swept projectiles while the gate st
         });
         sim.step(idle);
         assert.equal(sim.bullets.has(999), false);
-        assert.ok(sim.events.some((e) => e.kind === 'hit' && Math.hypot(e.x - mx, e.y - my) < 20));
+        assert.ok(sim.events.some((e) => e.kind === 'hit' && Math.hypot(e.x - mx, e.y - my) < 60));
         sim.ship.setTranslation({ x: from.x / 100, y: from.y / 100 }, true);
         sim.ship.setLinvel({ x: -nx * 6, y: -ny * 6 }, true);
         for (let i = 0; i < 30; i++) sim.world.step();

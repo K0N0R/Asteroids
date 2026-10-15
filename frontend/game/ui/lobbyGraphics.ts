@@ -1,4 +1,6 @@
 import { pilotAppearanceId } from '../state/pilots';
+import { KineticShield, shieldProfile } from '../systems/kineticShield';
+import { drawKineticShield } from '../graphics/kineticShieldView';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { C, ShipView, stationView, DroneView } from '../graphics/shapes';
 import { HullId, WeaponId } from '../config';
@@ -17,7 +19,8 @@ export type LobbyIcon =
     | 'parts'
     | 'crystals'
     | 'cargo'
-    | 'health';
+    | 'health'
+    | 'shield';
 export function lobbyIcon(kind: LobbyIcon, color: number = C.mint) {
     const g = new Graphics();
     if (kind === 'flight')
@@ -87,6 +90,8 @@ export function lobbyIcon(kind: LobbyIcon, color: number = C.mint) {
             .moveTo(0, 1)
             .lineTo(0, 13)
             .stroke({ color, width: 1 });
+    if (kind === 'shield')
+        g.poly([0, -12, 10, -6, 10, 6, 0, 12, -10, 6, -10, -6]).stroke({ color: C.cyan, width: 2 });
     if (kind === 'health')
         g.poly([-9, -10, 9, -10, 9, 2, 0, 12, -9, 2]).stroke({ color, width: 2 });
     g.eventMode = 'none';
@@ -231,6 +236,18 @@ export function hullPreview(modules: ShipModules & { hull: HullId; weapon?: Weap
             .lineTo(side * 225, 115);
     g.stroke({ color: C.cyan, alpha: 0.4, width: 2 });
     const ship = fittedShip(modules, 350, 300);
+    if (modules.shield) {
+        const shield = new Graphics();
+        drawKineticShield(
+            shield,
+            new KineticShield(shieldProfile(modules.hull, modules.shield)),
+            138,
+            0,
+            modules.shield,
+        );
+        shield.scale.y = 0.82;
+        root.addChild(shield);
+    }
     root.addChild(g, ship);
     return root;
 }
