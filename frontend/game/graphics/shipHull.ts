@@ -443,7 +443,33 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         roundedHull(g, [-36, -12, 15, -12, 22, -32, 39, -32, 39, 32, 22, 32, 15, 12, -36, 12], 4);
         g.roundRect(-30, -7, 59, 14, 4).fill(palette.panel);
         g.roundRect(-24, -3, 43, 6, 2).fill(S.engine);
-        seam(g, [25, -28, 31, -18, 31, 18, 25, 28], 2);
+        if (modules.armor > 0) {
+            roundedPanel(
+                g,
+                [3, -10, 18, -12, 24, -29, 36, -29, 36, 29, 24, 29, 18, 12, 3, 10, -1, 0],
+                3,
+                0x87917c,
+                0xb1b8a1,
+            );
+        }
+        if (modules.armor >= 2) {
+            roundedPanel(
+                g,
+                [-15, -10, 2, -10, 7, -6, 7, 6, 2, 10, -15, 10, -19, 0],
+                3,
+                0x7c8875,
+                0xb1b8a1,
+            );
+        }
+        if (modules.armor >= 3) {
+            roundedPanel(
+                g,
+                [-32, -10, -17, -10, -12, -6, -12, 6, -17, 10, -32, 10, -34, 0],
+                3,
+                0x87917c,
+                0xb1b8a1,
+            );
+        }
         for (const y of [-24, 24]) {
             g.roundRect(24, y - 4, 10, 8, 2).fill(S.engine);
             g.rect(27, y - 2, 4, 4).fill(S.reinforcement);

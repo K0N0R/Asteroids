@@ -26,10 +26,7 @@ export const EQUIPMENT_SOCKETS: Record<HullId, { ribs: number[][]; jets: Mount[]
         ],
     },
     mule: {
-        ribs: [
-            [23, -27, 34, -25, 34, -18],
-            [23, 27, 34, 25, 34, 18],
-        ],
+        ribs: [],
         jets: [
             { x: 29, y: 31 },
             { x: 4, y: 13 },

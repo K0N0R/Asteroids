@@ -182,6 +182,7 @@ export class ShipView extends Container {
                   ? 0x8aaebb
                   : HULL_PALETTES[hull].panel;
         for (const emitter of [...this.guns, ...this.lasers]) {
+            if (hull === 'mule') continue;
             emitter.addChild(
                 new Graphics()
                     .roundRect(-4, -5, 7, 10, 2)

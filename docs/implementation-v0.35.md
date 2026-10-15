@@ -58,3 +58,7 @@ Usunięto przedni mały zbiornik, wizjer przesunięto do przedniej krawędzi, a 
 ## Obrys Prospectora
 
 Kadłub Prospectora otrzymał łagodnie spłaszczony dziób i rufę zamiast pełnej elipsy. Usunięto wewnętrzne linie i nakładki wzmocnień. Poziomy pancerza zwiększają szerokość jasnego obramowania kadłuba, zachowując odsłonięty wizjer i zbiorniki. Zmiana wizualna, bez zmiany statystyk. Weryfikacja: 16 testów grafiki/efektów, TypeScript, lint zmienionych plików, build i podgląd kolejnych poziomów pancerza w przeglądarce.
+
+## Poszycie Mule’a
+
+Usunięto prostokątne nakładki przy laserach i cienkie linie wzmocnień. Pancerz ma dodatkowe poszycie dopasowane do kadłuba w kształcie T: poziom I wzmacnia poprzeczkę i przednie przewężenie, II środkową część trzonu, III jego tylną część. Płyty mają pełne powierzchnie i obramowanie zamiast nakładanych linii. Statystyki bez zmian. Weryfikacja: 80 testów, TypeScript, lint zmienionych plików, build i porównanie kolejnych poziomów w przeglądarce.
