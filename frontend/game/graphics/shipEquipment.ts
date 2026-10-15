@@ -163,9 +163,9 @@ const CARGO_EXTENSIONS: Record<HullId, CargoSegment[]> = {
         { x: -31, y: 0, w: 8, h: 15 },
     ],
     phoenix: [
-        { x: 27, y: 0, w: 6, h: 10 },
+        { x: 27, y: 0, w: 7, h: 14 },
         { x: 35, y: 0, w: 7, h: 12 },
-        { x: 43, y: 0, w: 7, h: 14 },
+        { x: 43, y: 0, w: 6, h: 10 },
     ],
     raider: [
         { x: -22, y: -13, w: 12, h: 6 },
