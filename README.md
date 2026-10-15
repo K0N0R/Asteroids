@@ -1,6 +1,26 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.35** porządkuje parametry statków, dodaje podgląd modułów w stoczni, dopasowuje wygląd ulepszeń do kadłubów oraz poprawia ostrza i dash Widma. [Zakres i weryfikacja](docs/implementation-v0.35.md).
+Aktualna wersja **0.44** dodaje **odprawę po powrocie na Ziemię i trasę do Wenus**. Zatwierdzenie planu po rozpoznaniu pasa mechanicznie kończy akt II. Początek aktu III obejmuje zwiad Wenus, pomiary miejsca pod placówkę i gromadzenie materiałów. Budowa placówki oraz osłona przed Słońcem to kolejny zakres. [Zakres i weryfikacja](docs/implementation-v0.44.md) · [Aktualny plan](docs/plan-current.md).
+
+Wersja **0.43** rozpoczęła **akt II przy Marsie**: równoległy zwiad i walka z patrolami, otwarcie dalszego obszaru oraz odczyt blokady pasa asteroid. Raporty wymagają bezpiecznego powrotu. Ziemia i Księżyc pozostają dostępne, a zapis zachowuje postęp aktu I. [Zakres i weryfikacja](docs/implementation-v0.43.md) · [Aktualny plan](docs/plan-current.md).
+
+Wersja **0.42** dodała **finałową obronę stacji księżycowej i mechaniczne zakończenie aktu I**. Po wcześniejszych zadaniach G przy stacji uruchamia trzy kontakty AI. Broń stacji i wróć z raportem do Satuk 15, aby zamknąć akt oraz odebrać jednorazową nagrodę. Tożsamość przeciwnika i wyjaśnienie anomalii pozostają otwarte. [Zakres, zapis i weryfikacja](docs/implementation-v0.42.md) · [Aktualny plan](docs/plan-current.md).
+
+Wersja **0.41** dodała obronę budowy przed trzema falami asteroid, stan konstrukcji i ponowienie bez cofania dostaw. [Zakres](docs/implementation-v0.41.md).
+
+Wersja **0.40** dodała lot nad powierzchnią Księżyca i budowę stacji paliw: **48 rudy → 12 komponentów → odbiór techniczny**. Dostawy pozostają zapisane między lotami, a **Wylot z dostawą** zabiera materiały z magazynu. [Zakres](docs/implementation-v0.40.md).
+
+Wersja **0.39** rozpoczęła kampanię **Satuk 15**: trwałe sektory, równoległe zadania, stopniowe otwieranie orbity Ziemi i trasa księżycowa. Kampania ma osobny zapis; **Stary zapis testowy** zachowuje dostęp do wcześniejszej gry, a sandbox pozostaje dostępny w obu profilach. [Zakres](docs/implementation-v0.39.md).
+
+Projekt kampanii: [Satuk 15 — 10 aktów w Układzie Słonecznym](docs/campaign-outline.md). Akt I ma przechodni ciąg mechanik wraz z finałowym atakiem i podsumowaniem. Akt II łączy podejście do Marsa, rozpoznanie blokady i odprawę ziemską; na Wenus rozpoczyna się akt III. Oprawa fabularna, balans i pozostała część kampanii pozostają do rozwinięcia. Prawda o anomalii i zwroty fabularne nadal czekają na ustalenia autora.
+
+Wersja **0.38** domknęła techniczny audyt fundamentów: zwalnianie kontekstów grafiki, pomiary FPS/pamięci i licznik osłon Aegisa. Wykonano 224 próby porównawcze oraz przejście ekonomii do warsztatu II. [Wyniki i ograniczenia](docs/implementation-v0.38.md).
+
+Wersja **0.37** dodaje osobny tryb **Sandbox / testy**: sześć scenariuszy, wybór statku i modułów, seed, szybki restart oraz lokalne raporty. Próby nie zmieniają zapisu kampanii. [Zakres](docs/implementation-v0.37.md).
+
+Wersja **0.36** dodała indywidualny podgląd modułów 0–III i porównanie parametrów przed zakupem. [Zakres](docs/implementation-v0.36.md).
+
+Wersja **0.35** porządkuje parametry statków, dodaje podgląd modułów w stoczni, dopasowuje wygląd ulepszeń do kadłubów oraz poprawia ostrza i dash Widma. [Zakres i weryfikacja](docs/implementation-v0.35.md).
 
 Wersja **0.34** rozdziela Swifta i Widmo, dodaje fazowy dash, pasywne zakłócanie radarów, odbudowę wrogich wraków i modernizacje rezerw oraz warianty uzbrojenia dla całej floty. Załoga pozostaje w bazie; Mule zachowuje produkcję zestawów w locie. Ulepszenia pasują do geometrii kadłubów, a grubsze ściany Aegis blokują długie lufy. [Zasady, migracja i testy](docs/implementation-v0.34.md).
 

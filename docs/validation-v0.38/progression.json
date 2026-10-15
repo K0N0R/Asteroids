@@ -1,0 +1,232 @@
+{
+  "method": "Fresh ordinary campaign; real generated sectors, scripted mining and return; actual rewards, staff jobs, purchases and save roundtrips; no resources injected. Controller is not an optimal player.",
+  "workshop": 2,
+  "bank": {
+    "ore": 193,
+    "parts": 8,
+    "crystals": 0
+  },
+  "progression": [
+    {
+      "sortie": 1,
+      "result": "returned",
+      "cargo": {
+        "ore": 22,
+        "parts": 3
+      },
+      "bank": {
+        "ore": 32,
+        "parts": 4
+      },
+      "station": {
+        "workshop": 0,
+        "storage": 0
+      },
+      "seconds": 33.916666666666025,
+      "overflow": 0
+    },
+    {
+      "sortie": 2,
+      "result": "returned",
+      "cargo": {
+        "ore": 24,
+        "parts": 2
+      },
+      "bank": {
+        "ore": 36,
+        "parts": 4
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 0
+      },
+      "seconds": 23.01666666666664,
+      "overflow": 0
+    },
+    {
+      "sortie": 3,
+      "result": "returned",
+      "cargo": {
+        "ore": 24,
+        "parts": 2
+      },
+      "bank": {
+        "ore": 50,
+        "parts": 7
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 0
+      },
+      "seconds": 29.98333333333291,
+      "overflow": 0
+    },
+    {
+      "sortie": 4,
+      "result": "returned",
+      "cargo": {
+        "ore": 21,
+        "parts": 5
+      },
+      "bank": {
+        "ore": 73,
+        "parts": 9
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 0
+      },
+      "seconds": 19.95000000000015,
+      "overflow": 0
+    },
+    {
+      "sortie": 5,
+      "result": "returned",
+      "cargo": {
+        "ore": 25,
+        "parts": 0
+      },
+      "bank": {
+        "ore": 108,
+        "parts": 5
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 0
+      },
+      "seconds": 27.06666666666641,
+      "overflow": 0
+    },
+    {
+      "sortie": 6,
+      "result": "returned",
+      "cargo": {
+        "ore": 26,
+        "parts": 0
+      },
+      "bank": {
+        "ore": 119,
+        "parts": 5
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 1
+      },
+      "seconds": 24.516666666666556,
+      "overflow": 0
+    },
+    {
+      "sortie": 7,
+      "result": "returned",
+      "cargo": {
+        "ore": 22,
+        "parts": 3
+      },
+      "bank": {
+        "ore": 151,
+        "parts": 9
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 1
+      },
+      "seconds": 19.71666666666683,
+      "overflow": 0
+    },
+    {
+      "sortie": 8,
+      "result": "returned",
+      "cargo": {
+        "ore": 22,
+        "parts": 3
+      },
+      "bank": {
+        "ore": 183,
+        "parts": 13,
+        "crystals": 1
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 1
+      },
+      "seconds": 26.56666666666644,
+      "overflow": 0
+    },
+    {
+      "sortie": 9,
+      "result": "returned",
+      "cargo": {
+        "ore": 5,
+        "parts": 1
+      },
+      "bank": {
+        "ore": 188,
+        "parts": 10,
+        "crystals": 1
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 1
+      },
+      "seconds": 95.76666666666252,
+      "overflow": 0
+    },
+    {
+      "sortie": 10,
+      "result": "returned",
+      "cargo": {
+        "ore": 24,
+        "parts": 1
+      },
+      "bank": {
+        "ore": 222,
+        "parts": 7,
+        "crystals": 1
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 1
+      },
+      "seconds": 22.78333333333332,
+      "overflow": 0
+    },
+    {
+      "sortie": 11,
+      "result": "returned",
+      "cargo": {
+        "ore": 25,
+        "parts": 1
+      },
+      "bank": {
+        "ore": 229,
+        "parts": 9,
+        "crystals": 2
+      },
+      "station": {
+        "workshop": 1,
+        "storage": 1
+      },
+      "seconds": 21.18333333333341,
+      "overflow": 28
+    },
+    {
+      "sortie": 12,
+      "result": "returned",
+      "cargo": {
+        "ore": 22,
+        "parts": 4
+      },
+      "bank": {
+        "ore": 193,
+        "parts": 8,
+        "crystals": 0
+      },
+      "station": {
+        "workshop": 2,
+        "storage": 1
+      },
+      "seconds": 25.28333333333318,
+      "overflow": 0
+    }
+  ]
+}

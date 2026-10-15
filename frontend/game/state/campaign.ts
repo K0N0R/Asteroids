@@ -1,4 +1,22 @@
+import {
+    newStoryProgress,
+    migrateStoryV1,
+    migrateStoryV2,
+    migrateStoryV3,
+    migrateStoryV4,
+    migrateStoryV5,
+    migrateStoryV6,
+    storyRadius,
+    constructionManifest,
+    validStory,
+    STORY_SECTORS,
+    recordStoryReturn,
+    actOneComplete,
+    type StoryProgress,
+    type StorySectorId,
+} from './story';
 import { random } from '../worlds/sector';
+import { MOON, moonDistance } from '../worlds/moon';
 import { SALVAGE } from '../systems/salvage';
 import { WEAPONS, type WeaponId } from '../config';
 import {
@@ -62,7 +80,8 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 18;
+    version: 25;
+    story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
@@ -79,6 +98,10 @@ export interface Campaign {
         repairKits: number;
         recoveryId: number | null;
         lastPosition: Point;
+        sector?: StorySectorId;
+        area?: 'surface';
+        /** Supplies loaded at departure that have not yet been delivered. */
+        freight?: Cargo;
         deliveries?: SalvageDelivery[];
     } | null;
     crew: CrewState;
@@ -121,7 +144,8 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 18,
+        version: 25,
+        story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
@@ -157,9 +181,10 @@ export function parseCampaign(json: string | null): Campaign | null {
         const p: unknown = JSON.parse(json ?? 'null');
         if (
             !object(p) ||
-            ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(
-                p.version as number,
-            ) ||
+            ![
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+                24, 25,
+            ].includes(p.version as number) ||
             !cargo(p.bank) ||
             !object(p.station)
         )
@@ -373,8 +398,12 @@ export function parseCampaign(json: string | null): Campaign | null {
                 signal.id >= (p.nextShipId as number) ||
                 !integer(signal.seed, 0xffffffff) ||
                 !validPoint(signal) ||
-                Math.hypot(signal.x, signal.y) < 649 ||
-                Math.hypot(signal.x, signal.y) > GAME.sectorRadius - 299 ||
+                (signal.area !== undefined && signal.area !== 'surface') ||
+                (signal.area === 'surface'
+                    ? signal.seed !== STORY_SECTORS.lunar.seed ||
+                      moonDistance(signal) > MOON.radius - 200
+                    : Math.hypot(signal.x, signal.y) < 649 ||
+                      Math.hypot(signal.x, signal.y) > GAME.sectorRadius - 299) ||
                 (signal.ship === null && signal.pilot === null) ||
                 (signal.ship !== null && (!validShip(signal.ship) || signal.ship.id !== signal.id))
             )
@@ -495,8 +524,57 @@ export function parseCampaign(json: string | null): Campaign | null {
         }
         p.crew.mechanicAboard = false;
         p.crew.quartermasterAboard = false;
-        p.version = 18;
+        if ((p.version as number) < 19) p.story = null;
+        if ((p.version as number) < 20 && p.story)
+            p.story = migrateStoryV1(p.story) as StoryProgress;
+        if ((p.version as number) < 21 && p.story)
+            p.story = migrateStoryV2(p.story) as StoryProgress;
+        if ((p.version as number) < 22 && p.story)
+            p.story = migrateStoryV3(p.story) as StoryProgress;
+        if ((p.version as number) < 23 && p.story)
+            p.story = migrateStoryV4(p.story) as StoryProgress;
+        if ((p.version as number) < 24 && p.story)
+            p.story = migrateStoryV5(p.story) as StoryProgress;
+        if ((p.version as number) < 25 && p.story)
+            p.story = migrateStoryV6(p.story) as StoryProgress;
+        if (p.story !== null && !validStory(p.story)) return null;
+        if (
+            object(p.activeRun) &&
+            p.activeRun.area !== undefined &&
+            (p.activeRun.area !== 'surface' ||
+                p.story?.sector !== 'lunar' ||
+                !p.story.claimed.includes('lunar-survey'))
+        )
+            return null;
+        const story = p.story as StoryProgress | null;
+        if (
+            p.recoverySignals.some(
+                (s) => s.area === 'surface' && (!story || !story.claimed.includes('lunar-survey')),
+            )
+        )
+            return null;
+        if (p.story && object(p.activeRun) && p.activeRun.sector !== p.story.sector) return null;
+        if (
+            p.story &&
+            object(p.activeRun) &&
+            p.activeRun.seed !== STORY_SECTORS[p.story.sector].seed
+        )
+            return null;
+        if (p.story?.claimed.includes('earth-workshop') && (p.station.workshop as number) < 1)
+            return null;
+        if (!p.story && object(p.activeRun) && p.activeRun.sector !== undefined) return null;
+        p.version = 25;
         const campaign = p as unknown as Campaign;
+        if (campaign.activeRun?.freight !== undefined) {
+            const initial = campaign.activeRun.freight;
+            if (
+                !campaign.story ||
+                campaign.story.sector !== 'lunar' ||
+                !cargo(initial) ||
+                initial.ore + initial.parts + (initial.crystals ?? 0) > capacity(campaign)
+            )
+                return null;
+        }
         if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
             return null;
         if (storageUsed(campaign) > storageCapacity(campaign)) return null;
@@ -506,6 +584,9 @@ export function parseCampaign(json: string | null): Campaign | null {
     }
 }
 
+export function newStoryCampaign(): Campaign {
+    return { ...newCampaign(), story: newStoryProgress() };
+}
 export function selectedPilot(c: Campaign) {
     const pilot = c.pilots.find((p) => p.id === c.selectedPilot);
     return pilot ? pilotProfile(pilot) : null;
@@ -648,22 +729,40 @@ export function emergencyKit(c: Campaign): boolean {
 export function pilotSlots(c: Campaign) {
     return c.pilots.length + c.recoverySignals.filter((signal) => signal.pilot).length;
 }
-export function beginRun(c: Campaign, seed: number, recoveryId: number | null = null): boolean {
-    if (c.activeRun || !c.ship || !selectedPilot(c) || contractLockReason(c, c.contract))
+export function beginRun(
+    c: Campaign,
+    seed: number,
+    recoveryId: number | null = null,
+    loadConstruction = false,
+): boolean {
+    if (
+        c.activeRun ||
+        !c.ship ||
+        !selectedPilot(c) ||
+        (!c.story && contractLockReason(c, c.contract))
+    )
         return false;
     const signal = c.recoverySignals.find((signal) => signal.id === recoveryId);
     if (recoveryId !== null && !signal) return false;
+    if (c.story && signal && signal.seed !== STORY_SECTORS[c.story.sector].seed) return false;
+    const freight =
+        loadConstruction && recoveryId === null ? constructionManifest(c) : { ore: 0, parts: 0 };
+    if (loadConstruction && freight.ore + freight.parts <= 0) return false;
+    c.bank.ore -= freight.ore;
+    c.bank.parts -= freight.parts;
     c.crew.mechanicAboard = false;
     c.crew.quartermasterAboard = false;
     const repairKits = Math.min(c.repairKits, CREW.embarkKits);
     c.repairKits -= repairKits;
     c.activeRun = {
         pilotId: c.selectedPilot,
-        seed: signal?.seed ?? seed >>> 0,
+        seed: signal?.seed ?? (c.story ? STORY_SECTORS[c.story.sector].seed : seed >>> 0),
         contract: c.contract,
         repairKits,
         recoveryId,
         lastPosition: { x: 240, y: 0 },
+        ...(c.story ? { sector: c.story.sector } : {}),
+        ...(loadConstruction ? { freight } : {}),
     };
     c.sorties++;
     return true;
@@ -755,6 +854,10 @@ export function finishRun(
     recovery: {
         securedId?: number;
         destroyedRecoveryId?: number;
+        wreckVisited?: boolean;
+        assaultWon?: boolean;
+        venusDefenseWon?: boolean;
+        patrolKills?: number;
         recycledWreck?: 'patrol' | 'lancer';
         lossPosition?: Point;
         data?: readonly ScanSiteId[];
@@ -776,9 +879,13 @@ export function finishRun(
         overflow: 0,
         recoveryText: '',
         equipmentText: '',
-        contractText: success
-            ? 'Cel kontraktu nie został wykonany.'
-            : 'Kontrakt nie został rozliczony. Dane wyprawy przepadły.',
+        contractText: c.story
+            ? success
+                ? 'Postęp sektora zachowany.'
+                : 'Dane i ładunek wyprawy przepadły. Wcześniejszy postęp zadań pozostaje.'
+            : success
+              ? 'Cel kontraktu nie został wykonany.'
+              : 'Kontrakt nie został rozliczony. Dane wyprawy przepadły.',
         pilotProgress: null,
         deliveries: (active.deliveries ?? []).map((d) => ({ ...d, materials: { ...d.materials } })),
     };
@@ -840,7 +947,7 @@ export function finishRun(
         }
         const kills =
             Number.isInteger(recovery.kills) && (recovery.kills ?? 0) >= 0 ? recovery.kills! : 0;
-        if (contractReady(active.contract, collected, data, kills)) {
+        if (!c.story && contractReady(active.contract, collected, data, kills)) {
             result.reward.ore += contract.rewardOre;
             result.reward.parts += contract.rewardParts;
             c.contractCompletions[active.contract]++;
@@ -851,9 +958,15 @@ export function finishRun(
             Math.min(
                 50,
                 expeditionXp(
-                    collected,
+                    active.freight
+                        ? {
+                              ore: Math.max(0, collected.ore - active.freight.ore),
+                              parts: Math.max(0, collected.parts - active.freight.parts),
+                              crystals: collected.crystals,
+                          }
+                        : collected,
                     data,
-                    contractReady(active.contract, collected, data, kills),
+                    !c.story && contractReady(active.contract, collected, data, kills),
                     signal && recovery.securedId === signal.id ? signal : null,
                     kills,
                 ) + (active.deliveries ?? []).reduce((sum, d) => sum + d.rescueXp, 0),
@@ -878,6 +991,33 @@ export function finishRun(
             parts -
             crystals;
         c.recovered++;
+        if (active.sector && c.story) {
+            const closingAct = !c.story.claimed.includes('lunar-attack');
+            const closingBelt = active.sector === 'mars' && !c.story.claimed.includes('mars-belt');
+            const change = recordStoryReturn(
+                c,
+                active.sector,
+                data,
+                !!recovery.wreckVisited,
+                !!recovery.assaultWon,
+                recovery.patrolKills ?? 0,
+                !!recovery.venusDefenseWon,
+            );
+            if (change) {
+                result.reward.ore += change.reward.ore;
+                result.reward.parts += change.reward.parts;
+                result.overflow += change.overflow;
+                if (closingAct && actOneComplete(c.story))
+                    result.reason =
+                        'Akt I ukończony. Stacja księżycowa obroniona. Następny kierunek: Mars.';
+                if (closingBelt && c.story.claimed.includes('mars-belt'))
+                    result.reason =
+                        'Pas asteroid blokuje pościg. Dalszy przelot wymaga nowej technologii.';
+                result.contractText = change.titles.length
+                    ? `Zadania ukończone: ${change.titles.join(' · ')}`
+                    : 'Postęp sektora zachowany. Surowce możesz przekazać w panelu wyprawy.';
+            }
+        }
     } else {
         const target = c.recoverySignals.find((signal) => signal.id === active.recoveryId);
         if (target) {
@@ -885,13 +1025,28 @@ export function finishRun(
             c.recoverySignals = c.recoverySignals.filter((signal) => signal.id !== target.id);
             result.recoveryText = 'Cel poprzedniej akcji ratunkowej został utracony. ';
         }
+        const loss = recovery.lossPosition ?? active.lastPosition;
         const signal = createRecoverySignal(
             c.ship!,
             pilot,
             active.seed,
-            recovery.lossPosition ?? active.lastPosition,
+            active.area === 'surface'
+                ? { x: loss.x - MOON.center.x, y: loss.y - MOON.center.y }
+                : loss,
         );
         if (signal) {
+            if (active.area === 'surface') {
+                const distance = Math.hypot(signal.x, signal.y);
+                const scale = Math.min(1, (MOON.radius - 200) / distance);
+                signal.x = MOON.center.x + signal.x * scale;
+                signal.y = MOON.center.y + signal.y * scale;
+                signal.area = 'surface';
+            } else if (c.story) {
+                const limit = storyRadius(c.story) - 200;
+                const scale = Math.min(1, limit / Math.hypot(signal.x, signal.y));
+                signal.x *= scale;
+                signal.y *= scale;
+            }
             c.recoverySignals.push(signal);
             result.recoveryText +=
                 'Nowy sygnał ratunkowy w bazie: ' + recoveryDescription(signal) + '.';
@@ -912,21 +1067,27 @@ export function finishRun(
 
 export class SaveRepository {
     warning = '';
-    constructor(private storage: Pick<Storage, 'getItem' | 'setItem'>) {}
+    constructor(
+        private storage: Pick<Storage, 'getItem' | 'setItem'>,
+        private options: { key?: string; create?: () => Campaign } = {},
+    ) {}
+    private fresh() {
+        return this.options.create?.() ?? newCampaign();
+    }
     load() {
         try {
-            const json = this.storage.getItem(SAVE_KEY);
+            const json = this.storage.getItem(this.options.key ?? SAVE_KEY);
             const campaign = parseCampaign(json);
             if (json && !campaign) this.warning = 'Nieprawidłowy zapis. Uruchomiono nową kampanię.';
-            return campaign ?? newCampaign();
+            return campaign ?? this.fresh();
         } catch {
             this.warning = 'Zapis lokalny jest niedostępny. Kampania działa w tej sesji.';
-            return newCampaign();
+            return this.fresh();
         }
     }
     save(campaign: Campaign): boolean {
         try {
-            this.storage.setItem(SAVE_KEY, JSON.stringify(campaign));
+            this.storage.setItem(this.options.key ?? SAVE_KEY, JSON.stringify(campaign));
             return true;
         } catch {
             this.warning = 'Nie udało się zapisać. Postęp pozostaje w tej sesji.';

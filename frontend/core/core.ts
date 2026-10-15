@@ -8,6 +8,7 @@ import { UiTime, WorldTime } from '@systems/time';
 import { EffectsManager } from '@systems/effectManager';
 import { Bus } from '@systems/bus';
 import { Background } from '@entities/background';
+import { FrameDiagnostics } from './systems/frameDiagnostics';
 
 export class Core {
     app!: PIXI.Application;
@@ -21,6 +22,7 @@ export class Core {
     scalableContainers: PIXI.Container[] = [];
 
     update(ticker: PIXI.Ticker) {
+        FrameDiagnostics.frame();
         if (ticker.deltaMS > 100) {
             return;
         }

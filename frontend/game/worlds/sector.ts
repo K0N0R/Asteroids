@@ -5,6 +5,7 @@ export interface Point {
     y: number;
 }
 export interface RockSpec extends Point {
+    defense?: boolean;
     radius: number;
     rich: boolean;
     crystal?: boolean;
@@ -14,13 +15,25 @@ export interface RockSpec extends Point {
     vy: number;
 }
 export interface Landmark extends Point {
+    area?: 'surface';
     name: string;
     key: number;
-    kind: 'field' | 'belt' | 'wreck' | 'relay' | 'archive' | 'cluster' | 'fortress';
+    kind:
+        | 'field'
+        | 'belt'
+        | 'wreck'
+        | 'relay'
+        | 'archive'
+        | 'cluster'
+        | 'fortress'
+        | 'passage'
+        | 'construction';
     siteId?: ScanSiteId;
     radius: number;
 }
 export interface EnemySpec extends Point {
+    assault?: boolean;
+    storyPatrol?: boolean;
     kind?: EnemyKind;
     id: number;
     home: Point;

@@ -1,3 +1,16 @@
+import { generateStorySector } from '../worlds/storySector';
+import {
+    storyRadius,
+    deliverLunarCargo,
+    lunarBuildStage,
+    recordLunarDefense,
+    VENUS_OUTPOST,
+    venusPreparationComplete,
+    recordVenusConstruction,
+} from '../state/story';
+import { LunarDefense, LUNAR_DEFENSE, type DefenseHost } from './lunarDefense';
+import { LunarAssault, type AssaultHost } from './lunarAssault';
+import { MOON, moonDistance } from '../worlds/moon';
 import { phaseBladeScale } from '../config';
 import { ARMAMENT_KITS, PHASE_DASH, FORTRESS_WALL_HALF_WIDTH } from '../config';
 import { KineticShield, shieldProfile } from './kineticShield';
@@ -44,6 +57,7 @@ export interface FlightInput {
     mine?: boolean;
 }
 export interface Rock {
+    defense?: boolean;
     id: number;
     body: RAPIER.RigidBody;
     collider: RAPIER.Collider;
@@ -117,6 +131,16 @@ export class MissionSimulation {
     readonly outpostCollider: RAPIER.Collider;
     readonly fortressColliders = new Set<number>();
     enemyKills = 0;
+    storyPatrolKills = 0;
+    readonly statistics = {
+        hullDamage: 0,
+        shieldDamage: 0,
+        enemyDamage: 0,
+        environmentalEnemyDamage: 0,
+        rocksDestroyed: 0,
+        repairKitsUsed: 0,
+        distance: 0,
+    };
     deathReason = 'Zniszczony kadłub.';
     readonly pilot;
     readonly cargo: Cargo = { ore: 0, parts: 0 };
@@ -161,6 +185,19 @@ export class MissionSimulation {
     repairProgress = 0;
     repairKits: number;
     wreckVisited = false;
+    area: 'orbit' | 'surface' = 'orbit';
+    areaRevision = 0;
+    passageProgress = 0;
+    constructionProgress = 0;
+    readonly lunarDefense = new LunarDefense();
+    readonly lunarAssault = new LunarAssault();
+    readonly venusAssault = new LunarAssault();
+    private venusBuildProgress = 0;
+    private stationCollider: RAPIER.Collider | null = null;
+    private assaultSequence = 100000;
+    defenseStartProgress = 0;
+    private defenseArmed = true;
+    private passageArmed = false;
     notice = '';
     noticeTime = 0;
     readonly openedCaches = new Set<number>();
@@ -182,8 +219,11 @@ export class MissionSimulation {
     constructor(
         private campaign: Campaign,
         seed: number,
+        sector?: ReturnType<typeof generateSector>,
     ) {
-        this.sector = generateSector(seed);
+        this.sector =
+            sector ?? (campaign.story ? generateStorySector(campaign.story) : generateSector(seed));
+        this.wreckVisited = !!campaign.story?.searchedWrecks.includes(campaign.story.sector);
         this.outpost = new OutpostSecurity(this.sector.outpost);
         this.outpostCollider = this.world.createCollider(
             RAPIER.ColliderDesc.ball(OUTPOST.radius / P)
@@ -229,6 +269,7 @@ export class MissionSimulation {
         this.grippers = new GripperSystem(this.hullConfig.grabbers, this.hullConfig.grabberRange);
         this.pilot = pilotProfile(campaign.pilots.find((p) => p.id === campaign.selectedPilot)!);
         this.baseCargoCapacity = capacity(campaign);
+        Object.assign(this.cargo, campaign.activeRun?.freight ?? {});
         this.baseMaxHull = shipHealth(campaign.ship!);
         this.kineticShield = new KineticShield(
             shieldProfile(this.modules.hull, this.modules.shield),
@@ -276,6 +317,152 @@ export class MissionSimulation {
                 ? new ResearchEscort(this.world, this.sector.researchSite)
                 : null;
         this.previous = this.position;
+    }
+    get venusBuildReady() {
+        return !!this.campaign.story && venusPreparationComplete(this.campaign.story);
+    }
+    get venusOutpostStage() {
+        const p = this.campaign.story;
+        return !this.venusSector || !p?.claimed.includes('venus-site')
+            ? -1
+            : p.claimed.includes('venus-build')
+              ? p.claimed.includes('venus-shield')
+                  ? 2
+                  : 1
+              : 0;
+    }
+    get venusSector() {
+        return this.campaign.story?.sector === 'venus';
+    }
+    get activeAssault() {
+        return this.venusSector ? this.venusAssault : this.lunarAssault;
+    }
+    get assaultSite() {
+        return this.venusSector ? VENUS_OUTPOST : MOON.construction;
+    }
+    get nearbyVenusOutpost() {
+        return (
+            this.venusSector &&
+            Math.hypot(this.position.x - VENUS_OUTPOST.x, this.position.y - VENUS_OUTPOST.y) < 180
+        );
+    }
+    get venusStatus() {
+        const p = this.campaign.story;
+        if (!this.venusSector || !p) return '';
+        if (p.claimed.includes('venus-defense'))
+            return p.claimed.includes('venus-shield')
+                ? 'Akt III ukończony · placówka obroniona · osłona słoneczna gotowa'
+                : 'Placówka obroniona · przekaż w stacji 12 komponentów na osłonę';
+        if (this.venusAssault.state !== 'idle') return this.venusAssault.summary;
+        if (p.claimed.includes('venus-build'))
+            return 'Placówka gotowa · G przy obiekcie rozpoczyna obronę · osłona: projekt w stacji';
+        if (venusPreparationComplete(p))
+            return this.venusBuildProgress > 0
+                ? `Budowa placówki · ${Math.floor((this.venusBuildProgress / 2) * 100)}%`
+                : '8 placówka · E przez 2 s przy obiekcie rozpoczyna budowę';
+        return '';
+    }
+    get stationName() {
+        return this.campaign.story ? 'Satuk 15' : 'Aurora';
+    }
+    get surfaceUnlocked() {
+        return (
+            this.campaign.story?.sector === 'lunar' &&
+            this.campaign.story.claimed.includes('lunar-survey')
+        );
+    }
+    get buildStage() {
+        return this.campaign.story ? lunarBuildStage(this.campaign.story) : 0;
+    }
+    get defenseAvailable() {
+        return (
+            this.campaign.story?.sector === 'lunar' &&
+            this.campaign.story.claimed.includes('lunar-foundation') &&
+            !this.campaign.story.claimed.includes('lunar-defense')
+        );
+    }
+    get defenseSummary() {
+        if (this.venusSector) return this.venusStatus;
+        if (this.campaign.story?.claimed.includes('lunar-attack'))
+            return 'Akt I ukończony · stacja księżycowa obroniona';
+        if (this.assaultAvailable || this.lunarAssault.state === 'complete')
+            return this.lunarAssault.summary;
+        if (this.campaign.story?.claimed.includes('lunar-defense'))
+            return 'Osłona budowy ukończona · postęp zapisany';
+        return this.defenseAvailable ? this.lunarDefense.summary : '';
+    }
+    get assaultAvailable() {
+        if (this.venusSector)
+            return (
+                !!this.campaign.story?.claimed.includes('venus-build') &&
+                !this.campaign.story.claimed.includes('venus-defense')
+            );
+        const p = this.campaign.story;
+        return (
+            p?.sector === 'lunar' &&
+            ['lunar-commission', 'lunar-defense'].every((id) => p.claimed.includes(id)) &&
+            !p.claimed.includes('lunar-attack')
+        );
+    }
+    get landmarks() {
+        return this.sector.landmarks.filter((l) => (l.area ?? 'orbit') === this.area);
+    }
+    get mapCenter(): Point {
+        return this.area === 'surface' ? MOON.center : { x: 0, y: 0 };
+    }
+    get nearbyPassage() {
+        return this.landmarks.find(
+            (l) =>
+                l.kind === 'passage' &&
+                Math.hypot(l.x - this.position.x, l.y - this.position.y) < l.radius,
+        );
+    }
+    get nearbyConstruction() {
+        return (
+            this.area === 'surface' &&
+            Math.hypot(
+                this.position.x - MOON.construction.x,
+                this.position.y - MOON.construction.y,
+            ) < 180
+        );
+    }
+    get surfaceContext() {
+        if (this.venusSector)
+            return this.nearbyVenusOutpost || this.venusAssault.active ? this.venusStatus : '';
+        if (this.lunarAssault.active && this.area === 'surface')
+            return this.nearbyPassage
+                ? 'Wyjście przerwie obronę stacji · przytrzymaj E przez 2 s'
+                : this.lunarAssault.summary;
+        if (this.nearbyConstruction && this.assaultAvailable) return this.lunarAssault.summary;
+        if (this.area === 'surface' && this.lunarDefense.active)
+            return this.nearbyPassage
+                ? 'Wyjście na orbitę przerwie obronę · przytrzymaj E przez 2 s'
+                : this.lunarDefense.summary;
+        if (this.nearbyConstruction && this.defenseStartProgress > 0)
+            return `Przygotowanie obrony · ${Math.floor((this.defenseStartProgress / 2) * 100)}% · przytrzymaj G`;
+        if (this.nearbyPassage)
+            return this.grippers.arms.some((a) => a.held)
+                ? 'Chwytaki zaciągają łup · zaczekaj przed zmianą obszaru'
+                : this.passageProgress > 0
+                  ? `Zmiana obszaru · ${Math.floor((this.passageProgress / MOON.transferSeconds) * 100)}%`
+                  : `Przytrzymaj E przez 2 s · ${this.area === 'orbit' ? 'lot nad Księżycem' : 'powrót na orbitę'} · poniżej 60 m/s`;
+        if (this.nearbyConstruction && this.buildStage < 2) {
+            const key = this.buildStage === 0 ? 'lunar-foundation' : 'lunar-installations';
+            const n = this.campaign.story!.progress[key],
+                target = this.buildStage === 0 ? 48 : 12;
+            return `Budowa · ${this.buildStage === 0 ? 'ruda' : 'komponenty'} ${n}/${target} · E 2 s przekazuje ładunek · dostawa pozostaje na budowie`;
+        }
+        return this.nearbyConstruction && this.defenseAvailable ? this.lunarDefense.summary : '';
+    }
+    get stationDestination() {
+        return this.campaign.story ? 'stacji Satuk 15' : 'Aurory';
+    }
+    get stationRecipient() {
+        return this.campaign.story ? 'stacji Satuk 15' : 'Aurorze';
+    }
+    get sectorRadius() {
+        if (this.area === 'surface') return MOON.radius;
+        return this.campaign.story ? storyRadius(this.campaign.story) : GAME.sectorRadius;
     }
     get position(): Point {
         const p = this.ship.translation();
@@ -476,6 +663,7 @@ export class MissionSimulation {
     }
     get dockable() {
         return (
+            this.area === 'orbit' &&
             this.distanceHome < GAME.dockRadius &&
             this.speed < GAME.dockSpeed &&
             [...this.salvage.towing.values()].every(
@@ -503,11 +691,15 @@ export class MissionSimulation {
     }
     get nearbyScanSite() {
         const p = this.position;
-        return this.sector.landmarks.find(
-            (site) => site.siteId && Math.hypot(site.x - p.x, site.y - p.y) < SCAN.radius,
+        return this.landmarks.find(
+            (site) =>
+                site.siteId &&
+                (site.kind !== 'construction' || this.buildStage >= 2) &&
+                Math.hypot(site.x - p.x, site.y - p.y) < SCAN.radius,
         );
     }
     get context() {
+        if (this.surfaceContext) return this.surfaceContext;
         if (this.choice) return 'Skrytka otwarta · wybierz prototyp, aby kontynuować lot';
         if (
             this.recoverySignal &&
@@ -556,13 +748,14 @@ export class MissionSimulation {
             return this.dockable
                 ? 'Przytrzymaj E · dokowanie'
                 : 'Zbliż się do pierścienia · prędkość poniżej 65 m/s';
-        const w = this.sector.landmarks[2],
+        const w = this.sector.landmarks.find((l) => l.kind === 'wreck'),
             p = this.position;
-        if (!this.wreckVisited && Math.hypot(w.x - p.x, w.y - p.y) < 160)
+        if (w && !this.wreckVisited && Math.hypot(w.x - p.x, w.y - p.y) < 160)
             return 'E · przeszukaj wrak';
         if (this.recoveryDelivered)
-            return 'Cel ratunkowy przekazany Aurorze · możesz kontynuować wyprawę';
-        if (this.recoverySecured) return 'Cel zabezpieczony na holu · wróć do Aurory i zadokuj';
+            return `Cel ratunkowy przekazany ${this.stationRecipient} · możesz kontynuować wyprawę`;
+        if (this.recoverySecured)
+            return `Cel zabezpieczony na holu · wróć do ${this.stationDestination} i zadokuj`;
         return this.cargoUsed >= this.cargoCapacity
             ? 'Ładownia pełna · wróć do bazy'
             : this.harpoonArms
@@ -621,6 +814,7 @@ export class MissionSimulation {
         };
         this.rocks.set(rock.id, rock);
         this.asteroidColliders.set(collider.handle, rock.id);
+        return rock;
     }
     setNotice(text: string) {
         this.notice = text;
@@ -630,7 +824,7 @@ export class MissionSimulation {
         if (this.ended || this.disposed || this.choice) return;
         const dt = GAME.step;
         this.elapsed += dt;
-        this.kineticShield.update(dt, this.distanceHome < GAME.dockRadius);
+        this.kineticShield.update(dt, this.area === 'orbit' && this.distanceHome < GAME.dockRadius);
         this.shotCooldown -= dt;
         this.laserEffectCooldown -= dt;
         this.laserBeam = null;
@@ -806,9 +1000,11 @@ export class MissionSimulation {
             (collider) => this.isObstacle(collider),
             (enemy) => this.fireEnemy(enemy),
             this.enemySignature,
-            this.escort?.vulnerable
-                ? { position: this.escort.position, velocity: this.escort.velocity }
-                : undefined,
+            this.activeAssault.active
+                ? { position: this.assaultSite, velocity: { x: 0, y: 0 }, kind: 'station' }
+                : this.escort?.vulnerable
+                  ? { position: this.escort.position, velocity: this.escort.velocity }
+                  : undefined,
         );
         if (
             !chasingBefore &&
@@ -839,6 +1035,10 @@ export class MissionSimulation {
         this.updateDash(input, dt);
         const dashFrom = { ...this.position };
         this.world.step(this.queue);
+        this.statistics.distance += Math.hypot(
+            this.position.x - dashFrom.x,
+            this.position.y - dashFrom.y,
+        );
         this.queue.drainCollisionEvents((a, b, started) => {
             if (!started) return;
             if (
@@ -897,7 +1097,7 @@ export class MissionSimulation {
                     enemy = id === undefined ? undefined : this.enemies.enemies.get(id);
                 if (enemy && enemy.impactCooldown <= 0) {
                     enemy.impactCooldown = 0.5;
-                    this.damageEnemy(enemy, damage, point);
+                    this.damageEnemy(enemy, damage, point, true, true);
                 }
             }
         });
@@ -944,6 +1144,9 @@ export class MissionSimulation {
         this.updateEscort(input, dt);
         this.updateRecovery(input, dt);
         this.updateSalvage(input, dt);
+        this.updateSurface(input, dt);
+        this.updateVenusOutpost(input, dt);
+        this.updateLunarDefense(input, dt);
         this.updateScan(input, dt);
         if (
             input.interact &&
@@ -953,17 +1156,24 @@ export class MissionSimulation {
             !input.fire &&
             !input.mine &&
             !this.nearbyCache &&
+            !this.nearbyPassage &&
+            !this.nearbyConstruction &&
             !this.escort?.startHeld &&
             !(this.escort?.state === 'idle' && this.nearbyEscort)
         )
             this.interact(dt);
         else this.dockProgress = 0;
-        const distance = this.distanceHome;
-        if (distance > GAME.sectorRadius) {
+        const distance = this.area === 'surface' ? moonDistance(this.position) : this.distanceHome;
+        if (distance > this.sectorRadius) {
+            this.statistics.hullDamage += Math.min(this.hull, dt * 10);
             this.hull -= dt * 10;
             if (this.hull <= 0)
                 this.deathReason = 'Promieniowanie poza granicą sektora zniszczyło kadłub.';
-            this.setNotice('Poza sektorem · promieniowanie uszkadza kadłub!');
+            this.setNotice(
+                this.area === 'surface'
+                    ? 'Poza korytarzem lotu · kadłub jest uszkadzany!'
+                    : 'Poza sektorem · promieniowanie uszkadza kadłub!',
+            );
         }
         if (this.hull <= 0) {
             this.hull = 0;
@@ -1195,8 +1405,11 @@ export class MissionSimulation {
     }
     private takeDamage(damage: number, reason: string, point: Point = this.position) {
         if (this.hull <= 0) return 0;
+        const incoming = damage;
         damage = this.absorbSupport('player', damage, point);
         const hit = this.kineticShield.absorb(damage);
+        this.statistics.shieldDamage += incoming - damage + hit.absorbed;
+        this.statistics.hullDamage += Math.min(this.hull, hit.hull);
         if (hit.absorbed) this.events.push({ ...point, kind: 'shield', strength: hit.absorbed });
         this.hull = Math.max(0, this.hull - hit.hull);
         this.deathReason = reason;
@@ -1213,7 +1426,16 @@ export class MissionSimulation {
         if (hit.hull) this.events.push({ ...point, kind: 'hit', strength: hit.hull });
         return hit.hull;
     }
-    private damageEnemy(enemy: Enemy, damage: number, point: Point, interrupt = true) {
+    private damageEnemy(
+        enemy: Enemy,
+        damage: number,
+        point: Point,
+        interrupt = true,
+        environmental = false,
+    ) {
+        const actualDamage = Math.min(Math.max(0, enemy.health), Math.max(0, damage));
+        if (environmental) this.statistics.environmentalEnemyDamage += actualDamage;
+        else this.statistics.enemyDamage += actualDamage;
         this.events.push({ ...point, kind: 'hit', strength: damage });
         const velocity = enemy.body.linvel(),
             wreckAngle = enemy.body.rotation();
@@ -1222,6 +1444,7 @@ export class MissionSimulation {
         this.aegis?.hostiles.delete(enemy.id);
         this.clearAtlasTarget(enemy.id);
         this.enemyKills++;
+        if (enemy.storyPatrol) this.storyPatrolKills++;
         this.events.push({
             ...wreck,
             sound: 'destroy',
@@ -1230,6 +1453,7 @@ export class MissionSimulation {
             rich: true,
             velocity: { x: velocity.x * P, y: velocity.y * P },
         });
+        if (enemy.assault) return; // Failed attempts must not farm loot or recoverable hulls.
         if (
             leavesWreck(this.sector.seed, enemy.id) &&
             this.salvage.add(
@@ -1325,7 +1549,7 @@ export class MissionSimulation {
         if (this.salvageProgress + 1e-8 < this.salvageSeconds) return;
         if (this.salvage.attach(item, this.ship)) {
             this.syncTow();
-            this.setNotice('Wrak na holu · wróć do Aurory · J zwolnij hol.');
+            this.setNotice(`Wrak na holu · wróć do ${this.stationDestination} · J zwolnij hol.`);
             this.events.push({ ...salvagePosition(item), kind: 'collect', sound: 'complete' });
         }
         this.salvageProgress = 0;
@@ -1401,11 +1625,13 @@ export class MissionSimulation {
         if (
             enemy.weaponDisabled ||
             this.bullets.size >= 80 ||
-            (enemy.target === 'escort'
-                ? !this.escort?.vulnerable ||
-                  Math.hypot(this.escort.position.x, this.escort.position.y) < DRONES.safeRadius
-                : this.opticalCloak ||
-                  Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius)
+            (enemy.target === 'station'
+                ? !this.activeAssault.active || this.activeAssault.health <= 0
+                : enemy.target === 'escort'
+                  ? !this.escort?.vulnerable ||
+                    Math.hypot(this.escort.position.x, this.escort.position.y) < DRONES.safeRadius
+                  : this.opticalCloak ||
+                    Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius)
         )
             return false;
         if (enemy.target === 'player') this.aegis?.hostiles.add(enemy.id);
@@ -1467,7 +1693,7 @@ export class MissionSimulation {
             this.surveyData.add(site.siteId);
             this.scanProgress = 0;
             this.scanTarget = null;
-            this.setNotice(`Dane: ${site.name}. Dostarcz je do Aurory, aby rozliczyć kontrakt.`);
+            this.setNotice(`Dane: ${site.name}. Dostarcz je do ${this.stationDestination}.`);
             this.events.push({
                 x: site.x,
                 y: site.y,
@@ -1571,6 +1797,7 @@ export class MissionSimulation {
         }
         if (this.repairProgress + 1e-8 >= this.repairSeconds) {
             this.repairKits--;
+            this.statistics.repairKitsUsed++;
             if (this.campaign.activeRun) this.campaign.activeRun.repairKits = this.repairKits;
             this.engineFault = false;
             this.repairProgress = 0;
@@ -2136,6 +2363,7 @@ export class MissionSimulation {
                     this.isObstacle(collider) ||
                     (bullet.team === 'enemy' &&
                         (this.salvage.colliders.has(collider.handle) ||
+                            collider.handle === this.stationCollider?.handle ||
                             collider.handle === this.aegis?.drone?.collider.handle ||
                             (this.escort?.vulnerable &&
                                 collider.handle === this.escort.collider.handle))) ||
@@ -2175,6 +2403,18 @@ export class MissionSimulation {
                 }
                 if (this.fortressColliders.has(hit.collider.handle))
                     this.events.push({ ...contact, kind: 'hit', strength: bullet.damage });
+                if (
+                    bullet.team === 'enemy' &&
+                    this.stationCollider?.handle === hit.collider.handle
+                ) {
+                    this.activeAssault.damage(bullet.damage);
+                    this.events.push({
+                        ...contact,
+                        kind: 'hit',
+                        strength: bullet.damage,
+                        sound: 'hit',
+                    });
+                }
                 if (bullet.team === 'enemy' && this.escort?.collider.handle === hit.collider.handle)
                     this.damageEscort(bullet.damage, contact);
                 if (
@@ -2431,6 +2671,7 @@ export class MissionSimulation {
         if (rock.health <= 0) this.breakRock(rock);
     }
     private breakRock(rock: Rock) {
+        this.statistics.rocksDestroyed++;
         const p = rock.body.translation(),
             v = rock.body.linvel();
         const x = p.x * P,
@@ -2446,6 +2687,7 @@ export class MissionSimulation {
             strength: rock.radius,
             velocity: { x: v.x * P, y: v.y * P },
         });
+        if (rock.defense) return; // Retry attempts cannot generate an infinite supply of loot.
         if (rock.radius > 44) {
             for (const side of [-1, 1])
                 this.addRock({
@@ -2505,6 +2747,290 @@ export class MissionSimulation {
                 ),
         );
     }
+    private defenseHost: DefenseHost = {
+        spawn: (angle, speed) =>
+            this.addRock({
+                x: MOON.construction.x + Math.cos(angle) * LUNAR_DEFENSE.spawnDistance,
+                y: MOON.construction.y + Math.sin(angle) * LUNAR_DEFENSE.spawnDistance,
+                vx: -Math.cos(angle) * speed,
+                vy: -Math.sin(angle) * speed,
+                radius: 23 + this.lunarDefense.wave * 2,
+                rich: false,
+                variant: this.lunarDefense.wave * 19 + this.lunarDefense.remaining,
+                defense: true,
+            })?.id,
+        rock: (id) => {
+            const r = this.rocks.get(id);
+            if (!r) return null;
+            const p = r.body.translation();
+            return { position: { x: p.x * P, y: p.y * P }, previous: r.previous, radius: r.radius };
+        },
+        remove: (id, impact) => {
+            const r = this.rocks.get(id);
+            if (!r) return;
+            const p = r.body.translation();
+            this.world.removeRigidBody(r.body);
+            this.rocks.delete(id);
+            this.asteroidColliders.delete(r.collider.handle);
+            if (impact)
+                this.events.push({
+                    x: p.x * P,
+                    y: p.y * P,
+                    kind: 'explosion',
+                    strength: 50,
+                    sound: 'destroy',
+                });
+        },
+    };
+    private assaultHost: AssaultHost = {
+        spawn: (kind, wave) => {
+            const id = ++this.assaultSequence,
+                angle = [Math.PI, -Math.PI / 2, 0][wave - 1];
+            this.enemies.add([
+                {
+                    id,
+                    kind,
+                    assault: true,
+                    x: this.assaultSite.x + Math.cos(angle) * 750,
+                    y: this.assaultSite.y + Math.sin(angle) * 750,
+                    home: { ...this.assaultSite },
+                    phase: angle + Math.PI,
+                },
+            ]);
+            this.enemies.alert([id], this.assaultSite);
+            return id;
+        },
+        alive: (id) => this.enemies.enemies.has(id),
+        remove: (id) => this.enemies.remove(id),
+    };
+    private clearAssault() {
+        if (this.stationCollider) {
+            this.world.removeCollider(this.stationCollider, true);
+            this.stationCollider = null;
+        }
+        for (const [id, shot] of this.bullets)
+            if (shot.shooterId !== undefined && this.activeAssault.spawned.has(shot.shooterId))
+                this.bullets.delete(id);
+    }
+    private updateAssault(input: FlightInput, dt: number) {
+        const a = this.activeAssault;
+        if (!input.sabotage) this.defenseArmed = true;
+        const ready =
+            this.assaultAvailable &&
+            (this.venusSector
+                ? this.nearbyVenusOutpost
+                : this.area === 'surface' && this.nearbyConstruction) &&
+            this.defenseArmed &&
+            input.sabotage &&
+            !input.interact &&
+            !input.fire &&
+            !input.mine &&
+            !input.repair &&
+            !this.thrusting &&
+            this.speed < 60 &&
+            this.hull > 0 &&
+            this.damageCooldown <= 0;
+        if (!ready || a.active || a.state === 'complete') this.defenseStartProgress = 0;
+        else if ((this.defenseStartProgress += dt) + 1e-8 >= 2 && a.start()) {
+            this.defenseStartProgress = 0;
+            this.defenseArmed = false;
+            this.stationCollider = this.world.createCollider(
+                RAPIER.ColliderDesc.ball(130 / P)
+                    .setTranslation(this.assaultSite.x / P, this.assaultSite.y / P)
+                    .setSensor(true),
+            );
+            this.setNotice('Nieznane jednostki na podejściu · broń stacji · F wskaż napastnika');
+        }
+        if (!a.active) return;
+        if (
+            (!this.venusSector && this.area !== 'surface') ||
+            this.hull <= 0 ||
+            Math.hypot(this.position.x - this.assaultSite.x, this.position.y - this.assaultSite.y) >
+                1350
+        ) {
+            a.fail(this.assaultHost, 'Obrona stacji przerwana');
+            this.clearAssault();
+            this.setNotice(a.summary);
+            return;
+        }
+        a.step(dt, this.assaultHost);
+        if (!a.active) {
+            this.clearAssault();
+            this.setNotice(a.summary);
+        }
+    }
+    private updateLunarDefense(input: FlightInput, dt: number) {
+        if (this.venusSector) {
+            this.updateAssault(input, dt);
+            return;
+        }
+        if (
+            this.assaultAvailable ||
+            this.lunarAssault.active ||
+            this.lunarAssault.state === 'complete'
+        ) {
+            this.updateAssault(input, dt);
+            return;
+        }
+        const d = this.lunarDefense;
+        if (!input.sabotage) this.defenseArmed = true;
+        const starting =
+            this.defenseAvailable &&
+            this.area === 'surface' &&
+            this.nearbyConstruction &&
+            !d.active &&
+            d.state !== 'complete' &&
+            this.defenseArmed &&
+            input.sabotage &&
+            !input.interact &&
+            !input.fire &&
+            !input.mine &&
+            !input.repair &&
+            !this.thrusting &&
+            this.speed < 60 &&
+            this.hull > 0 &&
+            this.damageCooldown <= 0;
+        if (!starting) this.defenseStartProgress = 0;
+        else {
+            this.defenseStartProgress += dt;
+            if (this.defenseStartProgress + 1e-8 >= 2 && d.start()) {
+                this.defenseStartProgress = 0;
+                this.defenseArmed = false;
+                this.setNotice(
+                    'Obrona rozpoczęta · niszcz oznaczone asteroidy · 3 fale · wyjście przerwie próbę',
+                );
+            }
+        }
+        if (!d.active) return;
+        if (
+            this.area !== 'surface' ||
+            this.hull <= 0 ||
+            Math.hypot(
+                this.position.x - MOON.construction.x,
+                this.position.y - MOON.construction.y,
+            ) > 1250
+        ) {
+            d.fail(this.defenseHost, 'Obrona przerwana · dostawy zachowane');
+            this.setNotice(d.summary);
+            return;
+        }
+        d.step(dt, this.defenseHost);
+        if (d.state === 'complete') {
+            const change = recordLunarDefense(this.campaign);
+            if (change) {
+                this.deliveryRevision++;
+                this.setNotice(
+                    `Budowa obroniona · postęp zapisany · premia ${change.reward.ore} rudy / ${change.reward.parts} komponentów${change.overflow ? ` · nadwyżka magazynu ${change.overflow}` : ''}`,
+                );
+                this.events.push({ ...MOON.construction, kind: 'collect', sound: 'complete' });
+            }
+        } else if (d.state === 'failed') this.setNotice(d.summary);
+    }
+    private updateVenusOutpost(input: FlightInput, dt: number) {
+        const p = this.campaign.story;
+        if (!this.venusSector || !p || p.claimed.includes('venus-build')) return;
+        const ready =
+            this.nearbyVenusOutpost &&
+            venusPreparationComplete(p) &&
+            input.interact &&
+            !input.sabotage &&
+            !input.fire &&
+            !input.mine &&
+            !input.repair &&
+            !this.thrusting &&
+            this.speed < 60 &&
+            this.hull > 0 &&
+            this.damageCooldown <= 0;
+        if (!ready) {
+            this.venusBuildProgress = 0;
+            return;
+        }
+        this.venusBuildProgress += dt;
+        if (this.venusBuildProgress + 1e-8 >= 2 && recordVenusConstruction(this.campaign)) {
+            this.venusBuildProgress = 0;
+            this.deliveryRevision++;
+            this.setNotice(
+                'Placówka zbudowana · postęp zapisany · przygotuj osłonę w stacji i osłoń obiekt przed atakiem',
+            );
+            this.events.push({ ...VENUS_OUTPOST, kind: 'collect', sound: 'complete' });
+        }
+    }
+    private updateSurface(input: FlightInput, dt: number) {
+        if (!input.interact) this.passageArmed = true;
+        const ready =
+            input.interact &&
+            !this.thrusting &&
+            !input.fire &&
+            !input.mine &&
+            !input.repair &&
+            !input.sabotage &&
+            this.speed < 60 &&
+            this.damageCooldown <= 0 &&
+            this.hull > 0;
+        if (
+            !this.nearbyPassage ||
+            !ready ||
+            !this.passageArmed ||
+            this.grippers.arms.some((a) => a.held)
+        )
+            this.passageProgress = 0;
+        else {
+            this.passageProgress += dt;
+            if (this.passageProgress + 1e-8 >= MOON.transferSeconds) {
+                const target = this.area === 'orbit' ? MOON.exit : MOON.entrance;
+                const dx = target.x - this.position.x,
+                    dy = target.y - this.position.y;
+                const move = (body: RAPIER.RigidBody) => {
+                    const p = body.translation();
+                    body.setTranslation({ x: p.x + dx / P, y: p.y + dy / P }, true);
+                    body.setLinvel({ x: 0, y: 0 }, true);
+                    body.setAngvel(0, true);
+                };
+                move(this.ship);
+                for (const item of this.salvage.towing.values()) {
+                    move(item.body);
+                    item.previous = salvagePosition(item);
+                    item.previousAngle = item.body.rotation();
+                }
+                if (this.aegis?.drone) move(this.aegis.drone.body);
+                this.grippers.clear();
+                this.syncTow();
+                this.previous = this.position;
+                this.dashTrail.length = 0;
+                this.area = this.area === 'orbit' ? 'surface' : 'orbit';
+                if (this.campaign.activeRun) {
+                    if (this.area === 'surface') this.campaign.activeRun.area = 'surface';
+                    else delete this.campaign.activeRun.area;
+                    this.campaign.activeRun.lastPosition = this.position;
+                }
+                this.areaRevision++;
+                this.deliveryRevision++;
+                this.passageArmed = false;
+                this.passageProgress = 0;
+                this.setNotice(
+                    this.area === 'surface'
+                        ? 'Powierzchnia Księżyca · 7 budowa · 2 złoże · 1 powrót na orbitę'
+                        : 'Orbita księżycowa · 1 Satuk 15 · puść E przed kolejnym przejściem',
+                );
+            }
+        }
+        if (!this.nearbyConstruction || !ready || this.buildStage >= 2)
+            this.constructionProgress = 0;
+        else {
+            this.constructionProgress += dt;
+            if (this.constructionProgress + 1e-8 >= MOON.deliverySeconds) {
+                const result = deliverLunarCargo(this.campaign, this.cargo);
+                this.constructionProgress = 0;
+                if (result) {
+                    this.deliveryRevision++;
+                    this.setNotice(
+                        `Dostarczono ${result.amount} ${result.resource === 'ore' ? 'rudy' : 'komponentów'} · postęp budowy zapisany`,
+                    );
+                    this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
+                } else this.setNotice('Brak wymaganych materiałów w ładowni · 2 wskazuje złoże');
+            }
+        }
+    }
     private interact(dt: number) {
         if (this.dockable) {
             this.dockProgress += dt;
@@ -2515,8 +3041,8 @@ export class MissionSimulation {
         } else {
             this.dockProgress = 0;
             const p = this.position,
-                w = this.sector.landmarks[2];
-            if (!this.wreckVisited && Math.hypot(w.x - p.x, w.y - p.y) < 160) {
+                w = this.sector.landmarks.find((l) => l.kind === 'wreck');
+            if (w && !this.wreckVisited && Math.hypot(w.x - p.x, w.y - p.y) < 160) {
                 this.wreckVisited = true;
                 this.addLoot(w.x + 25, w.y, 'parts', 4);
                 this.addLoot(w.x - 25, w.y, 'ore', 6);

@@ -1,3 +1,15 @@
+import {
+    STORY_SAVE_KEY,
+    STORY_SECTORS,
+    contributeStory,
+    acknowledgeStoryBriefing,
+    syncStory,
+    travelStory,
+    storyObjectives,
+    storyAct,
+    type StoryChange,
+} from './state/story';
+import { destroyDisplayTree } from '../core/systems/destroyDisplayTree';
 import { uiCue } from './systems/audio';
 import { equipWeapon } from './state/weapons';
 import { Container, Graphics } from 'pixi.js';
@@ -16,6 +28,7 @@ import {
     hirePilot,
     RunResult,
     SaveRepository,
+    newStoryCampaign,
     selectShip,
     scrapShip,
 } from './state/campaign';
@@ -30,12 +43,41 @@ import { advanceCrew, cancelJob, hireMechanic, hireQuartermaster, queueJob } fro
 import { selectContract } from './state/contracts';
 import { trainPilot } from './state/pilots';
 import { PROTOTYPES, PrototypeId } from './systems/prototypes';
+import {
+    SandboxRun,
+    SANDBOX_SCENARIOS,
+    defaultSandboxConfig,
+    type SandboxConfig,
+    type SandboxReport,
+    type SandboxOutcome,
+} from './systems/sandbox';
+import { SandboxSetup, sandboxResult } from './ui/sandbox';
+import { FrameDiagnostics } from '../core/systems/frameDiagnostics';
 
 export class GameSession {
-    readonly saves = new SaveRepository({
+    private profile: 'story' | 'legacy' = (() => {
+        try {
+            return localStorage.getItem('asteroids.activeProfile') === 'legacy'
+                ? 'legacy'
+                : 'story';
+        } catch {
+            return 'story';
+        }
+    })();
+    private legacySaves = new SaveRepository({
         getItem: (key) => localStorage.getItem(key),
         setItem: (key, value) => localStorage.setItem(key, value),
     });
+    private storySaves = new SaveRepository(
+        {
+            getItem: (key) => localStorage.getItem(key),
+            setItem: (key, value) => localStorage.setItem(key, value),
+        },
+        { key: STORY_SAVE_KEY, create: newStoryCampaign },
+    );
+    get saves() {
+        return this.profile === 'story' ? this.storySaves : this.legacySaves;
+    }
     readonly campaign: Campaign;
     mission: MissionWorld | null = null;
     hud: MissionHud | null = null;
@@ -45,6 +87,10 @@ export class GameSession {
     private launching = false;
     private crewSaveSeconds = 0;
     private savedDeliveryRevision = 0;
+    private sandboxRun: SandboxRun | null = null;
+    private sandboxSetup: SandboxSetup | null = null;
+    private sandboxConfig = defaultSandboxConfig();
+    private sandboxReports: SandboxReport[] = [];
     constructor(
         private worldHost: Container,
         private uiHost: Container,
@@ -62,7 +108,26 @@ export class GameSession {
             : null;
         this.saves.save(this.campaign);
         this.lobby = new LobbyView(this.campaign, {
-            launch: (recoveryId) => this.launch(recoveryId),
+            openSandbox: () => this.openSandbox(),
+            switchProfile: () => this.switchProfile(),
+            travel: (sector) =>
+                this.change(() => travelStory(this.campaign, sector), 'Wybrano sektor wypraw.'),
+            briefing: () =>
+                this.change(
+                    () => !!acknowledgeStoryBriefing(this.campaign),
+                    'Akt II ukończony. Trasa do Wenus otwarta. Wybierz Wenus w panelu sektorów.',
+                ),
+            contribute: (id) => {
+                if (this.mission || this.hasOverlay) return;
+                const change = contributeStory(this.campaign, id);
+                this.saves.save(this.campaign);
+                this.lobby.refresh(
+                    change
+                        ? this.storyMessage(change, 'Materiały przekazane na zadanie.')
+                        : 'Brak materiałów lub zadanie niedostępne.',
+                );
+            },
+            launch: (recoveryId, loadConstruction) => this.launch(recoveryId, loadConstruction),
             equipWeapon: (weapon) =>
                 this.change(() => equipWeapon(this.campaign, weapon), 'Uzbrojenie zamontowane.'),
             upgrade: (upgrade) =>
@@ -129,10 +194,24 @@ export class GameSession {
         });
         this.uiHost.addChild(this.lobby, this.overlay);
         this.lobby.refresh(this.saves.warning);
+        this.background.setRegion(this.campaign.story?.sector ?? null);
         if (interrupted) this.showResult(interrupted);
         Bus.subscribe(
             'input',
             (message) => {
+                if (message.name === 'keydown') {
+                    this.sandboxSetup?.handleKey(message.data);
+                    if (this.sandboxRun && !this.hasOverlay && !PopupContainer.hasActivePopup()) {
+                        if (message.data === 'f6') {
+                            this.finishSandbox('restart', true);
+                            return;
+                        }
+                        if (message.data === 'f7') {
+                            this.finishSandbox('stopped');
+                            return;
+                        }
+                    }
+                }
                 if (
                     message.name === 'focus-lost' ||
                     (message.name === 'keydown' && ['escape', 'tab'].includes(message.data))
@@ -205,13 +284,54 @@ export class GameSession {
             this,
         );
     }
+    private storyMessage(change: StoryChange, fallback: string) {
+        return `${change.titles.length ? `Ukończono: ${change.titles.join(' · ')}.` : fallback}${change.overflow ? ` Magazyn pełny: nadwyżka ${change.overflow}.` : ''}`;
+    }
+    private switchProfile() {
+        if (this.mission || this.launching || this.hasOverlay) return;
+        this.saves.save(this.campaign);
+        this.profile = this.profile === 'story' ? 'legacy' : 'story';
+        try {
+            localStorage.setItem('asteroids.activeProfile', this.profile);
+        } catch {
+            /* Session-only selection is still usable. */
+        }
+        const next = this.saves.load();
+        const interrupted = next.activeRun
+            ? finishRun(
+                  next,
+                  false,
+                  { ore: 0, parts: 0 },
+                  0,
+                  'Poprzednia wyprawa została przerwana przez zamknięcie gry.',
+              )
+            : null;
+        Object.assign(this.campaign, next);
+        this.saves.save(this.campaign);
+        this.background.setRegion(this.campaign.story?.sector ?? null);
+        this.lobby.resetProfile();
+        this.lobby.refresh(
+            this.saves.warning ||
+                (this.campaign.story
+                    ? `Satuk 15 · ${storyAct(this.campaign.story)} · ${STORY_SECTORS[this.campaign.story.sector].name}. Postęp kampanii wczytany.`
+                    : 'Wczytano poprzednią rozgrywkę testową. Kampania Satuk 15 ma osobny zapis.'),
+        );
+        if (interrupted) this.showResult(interrupted);
+    }
     private change(action: () => boolean, message: string) {
         if (this.mission || this.hasOverlay) return;
         const success = action();
+        const storyChange = success ? syncStory(this.campaign) : null;
+        this.background.setRegion(this.campaign.story?.sector ?? null);
         uiCue(success ? 'confirm' : 'error');
         this.saves.save(this.campaign);
         this.lobby.refresh(
-            this.saves.warning || (success ? message : 'Brak surowców lub osiągnięty limit.'),
+            this.saves.warning ||
+                (success
+                    ? storyChange?.titles.length
+                        ? this.storyMessage(storyChange, message)
+                        : message
+                    : 'Brak surowców lub osiągnięty limit.'),
         );
     }
     private toggleMissionInfo() {
@@ -223,15 +343,157 @@ export class GameSession {
         if (PopupContainer.hasActivePopup()) return;
         PopupContainer.show('missionInfo', {
             simulation: this.mission.simulation,
-            campaign: this.campaign,
-            contract: this.campaign.contract,
+            campaign: this.sandboxRun?.campaign ?? this.campaign,
+            contract: (this.sandboxRun?.campaign ?? this.campaign).contract,
+            objectives:
+                this.sandboxRun?.objectives() ??
+                (this.campaign.story
+                    ? storyObjectives(
+                          this.campaign,
+                          [...this.mission.simulation.surveyData],
+                          this.mission.simulation.lunarAssault.state === 'complete',
+                          this.mission.simulation.storyPatrolKills,
+                          this.mission.simulation.venusAssault.state === 'complete',
+                      )
+                    : undefined),
+            objectivesTitle:
+                !this.sandboxRun && this.campaign.story
+                    ? `${storyAct(this.campaign.story)} · ${STORY_SECTORS[this.campaign.story.sector].name}`
+                    : undefined,
         });
     }
-    launch(recoveryId: number | null = null) {
+    private closeSandbox() {
+        this.sandboxSetup = null;
+        clear(this.overlay);
+        this.hasOverlay = false;
+        InputHandler.clear();
+    }
+    private openSandbox() {
+        if (this.mission || this.launching) return;
+        clear(this.overlay);
+        this.hasOverlay = true;
+        this.sandboxSetup = new SandboxSetup(
+            this.sandboxConfig,
+            (config) => this.launchSandbox(config),
+            () => this.closeSandbox(),
+        );
+        this.overlay.addChild(this.sandboxSetup);
+        InputHandler.clear();
+    }
+    private launchSandbox(config: SandboxConfig) {
+        if (this.mission || this.launching) return;
+        this.launching = true;
+        let run: SandboxRun | null = null;
+        try {
+            run = new SandboxRun(config);
+            this.sandboxConfig = { ...run.config };
+            this.sandboxRun = run;
+            this.background.setRegion(null);
+            this.mission = new MissionWorld(run.simulation, run.campaign.ship!);
+            this.hud = new MissionHud(
+                run.simulation,
+                run.campaign.contract,
+                () => this.toggleMissionInfo(),
+                () => run!.objectives(),
+            );
+            this.hud.target = SANDBOX_SCENARIOS[run.config.scenario].target;
+            this.hud.cameraAngle = this.mission.camera.rotation;
+            label(
+                this.hud,
+                `SANDBOX · ${SANDBOX_SCENARIOS[run.config.scenario].name} · seed ${run.config.seed}`,
+                510,
+                15,
+                14,
+                C.gold,
+            );
+            button(
+                this.hud,
+                'F6 · RESTART',
+                535,
+                47,
+                140,
+                () => this.finishSandbox('restart', true),
+                false,
+                true,
+                28,
+            );
+            button(
+                this.hud,
+                'F7 · WYNIK',
+                690,
+                47,
+                140,
+                () => this.finishSandbox('stopped'),
+                false,
+                true,
+                28,
+            );
+            this.worldHost.addChild(this.mission);
+            this.uiHost.addChildAt(this.hud, 0);
+            this.lobby.visible = false;
+            this.closeSandbox();
+            GameState.goToGameplay();
+            FrameDiagnostics.start(() => !this.hasOverlay && !PopupContainer.hasActivePopup());
+            uiCue('launch');
+        } catch (error) {
+            FrameDiagnostics.stop();
+            if (this.mission) this.mission.dispose();
+            else run?.simulation.dispose();
+            this.mission = null;
+            if (this.hud) destroyDisplayTree(this.hud);
+            this.hud = null;
+            this.sandboxRun = null;
+            this.background.setRegion(this.campaign.story?.sector ?? null);
+            this.lobby.visible = true;
+            this.closeSandbox();
+            this.lobby.refresh(
+                'Nie udało się uruchomić próby. Zapis kampanii nie został zmieniony.',
+            );
+            console.error(error);
+        } finally {
+            this.launching = false;
+        }
+    }
+    private finishSandbox(outcome: SandboxOutcome, restart = false) {
+        if (!this.sandboxRun || !this.mission) return;
+        const report = this.sandboxRun.report(outcome),
+            config = { ...this.sandboxRun.config };
+        report.performance = FrameDiagnostics.stop();
+        const previous = [...this.sandboxReports];
+        this.sandboxReports.push(report);
+        this.sandboxReports = this.sandboxReports.slice(-20);
+        this.mission.dispose();
+        this.mission = null;
+        if (this.hud) destroyDisplayTree(this.hud);
+        this.hud = null;
+        this.sandboxRun = null;
+        this.background.setRegion(this.campaign.story?.sector ?? null);
+        SoundManager.stopGroup('gameplay');
+        this.background.camera = { x: 0, y: 0 };
+        this.background.cameraAngle = 0;
+        this.lobby.visible = true;
+        GameState.goToLobby();
+        InputHandler.clear();
+        this.closeSandbox();
+        if (restart) {
+            this.launchSandbox(config);
+            return;
+        }
+        this.hasOverlay = true;
+        sandboxResult(
+            this.overlay,
+            report,
+            previous,
+            () => this.launchSandbox(config),
+            () => this.openSandbox(),
+            () => this.closeSandbox(),
+        );
+    }
+    launch(recoveryId: number | null = null, loadConstruction = false) {
         if (this.launching || this.mission || this.hasOverlay) return;
         this.launching = true;
         const randomSeed = crypto.getRandomValues(new Uint32Array(1))[0];
-        if (!beginRun(this.campaign, randomSeed, recoveryId)) {
+        if (!beginRun(this.campaign, randomSeed, recoveryId, loadConstruction)) {
             this.launching = false;
             return;
         }
@@ -242,9 +504,28 @@ export class GameSession {
             const simulation = new MissionSimulation(this.campaign, seed);
             this.savedDeliveryRevision = 0;
             this.mission = new MissionWorld(simulation, this.campaign.ship!);
-            this.hud = new MissionHud(simulation, this.campaign.contract, () =>
-                this.toggleMissionInfo(),
+            this.hud = new MissionHud(
+                simulation,
+                this.campaign.contract,
+                () => this.toggleMissionInfo(),
+                this.campaign.story
+                    ? () =>
+                          storyObjectives(
+                              this.campaign,
+                              [...simulation.surveyData],
+                              simulation.lunarAssault.state === 'complete',
+                              simulation.storyPatrolKills,
+                              simulation.venusAssault.state === 'complete',
+                          )
+                    : undefined,
+                this.campaign.story
+                    ? `${storyAct(this.campaign.story)} · ${STORY_SECTORS[this.campaign.story.sector].name}`
+                    : undefined,
             );
+            if (this.campaign.story)
+                simulation.setNotice(
+                    'Satuk 15: 2 złoże · 7 przekaźnik · E odczyt / dokowanie. Zadania możesz realizować równolegle.',
+                );
             this.hud.cameraAngle = this.mission.camera.rotation;
             this.worldHost.addChild(this.mission);
             this.uiHost.addChildAt(this.hud, 0);
@@ -255,12 +536,17 @@ export class GameSession {
         } catch (error) {
             // Initialization failures are not gameplay deaths.
             this.campaign.repairKits += this.campaign.activeRun!.repairKits;
+            const freight = this.campaign.activeRun!.freight;
+            if (freight) {
+                this.campaign.bank.ore += freight.ore;
+                this.campaign.bank.parts += freight.parts;
+            }
             this.campaign.activeRun = null;
             this.campaign.sorties--;
             this.saves.save(this.campaign);
             this.mission?.dispose();
             this.mission = null;
-            this.hud?.destroy({ children: true });
+            if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
             this.lobby.visible = true;
             this.lobby.refresh('Nie udało się uruchomić sektora. Spróbuj ponownie.');
@@ -294,6 +580,16 @@ export class GameSession {
             repair: InputHandler.isKeyPressed('REPAIR'),
             sabotage: InputHandler.isKeyPressed('SABOTAGE'),
         });
+        if (this.sandboxRun) {
+            const sim = this.mission.simulation;
+            this.background.camera = sim.position;
+            this.background.cameraAngle = this.mission.camera.rotation;
+            if (this.hud) this.hud.cameraAngle = this.mission.camera.rotation;
+            this.hud?.update(deltaMS);
+            if (sim.pendingChoice && !sim.ended) this.showPrototypeChoice();
+            if (sim.ended) this.finishSandbox(sim.ended);
+            return;
+        }
         const elapsed = this.mission.simulation.elapsed - elapsedBefore;
         const completed = advanceCrew(this.campaign, elapsed);
         this.crewSaveSeconds += elapsed;
@@ -328,6 +624,10 @@ export class GameSession {
                 sim.repairKits,
                 {
                     lossPosition: sim.position,
+                    wreckVisited: sim.wreckVisited,
+                    assaultWon: sim.lunarAssault.state === 'complete',
+                    venusDefenseWon: sim.venusAssault.state === 'complete',
+                    patrolKills: sim.storyPatrolKills,
                     securedId: sim.recoverySecured ? sim.recoverySignal?.id : undefined,
                     data: [...sim.surveyData],
                     kills: sim.enemyKills,
@@ -340,7 +640,7 @@ export class GameSession {
             this.mission.dispose();
             SoundManager.stopGroup('gameplay');
             this.mission = null;
-            this.hud?.destroy({ children: true });
+            if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
             this.background.camera = { x: 0, y: 0 };
             this.background.cameraAngle = 0;
@@ -486,7 +786,7 @@ export class GameSession {
         panel(this.overlay, 405, 200, 790, 590);
         label(
             this.overlay,
-            result.success ? 'AURORA / ŁADUNEK ZABEZPIECZONY' : 'AURORA / UTRACONA WYPRAWA',
+            `${this.campaign.story ? 'SATUK 15' : 'AURORA'} / ${result.success ? 'ŁADUNEK ZABEZPIECZONY' : 'UTRACONA WYPRAWA'}`,
             450,
             236,
             15,

@@ -71,6 +71,7 @@ export function missionObjectives(
 
 // Only actionable context belongs on the flight HUD. Explanations live under Tab.
 export function flightHint(s: MissionSimulation) {
+    if (s.surfaceContext) return s.surfaceContext;
     const percent = (progress: number, seconds: number) =>
         `${Math.min(100, Math.floor((progress / seconds) * 100))}%`;
     if (s.pendingChoice) return '';
@@ -168,8 +169,8 @@ export function flightHint(s: MissionSimulation) {
     }
     if (s.engineFault)
         return s.repairKits ? 'R  Napraw napęd · przytrzymaj 5 s' : 'Napęd uszkodzony · 1  Baza';
-    const wreck = s.sector.landmarks[2];
-    if (!s.wreckVisited && Math.hypot(wreck.x - p.x, wreck.y - p.y) < 160)
+    const wreck = s.sector.landmarks.find((l) => l.kind === 'wreck');
+    if (wreck && !s.wreckVisited && Math.hypot(wreck.x - p.x, wreck.y - p.y) < 160)
         return 'E  Przeszukaj wrak';
     if (s.cargoUsed >= s.cargoCapacity) return 'Ładownia pełna · 1  Baza';
     if (s.hull < s.maxHull && s.repairKits > 0) return 'R  Napraw kadłub · przytrzymaj 5 s';

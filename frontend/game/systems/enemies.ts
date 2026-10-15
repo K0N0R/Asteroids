@@ -23,7 +23,7 @@ export interface Enemy extends EnemySpec {
     thrusting: boolean;
     lastSeen: Point;
     routeIndex: number;
-    target: 'player' | 'escort';
+    target: 'player' | 'escort' | 'station';
 }
 export const enemyPosition = (enemy: Enemy): Point => {
     const p = enemy.body.translation();
@@ -148,7 +148,7 @@ export class EnemyFleet {
         isRock: (collider: RAPIER.Collider) => boolean,
         fire: (enemy: Enemy) => boolean,
         signature = 1,
-        ally?: { position: Point; velocity: Point },
+        ally?: { position: Point; velocity: Point; kind?: 'station' },
     ) {
         if (this.disposed) return;
         for (const enemy of this.enemies.values()) {
@@ -168,7 +168,7 @@ export class EnemyFleet {
                 allyDistance < config.loseRange &&
                 this.lineClear(p0, ally.position, isRock) &&
                 (!playerVisible || allyDistance < playerDistance);
-            const target = chooseAlly ? 'escort' : 'player';
+            const target = chooseAlly ? (ally!.kind ?? 'escort') : 'player';
             if (enemy.target !== target) enemy.charge = 0;
             enemy.target = target;
             const player = chooseAlly ? ally!.position : playerPosition,
@@ -359,6 +359,13 @@ export class EnemyFleet {
         this.world.removeRigidBody(enemy.body);
         this.enemies.delete(id);
         return p;
+    }
+    remove(id: number) {
+        const enemy = this.enemies.get(id);
+        if (!enemy) return;
+        this.colliders.delete(enemy.collider.handle);
+        this.world.removeRigidBody(enemy.body);
+        this.enemies.delete(id);
     }
     dispose() {
         if (this.disposed) return;

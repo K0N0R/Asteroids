@@ -4,6 +4,7 @@ import type { Pilot, Ship } from './campaign';
 import { clonePilot, pilotLevel, pilotProfile, pilotName } from './pilots';
 
 export interface RecoverySignal extends Point {
+    area?: 'surface';
     id: number;
     seed: number;
     pilot: Pilot | null;
@@ -46,6 +47,7 @@ export function createRecoverySignal(
 
 export function recoveryDescription(signal: RecoverySignal) {
     return [
+        signal.area === 'surface' ? 'powierzchnia Księżyca' : '',
         signal.pilot ? `kapsuła: ${pilotName(signal.pilot)} · P${pilotLevel(signal.pilot)}` : '',
         signal.ship ? `wrak: ${HULLS[signal.ship.hull].name} #${signal.ship.id}` : '',
     ]

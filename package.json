@@ -1,6 +1,6 @@
 {
     "name": "orbit-asteroids",
-    "version": "0.35.0",
+    "version": "0.45.0",
     "scripts": {
         "start": "cross-env ENV=development node build.development.mjs",
         "start-silent": "cross-env ENV=development node build.development.mjs --no-watch",
@@ -9,7 +9,8 @@
         "lint": "eslint . --ext .ts,.mjs,.tsx,.json",
         "lint-fix": "eslint . --ext .ts,.mjs,.tsx,.json --fix",
         "typecheck": "tsc --noEmit",
-        "test": "node test.mjs"
+        "test": "node test.mjs",
+        "audit:sandbox": "node scripts/audit-sandbox.mjs"
     },
     "dependencies": {
         "@dimforge/rapier2d-compat": "0.21.0",

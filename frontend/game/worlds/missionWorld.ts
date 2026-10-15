@@ -1,3 +1,4 @@
+import { destroyDisplayTree } from '../../core/systems/destroyDisplayTree';
 import { drawKineticShield } from '../graphics/kineticShieldView';
 import { researchShipView, researchAnomalyView } from '../graphics/researchView';
 import { laserTint, laserUpgradeLevel } from '../graphics/shipEquipment';
@@ -42,9 +43,13 @@ import type { Point } from './sector';
 import { outpostView } from '../graphics/outpostView';
 import { impactParticleCount } from '../systems/impact';
 import { CACHE } from '../systems/prototypes';
+import { VenusOutpostView } from '../graphics/venusOutpost';
+import { MoonSurfaceView } from '../graphics/moonSurface';
 
 const interpolate = (a: number, b: number, t: number) => a + (b - a) * t;
 export class MissionWorld extends Container {
+    private moon: MoonSurfaceView;
+    private venusOutpost = new VenusOutpostView();
     readonly audio = createMissionAudio();
     readonly camera = new Container();
     readonly shipView;
@@ -104,13 +109,20 @@ export class MissionWorld extends Container {
     ) {
         super();
         this.eventMode = 'none';
+        const viewportMask = new Graphics().rect(0, 0, 1600, 900).fill(0xffffff);
+        this.addChild(viewportMask);
+        this.mask = viewportMask;
         this.shipView = new ShipView(modules);
         this.shipView.scale.set(simulation.hullConfig.size);
         this.camera.rotation = -Math.PI / 2 - simulation.ship.rotation();
+        this.moon = new MoonSurfaceView(!!simulation.surfaceUnlocked);
+        this.camera.addChild(this.moon, this.venusOutpost);
         this.camera.addChild(this.navigation, this.shield, this.home);
+        label(this.home, simulation.stationName, -65, 165, 18, C.mint);
         const wreck = wreckView(),
-            w = simulation.sector.landmarks[2];
-        wreck.position.set(w.x, w.y);
+            w = simulation.sector.landmarks.find((l) => l.kind === 'wreck');
+        if (w) wreck.position.set(w.x, w.y);
+        else wreck.visible = false;
         this.camera.addChild(wreck, this.rockLayer, this.effectLayer, this.shipView);
         if (modules.hull === 'widmo') {
             const trail = this.dashTrailView;
@@ -160,9 +172,11 @@ export class MissionWorld extends Container {
         for (const site of simulation.sector.landmarks) {
             if (!site.siteId) continue;
             const view =
-                site.siteId === 'fortress'
-                    ? fortressView(simulation.sector.fortress)
-                    : surveySiteView(site.siteId);
+                site.kind === 'construction'
+                    ? new Container()
+                    : site.siteId === 'fortress'
+                      ? fortressView(simulation.sector.fortress)
+                      : surveySiteView(site.siteId);
             view.position.set(site.x, site.y);
             this.surveyLabels.set(site.siteId, label(view, site.name, -100, 103, 17, C.cyan));
             this.surveyViews.set(site.siteId, view);
@@ -399,6 +413,33 @@ export class MissionWorld extends Container {
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
             p = s.position;
+        this.venusOutpost.update(s, this.camera.rotation);
+        this.moon.update(s.area === 'surface', s.buildStage, this.camera.rotation);
+        this.moon.updateDefense(
+            s.lunarDefense,
+            [...s.lunarDefense.threats.keys()].flatMap((id) => {
+                const rock = s.rocks.get(id);
+                if (!rock) return [];
+                const p = rock.body.translation();
+                return [
+                    {
+                        x: p.x * GAME.pixelsPerMeter,
+                        y: p.y * GAME.pixelsPerMeter,
+                        radius: rock.radius,
+                    },
+                ];
+            }),
+        );
+        if (s.lunarAssault.state !== 'idle')
+            this.moon.updateDefense(
+                s.lunarAssault,
+                [...s.lunarAssault.enemies].flatMap((id) => {
+                    const enemy = s.enemies.enemies.get(id);
+                    if (!enemy) return [];
+                    return [{ ...enemyPosition(enemy), radius: enemy.config.radius }];
+                }),
+                180,
+            );
         this.atlasLockView.clear();
         if (s.hasRocketLauncher) {
             for (const id of new Set([s.atlasLock.target, s.atlasLock.locked])) {
@@ -532,7 +573,7 @@ export class MissionWorld extends Container {
                     'fortress',
                     label(next, 'Twierdza Aegis', -100, 103, 17, C.cyan),
                 );
-                old.destroy({ children: true });
+                destroyDisplayTree(old);
             }
         }
         this.supportShields.clear();
@@ -654,7 +695,7 @@ export class MissionWorld extends Container {
         }
         for (const [id, view] of this.enemyViews)
             if (!s.enemies.enemies.has(id)) {
-                view.destroy({ children: true });
+                destroyDisplayTree(view);
                 this.enemyViews.delete(id);
             }
         this.enemyStatus.clear();
@@ -738,9 +779,12 @@ export class MissionWorld extends Container {
         for (const site of s.sector.landmarks) {
             if (!site.siteId) continue;
             const view = this.surveyViews.get(site.siteId)!;
-            view.visible = this.inView(site, site.siteId === 'fortress' ? site.radius : 0);
+            view.visible =
+                !(s.venusSector && site.siteId === 'archive' && s.venusOutpostStage >= 0) &&
+                this.inView(site, site.siteId === 'fortress' ? site.radius : 0);
             if (!view.visible) continue;
             const title = this.surveyLabels.get(site.siteId)!;
+            title.visible = site.kind !== 'construction';
             title.rotation = -this.camera.rotation;
             title.position.copyFrom(rotateVector({ x: -100, y: 103 }, -this.camera.rotation));
             const done = s.surveyData.has(site.siteId);
@@ -956,7 +1000,7 @@ export class MissionWorld extends Container {
         this.salvageStatus.clear();
         for (const [id, view] of this.salvageViews)
             if (!s.salvage.items.has(id)) {
-                view.destroy({ children: true });
+                destroyDisplayTree(view);
                 this.salvageViews.delete(id);
             }
         for (const item of s.salvage.items.values()) {
@@ -1208,7 +1252,7 @@ export class MissionWorld extends Container {
                 )
                 .stroke({ color: C.mint, width: 4 });
         this.navigation
-            .circle(0, 0, GAME.sectorRadius)
+            .circle(s.mapCenter.x, s.mapCenter.y, s.sectorRadius)
             .stroke({ color: C.red, width: 10, alpha: 0.5 });
         const v = s.velocity;
         if (s.speed > 15)
@@ -1221,7 +1265,7 @@ export class MissionWorld extends Container {
         this.audio.pause();
         SoundManager.stopGroup('gameplay');
         this.simulation.dispose();
-        this.destroy({ children: true });
+        destroyDisplayTree(this);
         this.shapes.dispose();
     }
 }

@@ -8,6 +8,7 @@ import { MissionSimulation } from '../systems/mission';
 import { navigationWaypoint } from '../worlds/sector';
 import { EnemyNavigation } from '../systems/enemyNavigation';
 import { enemyPosition } from '../systems/enemies';
+import { MOON } from '../worlds/moon';
 import { flightHint, missionObjectives } from './missionReadout';
 import { hudLabel as label, keyHint, mouseHint, objectiveMark } from './hudIcons';
 
@@ -20,6 +21,7 @@ export class MissionHud extends Container {
     private context: Typography;
     private direction: Typography;
     private goals: Typography[] = [];
+    private goalStep = 28;
     private checks = new Graphics();
     private recoveryWasSecured = false;
     private towedIds = '';
@@ -32,14 +34,19 @@ export class MissionHud extends Container {
     private meters = new Graphics();
     private arrow = new Graphics();
     private throttle = 0;
+    private areaRevision = 0;
     private supportStatus: Typography | null = null;
+    private defenseStatus: Typography | null = null;
     constructor(
         readonly sim: MissionSimulation,
         private contract: number,
         openDetails: () => void = () => {},
+        private customObjectives?: () => ReturnType<typeof missionObjectives>,
+        objectivesTitle = 'CEL PRÓBY',
     ) {
         super();
         this.eventMode = 'passive';
+        this.goalStep = customObjectives ? 40 : 28;
         const firstSite = CONTRACTS[contract].sites[0];
         if (firstSite) this.target = SCAN_SITES[firstSite].key - 1;
         if (CONTRACTS[contract].kills) this.trackEnemy();
@@ -50,21 +57,34 @@ export class MissionHud extends Container {
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
+        if (sim.surfaceUnlocked || sim.venusSector)
+            this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
         if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
             this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
         this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
-        label(this, CONTRACTS[contract].title, 1320, 285, 16, C.text, 250);
-        const count = missionObjectives(
-            contract,
-            sim.cargo,
-            [...sim.surveyData],
-            !!sim.recoverySignal,
-            sim.recoverySecured,
-            false,
-            sim.enemyKills,
+        label(
+            this,
+            customObjectives ? objectivesTitle : CONTRACTS[contract].title,
+            1320,
+            285,
+            16,
+            C.text,
+            250,
+        );
+        const count = (
+            this.customObjectives?.() ??
+            missionObjectives(
+                contract,
+                sim.cargo,
+                [...sim.surveyData],
+                !!sim.recoverySignal,
+                sim.recoverySecured,
+                false,
+                sim.enemyKills,
+            )
         ).length;
         for (let i = 0; i < count; i++)
-            this.goals.push(label(this, '', 1343, 320 + i * 28, 15, C.muted, 228));
+            this.goals.push(label(this, '', 1343, 320 + i * this.goalStep, 15, C.muted, 228));
         this.context = label(this, '', 40, 797, 18, C.mint, 670);
         keyHint(this, 'WASD', 'lot', 40, 845, 54);
         keyHint(this, 'SHIFT', 'boost', 145, 845, 54);
@@ -138,6 +158,28 @@ export class MissionHud extends Container {
         this.target = 14;
     }
     get waypoint() {
+        const s = this.sim;
+        if (s.area === 'surface') {
+            if (this.target === 10)
+                return s.enemies.enemies.size
+                    ? this.enemyNavigation.waypoint(s.enemies, s.position)
+                    : { ...MOON.construction, name: 'Stacja · oczekuj kontaktu' };
+            if (
+                this.target === 5 &&
+                s.recoverySignal?.area === 'surface' &&
+                !s.recoverySecured &&
+                !s.recoveryDestroyed
+            )
+                return { ...s.recoverySignal, name: 'Cel ratunkowy na powierzchni' };
+            return (
+                s.landmarks.find((l) => l.key === this.target + 1) ?? {
+                    ...MOON.exit,
+                    name: 'Powrót na orbitę',
+                }
+            );
+        }
+        if (this.target === 5 && s.recoverySignal?.area === 'surface')
+            return { ...MOON.entrance, name: 'Ratunek na powierzchni · wejście' };
         if (this.target === 15) {
             const e = this.sim.escort;
             return !e || e.state === 'destroyed' || e.state === 'complete'
@@ -158,11 +200,12 @@ export class MissionHud extends Container {
             return { ...this.sim.sector.outpost.terminal, name: this.sim.sector.outpost.name };
         if (this.target === 8)
             return this.sim.nextCache ?? { x: 0, y: 0, name: 'Aurora / skrytki puste' };
-        return navigationWaypoint(
-            this.sim.sector.landmarks,
+        const point = navigationWaypoint(
+            this.sim.landmarks,
             this.target + 1,
             this.sim.recoveryDestroyed ? null : this.sim.recoverySignal,
         );
+        return { ...point, name: point.name.replace('Aurora', this.sim.stationName) };
     }
     update(deltaMS: number) {
         this.throttle += deltaMS;
@@ -172,6 +215,14 @@ export class MissionHud extends Container {
         }
     }
     private refresh() {
+        this.defenseStatus?.setText(
+            this.sim.venusSector || this.sim.area === 'surface' ? this.sim.defenseSummary : '',
+        );
+        if (this.areaRevision !== this.sim.areaRevision) {
+            this.areaRevision = this.sim.areaRevision;
+            this.target = this.sim.area === 'surface' ? 0 : 2;
+            this.trail = new RadarTrail();
+        }
         const s = this.sim,
             p = s.position,
             v = s.velocity;
@@ -250,20 +301,23 @@ export class MissionHud extends Container {
             this.target = s.recoverySignal && !s.recoverySecured ? 5 : 0;
         }
         this.checks.clear();
-        missionObjectives(
-            this.contract,
-            s.cargo,
-            [...s.surveyData],
-            !!s.recoverySignal,
-            s.recoverySecured,
-            false,
-            s.enemyKills,
+        (
+            this.customObjectives?.() ??
+            missionObjectives(
+                this.contract,
+                s.cargo,
+                [...s.surveyData],
+                !!s.recoverySignal,
+                s.recoverySecured,
+                false,
+                s.enemyKills,
+            )
         ).forEach((goal, i) => {
             const text =
                 goal.id === 'rescue' && s.recoveryDestroyed
                     ? 'Cel ratunkowy utracony'
                     : goal.id === 'rescue' && s.recoveryDelivered
-                      ? 'Cel przekazany Aurorze'
+                      ? `Cel przekazany ${s.stationRecipient}`
                       : goal.id === 'fortress'
                         ? goal.complete
                             ? 'Dane Aegis'
@@ -288,15 +342,20 @@ export class MissionHud extends Container {
                       ? C.mint
                       : C.muted,
             );
-            objectiveMark(this.checks, 1325, 328 + i * 28, goal.complete);
+            objectiveMark(this.checks, 1325, 328 + i * this.goalStep, goal.complete);
         });
         const waypoint = this.waypoint,
             distance = Math.hypot(waypoint.x - p.x, waypoint.y - p.y);
         this.direction.setText(`${waypoint.name} · ${(distance / 1000).toFixed(1)} km`);
+        if (s.area === 'surface') {
+            this.surfaceRadar(waypoint);
+            this.navigationArrow(waypoint, distance);
+            return;
+        }
         const x = 1470,
             y = 130,
             radius = 88,
-            scale = radius / GAME.sectorRadius;
+            scale = radius / s.sectorRadius;
         const enemies = [...s.enemies.enemies.values()];
         const chased = s.outpost.alarm > 0 || enemies.some((enemy) => enemy.state === 'chase');
         this.map
@@ -327,14 +386,14 @@ export class MissionHud extends Container {
                 .fill({ color: C.red, alpha: 0.09 })
                 .stroke({ color: C.red, width: 1, alpha: 0.35 });
         for (const point of this.trail.points) {
-            if (Math.hypot(point.x, point.y) > GAME.sectorRadius) continue;
+            if (Math.hypot(point.x, point.y) > s.sectorRadius) continue;
             this.map
                 .beginPath()
                 .circle(x + point.x * scale, y + point.y * scale, 1)
                 .fill({ color: C.cyan, alpha: this.trail.opacity(s.elapsed, point) });
         }
         this.map.circle(x, y, 3).fill(C.mint);
-        for (const site of s.sector.landmarks) {
+        for (const site of s.landmarks) {
             const mx = x + site.x * scale,
                 my = y + site.y * scale;
             if (site.kind === 'belt' || site.kind === 'cluster')
@@ -358,7 +417,12 @@ export class MissionHud extends Container {
                     .fill(s.surveyData.has(site.siteId) ? C.mint : C.cyan);
             else this.map.circle(mx, my, 2.5).fill(site.key === this.target + 1 ? C.text : C.gold);
         }
-        if (s.recoverySignal && !s.recoverySecured && !s.recoveryDestroyed) {
+        if (
+            s.recoverySignal &&
+            !s.recoverySignal.area &&
+            !s.recoverySecured &&
+            !s.recoveryDestroyed
+        ) {
             const mx = x + s.recoverySignal.x * scale,
                 my = y + s.recoverySignal.y * scale;
             this.map
@@ -432,7 +496,7 @@ export class MissionHud extends Container {
                 .circle(x + waypoint.x * scale, y + waypoint.y * scale, 7)
                 .stroke({ color: C.text, width: 1, alpha: 0.7 });
         // Keep the player marker within the radar when escaping the sector boundary.
-        const length = Math.max(GAME.sectorRadius, Math.hypot(p.x, p.y));
+        const length = Math.max(s.sectorRadius, Math.hypot(p.x, p.y));
         const mx = x + (p.x / length) * radius,
             my = y + (p.y / length) * radius;
         const a = s.ship.rotation();
@@ -451,6 +515,72 @@ export class MissionHud extends Container {
                 .moveTo(mx, my)
                 .lineTo(mx + v.x * scale * 0.3, my + v.y * scale * 0.3)
                 .stroke({ color: C.cyan, width: 1 });
+        this.navigationArrow(waypoint, distance);
+    }
+    private surfaceRadar(waypoint: { x: number; y: number }) {
+        const s = this.sim,
+            x = 1470,
+            y = 130,
+            scale = 88 / s.sectorRadius;
+        const point = (p: { x: number; y: number }) => ({
+            x: x + (p.x - MOON.center.x) * scale,
+            y: y + (p.y - MOON.center.y) * scale,
+        });
+        const map = this.map
+            .clear()
+            .circle(x, y, 88)
+            .fill({ color: 0x303c45, alpha: 0.94 })
+            .stroke({ color: C.line, width: 2 });
+        for (const l of s.landmarks) {
+            const p = point(l);
+            map.circle(p.x, p.y, l.kind === 'passage' ? 5 : 3).fill(
+                l.kind === 'passage' ? C.cyan : C.gold,
+            );
+        }
+        const signal = s.recoverySignal;
+        const d = s.lunarDefense;
+        for (const id of s.lunarAssault.enemies) {
+            const enemy = s.enemies.enemies.get(id);
+            if (!enemy) continue;
+            const p = point(enemyPosition(enemy));
+            map.circle(p.x, p.y, 4).fill(C.red);
+        }
+        const warningWave = s.lunarAssault.active ? s.lunarAssault : d;
+        if (warningWave.state === 'warning') {
+            const warning = point({
+                x: MOON.construction.x + Math.cos(warningWave.angle) * 850,
+                y: MOON.construction.y + Math.sin(warningWave.angle) * 850,
+            });
+            map.circle(warning.x, warning.y, 7).stroke({ color: C.gold, width: 2 });
+        }
+        for (const id of d.threats.keys()) {
+            const r = s.rocks.get(id);
+            if (!r) continue;
+            const raw = r.body.translation(),
+                p = point({ x: raw.x * GAME.pixelsPerMeter, y: raw.y * GAME.pixelsPerMeter });
+            map.circle(p.x, p.y, 3).fill(C.red);
+        }
+        if (signal?.area === 'surface' && !s.recoverySecured && !s.recoveryDestroyed) {
+            const p = point(signal);
+            map.rect(p.x - 3, p.y - 3, 6, 6).stroke({ color: C.mint, width: 2 });
+        }
+        const p = point(s.position),
+            w = point(waypoint),
+            a = s.ship.rotation();
+        map.circle(w.x, w.y, 7)
+            .stroke({ color: C.text, width: 1 })
+            .poly([
+                p.x + Math.cos(a) * 5,
+                p.y + Math.sin(a) * 5,
+                p.x + Math.cos(a + 2.5) * 4,
+                p.y + Math.sin(a + 2.5) * 4,
+                p.x + Math.cos(a - 2.5) * 4,
+                p.y + Math.sin(a - 2.5) * 4,
+            ])
+            .fill(C.cyan);
+    }
+    private navigationArrow(waypoint: { x: number; y: number }, distance: number) {
+        const p = this.sim.position;
         this.arrow.clear();
         if (distance > 250) {
             const angle = Math.atan2(waypoint.y - p.y, waypoint.x - p.x) + this.cameraAngle;

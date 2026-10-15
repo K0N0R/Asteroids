@@ -1,3 +1,13 @@
+import { storyOverview } from './storyOverview';
+import {
+    STORY_SECTORS,
+    constructionManifest,
+    actOneComplete,
+    actTwoComplete,
+    storyAct,
+    type StorySectorId,
+} from '../state/story';
+import { previewModules, moduleComparison, type ModulePreviewMode } from './modulePreview';
 import { ARMAMENT_KITS, armamentName } from '../config';
 import { ATLAS_WEAPONS, GAME, PHOENIX, STINGER_AMMO, WEAPONS, type WeaponId } from '../config';
 import { Container, Graphics } from 'pixi.js';
@@ -57,7 +67,12 @@ import {
 
 export type LobbyTab = 'overview' | 'hangar' | 'station' | 'pilots' | 'crew' | 'recovery';
 export interface LobbyActions {
-    launch: (recoveryId: number | null) => void;
+    openSandbox?: () => void;
+    switchProfile?: () => void;
+    travel?: (id: StorySectorId) => void;
+    contribute?: (id: string) => void;
+    briefing?: () => void;
+    launch: (recoveryId: number | null, loadConstruction?: boolean) => void;
     equipWeapon: (weapon: WeaponId) => void;
     upgrade: (upgrade: Upgrade) => void;
     hire: (archetype: number) => void;
@@ -96,7 +111,8 @@ export class LobbyView extends Container {
     private shopHull: HullId = 'swift';
     private shopPage = 0;
     private hullDetailMode: 'stats' | 'upgrades' = 'stats';
-    private shopPreviewLevel = 0;
+    private modulePreviewMode: ModulePreviewMode = 'current';
+    private modulePreviewLevel = 1;
     private pilotMode: 'roster' | 'recruit' = 'roster';
     private chosenPilotId: number | null = null;
     private recruit = 0;
@@ -106,6 +122,8 @@ export class LobbyView extends Container {
     private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield' = 'engine';
     private scrapCandidate: number | null = null;
     private recoveryId: number | null = null;
+    private storyPage = 0;
+    private storyPageSector: StorySectorId | null = null;
     constructor(
         private campaign: Campaign,
         private actions: LobbyActions,
@@ -113,6 +131,13 @@ export class LobbyView extends Container {
         super();
         this.addChild(this.visual, this.content);
         this.refresh();
+    }
+    resetProfile() {
+        this.tab = 'overview';
+        this.storyPage = 0;
+        this.storyPageSector = null;
+        this.scrapCandidate = null;
+        this.recoveryId = null;
     }
     private go(tab: LobbyTab) {
         this.tab = tab;
@@ -155,7 +180,7 @@ export class LobbyView extends Container {
         const logo = lobbyIcon('station');
         logo.position.set(50, 56);
         ui.addChild(logo);
-        label(ui, 'AURORA', 75, 43, 23, C.text);
+        label(ui, c.story ? 'SATUK 15' : 'AURORA', 75, 43, 23, C.text);
         label(ui, 'DOM POŚRÓD GWIAZD', 31, 91, 11, C.muted);
         NAV.forEach(({ tab, title, icon }, i) => {
             const card = choiceCard(ui, 25, 184 + i * 65, 185, 51, this.tab === tab, () =>
@@ -173,8 +198,24 @@ export class LobbyView extends Container {
                       : 0;
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
+        if (this.actions.openSandbox) {
+            button(ui, 'SANDBOX / TESTY', 25, 710, 185, this.actions.openSandbox, false, true, 37);
+            label(ui, 'Bez zmiany kampanii', 31, 757, 12, C.muted);
+        }
+        if (this.actions.switchProfile)
+            button(
+                ui,
+                c.story ? 'STARY ZAPIS TESTOWY' : 'KAMPANIA SATUK 15',
+                25,
+                775,
+                185,
+                this.actions.switchProfile,
+                false,
+                true,
+                30,
+            );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.35', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.45', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -200,16 +241,24 @@ export class LobbyView extends Container {
     }
     private departure(ui: Container, recoveryId: number | null = null) {
         const c = this.campaign,
-            ready = !!c.ship && !!selectedPilot(c);
+            ready = !!c.ship && !!selectedPilot(c),
+            wrongSector = !!(
+                c.story &&
+                recoveryId !== null &&
+                c.recoverySignals.find((s) => s.id === recoveryId)?.seed !==
+                    STORY_SECTORS[c.story.sector].seed
+            );
         button(
             ui,
-            ready
-                ? recoveryId === null
-                    ? 'WYRUSZ →'
-                    : 'WYRUSZ NA RATUNEK →'
-                : !c.ship
-                  ? 'PRZYGOTUJ STATEK →'
-                  : 'ZATRUDNIJ PILOTA →',
+            wrongSector
+                ? 'WRÓĆ DO SEKTORA SYGNAŁU'
+                : ready
+                  ? recoveryId === null
+                      ? 'WYRUSZ →'
+                      : 'WYRUSZ NA RATUNEK →'
+                  : !c.ship
+                    ? 'PRZYGOTUJ STATEK →'
+                    : 'ZATRUDNIJ PILOTA →',
             1072,
             719,
             456,
@@ -218,7 +267,7 @@ export class LobbyView extends Container {
                 else this.go(!c.ship ? 'hangar' : 'pilots');
             },
             true,
-            !c.activeRun,
+            !c.activeRun && !wrongSector,
             52,
         );
         if (
@@ -237,8 +286,61 @@ export class LobbyView extends Container {
                 true,
                 27,
             );
+        const manifest = constructionManifest(c);
+        if (ready && recoveryId === null && manifest.ore + manifest.parts > 0)
+            button(
+                ui,
+                `WYLOT Z DOSTAWĄ · ${manifest.ore} R / ${manifest.parts} K`,
+                1072,
+                775,
+                456,
+                () => this.actions.launch(null, true),
+                false,
+                !c.activeRun,
+                30,
+            );
     }
     private overview(ui: Container) {
+        if (this.campaign.story) {
+            const p = this.campaign.story;
+            if (this.storyPageSector !== p.sector) {
+                this.storyPage = 0;
+                this.storyPageSector = p.sector;
+            }
+            this.section(
+                p.sector === 'venus'
+                    ? 'Akt III · Przygotowania'
+                    : storyAct(p) === 'AKT II'
+                      ? 'Akt II · Nowy kierunek'
+                      : actOneComplete(p)
+                        ? 'Akt I ukończony'
+                        : 'Dowodzenie Satuk 15',
+                p.sector === 'venus'
+                    ? 'Zbuduj placówkę, przygotuj osłonę i zabezpiecz wyprawę na Merkurego.'
+                    : actTwoComplete(p)
+                      ? 'Akt II ukończony. Trasa do Wenus otwarta.'
+                      : p.claimed.includes('mars-belt')
+                        ? 'Pas blokuje pościg. Odbierz odprawę w sektorze Ziemi.'
+                        : p.sector === 'mars'
+                          ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'
+                          : actOneComplete(p)
+                            ? 'Atak odparty. Stacja paliw działa. Następny kierunek: Mars.'
+                            : 'Akt I · Pierwsze sygnały. Wybierz sektor i przygotuj wyprawę.',
+            );
+            storyOverview(ui, this.campaign, {
+                contribute: this.actions.contribute,
+                briefing: this.actions.briefing,
+                travel: this.actions.travel,
+                station: () => this.go('station'),
+                page: this.storyPage,
+                setPage: (page) => {
+                    this.storyPage = page;
+                    this.refresh();
+                },
+            });
+            this.departure(ui);
+            return;
+        }
         const c = this.campaign,
             pilot = selectedPilot(c),
             contract = CONTRACTS[c.contract];
@@ -399,26 +501,86 @@ export class LobbyView extends Container {
         }
         const ship = ships.find((entry) => entry.id === this.chosenShipId);
         const modules = this.hangarMode === 'shop' ? bareModules(this.shopHull) : ship;
-        if (modules && this.hangarMode === 'shop' && this.hullDetailMode === 'upgrades') {
-            for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const)
-                modules[key] = this.shopPreviewLevel;
-            for (const [i, title] of ['Bazowy', 'Moduły III'].entries())
+        const previewing = this.hullDetailMode === 'upgrades';
+        const visualModules =
+            modules && previewing
+                ? previewModules(
+                      modules,
+                      this.modulePreviewMode,
+                      this.moduleFocus,
+                      this.modulePreviewLevel,
+                  )
+                : modules;
+        if (modules && previewing) {
+            label(ui, 'PODGLĄD', 280, 266, 11, C.muted);
+            const modes = ['current', 'single', 'all'] as const;
+            for (const [i, mode] of modes.entries())
                 button(
                     ui,
-                    title,
+                    mode === 'current'
+                        ? this.hangarMode === 'shop'
+                            ? 'Bazowy'
+                            : 'Zamontowane'
+                        : mode === 'single'
+                          ? 'Wybrany moduł'
+                          : 'Wszystkie III',
                     280,
                     285 + i * 42,
-                    145,
+                    160,
                     () => {
-                        this.shopPreviewLevel = i * 3;
+                        this.modulePreviewMode = mode;
                         this.refresh();
                     },
-                    this.shopPreviewLevel === i * 3,
+                    this.modulePreviewMode === mode,
                     true,
                     34,
                 );
+            if (this.modulePreviewMode === 'single') {
+                label(
+                    ui,
+                    shipUpgradeDefinition(modules.hull, this.moduleFocus).title,
+                    280,
+                    418,
+                    14,
+                    C.mint,
+                    165,
+                );
+                for (const [i, text] of ['0', 'I', 'II', 'III'].entries())
+                    button(
+                        ui,
+                        text,
+                        280 + i * 41,
+                        463,
+                        34,
+                        () => {
+                            this.modulePreviewLevel = i;
+                            this.refresh();
+                        },
+                        this.modulePreviewLevel === i,
+                        true,
+                        30,
+                    );
+                const comparison = moduleComparison(
+                    modules,
+                    this.moduleFocus,
+                    this.modulePreviewLevel,
+                );
+                label(ui, comparison.title, 280, 504, 12, C.muted, 165);
+                label(ui, `${comparison.before} → ${comparison.after}`, 280, 523, 16, C.cyan, 165);
+            } else
+                label(
+                    ui,
+                    this.modulePreviewMode === 'all'
+                        ? 'Podgląd kompletu. Moduły kupujesz osobno.'
+                        : 'Kliknij nazwę modułu, aby porównać poziomy.',
+                    280,
+                    422,
+                    13,
+                    C.muted,
+                    165,
+                );
         }
-        if (modules) this.art(hullPreview(modules), 625, 430);
+        if (visualModules) this.art(hullPreview(visualModules), 625, 430);
         else {
             label(ui, 'Hangar czeka na nowy statek.', 392, 431, 25, C.muted);
             button(ui, 'Otwórz stocznię', 425, 494, 330, () => {
@@ -757,7 +919,7 @@ export class LobbyView extends Container {
         label(
             ui,
             preview
-                ? 'DOSTĘPNE MODUŁY · CENY POZIOMU I'
+                ? 'MODUŁY BAZOWE · KOSZT POZIOMU I'
                 : active
                   ? `MODUŁY · LIMIT ${limit}`
                   : 'AKTYWUJ STATEK, ABY KUPOWAĆ MODUŁY',
@@ -796,13 +958,28 @@ export class LobbyView extends Container {
                 ),
                 definition = shipUpgradeDefinition(ship.hull, key),
                 y = 435 + i * 34;
-            const title = label(ui, definition.title, 1072, y, 16);
+            const title = label(
+                ui,
+                definition.title,
+                1072,
+                y,
+                16,
+                this.modulePreviewMode === 'single' && key === this.moduleFocus ? C.mint : C.text,
+            );
             title.eventMode = 'static';
-            title.cursor = 'help';
-            title.on('pointerenter', () => {
+            title.cursor = 'pointer';
+            title.on('pointertap', () => {
                 this.moduleFocus = key;
+                this.modulePreviewMode = 'single';
+                this.modulePreviewLevel = Math.min(3, ship[key] + 1);
+                this.refresh();
+            });
+            title.on('pointerenter', () => {
                 hint.setText(definition.detail);
             });
+            title.on('pointerleave', () =>
+                hint.setText(shipUpgradeDefinition(ship.hull, this.moduleFocus).detail),
+            );
             segments(ui, level, 3, 1288, y + 5, 69);
             const buy = button(
                 ui,
@@ -814,8 +991,14 @@ export class LobbyView extends Container {
                 138,
                 () => {
                     this.moduleFocus = key;
-                    if (preview) this.refresh();
-                    else this.actions.upgrade(key);
+                    if (preview) {
+                        this.modulePreviewMode = 'single';
+                        this.modulePreviewLevel = 1;
+                        this.refresh();
+                    } else {
+                        this.modulePreviewMode = 'current';
+                        this.actions.upgrade(key);
+                    }
                 },
                 false,
                 preview ||
@@ -827,7 +1010,6 @@ export class LobbyView extends Container {
                 30,
             );
             buy.config.onHover = () => {
-                this.moduleFocus = key;
                 hint.setText(definition.detail);
             };
         });
@@ -1333,7 +1515,9 @@ export class LobbyView extends Container {
             label(card, `Sygnał #${entry.id}`, 18, 18, 21);
             label(
                 card,
-                `${(Math.hypot(entry.x, entry.y) / 1000).toFixed(1)} km od Aurory`,
+                entry.area === 'surface'
+                    ? 'Powierzchnia Księżyca · wejście przez 3'
+                    : `${(Math.hypot(entry.x, entry.y) / 1000).toFixed(1)} km od ${c.story ? 'Satuk 15' : 'Aurory'}`,
                 18,
                 49,
                 14,
@@ -1377,7 +1561,9 @@ export class LobbyView extends Container {
         label(ui, `Sygnał #${signal.id}`, 1072, 276, 31);
         label(
             ui,
-            `${(Math.hypot(signal.x, signal.y) / 1000).toFixed(1)} km od Aurory`,
+            signal.area === 'surface'
+                ? 'Powierzchnia Księżyca · wejście przez 3'
+                : `${(Math.hypot(signal.x, signal.y) / 1000).toFixed(1)} km od ${c.story ? 'Satuk 15' : 'Aurory'}`,
             1072,
             326,
             17,

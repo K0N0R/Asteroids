@@ -1,3 +1,4 @@
+import { destroyDisplayTree } from '../../core/systems/destroyDisplayTree';
 import { uiCue } from '../systems/audio';
 import { Container, Graphics, TextStyle } from 'pixi.js';
 import { Typography } from '../../core/containers/components/typography';
@@ -80,5 +81,5 @@ export function button(
     return view;
 }
 export function clear(parent: Container) {
-    for (const child of parent.removeChildren()) child.destroy({ children: true });
+    for (const child of parent.removeChildren()) destroyDisplayTree(child);
 }
