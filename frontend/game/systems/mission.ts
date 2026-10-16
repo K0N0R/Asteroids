@@ -1,3 +1,4 @@
+import { resourceTotal } from '../state/resources';
 import { missionObjectiveMet, missionOrderStatus } from '../state/missionOrders';
 import { FirstBossEncounter, type FirstBossHost } from './firstBoss';
 import { SolarExposure, inSolarShadow } from './solarExposure';
@@ -75,6 +76,7 @@ export interface Rock {
     collider: RAPIER.Collider;
     radius: number;
     rich: boolean;
+    copper?: boolean;
     crystal?: boolean;
     orbit?: RockSpec['orbit'];
     variant: number;
@@ -100,7 +102,7 @@ export interface Projectile extends Point {
 }
 export interface Loot extends Point {
     id: number;
-    kind: 'ore' | 'parts' | 'crystals';
+    kind: 'ore' | 'parts' | 'crystals' | 'copperOre';
     amount: number;
 }
 export interface MissionEvent extends Point {
@@ -751,12 +753,7 @@ export class MissionSimulation {
         );
     }
     get cargoUsed() {
-        return (
-            this.cargo.ore +
-            this.cargo.parts +
-            (this.cargo.crystals ?? 0) +
-            (this.stolenEquipment ? OUTPOST.equipmentSlots : 0)
-        );
+        return resourceTotal(this.cargo) + (this.stolenEquipment ? OUTPOST.equipmentSlots : 0);
     }
     get prototypes(): readonly PrototypeId[] {
         return this.installed;
@@ -1064,6 +1061,7 @@ export class MissionSimulation {
         );
         const rock: Rock = {
             ...spec,
+            copper: spec.copper ?? (!!spec.rich && !spec.crystal && spec.variant % 5 === 2),
             id: ++this.ids,
             body,
             collider,
@@ -2983,10 +2981,12 @@ export class MissionSimulation {
                     vy: v.y * P + (this.rng() - 0.5) * 30,
                     rich: rock.rich,
                     crystal: rock.crystal,
+                    copper: rock.copper,
                     orbit: rock.orbit,
                     variant: (rock.variant * 7 + (side > 0 ? 3 : 1)) % 128,
                 });
         }
+        if (rock.copper && rock.radius <= 44) this.addLoot(x, y, 'copperOre', 1);
         if (rock.crystal && rock.radius <= 44) this.addLoot(x, y, 'crystals', 1);
         const count = Math.ceil(rock.radius / 17);
         for (let i = 0; i < count; i++)

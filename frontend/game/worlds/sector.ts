@@ -9,6 +9,7 @@ export interface RockSpec extends Point {
     defense?: boolean;
     radius: number;
     rich: boolean;
+    copper?: boolean;
     crystal?: boolean;
     orbit?: Point & { radius: number; speed: number };
     variant: number;

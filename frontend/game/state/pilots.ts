@@ -107,7 +107,7 @@ export function expeditionXp(
     recovery: RecoverySignal | null,
     kills = 0,
 ) {
-    const load = cargo.ore + cargo.parts * 2 + (cargo.crystals ?? 0) * 4;
+    const load = cargo.ore + (cargo.copperOre ?? 0) + cargo.parts * 2 + (cargo.crystals ?? 0) * 4;
     const cargoXp = Number.isFinite(load) ? Math.max(0, Math.min(20, Math.floor(load))) : 0;
     const combatXp = Number.isInteger(kills) && kills >= 0 ? Math.min(10, kills * 2) : 0;
     const scans = new Set(data.filter((site) => Object.hasOwn(SCAN_SITES, site))).size;

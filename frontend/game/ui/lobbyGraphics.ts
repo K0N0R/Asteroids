@@ -3,7 +3,7 @@ import { KineticShield, shieldProfile } from '../systems/kineticShield';
 import { drawKineticShield } from '../graphics/kineticShieldView';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { C, ShipView, stationView, DroneView } from '../graphics/shapes';
-import { HullId, WeaponId } from '../config';
+import { HullId, WeaponId, type JobKind } from '../config';
 import type { ShipModules } from '../state/campaign';
 import type { RecoverySignal } from '../state/recovery';
 import { label } from './primitives';
@@ -353,7 +353,7 @@ export function stationScene(level: number, selected: 'workshop' | 'storage') {
     return root;
 }
 
-export function workshopScene(kind: 'refine' | 'kit' | 'recycle' | 'crystallize', kitParts = 0) {
+export function workshopScene(kind: JobKind, kitParts = 0) {
     const root = new Container(),
         g = new Graphics();
     g.poly([-265, 76, -215, 128, 215, 128, 265, 76, 215, -115, -215, -115])

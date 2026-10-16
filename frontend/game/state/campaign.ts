@@ -1,3 +1,4 @@
+import { RESOURCE_IDS, resourceTotal, type ResourceStore } from './resources';
 import { hullUnlocked } from './fleetUnlocks';
 import { selectableMission, missionObjectiveMet, type MissionOrder } from './missionOrders';
 import {
@@ -49,7 +50,7 @@ import {
     validPilotProgress,
 } from './pilots';
 
-export interface Cargo {
+export interface Cargo extends ResourceStore {
     ore: number;
     parts: number;
     crystals?: number;
@@ -79,14 +80,14 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 34;
+    version: 35;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
     nextShipId: number;
     recoverySignals: RecoverySignal[];
-    station: { workshop: number; storage: number };
+    station: { workshop: number; storage: number; cargoBays?: number };
     pilots: Pilot[];
     selectedPilot: number;
     nextPilotId: number;
@@ -145,7 +146,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 34,
+        version: 35,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
@@ -175,13 +176,19 @@ const cargo = (value: unknown): value is Cargo =>
     object(value) &&
     integer(value.ore) &&
     integer(value.parts) &&
-    (value.crystals === undefined || integer(value.crystals));
+    RESOURCE_IDS.every((id) => value[id] === undefined || integer(value[id])) &&
+    Object.keys(value).every((key) => RESOURCE_IDS.some((id) => id === key));
 
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 34 || !cargo(p.bank) || !object(p.station)) return null;
-        if (!integer(p.station.workshop, 2) || !integer(p.station.storage, 3)) return null;
+        if (!object(p) || p.version !== 35 || !cargo(p.bank) || !object(p.station)) return null;
+        if (
+            !integer(p.station.workshop, 2) ||
+            !integer(p.station.storage, 3) ||
+            (p.station.cargoBays !== undefined && !integer(p.station.cargoBays, 3))
+        )
+            return null;
         if (
             p.ship !== null &&
             (!object(p.ship) ||
@@ -463,7 +470,7 @@ export function parseCampaign(json: string | null): Campaign | null {
                 !campaign.story ||
                 campaign.story.sector !== 'lunar' ||
                 !cargo(initial) ||
-                initial.ore + initial.parts + (initial.crystals ?? 0) > capacity(campaign)
+                resourceTotal(initial) > capacity(campaign)
             )
                 return null;
         }
@@ -543,10 +550,10 @@ export function selectShip(c: Campaign, id: number): boolean {
     return true;
 }
 export function storageCapacity(c: Campaign) {
-    return 150 + c.station.storage * 100;
+    return 150 + c.station.storage * 100 + (c.station.cargoBays ?? 0) * 200;
 }
 export function storageUsed(c: Campaign) {
-    return c.bank.ore + c.bank.parts + (c.bank.crystals ?? 0) + reservedResources(c);
+    return resourceTotal(c.bank) + reservedResources(c);
 }
 export function upgradePrice(c: Campaign, upgrade: Upgrade): Cargo {
     const level =
@@ -904,22 +911,23 @@ export function finishRun(
         );
         const free = Math.max(0, storageCapacity(c) - storageUsed(c));
         c.repairKits += Math.max(0, Math.min(active.repairKits, Math.floor(unusedRepairKits)));
-        const crystals = Math.min(free, (collected.crystals ?? 0) + (result.reward.crystals ?? 0));
-        const parts = Math.min(free - crystals, collected.parts + result.reward.parts);
-        const ore = Math.min(free - crystals - parts, collected.ore + result.reward.ore);
-        c.bank.ore += ore;
-        c.bank.parts += parts;
-        if (crystals) c.bank.crystals = (c.bank.crystals ?? 0) + crystals;
-        result.overflow =
-            collected.ore +
-            collected.parts +
-            (collected.crystals ?? 0) +
-            result.reward.ore +
-            result.reward.parts +
-            (result.reward.crystals ?? 0) -
-            ore -
-            parts -
-            crystals;
+        let available = free,
+            accepted = 0;
+        for (const id of [
+            'storageFrames',
+            'powerModules',
+            'conductors',
+            'crystals',
+            'parts',
+            'copperOre',
+            'ore',
+        ] as const) {
+            const amount = Math.min(available, (collected[id] ?? 0) + (result.reward[id] ?? 0));
+            if (amount) c.bank[id] = (c.bank[id] ?? 0) + amount;
+            available -= amount;
+            accepted += amount;
+        }
+        result.overflow = resourceTotal(collected) + resourceTotal(result.reward) - accepted;
         c.recovered++;
         if (active.sector && c.story) {
             const closingPluto =

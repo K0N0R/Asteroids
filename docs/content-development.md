@@ -4,7 +4,7 @@ Stan: 2026-10-16. Podstawa: lista autora przekazana po ukończeniu szkieletu kam
 
 ## Bieżąca polityka zapisu
 
-Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.54 odrzuca wcześniejsze formaty.
+Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.55 przyjmuje wyłącznie format kampanii 35; wcześniejsze są odrzucane.
 
 ## Ustalenia autora
 
@@ -91,7 +91,7 @@ Z referencji warto przenieść czytelność sylwetek, rytm kształtów, ogranicz
 
 ## Pierwszy zakres — wdrożony w 0.53
 
-[Implementacja i wyniki sprawdzeń](implementation-v0.53.md): trzy odprawy ziemskie i stopniowe odkrywanie zadań. Poniższy opis zachowuje założenia tego pakietu. Wersja 0.54 dodaje cykl wybranej wyprawy dla zwiadu i walki, odwrót oraz odblokowania floty. Kolejny pakiet to gospodarka i stacja.
+[Implementacja i wyniki sprawdzeń](implementation-v0.53.md): trzy odprawy ziemskie i stopniowe odkrywanie zadań. Poniższy opis zachowuje założenia tego pakietu. Wersja 0.54 dodaje cykl wybranej wyprawy dla zwiadu i walki, odwrót oraz odblokowania floty. Wersja 0.55 rozpoczyna pakiet gospodarki i stacji: ruda miedzi, przewodniki, moduły zasilania i wytwarzane segmenty magazynowe. Tarcza stacji pozostaje następnym krokiem.
 
 ### Założenia pierwszego pakietu
 

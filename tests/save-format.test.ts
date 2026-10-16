@@ -12,9 +12,9 @@ import { STORY_SAVE_KEY } from '../frontend/game/state/story';
 
 test('only the current campaign and journal formats can be opened, including active orders', () => {
     const c = newStoryCampaign();
-    for (let version = 1; version <= 33; version++)
+    for (let version = 1; version <= 34; version++)
         assert.equal(parseCampaign(JSON.stringify({ ...c, version })), null);
-    assert.equal(parseCampaign(JSON.stringify({ ...c, version: 35 })), null);
+    assert.equal(parseCampaign(JSON.stringify({ ...c, version: 36 })), null);
     for (let version = 1; version <= 14; version++)
         assert.equal(parseCampaign(JSON.stringify({ ...c, story: { ...c.story, version } })), null);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);

@@ -794,5 +794,27 @@ export function generateStorySector(progress: StoryProgress) {
                 (r) => Math.hypot(r.x - NEPTUNE_ARENA.x, r.y - NEPTUNE_ARENA.y) > r.radius + 1200,
             );
     }
+    if (progress.sector === 'earth') {
+        const veins = [
+            { x: 1060, y: -180 },
+            { x: 1210, y: 150 },
+        ];
+        sector.rocks = sector.rocks.filter((r) =>
+            veins.every((p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 80),
+        );
+        veins.forEach((p, i) =>
+            sector.rocks.push({
+                ...p,
+                radius: 34,
+                rich: true,
+                copper: true,
+                variant: 2 + i * 5,
+                vx: 0,
+                vy: 0,
+            }),
+        );
+        const field = sector.landmarks.find((l) => l.key === 2);
+        if (field) field.name = 'Złoże Fe / Cu';
+    }
     return sector;
 }

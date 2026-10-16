@@ -157,7 +157,7 @@ export interface SandboxReport {
     hull: number;
     shield: number;
     kills: number;
-    cargo: { ore: number; parts: number; crystals: number };
+    cargo: { ore: number; parts: number; crystals: number; copperOre?: number };
     deliveries: number;
     statistics: MissionSimulation['statistics'];
     performance?: FrameReport;
@@ -271,7 +271,12 @@ export class SandboxRun {
             hull: s.hull,
             shield: s.kineticShield.charge,
             kills: s.enemyKills,
-            cargo: { ore: s.cargo.ore, parts: s.cargo.parts, crystals: s.cargo.crystals ?? 0 },
+            cargo: {
+                ore: s.cargo.ore,
+                parts: s.cargo.parts,
+                crystals: s.cargo.crystals ?? 0,
+                ...(s.cargo.copperOre ? { copperOre: s.cargo.copperOre } : {}),
+            },
             deliveries,
             statistics: { ...s.statistics },
         };

@@ -278,7 +278,7 @@ export function sandboxResult(
         ],
         [
             'Ładunek na statku',
-            `${report.cargo.ore} R · ${report.cargo.parts} K · ${report.cargo.crystals} X`,
+            `${report.cargo.ore} R · ${report.cargo.parts} K · ${report.cargo.crystals} X${report.cargo.copperOre ? ` · ${report.cargo.copperOre} Cu` : ''}`,
         ],
         ['Pozostały kadłub / tarcza', `${n(report.hull)} / ${n(report.shield)}`],
     ];

@@ -1,6 +1,8 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.54** dodaje **odblokowania kadłubów i wybór misji przed startem**. Początkowo dostępne są Prospector i Swift. Zwiad, patrol lub boss mogą być celem wyprawy: dokowanie otwiera się po wykonaniu celu, a TAB pozwala zarządzić odwrót bez raportu, nagrody i ładunku. Swobodny lot pozostaje dostępny. **Starsze formaty zapisów są nieobsługiwane — wymagany jest nowy start.** [Zakres i weryfikacja](docs/implementation-v0.54.md).
+Aktualna wersja **0.55** dodaje **przemysł Satuk 15**: wydobycie miedzi, przewodniki, moduły zasilania i konstrukcje segmentów magazynowych. Panel **Stacja → Przemysł** obsługuje produkcję oraz montaż trzech segmentów po +200 miejsca. Produkcja postępuje podczas lotu. Wymagany jest nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.55.md).
+
+Wersja **0.54** dodaje **odblokowania kadłubów i wybór misji przed startem**. Początkowo dostępne są Prospector i Swift. Zwiad, patrol lub boss mogą być celem wyprawy: dokowanie otwiera się po wykonaniu celu, a TAB pozwala zarządzić odwrót bez raportu, nagrody i ładunku. Swobodny lot pozostaje dostępny. **Starsze formaty zapisów są nieobsługiwane — wymagany jest nowy start.** [Zakres i weryfikacja](docs/implementation-v0.54.md).
 
 Wersja **0.53** rozpoczyna rozbudowę zawartości: **trzy odprawy przy Ziemi z portretami i ręcznym przechodzeniem kwestii** oraz **stopniowe ujawnianie zadań** w dzienniku, HUD i TAB. Przyszłe cele pozostają ukryte; dostępne równoległe i dodatkowe zadania zachowują swobodę kolejności. Ukończone dialogi są zapisywane i można je powtórzyć bez nagród. [Zakres i weryfikacja](docs/implementation-v0.53.md).
 

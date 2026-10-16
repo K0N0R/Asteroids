@@ -636,6 +636,39 @@ export const PILOT_SKILLS = {
 } as const;
 export type PilotSkillId = keyof typeof PILOT_SKILLS;
 export const JOBS = {
+    smeltCopper: {
+        title: 'Przewodniki miedziane',
+        ore: 0,
+        parts: 0,
+        materials: { copperOre: 4 },
+        seconds: 45,
+        output: 'conductors',
+        amount: 2,
+        worker: 'mechanic',
+        workshop: 1,
+    },
+    powerModule: {
+        title: 'Moduł zasilania',
+        ore: 0,
+        parts: 3,
+        materials: { conductors: 2 },
+        seconds: 60,
+        output: 'powerModules',
+        amount: 1,
+        worker: 'mechanic',
+        workshop: 1,
+    },
+    storageFrame: {
+        title: 'Segment magazynowy',
+        ore: 12,
+        parts: 4,
+        materials: { powerModules: 2 },
+        seconds: 90,
+        output: 'storageFrames',
+        amount: 1,
+        worker: 'mechanic',
+        workshop: 1,
+    },
     crystallize: {
         title: 'Przetop kryształów',
         ore: 0,
@@ -647,7 +680,7 @@ export const JOBS = {
         workshop: 1,
     },
     refine: {
-        title: 'Rafinacja rudy',
+        title: 'Przetop żelaza',
         ore: 8,
         parts: 0,
         seconds: 45,

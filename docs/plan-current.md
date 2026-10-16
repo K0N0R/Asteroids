@@ -1,6 +1,6 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-16, wersja 0.54.
+Stan: 2026-10-16, wersja 0.55.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
@@ -12,12 +12,12 @@ Decyzja autora: starsze zapisy są niekompatybilne i nie mogą być otwierane. N
 
 Autor przekazał zakres etapowej rozbudowy sektorów: dialogi i reżyseria, odblokowania floty, nowe misje i minigry, trudniejsza walka, rozbudowa stacji i gospodarki oraz nowa oprawa. [Pełny backlog, zależności, uwagi i proponowane pakiety](content-development.md). To nadrzędny kierunek dalszego rozwoju; historyczne ograniczenia poniżej nie wykluczają teraz wskazanych funkcji.
 
-Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony konfliktu to wojsko Ziemi, wroga prywatna organizacja kosmiczna i obcy. Motywacje, relacje, boss i scenariusz ujawnień pozostają otwarte. Wersja 0.53 wdraża pierwszy pakiet: odprawy przy Ziemi i ujawnianie zadań. Pozostałe funkcje listy są backlogiem. Wersja 0.54 dodaje odblokowania i rozkazy zwiadu/walki z odwrotem. Następny pakiet to gospodarka i rozbudowa stacji.
+Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony konfliktu to wojsko Ziemi, wroga prywatna organizacja kosmiczna i obcy. Motywacje, relacje, boss i scenariusz ujawnień pozostają otwarte. Wersja 0.53 wdraża pierwszy pakiet: odprawy przy Ziemi i ujawnianie zadań. Pozostałe funkcje listy są backlogiem. Wersja 0.54 dodaje odblokowania i rozkazy zwiadu/walki z odwrotem. Wersja 0.55 wdraża pierwszy łańcuch gospodarki i segmenty magazynowe. Następny krok to tarcza Satuk 15, następnie pełniejsze misje aktu I.
 
 ## Zrealizowany zakres
 
 - Pętla lobby → proceduralna wyprawa → powrót lub strata; trwała progresja i wersjonowany zapis.
-- Wydobycie, chwytaki, trzy surowce, przetop, ulepszenia statków i stacji.
+- Wydobycie, chwytaki, rudy żelaza i miedzi, komponenty, moduły i konstrukcje; przetop, ulepszenia statków i stacji.
 - Walka z AI, infiltracja, sabotaż, prototypy, fortyfikacje i eskorta Keplera.
 - Tarcze kinetyczne, ratunek, fizyczny hol, wiele dostaw do Aurory bez kończenia rundy.
 - Dwanaście kadłubów w stoczni i dwa odzyskiwane z wraków. Swift i Widmo są osobnymi specjalizacjami; Widmo ma dash i optyczny kamuflaż.
@@ -127,7 +127,14 @@ Trzy odprawy ziemskie mają portrety, ręczne przechodzenie i trwałą historię
 
 Prospector i Swift są dostępne od początku, pozostałe projekty otwierają raporty kampanii. Można wybrać zwiad, patrol lub bossa jako cel przed startem; wykonanie celu otwiera dokowanie, a raport rozlicza dopiero powrót. TAB umożliwia potwierdzany odwrót bez nagrody, raportu i ładunku. Swobodne loty pozostają dostępne. Starsze formaty są odrzucane, bez migracji. [Zakres i weryfikacja](implementation-v0.54.md).
 
+## Etap 0.55 — wdrożony
+
+Pierwszy łańcuch przemysłowy: wydobycie Cu → przewodniki → moduły zasilania → segmenty magazynowe. Panel Stacja → Przemysł, wspólna kolejka mechanika i trzy dodatkowe segmenty po +200 miejsca. Format kampanii 35 odrzuca starsze zapisy. [Zakres i weryfikacja](implementation-v0.55.md).
+
 ## Następne kroki kampanii
+
+- Dokończyć pakiet gospodarki i stacji: odblokowywana tarcza Satuk 15 z praktycznym zastosowaniem modułów zasilania.
+- Następnie rozwinąć akt I o minigrę łączności i eskortę wydobywczą Muła.
 
 - Przeprowadzić testy graczy całego aktu I, dopracować tempo, trudność i komunikowanie wymagań.
 - Uzupełnić dialogi i oprawę fabularnego zwrotu aktu I po ustaleniu jego treści przez autora.

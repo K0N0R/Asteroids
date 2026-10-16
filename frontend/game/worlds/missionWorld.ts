@@ -1139,6 +1139,7 @@ export class MissionWorld extends Container {
             let view = this.rocks.get(rock.id);
             if (!view) {
                 view = this.shapes.rock(rock.variant, rock.rich, rock.crystal);
+                if (rock.copper) view.tint = 0xe0aa82;
                 view.scale.set(rock.radius);
                 this.rocks.set(rock.id, view);
                 this.rockLayer.addChild(view);
@@ -1235,20 +1236,24 @@ export class MissionWorld extends Container {
                 view = new Graphics()
                     .poly([0, -7, 6, 0, 0, 7, -6, 0])
                     .fill(
-                        item.kind === 'crystals'
-                            ? 0xc2a0ec
-                            : item.kind === 'parts'
-                              ? C.gold
-                              : C.mint,
+                        item.kind === 'copperOre'
+                            ? 0xd48c62
+                            : item.kind === 'crystals'
+                              ? 0xc2a0ec
+                              : item.kind === 'parts'
+                                ? C.gold
+                                : C.mint,
                     )
                     .circle(0, 0, 12)
                     .stroke({
                         color:
-                            item.kind === 'crystals'
-                                ? 0xc2a0ec
-                                : item.kind === 'parts'
-                                  ? C.gold
-                                  : C.mint,
+                            item.kind === 'copperOre'
+                                ? 0xd48c62
+                                : item.kind === 'crystals'
+                                  ? 0xc2a0ec
+                                  : item.kind === 'parts'
+                                    ? C.gold
+                                    : C.mint,
                         width: 1,
                         alpha: 0.3,
                     });

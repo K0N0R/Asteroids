@@ -285,7 +285,9 @@ export class MissionHud extends Container {
             this.supportStatus?.setText(
                 `Zestawy ${s.repairKits} · produkcja ${s.repairKits ? 'zapas musi wynosić 0' : `${s.repairKitCost.ore} rudy / ${s.repairKitCost.parts} komponenty`}`,
             );
-        this.cargo.setText(`${s.cargoUsed} / ${s.cargoCapacity}`);
+        this.cargo.setText(
+            `${s.cargoUsed} / ${s.cargoCapacity}${s.cargo.copperOre ? ` · Cu ${s.cargo.copperOre}` : ''}`,
+        );
         this.cargo.setColor(s.cargoUsed >= s.cargoCapacity ? C.gold : C.text);
         this.meters
             .clear()

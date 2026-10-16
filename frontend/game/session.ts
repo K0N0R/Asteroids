@@ -1,3 +1,4 @@
+import { resourceSummary } from './state/resources';
 import {
     DialoguePlayback,
     pendingDialogue,
@@ -47,7 +48,14 @@ import { MissionHud } from './ui/hud';
 import { button, clear, label, panel } from './ui/primitives';
 import { C } from './graphics/shapes';
 import { SoundManager } from '../core/systems/soundManager';
-import { advanceCrew, cancelJob, hireMechanic, hireQuartermaster, queueJob } from './state/crew';
+import {
+    advanceCrew,
+    cancelJob,
+    hireMechanic,
+    hireQuartermaster,
+    queueJob,
+    installCargoBay,
+} from './state/crew';
 import { selectContract } from './state/contracts';
 import { trainPilot } from './state/pilots';
 import { PROTOTYPES, PrototypeId } from './systems/prototypes';
@@ -178,6 +186,11 @@ export class GameSession {
                 this.change(
                     () => scrapShip(this.campaign, id),
                     'Kadłub zezłomowany. Odzyskane materiały trafiły do magazynu.',
+                ),
+            installCargoBay: () =>
+                this.change(
+                    () => installCargoBay(this.campaign),
+                    'Segment magazynowy zamontowany. Pojemność wzrosła o 200.',
                 ),
             hireMechanic: () =>
                 this.change(() => hireMechanic(this.campaign), 'Mechanik stacji gotowy do pracy.'),
@@ -941,7 +954,7 @@ export class GameSession {
         label(
             this.overlay,
             result.success
-                ? `Dostarczono: ${result.cargo.ore} rudy · ${result.cargo.parts} komponentów · ${result.cargo.crystals ?? 0} kryształów`
+                ? `Dostarczono: ${resourceSummary(result.cargo)}`
                 : 'Pilot i statek nie wrócili do bazy.',
             450,
             395,

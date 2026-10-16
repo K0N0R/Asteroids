@@ -1,3 +1,5 @@
+import { industryOverview } from './industry';
+import { resourceTotal, resourceSummary } from '../state/resources';
 import { hullUnlockReason } from '../state/fleetUnlocks';
 import { selectableMission } from '../state/missionOrders';
 import { latestDialogue } from '../state/dialogues';
@@ -68,7 +70,14 @@ import {
     workshopScene,
 } from './lobbyGraphics';
 
-export type LobbyTab = 'overview' | 'hangar' | 'station' | 'pilots' | 'crew' | 'recovery';
+export type LobbyTab =
+    | 'overview'
+    | 'hangar'
+    | 'station'
+    | 'pilots'
+    | 'crew'
+    | 'recovery'
+    | 'industry';
 export interface LobbyActions {
     replayDialogue?: () => void;
     openSandbox?: () => void;
@@ -91,6 +100,7 @@ export interface LobbyActions {
     selectShip: (id: number) => void;
     scrapShip: (id: number) => void;
     rescue: () => void;
+    installCargoBay?: () => void;
     hireMechanic: () => void;
     hireQuartermaster: () => void;
     queueJob: (kind: JobKind) => void;
@@ -240,7 +250,14 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.54', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.55', 30, 851, 11, C.muted);
+        const industrial = resourceSummary({
+            copperOre: c.bank.copperOre,
+            conductors: c.bank.conductors,
+            powerModules: c.bank.powerModules,
+            storageFrames: c.bank.storageFrames,
+        });
+        if (industrial !== 'brak') label(ui, industrial, 600, 44, 14, C.cyan, 480);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -250,6 +267,10 @@ export class LobbyView extends Container {
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
         if (this.tab === 'station') this.station(ui);
+        if (this.tab === 'industry') {
+            this.section('Przemysł Satuk 15', 'Rudy → komponenty → moduły → konstrukcje.');
+            industryOverview(ui, c, { ...this.actions, back: () => this.go('station') });
+        }
         if (this.tab === 'pilots') this.pilots(ui);
         if (this.tab === 'crew') this.crew(ui);
         if (this.tab === 'recovery') this.recovery(ui);
@@ -1118,6 +1139,10 @@ export class LobbyView extends Container {
             label(card, `Poziom ${c.station[key]}`, 64, 60, 15, C.muted);
             segments(card, c.station[key], key === 'workshop' ? 2 : 3, 24, 109, 177);
         });
+        const industry = choiceCard(ui, 760, 650, 225, 141, false, () => this.go('industry'));
+        label(industry, 'Przemysł', 20, 23, 23);
+        label(industry, 'Produkcja i segmenty', 20, 60, 15, C.muted);
+        label(industry, 'OTWÓRZ →', 20, 108, 14, C.mint);
         label(ui, 'MODUŁ STACJI', 1072, 244, 13, C.muted);
         label(ui, part === 'workshop' ? 'Warsztat' : 'Magazyn', 1072, 276, 31);
         label(ui, `Poziom ${level} / ${limit}`, 1072, 326, 18, C.mint);
@@ -1163,7 +1188,7 @@ export class LobbyView extends Container {
             );
             label(
                 ui,
-                `W tym rezerwacje zadań: ${storageUsed(c) - c.bank.ore - c.bank.parts - (c.bank.crystals ?? 0)}`,
+                `W tym rezerwacje zadań: ${storageUsed(c) - resourceTotal(c.bank)}`,
                 1072,
                 468,
                 15,
