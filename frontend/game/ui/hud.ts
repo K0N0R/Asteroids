@@ -36,6 +36,7 @@ export class MissionHud extends Container {
     private throttle = 0;
     private areaRevision = 0;
     private supportStatus: Typography | null = null;
+    private orderStatus: Typography | null = null;
     private defenseStatus: Typography | null = null;
     constructor(
         readonly sim: MissionSimulation,
@@ -57,7 +58,15 @@ export class MissionHud extends Container {
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
-        if (sim.surfaceUnlocked || sim.orbitalBaseSector || sim.mercurySector)
+        if (
+            sim.surfaceUnlocked ||
+            sim.orbitalBaseSector ||
+            sim.mercurySector ||
+            sim.beltSector ||
+            sim.jupiterSector ||
+            sim.saturnSector ||
+            sim.outerSector
+        )
             this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
         if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
             this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
@@ -85,6 +94,7 @@ export class MissionHud extends Container {
         ).length;
         for (let i = 0; i < count; i++)
             this.goals.push(label(this, '', 1343, 320 + i * this.goalStep, 15, C.muted, 228));
+        if (sim.missionStatus) this.orderStatus = label(this, '', 40, 235, 15, C.mint, 700);
         this.context = label(this, '', 40, 797, 18, C.mint, 670);
         keyHint(this, 'WASD', 'lot', 40, 845, 54);
         keyHint(this, 'SHIFT', 'boost', 145, 845, 54);
@@ -196,6 +206,15 @@ export class MissionHud extends Container {
         }
         if (this.target === 10)
             return this.enemyNavigation.waypoint(this.sim.enemies, this.sim.position);
+        if (
+            this.target === -1 &&
+            ((this.sim.jupiterSector && !this.sim.jupiterSurveyed) ||
+                (this.sim.outerSector && !this.sim.outerSurveyed))
+        )
+            return {
+                ...this.sim.landmarks.find((l) => l.key === 7)!,
+                name: 'Najpierw zwiad podejścia · 7',
+            };
         if (this.target === -1)
             return { ...this.sim.sector.outpost.terminal, name: this.sim.sector.outpost.name };
         if (this.target === 8)
@@ -224,11 +243,19 @@ export class MissionHud extends Container {
                       : C.gold,
             );
         this.defenseStatus?.setText(
-            this.sim.mercurySector
-                ? this.sim.solar.summary
-                : this.sim.orbitalBaseSector || this.sim.area === 'surface'
-                  ? this.sim.defenseSummary
-                  : '',
+            this.sim.outerSector
+                ? this.sim.outerStatus
+                : this.sim.saturnSector
+                  ? this.sim.saturnStatus
+                  : this.sim.jupiterSector
+                    ? this.sim.jupiterStatus
+                    : this.sim.beltSector
+                      ? this.sim.beltStatus
+                      : this.sim.mercurySector
+                        ? this.sim.solar.summary
+                        : this.sim.orbitalBaseSector || this.sim.area === 'surface'
+                          ? this.sim.defenseSummary
+                          : '',
         );
         if (this.areaRevision !== this.sim.areaRevision) {
             this.areaRevision = this.sim.areaRevision;
@@ -292,6 +319,7 @@ export class MissionHud extends Container {
                 .rect(80, 124, 190 * Math.min(1, s.cargoUsed / s.cargoCapacity), 5)
                 .fill(C.gold);
         this.context.setText(flightHint(s));
+        this.orderStatus?.setText(s.missionStatus);
         const towedIds = [...s.salvage.towing.keys()].join(',');
         if (this.towedIds !== towedIds) {
             this.towedIds = towedIds;

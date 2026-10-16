@@ -176,32 +176,6 @@ test('survey and combat reports gate the technology; safe delivery grants the ca
     assert.ok(parseCampaign(JSON.stringify(c)));
 });
 
-test('v25 saves migrate Mercury goals without replaying rewards or inventing readiness', () => {
-    for (const active of [false, true]) {
-        const c = ready();
-        travelStory(c, 'venus');
-        if (active) beginRun(c, 1);
-        const old = JSON.parse(JSON.stringify(c));
-        old.version = 25;
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
-                delete old.story.progress[key];
-        old.story.version = 7;
-        for (const t of STORY_TASKS.filter((t) => t.sector === 'mercury'))
-            delete old.story.progress[t.id];
-        const next = parseCampaign(JSON.stringify(old))!;
-        assert.ok(next);
-        assert.equal(next.version, 27);
-        assert.equal(next.story!.version, 9);
-        assert.deepEqual(next.bank, c.bank);
-        assert.deepEqual(next.activeRun, c.activeRun);
-        assert.deepEqual(next.story!.claimed, c.story!.claimed);
-        assert.equal(beltTechnologyReady(next.story!), false);
-        old.story.progress.unknown = 0;
-        assert.equal(parseCampaign(JSON.stringify(old)), null);
-    }
-});
-
 test('Mercury rescue remains in its sector and an interrupted sortie loses only its unreported data', () => {
     const c = ready();
     report(c, ['relay']);

@@ -1275,32 +1275,6 @@ test('Harpoon halves wreck and rescue pickup time without changing calm-flight r
         }
     }
 });
-test('v6 migration preserves identities and modules, converting old Prospectors including wrecks into fighters', () => {
-    const c = newCampaign();
-    c.ship!.engine = 2;
-    c.ship!.armor = 1;
-    c.nextShipId = 4;
-    c.reserveShips = [newShip(2, 'swift')];
-    c.recoverySignals = [{ id: 3, seed: 7, x: 1000, y: 0, pilot: null, ship: newShip(3) }];
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 6;
-    delete old.ship.handling;
-    delete old.reserveShips[0].handling;
-    delete old.recoverySignals[0].ship.handling;
-    const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.ok(loaded);
-    assert.equal(loaded.version, newCampaign().version);
-    assert.equal(loaded.ship!.hull, 'fighter');
-    assert.equal(loaded.ship!.id, 1);
-    assert.equal(loaded.ship!.engine, 2);
-    assert.equal(loaded.ship!.armor, 1);
-    assert.equal(loaded.recoverySignals[0].ship!.hull, 'fighter');
-    assert.equal(loaded.reserveShips[0].hull, 'widmo');
-    assert.deepEqual(parseCampaign(JSON.stringify(loaded)), loaded);
-    const invalid = JSON.parse(JSON.stringify(loaded));
-    invalid.ship.handling = 4;
-    assert.equal(parseCampaign(JSON.stringify(invalid)), null);
-});
 test('each grabber must extend, capture one unit and retract before crediting cargo', () => {
     const arms = new GripperSystem([{ x: 0, y: 0 }], 140),
         loot = new Map<number, Resource>([[1, { id: 1, x: 100, y: 0, kind: 'ore', amount: 2 }]]);

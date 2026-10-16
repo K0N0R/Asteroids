@@ -126,31 +126,6 @@ test('data is not persistent until a real dock return and is lost on death', () 
     assert.equal(failed.story!.progress['earth-relay'], 0);
 });
 
-test('v18 migration preserves the old campaign and independent repositories never overwrite each other', () => {
-    const legacy = newCampaign();
-    legacy.bank = { ore: 55, parts: 4 };
-    const old = JSON.parse(JSON.stringify(legacy));
-    old.version = 18;
-    delete old.story;
-    const values = new Map([[SAVE_KEY, JSON.stringify(old)]]);
-    const storage = {
-        getItem: (key: string) => values.get(key) ?? null,
-        setItem: (key: string, value: string) => {
-            values.set(key, value);
-        },
-    };
-    const story = new SaveRepository(storage, { key: STORY_SAVE_KEY, create: newStoryCampaign });
-    const fresh = story.load();
-    assert.equal(fresh.story!.sector, 'earth');
-    assert.ok(story.save(fresh));
-    assert.equal(values.get(SAVE_KEY), JSON.stringify(old));
-    const migrated = new SaveRepository(storage).load();
-    assert.equal(migrated.version, 27);
-    assert.equal(migrated.story, null);
-    assert.deepEqual(migrated.bank, legacy.bank);
-    assert.deepEqual(parseCampaign(JSON.stringify(fresh)), fresh);
-});
-
 test('journals reject unknown tasks, impossible dependencies, duplicate rewards and mismatched active sectors', () => {
     const original = newStoryCampaign();
     const invalid = (edit: (c: any) => void) => {

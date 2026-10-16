@@ -183,33 +183,6 @@ test('missing pilots reserve roster slots and oldest signals expire at the bound
     assert.deepEqual(parseCampaign(JSON.stringify(chain)), chain);
 });
 
-test('v3 migration keeps fleet, crew and interrupted marker without inventing past wrecks', () => {
-    const c = newCampaign();
-    c.bank.ore = 15;
-    buyShip(c);
-    c.crew.mechanic = true;
-    beginRun(c, 123);
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 3;
-    delete old.recoverySignals;
-    delete old.activeRun.recoveryId;
-    delete old.activeRun.lastPosition;
-    const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.ok(loaded);
-    assert.equal(loaded.version, newCampaign().version);
-    assert.deepEqual(
-        loaded.reserveShips,
-        c.reserveShips.map((ship) => ({
-            ...ship,
-            hull: ship.hull === 'prospector' ? 'fighter' : ship.hull,
-        })),
-    );
-    assert.deepEqual(loaded.crew, c.crew);
-    assert.deepEqual(loaded.recoverySignals, []);
-    assert.equal(loaded.activeRun!.seed, 123);
-    assert.equal(loaded.activeRun!.recoveryId, null);
-});
-
 test('recovery save rejects duplicate identities, invalid positions and mismatched run targets', () => {
     const c = lostCampaign();
     emergencyKit(c);

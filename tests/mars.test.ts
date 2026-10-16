@@ -117,43 +117,6 @@ test('combat reports are provisional, only tagged patrols count, and losses reta
     }
 });
 
-test('v22 journals migrate without unlocking Mars early, resetting Act I, or replaying rewards', () => {
-    for (const completed of [false, true]) {
-        const c = completed ? ready() : newStoryCampaign();
-        if (completed) travelStory(c, 'lunar');
-        const old = JSON.parse(JSON.stringify(c));
-        old.version = 22;
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('mercury-')) delete old.story.progress[key];
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
-                delete old.story.progress[key];
-        old.story.version = 4;
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('venus-') || key === 'earth-debrief') delete old.story.progress[key];
-        for (const task of STORY_TASKS.filter((t) => t.sector === 'mars'))
-            delete old.story.progress[task.id];
-        const restored = parseCampaign(JSON.stringify(old))!;
-        assert.ok(restored);
-        assert.equal(restored.version, 27);
-        assert.equal(restored.story!.version, 9);
-        assert.deepEqual(restored.story!.claimed, c.story!.claimed);
-        assert.deepEqual(restored.bank, c.bank);
-        assert.equal(storySectorUnlocked(restored.story!, 'mars'), completed);
-        assert.ok(
-            STORY_TASKS.filter((t) => t.sector === 'mars').every(
-                (t) => restored.story!.progress[t.id] === 0,
-            ),
-        );
-        old.story.progress.unknown = 0;
-        assert.equal(parseCampaign(JSON.stringify(old)), null);
-    }
-    const bad = ready();
-    bad.story!.claimed = bad.story!.claimed.filter((id) => id !== 'lunar-attack');
-    bad.story!.progress['lunar-attack'] = 0;
-    assert.equal(parseCampaign(JSON.stringify(bad)), null);
-});
-
 test('Mars recovery stays in its sector and an interrupted sortie loses unreported scans and combat', () => {
     const c = ready();
     report(c, 1);

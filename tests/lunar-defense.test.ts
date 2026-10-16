@@ -203,35 +203,6 @@ test('defense requires foundations, a deliberate quiet start and cannot be start
     }
 });
 
-test('v20 migration preserves commissioned installations and adds an unfinished defense objective', () => {
-    const c = foundationCampaign();
-    for (const id of ['lunar-installations', 'lunar-commission']) {
-        c.story!.progress[id] = STORY_TASKS.find((t) => t.id === id)!.target;
-        c.story!.claimed.push(id);
-    }
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 20;
-    for (const key of Object.keys(old.story.progress))
-        if (key.startsWith('mars-') || key.startsWith('venus-') || key === 'earth-debrief')
-            delete old.story.progress[key];
-    for (const key of Object.keys(old.story.progress))
-        if (key.startsWith('mercury-')) delete old.story.progress[key];
-    for (const key of Object.keys(old.story.progress))
-        if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
-            delete old.story.progress[key];
-    old.story.version = 2;
-    delete old.story.progress['lunar-defense'];
-    delete old.story.progress['lunar-attack'];
-    const next = parseCampaign(JSON.stringify(old))!;
-    assert.ok(next);
-    assert.equal(next.version, 27);
-    assert.ok(next.story!.claimed.includes('lunar-commission'));
-    assert.equal(next.story!.progress['lunar-defense'], 0);
-    assert.deepEqual(next.bank, c.bank);
-    old.story.progress.invalid = 0;
-    assert.equal(parseCampaign(JSON.stringify(old)), null);
-});
-
 test('refresh during a wave keeps construction deliveries but does not grant a defense victory', () => {
     const c = foundationCampaign();
     beginRun(c, 1);

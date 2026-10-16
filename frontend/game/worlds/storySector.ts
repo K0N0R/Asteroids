@@ -1,6 +1,16 @@
 import { generateSector, random, type RockSpec, type EnemySpec } from './sector';
 import {
     storyRadius,
+    OUTER_BASES,
+    NEPTUNE_ARENA,
+    PLUTO_ARENA,
+    plutoFinaleReady,
+    outerRouteOpen,
+    saturnRouteOpen,
+    JUPITER_UPLINK,
+    jupiterObservationsOpen,
+    BELT_BARRIERS,
+    beltRouteCleared,
     marsApproachOpen,
     beltTechnologyReady,
     MARS_BASE,
@@ -356,6 +366,433 @@ export function generateStorySector(progress: StoryProgress) {
                 vx: 0,
                 vy: 0,
             });
+    }
+    if (progress.sector === 'belt') {
+        const surveyed = progress.claimed.includes('belt-survey');
+        sector.landmarks = [
+            {
+                x: 1500,
+                y: 0,
+                key: 7,
+                kind: 'relay',
+                siteId: 'relay',
+                name: 'Wejście w pas · pomiary trasy',
+                radius: 180,
+            },
+            ...(surveyed
+                ? BELT_BARRIERS.filter((_, i) => !progress.claimed.includes(`belt-clear-${i}`)).map(
+                      (point) => ({
+                          ...point,
+                          kind: 'field' as const,
+                          name: `Przeszkoda ${point.key - 2} · usuń skałę`,
+                          radius: 100,
+                      }),
+                  )
+                : []),
+            ...(beltRouteCleared(progress)
+                ? [
+                      {
+                          x: 5200,
+                          y: 0,
+                          key: 8,
+                          kind: 'archive' as const,
+                          siteId: 'archive' as const,
+                          name: 'Zewnętrzna granica pasa',
+                          radius: 180,
+                      },
+                  ]
+                : []),
+        ];
+        // A readable central lane remains flyable; obstacles are actual destructible bodies.
+        // Moving debris crosses the lane rather than permanently sealing it.
+        sector.rocks = [];
+        for (let i = 0; i < (surveyed ? 150 : 48); i++) {
+            const x = 850 + rng() * (surveyed ? 4400 : 1100),
+                y = (rng() > 0.5 ? 1 : -1) * (260 + rng() * 650),
+                rockRadius = 24 + rng() * 46;
+            const safe = [{ x: 1500, y: 0 }, { x: 5200, y: 0 }, ...BELT_BARRIERS];
+            if (
+                BELT_BARRIERS.some(
+                    (p) =>
+                        Math.abs(x - p.x) < rockRadius + 140 && Math.abs(y) < Math.abs(p.y) + 120,
+                ) ||
+                Math.hypot(x, y) > radius - 120 ||
+                safe.some((p) => Math.hypot(x - p.x, y - p.y) < rockRadius + 260)
+            )
+                continue;
+            if (sector.rocks.some((r) => Math.hypot(x - r.x, y - r.y) < r.radius + rockRadius + 15))
+                continue;
+            sector.rocks.push({
+                x,
+                y,
+                radius: rockRadius,
+                rich: i % 4 === 0,
+                variant: i % 128,
+                vx: 0,
+                vy: i % 7 === 0 ? (y > 0 ? -12 : 12) : 0,
+            });
+        }
+        if (surveyed)
+            BELT_BARRIERS.forEach((point, index) => {
+                if (!progress.claimed.includes(`belt-clear-${index}`))
+                    sector.rocks.push({
+                        ...point,
+                        beltBarrier: index,
+                        rich: false,
+                        variant: 90 + index,
+                        vx: 0,
+                        vy: 0,
+                    });
+            });
+        sector.enemies = surveyed
+            ? [
+                  { x: 2900, y: -1400 },
+                  { x: 4300, y: 1500 },
+              ]
+                  .slice(progress.progress['belt-patrol'])
+                  .map((point, i) => ({
+                      ...point,
+                      id: 11000 + i,
+                      home: { ...point },
+                      phase: 0,
+                      kind: 'patrol',
+                      storyPatrol: true,
+                  }))
+            : [];
+    }
+    if (progress.sector === 'jupiter') {
+        const surveyed = progress.claimed.includes('jupiter-survey');
+        const contacts = [
+            { x: 1500, y: -1300 },
+            { x: 2900, y: -1600 },
+        ];
+        sector.landmarks = [
+            { x: 1100, y: 0, key: 2, kind: 'field', name: 'Złoże na podejściu', radius: 330 },
+            {
+                x: 1600,
+                y: 650,
+                key: 7,
+                kind: 'relay',
+                siteId: 'relay',
+                name: 'Pomiary podejścia do Jowisza',
+                radius: 180,
+            },
+            {
+                x: 850,
+                y: -550,
+                key: 4,
+                kind: 'wreck',
+                name: 'Pozostałości na podejściu',
+                radius: 100,
+            },
+            ...(surveyed
+                ? [
+                      {
+                          ...JUPITER_UPLINK.terminal,
+                          key: 0,
+                          kind: 'cluster' as const,
+                          name: 'Terminal chronionego węzła',
+                          radius: 100,
+                      },
+                  ]
+                : []),
+            ...(jupiterObservationsOpen(progress)
+                ? [
+                      {
+                          x: 5400,
+                          y: -900,
+                          key: 8,
+                          kind: 'archive' as const,
+                          siteId: 'archive' as const,
+                          name: 'Pakiet obserwacyjny',
+                          radius: 180,
+                      },
+                  ]
+                : []),
+        ];
+        if (surveyed)
+            sector.outpost = {
+                ...JUPITER_UPLINK,
+                terminal: { ...JUPITER_UPLINK.terminal },
+                name: 'Chroniony węzeł',
+                phase: 0,
+                guards: [-1, 1].map((side, i) => ({
+                    id: 12010 + i,
+                    x: JUPITER_UPLINK.x + 200,
+                    y: JUPITER_UPLINK.y + side * 330,
+                    home: { x: JUPITER_UPLINK.x, y: JUPITER_UPLINK.y },
+                    phase: 0,
+                    kind: 'patrol',
+                })),
+            };
+        sector.enemies = surveyed
+            ? contacts.slice(progress.progress['jupiter-patrol']).map((point, i) => ({
+                  ...point,
+                  home: { ...point },
+                  id: 12000 + i,
+                  phase: 0,
+                  kind: point.x > 2000 ? 'lancer' : 'patrol',
+                  storyPatrol: true,
+              }))
+            : [];
+        sector.rocks = sector.rocks.filter((r) =>
+            [
+                JUPITER_UPLINK,
+                JUPITER_UPLINK.terminal,
+                ...contacts,
+                ...sector.landmarks.filter((l) => l.siteId || l.kind === 'wreck'),
+            ].every((point) => Math.hypot(r.x - point.x, r.y - point.y) > r.radius + 410),
+        );
+    }
+    if (progress.sector === 'saturn') {
+        const surveyed = progress.claimed.includes('saturn-survey');
+        const contact = { x: -2200, y: -1100 };
+        sector.landmarks = [
+            { x: 1100, y: 0, key: 2, kind: 'field', name: 'Bliskie złoże pierścieni', radius: 330 },
+            {
+                x: 1500,
+                y: 650,
+                key: 7,
+                kind: 'relay',
+                siteId: 'relay',
+                name: 'Rozpoznanie pierścieni',
+                radius: 180,
+            },
+            {
+                x: 800,
+                y: -650,
+                key: 4,
+                kind: 'wreck',
+                name: 'Pozostałości w pierścieniach',
+                radius: 100,
+            },
+            ...(surveyed
+                ? [
+                      {
+                          x: 3000,
+                          y: 1100,
+                          key: 5,
+                          kind: 'cluster' as const,
+                          name: 'Złoże kryształów w pierścieniach',
+                          radius: 220,
+                      },
+                  ]
+                : []),
+            ...(saturnRouteOpen(progress)
+                ? [
+                      {
+                          x: 4800,
+                          y: -600,
+                          key: 8,
+                          kind: 'archive' as const,
+                          siteId: 'archive' as const,
+                          name: 'Węzeł dalszej trasy',
+                          radius: 180,
+                      },
+                  ]
+                : []),
+        ];
+        sector.rocks = [];
+        const add = (rock: RockSpec) => {
+            if (Math.hypot(rock.x, rock.y) + rock.radius >= radius - 70) return;
+            if (
+                sector.rocks.some(
+                    (r) => Math.hypot(r.x - rock.x, r.y - rock.y) < r.radius + rock.radius + 18,
+                )
+            )
+                return;
+            if (
+                [contact, ...sector.landmarks.filter((l) => l.siteId || l.kind === 'wreck')].some(
+                    (p) => Math.hypot(rock.x - p.x, rock.y - p.y) < rock.radius + 240,
+                )
+            )
+                return;
+            sector.rocks.push(rock);
+        };
+        // The nearby field is calm; the lone combat contact stays on the opposite side.
+        for (let i = 0; i < 15; i++)
+            add({
+                x: 1000 + (i % 5) * 110,
+                y: (Math.floor(i / 5) - 1) * 150,
+                radius: 36,
+                rich: i % 3 === 0,
+                variant: i * 7,
+                vx: 0,
+                vy: 0,
+            });
+        if (surveyed)
+            for (let i = 0; i < 3; i++)
+                add({
+                    x: 2900 + i * 110,
+                    y: 1100,
+                    radius: 32,
+                    rich: true,
+                    crystal: true,
+                    variant: 22 + i,
+                    vx: 0,
+                    vy: 0,
+                });
+        for (let i = 0; i < (surveyed ? 100 : 45); i++) {
+            const angle = rng() * Math.PI * 2,
+                band = 700 + rng() * 550;
+            add({
+                x: 2100 + Math.cos(angle) * band,
+                y: Math.sin(angle) * band * 0.75,
+                radius: 27 + rng() * 15,
+                rich: i % 4 === 0,
+                variant: i % 128,
+                vx: 0,
+                vy: 0,
+            });
+        }
+        sector.enemies =
+            surveyed && !progress.claimed.includes('saturn-patrol')
+                ? [
+                      {
+                          ...contact,
+                          id: 13000,
+                          home: { ...contact },
+                          phase: 0,
+                          kind: 'patrol',
+                          storyPatrol: true,
+                      },
+                  ]
+                : [];
+    }
+    if (
+        progress.sector === 'uranus' ||
+        progress.sector === 'neptune' ||
+        progress.sector === 'pluto'
+    ) {
+        const id = progress.sector,
+            surveyed = progress.claimed.includes(`${id}-survey`),
+            base = OUTER_BASES[id];
+        const contacts =
+            id !== 'neptune'
+                ? [
+                      { x: 1500, y: -1300 },
+                      { x: 2800, y: -1600 },
+                  ]
+                : [
+                      { x: -1500, y: -1400 },
+                      { x: -2400, y: 1000 },
+                  ];
+        const routeOpen =
+            id === 'pluto'
+                ? surveyed
+                : id === 'uranus'
+                  ? outerRouteOpen(progress, id)
+                  : progress.claimed.includes('neptune-boss');
+        sector.landmarks = [
+            { x: 1100, y: 0, key: 2, kind: 'field', name: 'Złoże na podejściu', radius: 330 },
+            {
+                x: 1500,
+                y: 650,
+                key: 7,
+                kind: 'relay',
+                siteId: 'relay',
+                name:
+                    id === 'pluto'
+                        ? 'Zwiad Plutona'
+                        : id === 'uranus'
+                          ? 'Rozpoznanie rejonu Urana'
+                          : 'Zwiad podejścia do Neptuna',
+                radius: 180,
+            },
+            {
+                x: 800,
+                y: -650,
+                key: 4,
+                kind: 'wreck',
+                name: 'Pozostałości na podejściu',
+                radius: 100,
+            },
+            ...(surveyed
+                ? [
+                      {
+                          ...base.terminal,
+                          key: 0,
+                          kind: 'cluster' as const,
+                          name: 'Terminal chronionej bazy',
+                          radius: 100,
+                      },
+                  ]
+                : []),
+            ...((id === 'neptune' && progress.claimed.includes('neptune-base')) ||
+            (id === 'pluto' && plutoFinaleReady(progress))
+                ? [
+                      {
+                          ...(id === 'pluto' ? PLUTO_ARENA : NEPTUNE_ARENA),
+                          key: 3,
+                          kind: 'field' as const,
+                          name:
+                              id === 'pluto'
+                                  ? 'Finałowe starcie · G'
+                                  : 'Rejon pierwszego starcia · G',
+                          radius: 180,
+                      },
+                  ]
+                : []),
+            ...(routeOpen || (id === 'pluto' && surveyed)
+                ? [
+                      {
+                          x: id === 'pluto' ? 3800 : id === 'uranus' ? 4900 : 5100,
+                          y: id === 'uranus' ? -650 : 1000,
+                          key: 8,
+                          kind: 'archive' as const,
+                          siteId: 'archive' as const,
+                          name:
+                              id === 'pluto'
+                                  ? 'Dodatkowe odczyty'
+                                  : id === 'uranus'
+                                    ? 'Trasa do Neptuna'
+                                    : 'Zewnętrzna trasa',
+                          radius: 180,
+                      },
+                  ]
+                : []),
+        ];
+        if (surveyed)
+            sector.outpost = {
+                ...base,
+                terminal: { ...base.terminal },
+                name: 'Chroniona baza',
+                phase: 0,
+                guards: [-1, 1].map((side, i) => ({
+                    id: (id === 'pluto' ? 18010 : id === 'uranus' ? 14010 : 15010) + i,
+                    x: base.x + 200,
+                    y: base.y + side * 330,
+                    home: { x: base.x, y: base.y },
+                    phase: 0,
+                    kind: 'patrol',
+                })),
+            };
+        sector.enemies = surveyed
+            ? contacts.slice(progress.progress[`${id}-patrol`]).map((point, i) => ({
+                  ...point,
+                  id: (id === 'pluto' ? 18000 : id === 'uranus' ? 14000 : 15000) + i,
+                  home: { ...point },
+                  phase: 0,
+                  kind: id !== 'neptune' && point.x > 2000 ? 'lancer' : 'patrol',
+                  storyPatrol: true,
+              }))
+            : [];
+        sector.rocks = sector.rocks.filter((r) =>
+            [
+                base,
+                base.terminal,
+                ...contacts,
+                ...sector.landmarks.filter((l) => l.siteId || l.kind === 'wreck'),
+            ].every((p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 410),
+        );
+        if (id === 'pluto')
+            sector.rocks = sector.rocks.filter(
+                (r) => Math.hypot(r.x - PLUTO_ARENA.x, r.y - PLUTO_ARENA.y) > r.radius + 1200,
+            );
+        if (id === 'neptune')
+            sector.rocks = sector.rocks.filter(
+                (r) => Math.hypot(r.x - NEPTUNE_ARENA.x, r.y - NEPTUNE_ARENA.y) > r.radius + 1200,
+            );
     }
     return sector;
 }

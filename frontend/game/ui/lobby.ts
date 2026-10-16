@@ -1,3 +1,6 @@
+import { hullUnlockReason } from '../state/fleetUnlocks';
+import { selectableMission } from '../state/missionOrders';
+import { latestDialogue } from '../state/dialogues';
 import { storyOverview } from './storyOverview';
 import {
     STORY_SECTORS,
@@ -67,12 +70,17 @@ import {
 
 export type LobbyTab = 'overview' | 'hangar' | 'station' | 'pilots' | 'crew' | 'recovery';
 export interface LobbyActions {
+    replayDialogue?: () => void;
     openSandbox?: () => void;
     switchProfile?: () => void;
     travel?: (id: StorySectorId) => void;
     contribute?: (id: string) => void;
     briefing?: () => void;
-    launch: (recoveryId: number | null, loadConstruction?: boolean) => void;
+    launch: (
+        recoveryId: number | null,
+        loadConstruction?: boolean,
+        missionTask?: string | null,
+    ) => void;
     equipWeapon: (weapon: WeaponId) => void;
     upgrade: (upgrade: Upgrade) => void;
     hire: (archetype: number) => void;
@@ -100,6 +108,7 @@ const NAV: { tab: LobbyTab; title: string; icon: Parameters<typeof lobbyIcon>[0]
 export class LobbyView extends Container {
     private content = new Container();
     private visual = new Container();
+    private missionTask: string | null = null;
     private tab: LobbyTab = 'overview';
     private time = 0;
     private message = '';
@@ -133,6 +142,7 @@ export class LobbyView extends Container {
         this.refresh();
     }
     resetProfile() {
+        this.missionTask = null;
         this.tab = 'overview';
         this.storyPage = 0;
         this.storyPageSector = null;
@@ -158,6 +168,8 @@ export class LobbyView extends Container {
             this.message = message;
             this.messageUntil = this.time + 6;
         }
+        if (this.missionTask && !selectableMission(this.campaign, this.missionTask))
+            this.missionTask = null;
         clear(this.content);
         clear(this.visual);
         this.visual.y = 0;
@@ -198,6 +210,19 @@ export class LobbyView extends Container {
                       : 0;
             if (badge) label(card, tab === 'pilots' ? '+' : `${badge}`, 163, 16, 15, C.gold);
         });
+        if (this.actions.replayDialogue && latestDialogue(c))
+            button(
+                ui,
+                'POWTÓRZ ODPRAWĘ',
+                25,
+                600,
+                185,
+                this.actions.replayDialogue,
+                false,
+                true,
+                38,
+                14,
+            );
         if (this.actions.openSandbox) {
             button(ui, 'SANDBOX / TESTY', 25, 710, 185, this.actions.openSandbox, false, true, 37);
             label(ui, 'Bez zmiany kampanii', 31, 757, 12, C.muted);
@@ -205,7 +230,7 @@ export class LobbyView extends Container {
         if (this.actions.switchProfile)
             button(
                 ui,
-                c.story ? 'STARY ZAPIS TESTOWY' : 'KAMPANIA SATUK 15',
+                c.story ? 'TRYB TESTOWY' : 'KAMPANIA SATUK 15',
                 25,
                 775,
                 185,
@@ -215,7 +240,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.47', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.54', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
         const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
@@ -254,7 +279,9 @@ export class LobbyView extends Container {
                 ? 'WRÓĆ DO SEKTORA SYGNAŁU'
                 : ready
                   ? recoveryId === null
-                      ? 'WYRUSZ →'
+                      ? this.missionTask
+                          ? 'WYRUSZ NA MISJĘ →'
+                          : 'SWOBODNY LOT →'
                       : 'WYRUSZ NA RATUNEK →'
                   : !c.ship
                     ? 'PRZYGOTUJ STATEK →'
@@ -263,7 +290,12 @@ export class LobbyView extends Container {
             719,
             456,
             () => {
-                if (ready) this.actions.launch(recoveryId);
+                if (ready)
+                    this.actions.launch(
+                        recoveryId,
+                        false,
+                        recoveryId === null ? this.missionTask : null,
+                    );
                 else this.go(!c.ship ? 'hangar' : 'pilots');
             },
             true,
@@ -308,34 +340,59 @@ export class LobbyView extends Container {
                 this.storyPageSector = p.sector;
             }
             this.section(
-                storyAct(p) === 'AKT V'
-                    ? 'Akt V · Baza marsjańska'
-                    : p.sector === 'mercury'
-                      ? 'Akt IV · Blisko Słońca'
-                      : p.sector === 'venus'
-                        ? 'Akt III · Przygotowania'
-                        : storyAct(p) === 'AKT II'
-                          ? 'Akt II · Nowy kierunek'
-                          : actOneComplete(p)
-                            ? 'Akt I ukończony'
-                            : 'Dowodzenie Satuk 15',
-                storyAct(p) === 'AKT V'
-                    ? 'Zbuduj bazę i zabezpiecz dalszą ekspedycję przed wrogimi jednostkami.'
-                    : p.sector === 'mercury'
-                      ? 'Wykorzystaj osłonę słoneczną i cień skał. Zabezpiecz dane potrzebne do dalszej drogi.'
-                      : p.sector === 'venus'
-                        ? 'Zbuduj placówkę, przygotuj osłonę i zabezpiecz wyprawę na Merkurego.'
-                        : actTwoComplete(p)
-                          ? 'Akt II ukończony. Trasa do Wenus otwarta.'
-                          : p.claimed.includes('mars-belt')
-                            ? 'Pas blokuje pościg. Odbierz odprawę w sektorze Ziemi.'
-                            : p.sector === 'mars'
-                              ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'
-                              : actOneComplete(p)
-                                ? 'Atak odparty. Stacja paliw działa. Następny kierunek: Mars.'
-                                : 'Akt I · Pierwsze sygnały. Wybierz sektor i przygotuj wyprawę.',
+                p.sector === 'pluto'
+                    ? 'Akt X · Rejon Plutona'
+                    : p.sector === 'uranus' || p.sector === 'neptune'
+                      ? `Akt IX · ${p.sector === 'uranus' ? 'Rejon Urana' : 'Podejście do Neptuna'}`
+                      : p.sector === 'saturn'
+                        ? 'Akt VIII · Pierścienie Saturna'
+                        : p.sector === 'jupiter'
+                          ? 'Akt VII · Podejście do Jowisza'
+                          : p.sector === 'belt'
+                            ? 'Akt VI · Przejście pasa'
+                            : storyAct(p) === 'AKT V'
+                              ? 'Akt V · Baza marsjańska'
+                              : p.sector === 'mercury'
+                                ? 'Akt IV · Blisko Słońca'
+                                : p.sector === 'venus'
+                                  ? 'Akt III · Przygotowania'
+                                  : storyAct(p) === 'AKT II'
+                                    ? 'Akt II · Nowy kierunek'
+                                    : actOneComplete(p)
+                                      ? 'Akt I ukończony'
+                                      : 'Dowodzenie Satuk 15',
+                p.sector === 'pluto'
+                    ? 'Rozpoznaj podejście i przygotuj finałowe starcie. Raport wymaga bezpiecznego powrotu.'
+                    : p.sector === 'uranus' || p.sector === 'neptune'
+                      ? 'Odkryj chronione bazy, zabezpiecz dane i przygotuj się do pierwszego starcia.'
+                      : p.sector === 'saturn'
+                        ? 'Rozpoznaj pierścienie, przywieź zaopatrzenie i zabezpiecz dalszą trasę.'
+                        : p.sector === 'jupiter'
+                          ? 'Rozpoznaj rejon, zabezpiecz podejście i przechwyć dane z chronionego węzła.'
+                          : p.sector === 'belt'
+                            ? 'Wytycz trasę, usuń przeszkody i potwierdź przejście do zewnętrznej granicy pasa.'
+                            : storyAct(p) === 'AKT V'
+                              ? 'Zbuduj bazę i zabezpiecz dalszą ekspedycję przed wrogimi jednostkami.'
+                              : p.sector === 'mercury'
+                                ? 'Wykorzystaj osłonę słoneczną i cień skał. Zabezpiecz dane potrzebne do dalszej drogi.'
+                                : p.sector === 'venus'
+                                  ? 'Zbuduj placówkę, przygotuj osłonę i zabezpiecz wyprawę na Merkurego.'
+                                  : actTwoComplete(p)
+                                    ? 'Akt II ukończony. Trasa do Wenus otwarta.'
+                                    : p.claimed.includes('mars-belt')
+                                      ? 'Pas blokuje pościg. Odbierz odprawę w sektorze Ziemi.'
+                                      : p.sector === 'mars'
+                                        ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'
+                                        : actOneComplete(p)
+                                          ? 'Atak odparty. Stacja paliw działa. Następny kierunek: Mars.'
+                                          : 'Akt I · Pierwsze sygnały. Wybierz sektor i przygotuj wyprawę.',
             );
             storyOverview(ui, this.campaign, {
+                missionTask: this.missionTask,
+                selectMission: (id) => {
+                    this.missionTask = id;
+                    this.refresh();
+                },
                 contribute: this.actions.contribute,
                 briefing: this.actions.briefing,
                 travel: this.actions.travel,
@@ -640,7 +697,9 @@ export class LobbyView extends Container {
             label(
                 card,
                 typeof entry === 'string'
-                    ? config.role
+                    ? hullUnlockReason(c, hull)
+                        ? 'Projekt zablokowany'
+                        : config.role
                     : c.ship?.id === entry.id
                       ? 'Aktywny'
                       : `Rezerwa #${entry.id}`,
@@ -768,24 +827,33 @@ export class LobbyView extends Container {
                 });
             } else label(ui, '● Aktywny statek na następną wyprawę', 1072, 754, 15, C.mint);
         } else {
-            const locked = c.station.workshop < config.workshop,
+            const projectLock = hullUnlockReason(c, modules.hull),
+                locked = c.station.workshop < config.workshop,
                 full = ships.length >= FLEET_LIMIT;
             label(
                 ui,
-                locked
-                    ? `Wymagany warsztat ${config.workshop === 2 ? 'II' : 'I'}`
-                    : full
-                      ? 'Hangar pełny · zwolnij miejsce we flocie'
-                      : 'ZAKUP KADŁUBA BAZOWEGO',
+                projectLock
+                    ? projectLock
+                    : locked
+                      ? `Wymagany warsztat ${config.workshop === 2 ? 'II' : 'I'}`
+                      : full
+                        ? 'Hangar pełny · zwolnij miejsce we flocie'
+                        : 'ZAKUP KADŁUBA BAZOWEGO',
                 1072,
                 680,
                 12,
-                locked || full ? C.gold : C.muted,
+                projectLock || locked || full ? C.gold : C.muted,
             );
             cost(ui, config.ore, config.parts, 1072, 699);
             button(
                 ui,
-                locked ? 'ROZBUDUJ WARSZTAT →' : full ? 'OTWÓRZ FLOTĘ →' : 'KUP STATEK →',
+                projectLock
+                    ? 'PROJEKT ZABLOKOWANY'
+                    : locked
+                      ? 'ROZBUDUJ WARSZTAT →'
+                      : full
+                        ? 'OTWÓRZ FLOTĘ →'
+                        : 'KUP STATEK →',
                 1072,
                 741,
                 456,
@@ -803,7 +871,8 @@ export class LobbyView extends Container {
                     }
                 },
                 true,
-                locked || full || (c.bank.ore >= config.ore && c.bank.parts >= config.parts),
+                !projectLock &&
+                    (locked || full || (c.bank.ore >= config.ore && c.bank.parts >= config.parts)),
                 40,
             );
         }

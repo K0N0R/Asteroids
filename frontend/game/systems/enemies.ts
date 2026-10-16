@@ -1,3 +1,4 @@
+import { firstBossProfile, finalBossProfile } from './firstBoss';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { DRONES, ENEMY_PROFILES, EnemyKind, GAME } from '../config';
 import type { EnemySpec, Point } from '../worlds/sector';
@@ -5,9 +6,12 @@ import type { EnemySpec, Point } from '../worlds/sector';
 const P = GAME.pixelsPerMeter;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 export type EnemyState = 'patrol' | 'chase' | 'return';
+export type EnemyProfile = {
+    [K in keyof (typeof ENEMY_PROFILES)['lancer']]: K extends 'name' ? string : number;
+};
 export interface Enemy extends EnemySpec {
     kind: EnemyKind;
-    config: (typeof ENEMY_PROFILES)[EnemyKind];
+    config: EnemyProfile;
     body: RAPIER.RigidBody;
     collider: RAPIER.Collider;
     health: number;
@@ -72,7 +76,11 @@ export class EnemyFleet {
         for (const spec of specs) {
             if (this.enemies.has(spec.id)) continue;
             const kind = spec.kind ?? 'patrol',
-                config = ENEMY_PROFILES[kind];
+                config = spec.finalBoss
+                    ? finalBossProfile()
+                    : spec.boss
+                      ? firstBossProfile()
+                      : ENEMY_PROFILES[kind];
             const body = this.world.createRigidBody(
                 RAPIER.RigidBodyDesc.dynamic()
                     .setTranslation(spec.x / P, spec.y / P)

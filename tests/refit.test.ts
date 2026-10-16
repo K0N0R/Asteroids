@@ -54,28 +54,6 @@ function arena(
     return { c, sim };
 }
 
-test('v17 preserves old Widmo identities and returns both living workers to station', () => {
-    const c = newCampaign();
-    c.ship = newShip(1, 'swift');
-    c.reserveShips = [newShip(2, 'swift')];
-    c.nextShipId = 4;
-    c.recoverySignals = [
-        { id: 3, seed: 71, x: 1000, y: 1000, ship: newShip(3, 'swift'), pilot: null },
-    ];
-    c.crew.mechanic = c.crew.quartermaster = true;
-    c.crew.mechanicAboard = c.crew.quartermasterAboard = true;
-    const loaded = parseCampaign(JSON.stringify({ ...c, version: 17 }))!;
-    assert.ok(loaded);
-    assert.equal(loaded.ship!.hull, 'widmo');
-    assert.equal(loaded.reserveShips[0].hull, 'widmo');
-    assert.equal(loaded.recoverySignals[0].ship!.hull, 'widmo');
-    assert.equal(loaded.crew.mechanicAboard || loaded.crew.quartermasterAboard, false);
-    assert.ok(loaded.crew.mechanic && loaded.crew.quartermaster);
-    assert.equal(assignCrew(loaded, 'mechanic', true), false);
-    assert.equal(assignCrew(loaded, 'quartermaster', true), false);
-    assert.deepEqual(parseCampaign(JSON.stringify(loaded)), loaded);
-});
-
 test('Swift is an entry scout with gun, laser and passive radar jamming; Widmo is advanced', () => {
     const c = newCampaign();
     c.bank = { ore: 35, parts: 2 };

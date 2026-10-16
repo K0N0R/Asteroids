@@ -50,10 +50,11 @@ export function button(
     active = false,
     enabled = true,
     height = 48,
+    textSize = 17,
 ) {
     const textView = new Typography({
         text,
-        size: 17,
+        size: textSize,
         color: active ? C.ink : C.text,
         fontFamily: 'Segoe UI',
     });

@@ -1,8 +1,18 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-16, wersja 0.47.
+Stan: 2026-10-16, wersja 0.54.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Polityka zapisu od 0.54
+
+Decyzja autora: starsze zapisy są niekompatybilne i nie mogą być otwierane. Nie utrzymujemy migracji ani dziedziczenia floty. Parser przyjmuje tylko aktualny format; przy niezgodności pokazuje komunikat i tworzy nową kampanię. Historyczne opisy migracji nie są wymaganiem dla dalszych prac.
+
+## Nowy kierunek po ukończeniu szkieletu
+
+Autor przekazał zakres etapowej rozbudowy sektorów: dialogi i reżyseria, odblokowania floty, nowe misje i minigry, trudniejsza walka, rozbudowa stacji i gospodarki oraz nowa oprawa. [Pełny backlog, zależności, uwagi i proponowane pakiety](content-development.md). To nadrzędny kierunek dalszego rozwoju; historyczne ograniczenia poniżej nie wykluczają teraz wskazanych funkcji.
+
+Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony konfliktu to wojsko Ziemi, wroga prywatna organizacja kosmiczna i obcy. Motywacje, relacje, boss i scenariusz ujawnień pozostają otwarte. Wersja 0.53 wdraża pierwszy pakiet: odprawy przy Ziemi i ujawnianie zadań. Pozostałe funkcje listy są backlogiem. Wersja 0.54 dodaje odblokowania i rozkazy zwiadu/walki z odwrotem. Następny pakiet to gospodarka i rozbudowa stacji.
 
 ## Zrealizowany zakres
 
@@ -89,13 +99,44 @@ Gotowa i obroniona placówka Wenus wraz z osłoną słoneczną otwierają Merkur
 
 Po bezpiecznym odzyskaniu technologii powrót na Marsa otwiera nowe projekty: 40 rudy i 10 komponentów, montaż bazy, obronę przed trzema kontaktami oraz niezależne zabezpieczenie korytarza z patrolem i dwoma Lancerami. Oba cele bojowe można wykonywać w dowolnej kolejności. Są też opcjonalne pomiary dalszej trasy. Dziennik aktu II pozostaje dostępny na drugiej stronie, a wcześniejsze akty zachowują ukończenie. [Zakres, migracja i weryfikacja](implementation-v0.47.md).
 
+## Etap 0.48 — przejście pasa i mechaniczny ciąg aktu VI wdrożone
+
+Osobny sektor Pas odblokowuje się po technologii z Merkurego i zabezpieczeniu bazy marsjańskiej. Zwiad wejścia rozszerza obszar do 5,7 km; trzy rzeczywiste skały mają niezależne raporty i znikają trwale po ich dostarczeniu. Kolejność usuwania i liczba wypraw są dowolne. Po oczyszczeniu trasy można potwierdzić zewnętrzną granicę pasa. Ruchome odłamki tworzą zagrożenie środowiskowe, a dwa patrole są celem opcjonalnym. Wcześniejsze sektory pozostają dostępne. [Zakres, migracja i weryfikacja](implementation-v0.48.md).
+
+## Etap 0.49 — operacyjny zakres aktu VII przy Jowiszu wdrożony
+
+Przejście pasa otwiera Jowisza. Zwiad rozszerza obszar do 4,7 km, a raporty z patrolu i Lancera oraz włamania do węzła — do 6,1 km. Węzeł korzysta z rzeczywistego terminala, obrotowego skanera, alarmu, dwóch obrońców i opcjonalnego sabotażu za komponent z ładowni. Po wykonaniu obu równoległych celów można odzyskać dalszy pakiet obserwacyjny. Bezpieczne powroty zachowują raporty i jednorazowe nagrody. **To przygotowany ciąg operacyjny aktu VII; jego kluczowe ujawnienie fabularne nie zostało dopisane.** [Zakres, migracja i weryfikacja](implementation-v0.49.md).
+
+## Etap 0.50 — Saturn i mechaniczny zakres aktu VIII wdrożony
+
+Operacyjne cele Jowisza otwierają Saturna. Rozpoznanie pierścieni rozszerza sektor z 2,5 do 4,2 km, a przywiezienie 36 rudy oraz raport z jednego odległego patrolu otwierają obszar 5,4 km z odczytem dalszej trasy. Zaopatrzenie zalicza się z rzeczywistego ładunku udanych wypraw, może być rozdzielone na transporty i nie pobiera ponownie rudy z magazynu. Opcjonalne złoże kryształów zachęca do eksploracji; osobny projekt rezerwy nie blokuje celu głównego. [Zakres, migracja i weryfikacja](implementation-v0.50.md).
+
+## Etap 0.51 — Uran, Neptun i pierwsze starcie w akcie IX wdrożone
+
+Saturn otwiera Urana. Zwiad, dane chronionej bazy i dwa kontakty bojowe prowadzą do odczytu trasy do Neptuna. Tam zwiad i włamanie do drugiej bazy otwierają rejon pierwszego starcia. G przez 2 s uruchamia zapowiedź i dwufazową ciężką jednostkę, która wycofuje się przy 25% pancerza. Opuszczenie rejonu, limit czasu i strata statku przerywają próbę; raport wymaga bezpiecznego powrotu. Po nim dostępny jest odczyt zewnętrznej trasy. Opcjonalne cele nie blokują przejścia. [Zakres, migracja i weryfikacja](implementation-v0.51.md).
+
+## Etap 0.52 — Pluton i mechaniczny finał aktu X wdrożone
+
+Neptun otwiera Plutona. Zwiad udostępnia bazę i dwa kontakty na podejściu; raporty tych równoległych celów otwierają rejon finału. G przez 2 s uruchamia zapowiedź i trzyfazową jednostkę: pojedyncze pociski, wachlarz trzech, potem pięciu. Bezpieczny powrót rozlicza finał i jednorazową nagrodę, pozostawiając wcześniejsze sektory oraz cele dodatkowe dostępne. To domknięcie operacyjnego ciągu, bez dopisywania prawdy o anomalii i fabularnego zakończenia. [Zakres i weryfikacja](implementation-v0.52.md).
+
+## Etap 0.53 — dialogi i odkrywanie zadań wdrożone
+
+Trzy odprawy ziemskie mają portrety, ręczne przechodzenie i trwałą historię. Ostatnią można powtórzyć. Panel wyprawy, HUD i TAB ukrywają przyszłe cele, zachowując dostępne zadania równoległe, dodatkowe oraz historię ukończonych. Starsze zapisy zachowują postęp i pomijają spóźnione odprawy. [Zakres i weryfikacja](implementation-v0.53.md). Następny pakiet: wybrana wyprawa, zasady przerwania i odblokowania floty.
+
+## Etap 0.54 — flota i rozkazy wypraw wdrożone
+
+Prospector i Swift są dostępne od początku, pozostałe projekty otwierają raporty kampanii. Można wybrać zwiad, patrol lub bossa jako cel przed startem; wykonanie celu otwiera dokowanie, a raport rozlicza dopiero powrót. TAB umożliwia potwierdzany odwrót bez nagrody, raportu i ładunku. Swobodne loty pozostają dostępne. Starsze formaty są odrzucane, bez migracji. [Zakres i weryfikacja](implementation-v0.54.md).
+
 ## Następne kroki kampanii
 
 - Przeprowadzić testy graczy całego aktu I, dopracować tempo, trudność i komunikowanie wymagań.
 - Uzupełnić dialogi i oprawę fabularnego zwrotu aktu I po ustaleniu jego treści przez autora.
-- Rozpocząć akt VI: osobny odcinek przejścia pasa asteroid, dostępny po technologii z Merkurego i zabezpieczeniu bazy marsjańskiej. Następnie przygotować kierunek Jowisz. Natura technologii i fabularny reveal anomalii pozostają do ustalenia. Sandbox pozostaje niezależnym narzędziem regresji.
+- Uzupełnić kluczowe ujawnienie aktu VII po ustaleniu jego treści przez autora. Zabezpieczony pakiet obserwacyjny daje punkt zaczepienia do tej sceny.
+- Przeprowadzić ciągłe przejście całej kampanii od nowego zapisu: ekonomia, czas wypraw, wymagania wyposażenia, poziomy pilotów i narastanie trudności. Dotychczasowe testy zwykłych wypraw sprawdzają sektory z przygotowanym wejściem, nie zastępują takiej sesji.
+- Dopracować różnice sektorów i starć na podstawie testów graczy.
+- Uzupełnić fabularny finał aktu X: mechanizm anomalii powodowanych obecnością obcych, motywacje stron, tożsamość bossa i scenariusz ujawnienia. Sandbox pozostaje niezależnym narzędziem regresji.
 
-Zarys nie wprowadza mechaniki paliwa statków ani sterowania wieloma jednostkami jednocześnie. Prawda o anomalii, tożsamość przeciwnika i dokładna treść kluczowych zwrotów pozostają do napisania. Wersja 0.42 domknęła ciąg mechanik aktu I, 0.44 aktu II, 0.45 przygotowania i obronę aktu III, 0.46 wyprawę aktu IV, a 0.47 bazę i walki aktu V. Dialogi, sceny oraz tempo aktów wymagają dalszego opracowania. Przejście pasa z aktu VI nie jest jeszcze grywalne.
+Zarys nie wprowadza mechaniki paliwa statków ani sterowania wieloma jednostkami jednocześnie. Obecność obcych jako źródło anomalii jest już ustalona; ich mechanizm, motywacje stron, tożsamość bossa i dokładna treść kluczowych zwrotów pozostają do napisania. Wersja 0.42 domknęła ciąg mechanik aktu I, 0.44 aktu II, 0.45 przygotowania i obronę aktu III, 0.46 wyprawę aktu IV, 0.47 bazę i walki aktu V, a 0.48 przejście pasa w akcie VI. Dialogi, sceny oraz tempo aktów wymagają dalszego opracowania. Wersja 0.49 dodaje operacyjne cele Jowisza, lecz nie zamyka fabularnego ujawnienia aktu VII. Wersja 0.50 dodaje spokojniejszy operacyjny odcinek Saturna. Wersja 0.51 dodaje operacyjny ciąg Urana i Neptuna oraz pierwszą dwufazową walkę. Wersja 0.52 dodaje Plutona i trzyfazowy mechaniczny finał aktu X.
 
 Balans pozostaje iteracyjny. Pierwsza runda pokazała różnice specjalizacji i dostępność ekonomii; kolejne testy graczy powinny szczególnie ocenić bazowe Widmo przeciw zwrotnym patrolom, wygodę broni wymagających ponawiania naciśnięć oraz tempo rozwoju. Będą też potrzebne dłuższe sesje renderowania i próby na słabszym sprzęcie. Nie są to automatyczne zgody na nowe statki, liftingi ani systemy części.
 
@@ -108,4 +149,4 @@ Wymienne modele części, nowe profesje personelu i kolejne placówki/role przec
 - Produkcja przy zamkniętej grze. Obecnie postępuje wyłącznie w czasie symulacji wyprawy.
 - Wznowienie aktywnej wyprawy. Odświeżenie nadal rozlicza ją jako przegraną, zgodnie z przyjętą zasadą.
 
-Kampania ma zarys autora, przechodnie mechanicznie akty I–V i kolejność dalszych prac opisaną wyżej. Osobne systemy frakcji oraz multiplayer nie mają uzgodnionego zakresu wdrożenia.
+Kampania ma zarys autora, przechodnie mechanicznie akty I–VI i operacyjne zakresy aktów VII–X. Trzy strony konfliktu są ustaleniem fabularnym; osobna reputacja, dyplomacja lub symulacja relacji nie wynikają z tego automatycznie. Multiplayer pozostaje poza zakresem. Nową kolejność rozwoju zawartości opisuje dokument podlinkowany na początku planu.

@@ -126,43 +126,6 @@ test('Venus survey opens the area; site measurements and partial material contri
     }
 });
 
-test('v23 saves preserve Mars reports and active runs while adding an unaccepted briefing', () => {
-    for (const active of [false, true]) {
-        const c = marsReported();
-        if (active) beginRun(c, 1);
-        const old = JSON.parse(JSON.stringify(c));
-        old.version = 23;
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('mercury-')) delete old.story.progress[key];
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
-                delete old.story.progress[key];
-        old.story.version = 5;
-        for (const t of STORY_TASKS.filter((t) => t.id === 'earth-debrief' || t.sector === 'venus'))
-            delete old.story.progress[t.id];
-        const next = parseCampaign(JSON.stringify(old))!;
-        assert.ok(next);
-        assert.equal(next.version, 27);
-        assert.equal(next.story!.version, 9);
-        assert.deepEqual(next.story!.claimed, c.story!.claimed);
-        assert.deepEqual(next.bank, c.bank);
-        assert.deepEqual(next.activeRun, c.activeRun);
-        assert.equal(next.story!.progress['earth-debrief'], 0);
-        assert.equal(storySectorUnlocked(next.story!, 'venus'), false);
-        old.story.progress.unknown = 0;
-        assert.equal(parseCampaign(JSON.stringify(old)), null);
-    }
-    const forged = marsReported();
-    forged.story!.sector = 'venus';
-    assert.equal(parseCampaign(JSON.stringify(forged)), null);
-    forged.story!.sector = 'earth';
-    forged.story!.progress['earth-debrief'] = 1;
-    forged.story!.claimed.push('earth-debrief');
-    forged.story!.progress['mars-belt'] = 0;
-    forged.story!.claimed = forged.story!.claimed.filter((id) => id !== 'mars-belt');
-    assert.equal(parseCampaign(JSON.stringify(forged)), null);
-});
-
 test('Venus has no lunar surface or Mars patrols; failure keeps contributions and rescue remains sector-specific', () => {
     const c = venusReady();
     report(c, ['relay']);

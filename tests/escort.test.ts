@@ -176,21 +176,3 @@ test('research pauses around hostiles, completes only with the escort present, a
         sim.dispose();
     }
 });
-
-test('v13 journals, including earlier salvage deliveries, migrate without dropping history', () => {
-    const c = campaign();
-    c.activeRun!.contract = 3;
-    c.contract = 3;
-    const old = { ...c, version: 13, contractCompletions: c.contractCompletions.slice(0, 7) };
-    assert.deepEqual(parseCampaign(JSON.stringify(old)), c);
-    assert.equal(parseCampaign(JSON.stringify({ ...old, version: 14 })), null);
-    assert.equal(
-        contractReady(7, { ore: 100, parts: 100 }, ['relay', 'archive', 'fortress']),
-        false,
-    );
-    const lost = campaign();
-    assert.deepEqual(
-        finishRun(lost, false, { ore: 0, parts: 0 }, 60, 'death', 0, { data: ['escort'] })!.reward,
-        { ore: 0, parts: 0 },
-    );
-});

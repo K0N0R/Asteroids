@@ -169,37 +169,6 @@ test('survival training increases pilot odds without changing hull recovery or b
     assert.equal(recoveryChances(c.ship!, p).pilot, 0.85);
 });
 
-test('v5 migration initializes roster and missing pilots without erasing mission history or recovery markers', () => {
-    const c = newCampaign();
-    c.bank = { ore: 40, parts: 5 };
-    c.crew.mechanic = true;
-    c.contractCompletions[0] = 2;
-    c.recovered = 2;
-    c.nextPilotId = 3;
-    c.nextShipId = 3;
-    c.recoverySignals = [
-        { id: 2, seed: 42, x: 1000, y: 0, pilot: newPilot(2, 2), ship: newShip(2) },
-    ];
-    beginRun(c, 42, 2);
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 5;
-    delete old.pilots[0].xp;
-    delete old.pilots[0].skills;
-    delete old.recoverySignals[0].pilot.xp;
-    delete old.recoverySignals[0].pilot.skills;
-    const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.ok(loaded);
-    assert.deepEqual(loaded, {
-        ...c,
-        ship: { ...c.ship, hull: 'fighter' },
-        recoverySignals: c.recoverySignals.map((signal) => ({
-            ...signal,
-            ship: { ...signal.ship, hull: 'fighter' },
-        })),
-    });
-    assert.equal(loaded.version, newCampaign().version);
-});
-
 test('save validation rejects malformed XP, overspent points and malformed skills in roster or capsule', () => {
     const c = newCampaign();
     c.nextPilotId = 3;

@@ -1,12 +1,20 @@
 # Kampania — Satuk 15 i anomalie Układu Słonecznego
 
-Stan: 2026-10-15. Podstawa: zarys autora gry. Dokument projektowy; wersja 0.42 obejmuje ciąg mechanik aktu I do odparcia ataku i powrotu z raportem, bez ustalania tożsamości przeciwnika ani wyjaśnienia anomalii. [Rzeczywisty zakres implementacji](implementation-v0.42.md) jest węższy od opisanego niżej planu całej kampanii.
+Stan: 2026-10-16. Podstawa: zarys autora gry i uzupełnienie po wersji 0.52. Operacyjny szkielet kampanii obejmuje już dziesięć aktów; [rzeczywisty zakres ostatniego etapu](implementation-v0.52.md) nie stanowi gotowego scenariusza ani finalnego balansu. Dalszy kierunek opisuje [plan rozbudowy zawartości](content-development.md). Poniższe wczesne propozycje zachowują kontekst projektu; nowe ustalenia autora mają pierwszeństwo.
+
+## Bieżąca polityka zapisu
+
+Od 0.54, zgodnie z decyzją autora, nie wspieramy otwierania ani migracji starszych formatów. Niezgodny zapis oznacza nową kampanię. Wcześniejsze fragmenty planu dotyczące zgodności zachowują wyłącznie historyczny charakter.
 
 ## Założenia ustalone przez autora
 
 Naukowcy z Ziemi obserwują narastające anomalie w Układzie Słonecznym. Gracz, jako Admirał Sił Kosmicznych Ziemi, obejmuje dowodzenie nad stacją **Satuk 15**, początkowo stacjonującą przy Ziemi. Rekrutuje pilotów, buduje i rozwija flotę, zarządza stacją oraz organizuje wyprawy badające źródło zjawisk. Anomalią interesują się również sojusznicy i wrogie siły. Stawką jest bezpieczeństwo Układu Słonecznego.
 
 Gra łączy fazę stacji z fazą akcji: przygotowanie → wybór pilota i statku → wylot → realizacja celów → powrót i rozwój. Kampania ma **10 aktów**, rozgrywanych w sektorach Układu Słonecznego. Sektory występują w małym, średnim i dużym rozmiarze. Akt nie musi odpowiadać pojedynczemu sektorowi.
+
+Uzupełnienie autora po 0.52: **anomalie wywołuje obecność obcej cywilizacji w Układzie Słonecznym**. Trzy strony konfliktu to oficjalne wojsko Ziemi, wroga prywatna organizacja kosmiczna oraz obca cywilizacja. Nie ustalono jeszcze ich szczegółowych motywacji, relacji, tożsamości bossa ani sposobu i momentu ujawnienia prawdy graczowi. Sama obecność obcych nie przesądza ich wrogości.
+
+Początkowe dostępne kadłuby to **Prospector i Swift**; kolejne mają być odblokowywane. Autor chce ukrywać przyszłe misje, rozbudować dialogi, wydłużyć wyprawy i ograniczyć powrót przed wykonaniem zadania. Te przyszłe zmiany wymagają przebudowy cyklu misji oraz rozstrzygnięcia relacji z wcześniejszą równoległością celów; nie opisują działania wersji 0.52.
 
 Sektor zawiera cele główne, zadania dodatkowe oraz interesujące miejsca niezwiązane z zadaniami. Cele dostępne na danym etapie można wykonywać w dowolnej kolejności. Realizacja zadań stopniowo udostępnia dalsze obszary sektora. Niektóre zadania wymagają specjalistycznego statku lub są bez odpowiedniego wyposażenia bardzo trudne. Wszystkie udostępnione zadania główne i dodatkowe muszą pozostawać wykonalne.
 
@@ -107,8 +115,8 @@ To proponowana kolejność, nie wdrożone funkcje ani zobowiązanie do zbudowani
 
 ## Otwarte decyzje fabularne i systemowe
 
-- Czym naprawdę jest anomalia, dlaczego narasta i jakie ślady jej natury pojawiają się przed aktami VII i X?
-- Kim są przeciwnicy, sojusznicy i główny boss; czego chcą i dlaczego atakują bazę księżycową?
+- Jaki mechanizm obecności obcych wywołuje anomalie, dlaczego narastają i jakie ślady pojawiają się przed aktami VII i X?
+- Jakie motywacje i relacje mają trzy ustalone strony konfliktu? Kim jest główny boss i kto odpowiada za atak na bazę księżycową?
 - Jakie dokładnie odkrycie na Jowiszu zmienia rozumienie sytuacji, a jaka część prawdy zostaje na Pluton?
 - Czym jest technologia z Merkurego i dlaczego umożliwia przejście pasa? Jaki jest charakter kulminacji aktu II?
 - Czy Satuk 15 podróżuje fizycznie razem z flotą, a bazy są lokalnymi punktami wypadowymi, czy podróże mają inny model?

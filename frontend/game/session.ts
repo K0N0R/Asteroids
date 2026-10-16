@@ -1,4 +1,12 @@
 import {
+    DialoguePlayback,
+    pendingDialogue,
+    latestDialogue,
+    completeDialogue,
+    type DialogueDefinition,
+} from './state/dialogues';
+import { dialogueView } from './ui/dialogue';
+import {
     STORY_SAVE_KEY,
     STORY_SECTORS,
     contributeStory,
@@ -84,6 +92,7 @@ export class GameSession {
     lobby: LobbyView;
     private overlay = new Container();
     private hasOverlay = false;
+    private dialogue: DialoguePlayback | null = null;
     private launching = false;
     private crewSaveSeconds = 0;
     private savedDeliveryRevision = 0;
@@ -108,6 +117,10 @@ export class GameSession {
             : null;
         this.saves.save(this.campaign);
         this.lobby = new LobbyView(this.campaign, {
+            replayDialogue: () => {
+                const d = latestDialogue(this.campaign);
+                if (d) this.openDialogue(d);
+            },
             openSandbox: () => this.openSandbox(),
             switchProfile: () => this.switchProfile(),
             travel: (sector) =>
@@ -127,7 +140,8 @@ export class GameSession {
                         : 'Brak materiałów lub zadanie niedostępne.',
                 );
             },
-            launch: (recoveryId, loadConstruction) => this.launch(recoveryId, loadConstruction),
+            launch: (recoveryId, loadConstruction, missionTask) =>
+                this.launch(recoveryId, loadConstruction, missionTask),
             equipWeapon: (weapon) =>
                 this.change(() => equipWeapon(this.campaign, weapon), 'Uzbrojenie zamontowane.'),
             upgrade: (upgrade) =>
@@ -199,6 +213,15 @@ export class GameSession {
         Bus.subscribe(
             'input',
             (message) => {
+                if (this.dialogue) {
+                    if (
+                        (!PopupContainer.hasActivePopup() || message.name === 'keyup') &&
+                        (message.name === 'keydown' || message.name === 'keyup') &&
+                        this.dialogue.key(message.data, message.name === 'keydown')
+                    )
+                        this.renderDialogue();
+                    return;
+                }
                 if (message.name === 'keydown') {
                     this.sandboxSetup?.handleKey(message.data);
                     if (this.sandboxRun && !this.hasOverlay && !PopupContainer.hasActivePopup()) {
@@ -284,6 +307,37 @@ export class GameSession {
             this,
         );
     }
+    private openDialogue(definition: DialogueDefinition) {
+        if (this.hasOverlay || this.mission || this.launching || PopupContainer.hasActivePopup())
+            return;
+        this.hasOverlay = true;
+        InputHandler.clear();
+        this.dialogue = new DialoguePlayback(definition);
+        this.renderDialogue();
+    }
+    private renderDialogue() {
+        const playback = this.dialogue;
+        if (!playback) return;
+        clear(this.overlay);
+        if (playback.complete) {
+            completeDialogue(this.campaign, playback.definition.id);
+            this.saves.save(this.campaign);
+            this.dialogue = null;
+            this.hasOverlay = false;
+            InputHandler.clear();
+            this.lobby.refresh(
+                this.saves.warning || 'Odprawa zakończona. Cele dostępne w panelu wyprawy.',
+            );
+            return;
+        }
+        this.overlay.addChild(
+            dialogueView(playback, () => {
+                if (PopupContainer.hasActivePopup() || this.dialogue !== playback) return;
+                playback.advance();
+                this.renderDialogue();
+            }),
+        );
+    }
     private storyMessage(change: StoryChange, fallback: string) {
         return `${change.titles.length ? `Ukończono: ${change.titles.join(' · ')}.` : fallback}${change.overflow ? ` Magazyn pełny: nadwyżka ${change.overflow}.` : ''}`;
     }
@@ -314,7 +368,7 @@ export class GameSession {
             this.saves.warning ||
                 (this.campaign.story
                     ? `Satuk 15 · ${storyAct(this.campaign.story)} · ${STORY_SECTORS[this.campaign.story.sector].name}. Postęp kampanii wczytany.`
-                    : 'Wczytano poprzednią rozgrywkę testową. Kampania Satuk 15 ma osobny zapis.'),
+                    : 'Wczytano tryb testowy. Kampania Satuk 15 ma osobny zapis.'),
         );
         if (interrupted) this.showResult(interrupted);
     }
@@ -334,6 +388,51 @@ export class GameSession {
                     : 'Brak surowców lub osiągnięty limit.'),
         );
     }
+    private requestAbortMission() {
+        const sim = this.mission?.simulation;
+        if (!sim?.canAbortMission || this.hasOverlay) return;
+        PopupContainer.hide('missionInfo');
+        this.hasOverlay = true;
+        InputHandler.clear();
+        clear(this.overlay);
+        const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: C.ink, alpha: 0.88 });
+        shade.eventMode = 'static';
+        this.overlay.addChild(shade);
+        panel(this.overlay, 400, 280, 800, 340);
+        label(this.overlay, 'PRZERWANIE MISJI', 440, 315, 15, C.gold);
+        label(this.overlay, 'Zarządzić odwrót?', 440, 350, 34);
+        label(
+            this.overlay,
+            'Otworzysz dokowanie. Po powrocie ładunek pozostały na pokładzie i raport tej wyprawy przepadną. Nie otrzymasz nagrody ani PD. Pilot, statek i wcześniejszy postęp pozostaną.',
+            440,
+            410,
+            20,
+            C.muted,
+            710,
+        );
+        const close = () => {
+            clear(this.overlay);
+            this.hasOverlay = false;
+            InputHandler.clear();
+        };
+        button(this.overlay, 'KONTYNUUJ MISJĘ', 440, 540, 340, close, false, true, 44, 15);
+        button(
+            this.overlay,
+            'PRZERWIJ I WRÓĆ',
+            800,
+            540,
+            350,
+            () => {
+                sim.abortMission();
+                this.saves.save(this.campaign);
+                close();
+            },
+            true,
+            true,
+            44,
+            15,
+        );
+    }
     private toggleMissionInfo() {
         if (!this.mission || this.hasOverlay) return;
         if (PopupContainer.instance.popupPromises.missionInfo) {
@@ -343,6 +442,7 @@ export class GameSession {
         if (PopupContainer.hasActivePopup()) return;
         PopupContainer.show('missionInfo', {
             simulation: this.mission.simulation,
+            abortMission: !this.sandboxRun ? () => this.requestAbortMission() : undefined,
             campaign: this.sandboxRun?.campaign ?? this.campaign,
             contract: (this.sandboxRun?.campaign ?? this.campaign).contract,
             objectives:
@@ -355,6 +455,12 @@ export class GameSession {
                           this.mission.simulation.storyPatrolKills,
                           this.mission.simulation.venusAssault.state === 'complete',
                           this.mission.simulation.marsAssault.state === 'complete',
+                          [...this.mission.simulation.clearedBeltRocks],
+                          this.mission.simulation.cargo.ore,
+                          this.mission.simulation.firstBoss.complete &&
+                              !this.mission.simulation.firstBoss.finale,
+                          this.mission.simulation.firstBoss.complete &&
+                              this.mission.simulation.firstBoss.finale,
                       )
                     : undefined),
             objectivesTitle:
@@ -490,11 +596,15 @@ export class GameSession {
             () => this.closeSandbox(),
         );
     }
-    launch(recoveryId: number | null = null, loadConstruction = false) {
+    launch(
+        recoveryId: number | null = null,
+        loadConstruction = false,
+        missionTask: string | null = null,
+    ) {
         if (this.launching || this.mission || this.hasOverlay) return;
         this.launching = true;
         const randomSeed = crypto.getRandomValues(new Uint32Array(1))[0];
-        if (!beginRun(this.campaign, randomSeed, recoveryId, loadConstruction)) {
+        if (!beginRun(this.campaign, randomSeed, recoveryId, loadConstruction, missionTask)) {
             this.launching = false;
             return;
         }
@@ -518,6 +628,10 @@ export class GameSession {
                               simulation.storyPatrolKills,
                               simulation.venusAssault.state === 'complete',
                               simulation.marsAssault.state === 'complete',
+                              [...simulation.clearedBeltRocks],
+                              simulation.cargo.ore,
+                              simulation.firstBoss.complete && !simulation.firstBoss.finale,
+                              simulation.firstBoss.complete && simulation.firstBoss.finale,
                           )
                     : undefined,
                 this.campaign.story
@@ -526,7 +640,17 @@ export class GameSession {
             );
             if (this.campaign.story)
                 simulation.setNotice(
-                    'Satuk 15: 2 złoże · 7 przekaźnik · E odczyt / dokowanie. Zadania możesz realizować równolegle.',
+                    this.campaign.story?.sector === 'pluto'
+                        ? 'Akt X: 7 zwiad · 0 baza / F osłona · 3 finał po obu raportach: G 2 s · 8 dodatkowy odczyt · 1 powrót.'
+                        : simulation.outerSector
+                          ? 'Akt IX: 7 zwiad · 0 baza po zwiadzie · F kontakty · 8 dalsza trasa · Neptun: 3 starcie / G 2 s.'
+                          : simulation.saturnSector
+                            ? 'Saturn: 2 złoże · 7 zwiad · 5 kryształy po zwiadzie · F patrol · 8 trasa po raportach · 1 powrót.'
+                            : simulation.jupiterSector
+                              ? 'Jowisz: 7 zwiad · 0 terminal po zwiadzie · F patrole · 8 pakiet po raportach · 1 powrót.'
+                              : simulation.beltSector
+                                ? 'Pas asteroid: 7 pomiary · 3 / 4 / 5 przeszkody po zwiadzie · 8 granica po oczyszczeniu · 1 powrót.'
+                                : 'Satuk 15: 2 złoże · 7 przekaźnik · E odczyt / dokowanie. Zadania możesz realizować równolegle.',
                 );
             this.hud.cameraAngle = this.mission.camera.rotation;
             this.worldHost.addChild(this.mission);
@@ -559,6 +683,10 @@ export class GameSession {
     update(deltaMS: number) {
         if (!this.mission) {
             this.lobby.update(deltaMS);
+            if (!this.hasOverlay && !this.launching && !PopupContainer.hasActivePopup()) {
+                const d = pendingDialogue(this.campaign);
+                if (d) this.openDialogue(d);
+            }
             return;
         }
         if (this.hasOverlay || PopupContainer.hasActivePopup()) {
@@ -630,7 +758,10 @@ export class GameSession {
                     assaultWon: sim.lunarAssault.state === 'complete',
                     venusDefenseWon: sim.venusAssault.state === 'complete',
                     marsDefenseWon: sim.marsAssault.state === 'complete',
+                    firstBossWon: sim.firstBoss.complete && !sim.firstBoss.finale,
+                    finalBossWon: sim.firstBoss.complete && sim.firstBoss.finale,
                     patrolKills: sim.storyPatrolKills,
+                    clearedBeltRocks: [...sim.clearedBeltRocks],
                     securedId: sim.recoverySecured ? sim.recoverySignal?.id : undefined,
                     data: [...sim.surveyData],
                     kills: sim.enemyKills,
@@ -789,13 +920,23 @@ export class GameSession {
         panel(this.overlay, 405, 200, 790, 590);
         label(
             this.overlay,
-            `${this.campaign.story ? 'SATUK 15' : 'AURORA'} / ${result.success ? 'ŁADUNEK ZABEZPIECZONY' : 'UTRACONA WYPRAWA'}`,
+            `${this.campaign.story ? 'SATUK 15' : 'AURORA'} / ${result.aborted ? 'MISJA PRZERWANA' : result.success ? 'ŁADUNEK ZABEZPIECZONY' : 'UTRACONA WYPRAWA'}`,
             450,
             236,
             15,
             result.success ? C.mint : C.red,
         );
-        label(this.overlay, result.success ? 'Witaj w domu.' : 'Sygnał urwał się.', 450, 277, 42);
+        label(
+            this.overlay,
+            result.aborted
+                ? 'Powrót po odwrocie.'
+                : result.success
+                  ? 'Witaj w domu.'
+                  : 'Sygnał urwał się.',
+            450,
+            277,
+            42,
+        );
         label(this.overlay, `${result.pilotName} / ${result.shipName}`, 450, 345, 23, C.muted);
         label(
             this.overlay,
@@ -836,9 +977,11 @@ export class GameSession {
             this.overlay,
             result.overflow
                 ? `Magazyn pełny. Nadwyżka ${result.overflow} jednostek przepadła.`
-                : result.success
-                  ? 'Czas na naprawę, ulepszenia i kolejną wyprawę.'
-                  : 'Baza, magazyn i statki rezerwowe pozostają.',
+                : result.aborted
+                  ? 'Raport nie został rozliczony. Możesz ponowić misję.'
+                  : result.success
+                    ? 'Czas na naprawę, ulepszenia i kolejną wyprawę.'
+                    : 'Baza, magazyn i statki rezerwowe pozostają.',
             450,
             659,
             15,

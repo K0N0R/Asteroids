@@ -194,7 +194,14 @@ export class MissionWorld extends Container {
         this.outpostScanner.position.set(outpost.x, outpost.y);
         const titles = new Container();
         titles.position.set(outpost.x, outpost.y);
-        this.outpostLabel = label(titles, 'CERBER', -45, -134, 17, C.red);
+        this.outpostLabel = label(
+            titles,
+            simulation.outerSector ? 'BAZA' : simulation.jupiterSector ? 'WĘZEŁ' : 'CERBER',
+            -45,
+            -134,
+            17,
+            C.red,
+        );
         this.terminalLabel = label(
             this.camera,
             'E',
@@ -732,6 +739,20 @@ export class MissionWorld extends Container {
             let view = this.enemyViews.get(enemy.id);
             if (!view) {
                 view = new DroneView(enemy.kind);
+                if (enemy.boss) {
+                    view.scale.set(1.6);
+                    view.tint = enemy.finalBoss ? 0xe2b788 : 0xc0a4bb;
+                    view.addChildAt(
+                        new Graphics()
+                            .poly([
+                                -36, -15, -22, -40, 19, -38, 34, -17, 34, 17, 19, 38, -22, 40, -36,
+                                15,
+                            ])
+                            .fill(0x443847)
+                            .stroke({ color: 0xd7b1c4, width: 2 }),
+                        0,
+                    );
+                }
                 this.enemyViews.set(enemy.id, view);
                 this.effectLayer.addChild(view);
             }
@@ -750,10 +771,17 @@ export class MissionWorld extends Container {
             view.alpha = enemy.hitFlash > 0 ? 0.45 : 1;
             view.visible = this.inView(pos);
             if (!view.visible) continue;
+            const healthWidth = enemy.boss ? 110 : 48,
+                healthY = pos.y - (enemy.boss ? 85 : 47);
             this.enemyStatus
-                .rect(pos.x - 24, pos.y - 47, 48, 4)
+                .rect(pos.x - healthWidth / 2, healthY, healthWidth, 4)
                 .fill(C.line)
-                .rect(pos.x - 24, pos.y - 47, (48 * enemy.health) / enemy.config.hull, 4)
+                .rect(
+                    pos.x - healthWidth / 2,
+                    healthY,
+                    (healthWidth * enemy.health) / enemy.config.hull,
+                    4,
+                )
                 .fill(C.red);
             if (enemy.charge > 0) {
                 const a = enemy.body.rotation();
@@ -848,7 +876,8 @@ export class MissionWorld extends Container {
         this.outpostLabel.visible = this.outpostView.visible;
         this.terminalLabel.visible =
             this.inView(outpost.terminal) &&
-            (!security.secured || !security.sabotaged || !security.equipmentSecured);
+            (!security.secured ||
+                (!s.storyMode && (!security.sabotaged || !security.equipmentSecured)));
         this.outpostLabel.rotation = -this.camera.rotation;
         this.outpostLabel.position.copyFrom(
             rotateVector({ x: -45, y: -134 }, -this.camera.rotation),
@@ -1230,6 +1259,29 @@ export class MissionWorld extends Container {
             view.alpha = 0.8 + Math.sin(this.clock * 3 + item.id) * 0.2;
         }
         this.navigation.clear();
+        if (s.firstBossAvailable) {
+            this.navigation
+                .circle(s.bossArena.x, s.bossArena.y, 180)
+                .stroke({ color: C.gold, width: 2, alpha: 0.5 });
+            this.navigation
+                .circle(s.bossArena.x, s.bossArena.y, s.firstBoss.rules.arenaRadius)
+                .stroke({ color: s.firstBoss.active ? C.red : C.gold, width: 3, alpha: 0.3 });
+        }
+        if (s.beltSector)
+            for (const rock of s.rocks.values()) {
+                if (rock.beltBarrier === undefined) continue;
+                const position = rock.body.translation();
+                const x = position.x * GAME.pixelsPerMeter,
+                    y = position.y * GAME.pixelsPerMeter;
+                this.navigation
+                    .circle(x, y, rock.radius + 12)
+                    .stroke({ color: C.gold, width: 2, alpha: 0.65 });
+                this.navigation
+                    .moveTo(x - 10, y - rock.radius - 20)
+                    .lineTo(x, y - rock.radius - 10)
+                    .lineTo(x + 10, y - rock.radius - 20)
+                    .stroke({ color: C.gold, width: 2 });
+            }
         for (const site of s.sector.landmarks) {
             if (site.key < 12 || !this.inView(site, site.radius)) continue;
             this.navigation

@@ -25,25 +25,6 @@ const idle: FlightInput = {
     interact: false,
 };
 
-test('version 11 migrates with zero crystals, preserving resources, pilot and interrupted mission', () => {
-    const c = newCampaign();
-    c.bank = { ore: 30, parts: 12 };
-    beginRun(c, 71);
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 11;
-    const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.equal(loaded.version, newCampaign().version);
-    assert.equal(loaded.bank.crystals ?? 0, 0);
-    assert.equal(loaded.bank.parts, 12);
-    assert.equal(loaded.activeRun!.seed, 71);
-    assert.equal(loaded.pilots[0].id, 1);
-    for (const value of [-1, 0.5, null, 1000001]) {
-        const bad = newCampaign();
-        bad.bank.crystals = value as number;
-        assert.equal(parseCampaign(JSON.stringify(bad)), null);
-    }
-});
-
 test('crystal smelting requires workshop I and reserves inputs, refunds once and produces in flight only', () => {
     const c = newCampaign();
     c.bank = { ore: 30, parts: 10 };

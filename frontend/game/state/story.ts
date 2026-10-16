@@ -1,3 +1,4 @@
+import { validDialogueHistory } from './dialogues';
 import { capacity, storageCapacity, storageUsed, type Campaign, type Cargo } from './campaign';
 import type { ScanSiteId } from '../config';
 
@@ -43,12 +44,60 @@ export const STORY_SECTORS = {
         seed: 150075,
         radius: 3000,
     },
+    belt: {
+        act: 6,
+        shortName: 'Pas',
+        name: 'Przejście pasa asteroid',
+        size: 'L',
+        seed: 150076,
+        radius: 2200,
+    },
+    jupiter: {
+        act: 7,
+        shortName: 'Jowisz',
+        name: 'Podejście do Jowisza',
+        size: 'L',
+        seed: 150077,
+        radius: 2700,
+    },
+    saturn: {
+        act: 8,
+        shortName: 'Saturn',
+        name: 'Pierścienie Saturna',
+        size: 'L',
+        seed: 150078,
+        radius: 2500,
+    },
+    uranus: {
+        act: 9,
+        shortName: 'Uran',
+        name: 'Rejon Urana',
+        size: 'L',
+        seed: 150079,
+        radius: 2700,
+    },
+    neptune: {
+        act: 9,
+        shortName: 'Neptun',
+        name: 'Podejście do Neptuna',
+        size: 'L',
+        seed: 150080,
+        radius: 2800,
+    },
+    pluto: {
+        act: 10,
+        shortName: 'Pluton',
+        name: 'Rejon Plutona',
+        size: 'L',
+        seed: 150081,
+        radius: 2800,
+    },
 } as const;
 export type StorySectorId = keyof typeof STORY_SECTORS;
 export interface StoryTask {
     id: string;
     sector: StorySectorId;
-    act: 1 | 2 | 3 | 4 | 5;
+    act: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
     title: string;
     detail: string;
     required: boolean;
@@ -62,13 +111,21 @@ export interface StoryTask {
         | 'patrol'
         | 'briefing'
         | 'parts'
-        | 'construction';
+        | 'construction'
+        | 'clearance'
+        | 'gather'
+        | 'boss';
     resource?: 'ore' | 'parts';
     target: number;
     site?: ScanSiteId;
     dependencies: readonly string[];
     reward: Cargo;
 }
+export const BELT_BARRIERS = [
+    { x: 2600, y: 450, key: 3, radius: 36 },
+    { x: 3400, y: -650, key: 4, radius: 40 },
+    { x: 4200, y: 600, key: 5, radius: 44 },
+] as const;
 export const STORY_TASKS: readonly StoryTask[] = [
     {
         id: 'earth-supply',
@@ -479,21 +536,399 @@ export const STORY_TASKS: readonly StoryTask[] = [
         dependencies: ['mars-base-build'],
         reward: { ore: 18, parts: 5 },
     },
+    {
+        id: 'belt-survey',
+        sector: 'belt',
+        act: 6,
+        title: 'Zwiad wejścia w pas',
+        required: true,
+        kind: 'scan',
+        site: 'relay',
+        target: 1,
+        detail: '7 wskazuje wejście. Zatrzymaj statek, zbierz pomiary przez E i wróć do Satuk 15, aby otworzyć dalszą trasę.',
+        dependencies: [],
+        reward: { ore: 18, parts: 4 },
+    },
+    ...BELT_BARRIERS.map(
+        (point, index): StoryTask => ({
+            id: `belt-clear-${index}`,
+            sector: 'belt',
+            act: 6,
+            title: `Przeszkoda ${index + 1} na trasie`,
+            required: true,
+            kind: 'clearance',
+            target: 1,
+            detail: `${point.key} wskazuje skałę blokującą trasę. Usuń ją laserem lub uzbrojeniem i wróć z raportem. Przeszkody można usuwać w dowolnej kolejności.`,
+            dependencies: ['belt-survey'],
+            reward: { ore: 10, parts: 2 },
+        }),
+    ),
+    {
+        id: 'belt-exit',
+        sector: 'belt',
+        act: 6,
+        title: 'Zewnętrzna granica pasa',
+        required: true,
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        detail: 'Po zatwierdzeniu usunięcia trzech przeszkód: 8 wskazuje zewnętrzną granicę pasa. Dotrzyj tam, zbierz odczyt przez E i wróć do Satuk 15.',
+        dependencies: ['belt-clear-0', 'belt-clear-1', 'belt-clear-2'],
+        reward: { ore: 30, parts: 8 },
+    },
+    {
+        id: 'belt-patrol',
+        sector: 'belt',
+        act: 6,
+        title: 'Osłona przejścia',
+        required: false,
+        kind: 'patrol',
+        target: 2,
+        detail: 'Po zwiadzie: F wskazuje dwa kontakty w pasie. Możesz raportować każdy osobno. Ich neutralizacja nie blokuje przejścia.',
+        dependencies: ['belt-survey'],
+        reward: { ore: 22, parts: 6 },
+    },
+    {
+        id: 'jupiter-survey',
+        sector: 'jupiter',
+        act: 7,
+        title: 'Zwiad podejścia do Jowisza',
+        required: true,
+        kind: 'scan',
+        site: 'relay',
+        target: 1,
+        dependencies: [],
+        reward: { ore: 20, parts: 4 },
+        detail: '7 wskazuje przekaźnik pomiarowy. Zbierz odczyt przez E i wróć do Satuk 15, aby otworzyć dalszy obszar.',
+    },
+    {
+        id: 'jupiter-patrol',
+        sector: 'jupiter',
+        act: 7,
+        title: 'Osłona rejonu pomiarów',
+        required: true,
+        kind: 'patrol',
+        target: 2,
+        dependencies: ['jupiter-survey'],
+        reward: { ore: 28, parts: 8 },
+        detail: 'Po zwiadzie neutralizuj patrol i Lancera. F wskazuje przeciwnika. Możesz wracać z raportem po każdym kontakcie.',
+    },
+    {
+        id: 'jupiter-uplink',
+        sector: 'jupiter',
+        act: 7,
+        title: 'Włamanie do węzła',
+        required: true,
+        kind: 'scan',
+        site: 'outpost',
+        target: 1,
+        dependencies: ['jupiter-survey'],
+        reward: { ore: 24, parts: 6 },
+        detail: '0 wskazuje terminal chronionego węzła. Przytrzymaj E przez 4 s bez alarmu. G za 1 komponent wyłącza skaner na 20 s. Wróć z danymi.',
+    },
+    {
+        id: 'jupiter-observations',
+        sector: 'jupiter',
+        act: 7,
+        title: 'Pakiet obserwacyjny',
+        required: true,
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        dependencies: ['jupiter-patrol', 'jupiter-uplink'],
+        reward: { ore: 36, parts: 10 },
+        detail: 'Po raportach z walk i węzła: 8 wskazuje dalszy punkt obserwacyjny. Zbierz pakiet przez E i wróć do Satuk 15.',
+    },
+    {
+        id: 'jupiter-reserve',
+        sector: 'jupiter',
+        act: 7,
+        title: 'Zapasy rejonu Jowisza',
+        required: false,
+        kind: 'ore',
+        target: 24,
+        dependencies: ['jupiter-survey'],
+        reward: { ore: 12, parts: 5 },
+        detail: 'Dodatkowe przygotowanie: przekaż 24 rudy w stacji. Możesz dzielić wpłaty; zapas nie blokuje odzyskania pakietu.',
+    },
+    {
+        id: 'saturn-survey',
+        sector: 'saturn',
+        act: 8,
+        title: 'Rozpoznanie pierścieni',
+        required: true,
+        kind: 'scan',
+        site: 'relay',
+        target: 1,
+        dependencies: [],
+        reward: { ore: 18, parts: 4 },
+        detail: '7 wskazuje przekaźnik na podejściu do pierścieni. Zbierz odczyt przez E i wróć do Satuk 15, aby otworzyć dalszy obszar.',
+    },
+    {
+        id: 'saturn-supply',
+        sector: 'saturn',
+        act: 8,
+        title: 'Zaopatrzenie z pierścieni',
+        required: true,
+        kind: 'gather',
+        resource: 'ore',
+        target: 36,
+        dependencies: ['saturn-survey'],
+        reward: { ore: 24, parts: 8 },
+        detail: 'Po zwiadzie przywieź 36 rudy z wypraw w pierścienie. 2 wskazuje bliskie złoże. Możesz dzielić transporty; ruda trafia do zwykłego magazynu.',
+    },
+    {
+        id: 'saturn-patrol',
+        sector: 'saturn',
+        act: 8,
+        title: 'Zabezpieczenie rejonu',
+        required: true,
+        kind: 'patrol',
+        target: 1,
+        dependencies: ['saturn-survey'],
+        reward: { ore: 16, parts: 5 },
+        detail: 'Po zwiadzie F wskazuje odległy patrol. Odeprzyj go i wróć z raportem. Walkę i zaopatrzenie możesz wykonać w dowolnej kolejności.',
+    },
+    {
+        id: 'saturn-route',
+        sector: 'saturn',
+        act: 8,
+        title: 'Odczyt dalszej trasy',
+        required: true,
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        dependencies: ['saturn-supply', 'saturn-patrol'],
+        reward: { ore: 28, parts: 8 },
+        detail: 'Po zaopatrzeniu i raporcie z walki 8 wskazuje dalszy punkt. Zbierz dane przez E i wróć do Satuk 15.',
+    },
+    {
+        id: 'saturn-reserve',
+        sector: 'saturn',
+        act: 8,
+        title: 'Rezerwa dalszej ekspedycji',
+        required: false,
+        kind: 'ore',
+        target: 18,
+        dependencies: ['saturn-survey'],
+        reward: { ore: 8, parts: 4 },
+        detail: 'Dodatkowy projekt: przekaż 18 rudy z magazynu stacji. Wpłaty mogą być częściowe. Rezerwa nie blokuje odczytu trasy.',
+    },
+    {
+        id: 'uranus-survey',
+        sector: 'uranus',
+        act: 9,
+        title: 'Rozpoznanie rejonu Urana',
+        required: true,
+        kind: 'scan',
+        site: 'relay',
+        target: 1,
+        dependencies: [],
+        reward: { ore: 20, parts: 5 },
+        detail: '7 wskazuje pomiary podejścia. Zbierz odczyt przez E i wróć do Satuk 15, aby otworzyć obszar baz.',
+    },
+    {
+        id: 'uranus-base',
+        sector: 'uranus',
+        act: 9,
+        title: 'Dane chronionej bazy',
+        required: true,
+        kind: 'scan',
+        site: 'outpost',
+        target: 1,
+        dependencies: ['uranus-survey'],
+        reward: { ore: 24, parts: 7 },
+        detail: 'Po zwiadzie 0 wskazuje terminal bazy. E pobiera dane bez alarmu; G za komponent wyłącza skaner na 20 s. Wróć z danymi.',
+    },
+    {
+        id: 'uranus-patrol',
+        sector: 'uranus',
+        act: 9,
+        title: 'Osłona obszaru baz',
+        required: true,
+        kind: 'patrol',
+        target: 2,
+        dependencies: ['uranus-survey'],
+        reward: { ore: 30, parts: 8 },
+        detail: 'F wskazuje patrol i Lancera w rejonie baz. Możesz raportować kontakty osobno. Włamanie i walki wykonujesz równolegle.',
+    },
+    {
+        id: 'uranus-route',
+        sector: 'uranus',
+        act: 9,
+        title: 'Trasa do Neptuna',
+        required: true,
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        dependencies: ['uranus-base', 'uranus-patrol'],
+        reward: { ore: 24, parts: 6 },
+        detail: 'Po raportach z bazy i walki 8 wskazuje dalszy węzeł. Odczyt przez E i powrót otwierają sektor Neptuna.',
+    },
+    {
+        id: 'uranus-reserve',
+        sector: 'uranus',
+        act: 9,
+        title: 'Zapas na dalszą trasę',
+        required: false,
+        kind: 'ore',
+        target: 20,
+        dependencies: ['uranus-survey'],
+        reward: { ore: 10, parts: 5 },
+        detail: 'Dodatkowo przekaż 20 rudy w stacji. Wpłaty mogą być częściowe; zapas nie blokuje trasy do Neptuna.',
+    },
+    {
+        id: 'neptune-survey',
+        sector: 'neptune',
+        act: 9,
+        title: 'Zwiad podejścia do Neptuna',
+        required: true,
+        kind: 'scan',
+        site: 'relay',
+        target: 1,
+        dependencies: [],
+        reward: { ore: 22, parts: 5 },
+        detail: '7 wskazuje przekaźnik. Odczyt przez E i bezpieczny powrót otwierają rejon kolejnej bazy.',
+    },
+    {
+        id: 'neptune-base',
+        sector: 'neptune',
+        act: 9,
+        title: 'Rozpoznanie bazy Neptuna',
+        required: true,
+        kind: 'scan',
+        site: 'outpost',
+        target: 1,
+        dependencies: ['neptune-survey'],
+        reward: { ore: 28, parts: 8 },
+        detail: '0 wskazuje chroniony terminal. Pobierz dane przez E bez alarmu i wróć. G za 1 komponent wyłącza skaner na 20 s.',
+    },
+    {
+        id: 'neptune-boss',
+        sector: 'neptune',
+        act: 9,
+        title: 'Pierwsze starcie',
+        required: true,
+        kind: 'boss',
+        target: 1,
+        dependencies: ['neptune-base'],
+        reward: { ore: 50, parts: 16 },
+        detail: 'Po raporcie z bazy 3 wskazuje rejon starcia. G przez 2 s rozpoczyna dwufazową walkę. Zmuś ciężką jednostkę do odwrotu i wróć z raportem.',
+    },
+    {
+        id: 'neptune-route',
+        sector: 'neptune',
+        act: 9,
+        title: 'Odczyt zewnętrznej trasy',
+        required: true,
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        dependencies: ['neptune-boss'],
+        reward: { ore: 30, parts: 10 },
+        detail: 'Po bezpiecznym raporcie ze starcia 8 wskazuje dalszy punkt. Zbierz odczyt i wróć do Satuk 15.',
+    },
+    {
+        id: 'neptune-patrol',
+        sector: 'neptune',
+        act: 9,
+        title: 'Dodatkowa osłona podejścia',
+        required: false,
+        kind: 'patrol',
+        target: 2,
+        dependencies: ['neptune-survey'],
+        reward: { ore: 24, parts: 6 },
+        detail: 'Dodatkowo F wskazuje dwa patrole. Możesz wracać z raportami pojedynczo. Nie blokują pierwszego starcia ani dalszej trasy.',
+    },
+
+    {
+        id: 'pluto-survey',
+        sector: 'pluto',
+        act: 10,
+        title: 'Zwiad Plutona',
+        required: true,
+        kind: 'scan',
+        site: 'relay',
+        target: 1,
+        dependencies: [],
+        reward: { ore: 24, parts: 6 },
+        detail: '7 wskazuje pomiary podejścia. Zbierz odczyt przez E i wróć do Satuk 15, aby otworzyć dalszy obszar.',
+    },
+    {
+        id: 'pluto-base',
+        sector: 'pluto',
+        act: 10,
+        title: 'Dane końcowego podejścia',
+        required: true,
+        kind: 'scan',
+        site: 'outpost',
+        target: 1,
+        dependencies: ['pluto-survey'],
+        reward: { ore: 30, parts: 10 },
+        detail: '0 wskazuje chroniony terminal. Pobierz dane przez E i wróć. G za 1 komponent wyłącza skaner na 20 s. Cel równoległy do osłony.',
+    },
+    {
+        id: 'pluto-patrol',
+        sector: 'pluto',
+        act: 10,
+        title: 'Osłona końcowego podejścia',
+        required: true,
+        kind: 'patrol',
+        target: 2,
+        dependencies: ['pluto-survey'],
+        reward: { ore: 36, parts: 10 },
+        detail: 'F wskazuje patrol i Lancera. Raporty możesz przywozić pojedynczo. Dane bazy i osłonę realizujesz w dowolnej kolejności.',
+    },
+    {
+        id: 'pluto-boss',
+        sector: 'pluto',
+        act: 10,
+        title: 'Finałowe starcie',
+        required: true,
+        kind: 'boss',
+        target: 1,
+        dependencies: ['pluto-base', 'pluto-patrol'],
+        reward: { ore: 60, parts: 20 },
+        detail: '3 wskazuje rejon starcia po obu raportach. G przez 2 s rozpoczyna walkę z trzema fazami. Unieszkodliw jednostkę i wróć bezpiecznie do Satuk 15.',
+    },
+    {
+        id: 'pluto-record',
+        sector: 'pluto',
+        act: 10,
+        title: 'Zabezpieczenie odczytów',
+        required: false,
+        kind: 'scan',
+        site: 'archive',
+        target: 1,
+        dependencies: ['pluto-survey'],
+        reward: { ore: 18, parts: 8 },
+        detail: '8 wskazuje odległy punkt pomiarowy. Zbierz dane i wróć. Dodatkowy odczyt nie blokuje finałowego starcia.',
+    },
 ];
+export const PLUTO_ARENA = { x: 4200, y: -1000 } as const;
+export const OUTER_BASES = {
+    pluto: { x: 2600, y: 1200, terminal: { x: 2340, y: 1200 } },
+    uranus: { x: 2600, y: 900, terminal: { x: 2340, y: 900 } },
+    neptune: { x: 2500, y: 1200, terminal: { x: 2240, y: 1200 } },
+} as const;
+export const NEPTUNE_ARENA = { x: 3900, y: -900 } as const;
+export const JUPITER_UPLINK = { x: 2600, y: 900, terminal: { x: 2340, y: 900 } } as const;
 export const MARS_BASE = { x: -2600, y: 1200 } as const;
 export const VENUS_EXPANSION_TASKS = ['venus-build', 'venus-shield', 'venus-defense'];
 export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 9;
+    version: 15;
+    dialogues: string[];
     sector: StorySectorId;
     progress: Record<string, number>;
     claimed: string[];
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 9,
+    version: 15,
+    dialogues: [],
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
     claimed: [],
@@ -524,11 +959,28 @@ export function storySectorUnlocked(p: StoryProgress, sector: StorySectorId) {
             return actOneComplete(p);
         case 'venus':
             return p.claimed.includes('earth-debrief');
+        case 'uranus':
+            return storySectorComplete(p, 'saturn');
+        case 'pluto':
+            return storySectorComplete(p, 'neptune');
+        case 'neptune':
+            return storySectorComplete(p, 'uranus');
+        case 'saturn':
+            return storySectorComplete(p, 'jupiter');
+        case 'jupiter':
+            return storySectorComplete(p, 'belt');
+        case 'belt':
+            return beltPassageReady(p);
         case 'mercury':
             return storySectorComplete(p, 'venus') && solarShieldReady(p);
     }
 }
 export function storyAct(p: StoryProgress) {
+    if (p.sector === 'pluto') return 'AKT X';
+    if (p.sector === 'uranus' || p.sector === 'neptune') return 'AKT IX';
+    if (p.sector === 'saturn') return 'AKT VIII';
+    if (p.sector === 'jupiter') return 'AKT VII';
+    if (p.sector === 'belt') return 'AKT VI';
     if (p.sector === 'mars' && beltTechnologyReady(p)) return 'AKT V';
     return p.sector === 'mercury'
         ? 'AKT IV'
@@ -552,11 +1004,18 @@ export function storyVisibleTasks(p: StoryProgress) {
         ? tasks.sort((a, b) => b.act - a.act)
         : tasks;
 }
+/** Only revealed tasks belong in the journal, HUD and briefing. Definitions remain intact. */
+export function storyDiscoveredTasks(p: StoryProgress) {
+    return storyVisibleTasks(p).filter((t) => p.claimed.includes(t.id) || storyTaskAvailable(p, t));
+}
 export function marsBaseReady(p: StoryProgress) {
     return ['mars-base-ore', 'mars-base-parts'].every((id) => p.claimed.includes(id));
 }
 export function beltPassageReady(p: StoryProgress) {
     return beltTechnologyReady(p) && storySectorComplete(p, 'mars', 5);
+}
+export function beltRouteCleared(p: StoryProgress) {
+    return BELT_BARRIERS.every((_, i) => p.claimed.includes(`belt-clear-${i}`));
 }
 export function venusPreparationComplete(p: StoryProgress) {
     return ['venus-site', 'venus-stockpile'].every((id) => p.claimed.includes(id));
@@ -568,8 +1027,65 @@ export function beltTechnologyReady(p: StoryProgress) {
     return p.claimed.includes('mercury-technology');
 }
 export function storyNextStep(p: StoryProgress) {
+    if (p.sector === 'pluto') {
+        if (storySectorComplete(p, 'pluto'))
+            return 'Cele operacyjne kampanii ukończone. Raport finałowego starcia zabezpieczony. Możesz wrócić do wcześniejszych sektorów i zadań dodatkowych.';
+        if (!p.claimed.includes('pluto-survey'))
+            return '7 wskazuje zwiad Plutona. Wróć z odczytem, aby otworzyć bazę i kontakty na podejściu.';
+        return plutoFinaleReady(p)
+            ? '3 wskazuje finałowe starcie. Zatrzymaj się i przytrzymaj G przez 2 s. Pokonaj trzy fazy i wróć z raportem. 8 to opcjonalne pomiary.'
+            : '0 wskazuje bazę, F kontakty. Dane i osłonę wykonujesz równolegle. Oba raporty otwierają rejon finałowego starcia. 8 wskazuje dodatkowe pomiary.';
+    }
+
+    if (p.sector === 'uranus') {
+        if (storySectorComplete(p, 'uranus'))
+            return 'Trasa do Neptuna otwarta. Wybierz kolejny sektor; Uran i wcześniejsze rejony pozostają dostępne.';
+        if (!p.claimed.includes('uranus-survey'))
+            return '7 wskazuje pomiary. Wróć z odczytem, aby otworzyć rejon chronionej bazy i patroli.';
+        return outerRouteOpen(p, 'uranus')
+            ? 'Raporty z bazy i walk zabezpieczone. 8 wskazuje trasę do Neptuna. Odczytaj węzeł i wróć.'
+            : '0 wskazuje bazę, F kontakty. Pobierz dane i zabezpiecz obszar w dowolnej kolejności. Wyniki zatwierdzasz po powrocie.';
+    }
+    if (p.sector === 'neptune') {
+        if (storySectorComplete(p, 'neptune'))
+            return 'Cele operacyjne aktu IX ukończone. Starcie i zewnętrzna trasa rozliczone. Wybierz sektor Plutona, aby rozpocząć akt X.';
+        if (!p.claimed.includes('neptune-survey'))
+            return '7 wskazuje zwiad podejścia. Zbierz dane i wróć, aby otworzyć obszar bazy.';
+        if (!p.claimed.includes('neptune-base'))
+            return '0 wskazuje terminal bazy. Pobierz dane bez alarmu i wróć do Satuk 15.';
+        return p.claimed.includes('neptune-boss')
+            ? 'Starcie odparte. 8 wskazuje zewnętrzną trasę. Zbierz odczyt i wróć.'
+            : '3 wskazuje rejon starcia. Zatrzymaj się i przytrzymaj G przez 2 s. Zmuś jednostkę do odwrotu. Opuszczenie rejonu przerywa próbę; raport wymaga powrotu.';
+    }
+    if (p.sector === 'saturn') {
+        if (storySectorComplete(p, 'saturn'))
+            return 'Cele operacyjne Saturna ukończone. Zaopatrzenie i trasa zabezpieczone. Wybierz sektor Urana, aby rozpoznać dalszy obszar.';
+        if (!p.claimed.includes('saturn-survey'))
+            return '7 wskazuje pomiary pierścieni. Zbierz odczyt i wróć, aby otworzyć dalszy rejon. 2 wskazuje bliskie złoże.';
+        if (saturnRouteOpen(p))
+            return 'Zaopatrzenie i rejon zabezpieczone. 8 wskazuje dalszy punkt. Odczytaj trasę przez E i wróć do Satuk 15.';
+        return 'Przywoź rudę z wypraw: cel 36, transporty można dzielić. 2 wskazuje złoże, 5 kryształy, F odległy patrol. Zaopatrzenie i walkę wykonujesz równolegle.';
+    }
+    if (p.sector === 'jupiter') {
+        if (storySectorComplete(p, 'jupiter'))
+            return 'Pakiet obserwacyjny zabezpieczony w Satuk 15. Cele operacyjne Jowisza ukończone. Możesz wybrać sektor Saturna.';
+        if (!p.claimed.includes('jupiter-survey'))
+            return '7 wskazuje pomiary podejścia. Zbierz odczyt przez E i wróć; raport otworzy rejon patroli oraz chroniony węzeł.';
+        if (jupiterObservationsOpen(p))
+            return 'Raporty z walk i węzła zabezpieczone. 8 wskazuje dalszy punkt. Zbierz pakiet obserwacyjny przez E i wróć do Satuk 15.';
+        return 'F wskazuje patrole, 0 terminal węzła. Możesz wykonać te cele w dowolnej kolejności. Wróć z raportami, aby otworzyć punkt obserwacyjny.';
+    }
+    if (storySectorComplete(p, 'belt'))
+        return 'Akt VI ukończony. Przejście pasa potwierdzone. Wybierz sektor Jowisz, aby rozpoznać dalszy obszar.';
+    if (p.sector === 'belt') {
+        if (!p.claimed.includes('belt-survey'))
+            return '7 wskazuje wejście w pas. Zbierz pomiary i wróć; raport otworzy dalszą trasę. Technologia z Merkurego umożliwia tę wyprawę.';
+        return beltRouteCleared(p)
+            ? 'Trasa oczyszczona. 8 wskazuje zewnętrzną granicę pasa. Dotrzyj do węzła, zbierz odczyt przez E i wróć z raportem.'
+            : '3 / 4 / 5 wskazują skały do usunięcia. Użyj lasera lub uzbrojenia i wróć z raportem; kolejność i liczba wypraw są dowolne. Uważaj na ruchome odłamki.';
+    }
     if (beltPassageReady(p))
-        return 'Akt V ukończony. Baza i korytarz zabezpieczone. Ekspedycja gotowa do kolejnego etapu: przejścia pasa asteroid.';
+        return 'Akt V ukończony. Baza i korytarz zabezpieczone. Wybierz sektor Pas, aby rozpocząć przejście pasa asteroid.';
     if (p.sector === 'mars' && beltTechnologyReady(p)) {
         if (!p.claimed.includes('mars-base-build'))
             return marsBaseReady(p)
@@ -619,7 +1135,44 @@ export function storyNextStep(p: StoryProgress) {
 export function marsApproachOpen(p: StoryProgress) {
     return ['mars-trail', 'mars-patrol'].every((id) => p.claimed.includes(id));
 }
+export function jupiterObservationsOpen(p: StoryProgress) {
+    return ['jupiter-patrol', 'jupiter-uplink'].every((id) => p.claimed.includes(id));
+}
+export function saturnRouteOpen(p: StoryProgress) {
+    return ['saturn-supply', 'saturn-patrol'].every((id) => p.claimed.includes(id));
+}
+export function outerRouteOpen(p: StoryProgress, sector: 'uranus' | 'neptune') {
+    return sector === 'uranus'
+        ? ['uranus-base', 'uranus-patrol'].every((id) => p.claimed.includes(id))
+        : p.claimed.includes('neptune-base');
+}
+export function plutoFinaleReady(p: StoryProgress) {
+    return ['pluto-base', 'pluto-patrol'].every((id) => p.claimed.includes(id));
+}
 export function storyRadius(p: StoryProgress) {
+    if (p.sector === 'pluto')
+        return plutoFinaleReady(p) ? 6000 : p.claimed.includes('pluto-survey') ? 4800 : 2800;
+    if (p.sector === 'uranus')
+        return outerRouteOpen(p, 'uranus')
+            ? 5600
+            : p.claimed.includes('uranus-survey')
+              ? 4600
+              : 2700;
+    if (p.sector === 'neptune')
+        return outerRouteOpen(p, 'neptune')
+            ? 5800
+            : p.claimed.includes('neptune-survey')
+              ? 4800
+              : 2800;
+    if (p.sector === 'saturn')
+        return saturnRouteOpen(p) ? 5400 : p.claimed.includes('saturn-survey') ? 4200 : 2500;
+    if (p.sector === 'jupiter')
+        return jupiterObservationsOpen(p)
+            ? 6100
+            : p.claimed.includes('jupiter-survey')
+              ? 4700
+              : 2700;
+    if (p.sector === 'belt' && p.claimed.includes('belt-survey')) return 5700;
     if (p.sector === 'mercury' && p.claimed.includes('mercury-survey')) return 4700;
     if (p.sector === 'mars' && p.claimed.includes('mars-base-build')) return 5400;
     if (p.sector === 'mars' && marsApproachOpen(p)) return 4600;
@@ -636,7 +1189,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 9 ||
+        p.version !== 15 ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -670,7 +1223,7 @@ export function validStory(value: unknown): value is StoryProgress {
         )
     )
         return false;
-    return storySectorUnlocked(p, p.sector);
+    return validDialogueHistory(p) && storySectorUnlocked(p, p.sector);
 }
 export interface StoryChange {
     titles: string[];
@@ -715,20 +1268,6 @@ export function recordLunarDefense(c: Campaign) {
     p.progress[task.id] = 1;
     return settle(c);
 }
-export function migrateStoryV2(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 2 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter(
-        (t) => t.act === 1 && !['lunar-defense', 'lunar-attack'].includes(t.id),
-    );
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    return { ...p, version: 3, progress: { ...p.progress, 'lunar-defense': 0 } };
-}
 export function lunarBuildStage(p: StoryProgress) {
     return p.claimed.includes('lunar-commission')
         ? 3
@@ -737,119 +1276,6 @@ export function lunarBuildStage(p: StoryProgress) {
           : p.claimed.includes('lunar-foundation')
             ? 1
             : 0;
-}
-export function migrateStoryV3(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 3 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => t.act === 1 && t.id !== 'lunar-attack');
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    return { ...p, version: 4, progress: { ...p.progress, 'lunar-attack': 0 } };
-}
-export function migrateStoryV4(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 4 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => t.act === 1);
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    return {
-        ...p,
-        version: 5,
-        progress: {
-            ...p.progress,
-            ...Object.fromEntries(
-                STORY_TASKS.filter((t) => t.sector === 'mars' && t.act === 2).map((t) => [t.id, 0]),
-            ),
-        },
-    };
-}
-export function migrateStoryV5(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 5 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => t.act === 1 || (t.sector === 'mars' && t.act === 2));
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    const added = STORY_TASKS.filter(
-        (t) =>
-            (t.id === 'earth-debrief' || t.sector === 'venus') &&
-            !VENUS_EXPANSION_TASKS.includes(t.id),
-    );
-    return {
-        ...p,
-        version: 6,
-        progress: { ...p.progress, ...Object.fromEntries(added.map((t) => [t.id, 0])) },
-    };
-}
-export function migrateStoryV6(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 6 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => t.act <= 3 && !VENUS_EXPANSION_TASKS.includes(t.id));
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    return {
-        ...p,
-        version: 7,
-        progress: {
-            ...p.progress,
-            ...Object.fromEntries(VENUS_EXPANSION_TASKS.map((id) => [id, 0])),
-        },
-    };
-}
-export function migrateStoryV7(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 7 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => t.act <= 3);
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    return {
-        ...p,
-        version: 8,
-        progress: {
-            ...p.progress,
-            ...Object.fromEntries(
-                STORY_TASKS.filter((t) => t.sector === 'mercury').map((t) => [t.id, 0]),
-            ),
-        },
-    };
-}
-export function migrateStoryV8(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 8 || !p.progress || typeof p.progress !== 'object') return value;
-    const previous = STORY_TASKS.filter((t) => t.act <= 4);
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    return {
-        ...p,
-        version: 9,
-        progress: {
-            ...p.progress,
-            ...Object.fromEntries(STORY_TASKS.filter((t) => t.act === 5).map((t) => [t.id, 0])),
-        },
-    };
 }
 export function recordOrbitalConstruction(c: Campaign) {
     const p = c.story;
@@ -935,28 +1361,6 @@ export function constructionManifest(c: Campaign): Cargo {
         );
     return cargo;
 }
-export function migrateStoryV1(value: unknown) {
-    if (!value || typeof value !== 'object') return value;
-    const p = value as StoryProgress;
-    if ((p.version as number) !== 1 || !p.progress || typeof p.progress !== 'object') return value;
-    const added = ['lunar-foundation', 'lunar-installations', 'lunar-commission'];
-    const previous = STORY_TASKS.filter(
-        (t) =>
-            t.act === 1 &&
-            !['lunar-defense', 'lunar-attack'].includes(t.id) &&
-            !added.includes(t.id),
-    );
-    if (
-        Object.keys(p.progress).length !== previous.length ||
-        previous.some((t) => !Object.hasOwn(p.progress, t.id))
-    )
-        return value;
-    return {
-        ...p,
-        version: 2,
-        progress: { ...p.progress, ...Object.fromEntries(added.map((id) => [id, 0])) },
-    };
-}
 export function contributeStory(c: Campaign, id: string): StoryChange | null {
     const p = c.story,
         task = STORY_TASKS.find((t) => t.id === id);
@@ -986,8 +1390,35 @@ export function recordStoryReturn(
     patrolKills = 0,
     venusDefenseWon = false,
     marsDefenseWon = false,
+    clearedBeltRocks: readonly number[] = [],
+    returnedOre = 0,
+    firstBossWon = false,
+    finalBossWon = false,
 ) {
     if (!c.story || c.story.sector !== sector || c.activeRun?.sector !== sector) return null;
+    if (sector === 'pluto' && finalBossWon) {
+        const task = STORY_TASKS.find((t) => t.id === 'pluto-boss')!;
+        if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
+    }
+    if (sector === 'neptune' && firstBossWon) {
+        const task = STORY_TASKS.find((t) => t.id === 'neptune-boss')!;
+        if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
+    }
+    if (sector === 'saturn' && Number.isInteger(returnedOre) && returnedOre > 0) {
+        const task = STORY_TASKS.find((t) => t.id === 'saturn-supply')!;
+        if (storyTaskAvailable(c.story, task) && !c.story.claimed.includes(task.id))
+            c.story.progress[task.id] = Math.min(
+                task.target,
+                c.story.progress[task.id] + returnedOre,
+            );
+    }
+    if (sector === 'belt') {
+        for (const index of new Set(clearedBeltRocks)) {
+            if (!Number.isInteger(index) || index < 0 || index >= BELT_BARRIERS.length) continue;
+            const task = STORY_TASKS.find((t) => t.id === `belt-clear-${index}`)!;
+            if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
+        }
+    }
     if (sector === 'mars' && marsDefenseWon) {
         const task = STORY_TASKS.find((t) => t.id === 'mars-base-defense')!;
         if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
@@ -1000,7 +1431,14 @@ export function recordStoryReturn(
     if (sector === 'lunar' && assaultWon && storyTaskAvailable(c.story, final))
         c.story.progress[final.id] = 1;
     if (
-        (sector === 'mars' || sector === 'mercury') &&
+        (sector === 'mars' ||
+            sector === 'mercury' ||
+            sector === 'belt' ||
+            sector === 'jupiter' ||
+            sector === 'saturn' ||
+            sector === 'uranus' ||
+            sector === 'neptune' ||
+            sector === 'pluto') &&
         Number.isInteger(patrolKills) &&
         patrolKills > 0
     ) {
@@ -1049,31 +1487,55 @@ export function storyObjectives(
     patrolKills = 0,
     venusDefenseWon = false,
     marsDefenseWon = false,
+    clearedBeltRocks: readonly number[] = [],
+    returnedOre = 0,
+    firstBossWon = false,
+    finalBossWon = false,
 ) {
     const p = c.story!;
-    return storyVisibleTasks(p)
+    if (c.activeRun?.mission?.aborted) {
+        data = [];
+        assaultWon = false;
+        patrolKills = 0;
+        venusDefenseWon = false;
+        marsDefenseWon = false;
+        clearedBeltRocks = [];
+        returnedOre = 0;
+        firstBossWon = false;
+        finalBossWon = false;
+    }
+    return storyDiscoveredTasks(p)
         .filter((t) => p.sector !== 'mars' || !beltTechnologyReady(p) || t.act === 5)
         .map((task) => ({
             id: task.id,
-            title: task.title,
+            title: `${c.activeRun?.mission?.task === task.id ? '▶ ' : ''}${task.title}`,
             progress: p.claimed.includes(task.id)
                 ? ''
                 : !storyTaskAvailable(p, task)
                   ? '· później'
-                  : task.kind === 'assault' &&
-                      (task.sector === 'mars'
-                          ? marsDefenseWon
-                          : task.sector === 'venus'
-                            ? venusDefenseWon
-                            : assaultWon)
+                  : task.kind === 'boss' && (task.sector === 'pluto' ? finalBossWon : firstBossWon)
                     ? '· wróć z raportem'
-                    : task.kind === 'patrol'
-                      ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wróć z raportem' : ''}`
-                      : task.kind === 'ore' || task.kind === 'parts' || task.kind === 'delivery'
-                        ? `${p.progress[task.id]}/${task.target}`
-                        : task.site && data.includes(task.site)
-                          ? '· wróć z danymi'
-                          : '',
+                    : task.kind === 'gather'
+                      ? `${Math.min(task.target, p.progress[task.id] + Math.max(0, Math.floor(returnedOre)))}/${task.target}${returnedOre > 0 ? ' · wróć z ładunkiem' : ''}`
+                      : task.kind === 'clearance' &&
+                          clearedBeltRocks.some((i) => task.id === `belt-clear-${i}`)
+                        ? '· wróć z raportem'
+                        : task.kind === 'assault' &&
+                            (task.sector === 'mars'
+                                ? marsDefenseWon
+                                : task.sector === 'venus'
+                                  ? venusDefenseWon
+                                  : assaultWon)
+                          ? '· wróć z raportem'
+                          : task.kind === 'patrol'
+                            ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wróć z raportem' : ''}`
+                            : task.kind === 'ore' ||
+                                task.kind === 'parts' ||
+                                task.kind === 'delivery'
+                              ? `${p.progress[task.id]}/${task.target}`
+                              : task.site && data.includes(task.site)
+                                ? '· wróć z danymi'
+                                : '',
             complete: p.claimed.includes(task.id),
         }));
 }

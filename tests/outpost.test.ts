@@ -334,32 +334,6 @@ test('infiltration contract requires stolen data and safe return, pays once, and
     );
 });
 
-test('v7 save migration preserves fleet, skills, history and interrupted marker while appending one empty contract', () => {
-    const c = campaign('widmo');
-    c.ship!.handling = 1;
-    c.contractCompletions = [2, 3, 4, 5, 0, 0, 0, 0];
-    c.nextShipId = 3;
-    c.reserveShips = [newShip(2, 'mule')];
-    c.bank = { ore: 20, parts: 3 };
-    c.activeRun!.contract = 2;
-    c.contract = 2;
-    const old = { ...c, version: 7, contractCompletions: [2, 3, 4, 5] };
-    const loaded = parseCampaign(JSON.stringify(old));
-    assert.deepEqual(loaded, c);
-    assert.ok(loaded);
-    finishRun(loaded, false, { ore: 0, parts: 0 }, 0, 'refresh', 0, { data: ['outpost'] });
-    assert.deepEqual(loaded.contractCompletions, [2, 3, 4, 5, 0, 0, 0, 0]);
-    assert.deepEqual(loaded.bank, { ore: 20, parts: 3 });
-    const malformed = JSON.parse(JSON.stringify(old));
-    delete malformed.ship.handling;
-    assert.equal(parseCampaign(JSON.stringify(malformed)), null);
-    malformed.ship.handling = 1;
-    malformed.contractCompletions[0] = -1;
-    assert.equal(parseCampaign(JSON.stringify(malformed)), null);
-    const truncated = { ...c, contractCompletions: [2, 3, 4, 5] };
-    assert.equal(parseCampaign(JSON.stringify(truncated)), null);
-});
-
 test('an overlapping rescue takes priority over the terminal and data can be taken afterwards', () => {
     const c = campaign(),
         port = generateSector(71).outpost.terminal;

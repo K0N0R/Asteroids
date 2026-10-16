@@ -127,20 +127,6 @@ test('a blocked mechanic does not block quartermaster work; conversion cannot cr
     advanceCrew(loop, 60);
     assert.equal(loop.bank.ore, initial - 3);
 });
-test('v9 migration preserves ongoing production and initializes an unowned quartermaster', () => {
-    const c = staffed();
-    c.crew.quartermaster = false;
-    queueJob(c, 'refine');
-    beginRun(c, 7);
-    advanceCrew(c, 12);
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 9;
-    delete old.crew.quartermaster;
-    assert.deepEqual(parseCampaign(JSON.stringify(old)), c);
-    const bad = JSON.parse(JSON.stringify(c));
-    delete bad.crew.quartermaster;
-    assert.equal(parseCampaign(JSON.stringify(bad)), null);
-});
 test('save validation rejects orphan jobs, overloaded worker queues and recycling without reserved output room', () => {
     const c = staffed();
     queueJob(c, 'recycle');

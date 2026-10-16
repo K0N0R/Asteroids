@@ -113,7 +113,7 @@ test('Act V requires the Mercury report and leaves the earlier Mars journal and 
     const c = ready();
     assert.ok(actTwoComplete(c.story!));
     assert.equal(storyAct(c.story!), 'AKT V');
-    assert.equal(storyObjectives(c).length, 6);
+    assert.equal(storyObjectives(c).length, 2);
     assert.equal(storyVisibleTasks(c.story!).length, 10);
     assert.ok(
         storyObjectives(c).every(
@@ -291,32 +291,6 @@ test('leaving or refreshing loses a pending base report without losing the struc
         assert.equal(c.story!.progress['mars-base-defense'], 0);
     } finally {
         s.dispose();
-    }
-});
-
-test('v26 migration preserves all previous acts without inventing new projects, attackers or rewards', () => {
-    for (const active of [false, true]) {
-        const c = ready();
-        c.story!.searchedWrecks = ['mars'];
-        if (active) beginRun(c, 1);
-        const old = JSON.parse(JSON.stringify(c));
-        old.version = 26;
-        old.story.version = 8;
-        for (const t of STORY_TASKS.filter((t) => t.act === 5)) delete old.story.progress[t.id];
-        const next = parseCampaign(JSON.stringify(old))!;
-        assert.ok(next);
-        assert.equal(next.version, 27);
-        assert.equal(next.story!.version, 9);
-        assert.deepEqual(next.bank, c.bank);
-        assert.deepEqual(next.activeRun, c.activeRun);
-        assert.deepEqual(next.story!.claimed, c.story!.claimed);
-        assert.deepEqual(next.story!.searchedWrecks, ['mars']);
-        assert.ok(
-            STORY_TASKS.filter((t) => t.act === 5).every((t) => next.story!.progress[t.id] === 0),
-        );
-        assert.equal(generateStorySector(next.story!).enemies.length, 0);
-        old.story.progress.unknown = 0;
-        assert.equal(parseCampaign(JSON.stringify(old)), null);
     }
 });
 

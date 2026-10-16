@@ -176,39 +176,6 @@ test('the advanced contract pays for both distinct sites and completed missions 
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
 
-test('v4 migration preserves campaign and recovery targets while starting a truthful mission journal', () => {
-    const c = newCampaign();
-    c.bank = { ore: 25, parts: 3 };
-    c.ship!.engine = 1;
-    c.crew.mechanic = true;
-    c.recovered = 10;
-    c.nextShipId = 3;
-    c.recoverySignals = [{ id: 2, seed: 15, x: 1000, y: 500, ship: newShip(2), pilot: null }];
-    beginRun(c, 15, 2);
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 4;
-    delete old.contractCompletions;
-    const loaded = parseCampaign(JSON.stringify(old))!;
-    assert.equal(loaded.version, newCampaign().version);
-    assert.deepEqual(loaded.bank, c.bank);
-    assert.deepEqual(loaded.ship, { ...c.ship, hull: 'fighter' });
-    assert.deepEqual(loaded.crew, c.crew);
-    assert.deepEqual(loaded.activeRun, c.activeRun);
-    assert.deepEqual(
-        loaded.recoverySignals,
-        c.recoverySignals.map((signal) => ({
-            ...signal,
-            ship: { ...signal.ship, hull: 'fighter' },
-        })),
-    );
-    assert.equal(loaded.recovered, 10);
-    assert.deepEqual(
-        loaded.contractCompletions,
-        CONTRACTS.map(() => 0),
-    );
-    assert.equal(contractLockReason(loaded, 2), '');
-});
-
 test('save validation accepts new active contracts and rejects malformed journal or contract IDs', () => {
     const c = surveyCampaign();
     beginRun(c, 15);

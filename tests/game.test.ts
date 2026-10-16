@@ -321,27 +321,6 @@ test('fast impacts damage the hull while slow contact is harmless', () => {
     assert.ok(collide(500) < GAME.hull);
 });
 
-test('legacy campaigns migrate without losing pilots, bank, upgrades or the interrupted marker', () => {
-    const c = newCampaign();
-    c.bank = { ore: 30, parts: 3 };
-    c.ship!.engine = 1;
-    beginRun(c, 79);
-    const legacy = JSON.parse(JSON.stringify(c));
-    legacy.version = 1;
-    delete legacy.crew;
-    delete legacy.repairKits;
-    delete legacy.activeRun.repairKits;
-    const loaded = parseCampaign(JSON.stringify(legacy))!;
-    assert.equal(loaded.version, newCampaign().version);
-    assert.deepEqual(loaded.bank, c.bank);
-    assert.deepEqual(loaded.pilots, c.pilots);
-    assert.equal(loaded.ship!.engine, 1);
-    assert.equal(loaded.activeRun!.seed, 79);
-    assert.equal(loaded.activeRun!.repairKits, 0);
-    assert.equal(loaded.crew.mechanic, false);
-    assert.ok(finishRun(loaded, false, { ore: 0, parts: 0 }, 0, 'refresh'));
-});
-
 test('crew inputs are reserved and refunded once, and queue limits prevent extra charges', () => {
     const c = newCampaign();
     c.bank = { ore: 100, parts: 5 };
@@ -567,29 +546,6 @@ test('emergency recovery uses a reserve ship before granting a new free hull', (
     assert.equal(c.ship!.id, original);
     assert.equal(c.nextShipId, nextId);
     assert.equal(c.reserveShips.length, 0);
-});
-
-test('v2 migration preserves modules, crew and resources, assigning the current hull a stable ID', () => {
-    const c = newCampaign();
-    c.ship!.drill = 2;
-    c.crew.mechanic = true;
-    c.bank = { ore: 40, parts: 5 };
-    queueJob(c, 'kit');
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 2;
-    delete old.reserveShips;
-    delete old.nextShipId;
-    delete old.ship.id;
-    delete old.ship.hull;
-    const migrated = parseCampaign(JSON.stringify(old))!;
-    assert.ok(migrated);
-    assert.equal(migrated.ship!.hull, 'fighter');
-    assert.equal(migrated.ship!.drill, 2);
-    assert.equal(migrated.ship!.id, 1);
-    assert.deepEqual(migrated.bank, c.bank);
-    assert.deepEqual(migrated.crew, c.crew);
-    assert.equal(migrated.nextShipId, 2);
-    assert.equal(migrated.reserveShips.length, 0);
 });
 
 test('fleet saves roundtrip and reject unknown hulls or duplicate ship identities', () => {

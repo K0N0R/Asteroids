@@ -17,6 +17,7 @@ export interface MissionInfoData {
     contract: number;
     objectives?: ReturnType<typeof missionObjectives>;
     objectivesTitle?: string;
+    abortMission?: () => void;
 }
 
 export class MissionInfoPopup extends BasePopup<MissionInfoData> {
@@ -31,6 +32,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         contract: contractId,
         objectives,
         objectivesTitle,
+        abortMission,
     }: MissionInfoData) {
         clear(this.content);
         const root = this.content;
@@ -203,21 +205,31 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         });
         label(
             root,
-            s.mercurySector
-                ? s.solar.summary
-                : (s.area === 'surface' || s.orbitalBaseSector) && s.defenseSummary
-                  ? s.defenseSummary
-                  : objectivesTitle
-                    ? c.story?.sector === 'venus'
-                        ? '8 placówka · E budowa · G obrona. Osłonę przygotujesz w stacji.'
-                        : c.story?.sector === 'mars'
-                          ? 'Raporty walk i odczyty zabezpieczysz po powrocie. Pas wymaga nowej technologii.'
-                          : c.story?.sector === 'lunar'
-                            ? 'Dostawy zostają na budowie. Raport odbioru dowieź do Satuk 15.'
-                            : 'Dane zabezpieczysz po powrocie. Rudę przekażesz w stacji.'
-                    : objectives
-                      ? 'Próba lokalna · bez nagród i strat w kampanii'
-                      : `Premia po powrocie: ${contract.rewardOre} rudy · ${contract.rewardParts} komponentów`,
+            s.missionStatus
+                ? s.missionStatus
+                : s.outerSector
+                  ? s.outerStatus
+                  : s.saturnSector
+                    ? s.saturnStatus
+                    : s.jupiterSector
+                      ? s.jupiterStatus
+                      : s.beltSector
+                        ? s.beltStatus
+                        : s.mercurySector
+                          ? s.solar.summary
+                          : (s.area === 'surface' || s.orbitalBaseSector) && s.defenseSummary
+                            ? s.defenseSummary
+                            : objectivesTitle
+                              ? c.story?.sector === 'venus'
+                                  ? '8 placówka · E budowa · G obrona. Osłonę przygotujesz w stacji.'
+                                  : c.story?.sector === 'mars'
+                                    ? 'Raporty walk i odczyty zabezpieczysz po powrocie. Pas wymaga nowej technologii.'
+                                    : c.story?.sector === 'lunar'
+                                      ? 'Dostawy zostają na budowie. Raport odbioru dowieź do Satuk 15.'
+                                      : 'Dane zabezpieczysz po powrocie. Rudę przekażesz w stacji.'
+                              : objectives
+                                ? 'Próba lokalna · bez nagród i strat w kampanii'
+                                : `Premia po powrocie: ${contract.rewardOre} rudy · ${contract.rewardParts} komponentów`,
             860,
             456,
             15,
@@ -280,15 +292,25 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             c.story
                 ? s.area === 'surface'
                     ? 'KSIĘŻYC · 1 Orbita · 2 Złoże · 6 Ratunek · 7 Budowa · G Obrona przy budowie: 2 s'
-                    : c.story.sector === 'mercury'
-                      ? 'MERKURY · 1 Satuk 15 · 3 / 4 / 5 Schronienia · 7 Pomiary · 8 Technologia po zwiadzie i walce · F Przeciwnik'
-                      : c.story.sector === 'venus'
-                        ? 'WENUS · 1 Satuk 15 · 2 Złoże · 4 Pozostałości · 6 Ratunek · 7 Przekaźnik · 8 Placówka po zwiadzie'
-                        : s.marsBaseSector
-                          ? 'MARS · 1 Satuk 15 · 2 Złoże · 6 Ratunek · 7 Baza · 8 Pomiary po montażu · G Obrona przy bazie · F Patrole'
-                          : c.story.sector === 'mars'
-                            ? 'MARS · 1 Satuk 15 · 2 Złoże · 4 Pozostałości · 6 Ratunek · 7 Ślad · 8 Pas po rozpoznaniu · F Przeciwnik'
-                            : '1 Satuk 15 · 2 Złoże · 3 Księżyc po zwiadzie · 4 Pozostałości · 6 Ratunek · 7 Przekaźnik · 8 Dalsza orbita'
+                    : c.story.sector === 'pluto'
+                      ? 'PLUTON · 7 Zwiad · 0 Baza / F Osłona · 3 Finał po obu raportach: G 2 s · 8 Dodatkowe odczyty · 1 Powrót'
+                      : s.outerSector
+                        ? 'URAN / NEPTUN · 7 Zwiad · 0 Baza po zwiadzie · E Dane / G Skaner · F Kontakty · 8 Trasa · Neptun: 3 Starcie / G 2 s'
+                        : s.saturnSector
+                          ? 'SATURN · 1 Satuk 15 · 2 Złoże · 5 Kryształy po zwiadzie · 7 Pomiary · F Patrol · 8 Dalsza trasa po raportach'
+                          : s.jupiterSector
+                            ? 'JOWISZ · 1 Satuk 15 · 2 Złoże · 7 Zwiad · 0 Terminal po zwiadzie · F Patrole · 8 Pakiet po raportach'
+                            : s.beltSector
+                              ? 'PAS · 1 Satuk 15 · 3 / 4 / 5 Przeszkody po zwiadzie · 7 Wejście · 8 Granica po oczyszczeniu · F Opcjonalne patrole'
+                              : c.story.sector === 'mercury'
+                                ? 'MERKURY · 1 Satuk 15 · 3 / 4 / 5 Schronienia · 7 Pomiary · 8 Technologia po zwiadzie i walce · F Przeciwnik'
+                                : c.story.sector === 'venus'
+                                  ? 'WENUS · 1 Satuk 15 · 2 Złoże · 4 Pozostałości · 6 Ratunek · 7 Przekaźnik · 8 Placówka po zwiadzie'
+                                  : s.marsBaseSector
+                                    ? 'MARS · 1 Satuk 15 · 2 Złoże · 6 Ratunek · 7 Baza · 8 Pomiary po montażu · G Obrona przy bazie · F Patrole'
+                                    : c.story.sector === 'mars'
+                                      ? 'MARS · 1 Satuk 15 · 2 Złoże · 4 Pozostałości · 6 Ratunek · 7 Ślad · 8 Pas po rozpoznaniu · F Przeciwnik'
+                                      : '1 Satuk 15 · 2 Złoże · 3 Księżyc po zwiadzie · 4 Pozostałości · 6 Ratunek · 7 Przekaźnik · 8 Dalsza orbita'
                 : '1 Baza · 2 Ruda · 3 Pas · 4 Wrak · 5 Żyła · 6 Ratunek · 7 Lumen · 8 Mnemos · 9 Skrytki · 0 Cerber',
             280,
             753,
@@ -306,6 +328,8 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             C.muted,
         );
         label(root, 'Lot i praca załogi są zatrzymane.', 280, 792, 14, C.muted);
+        if (abortMission && s.canAbortMission)
+            button(root, 'PRZERWIJ MISJĘ…', 825, 773, 270, abortMission, false, true, 36, 14);
         button(root, 'WRÓĆ DO LOTU', 1120, 773, 200, () => this.promise.resolve(), true, true, 36);
     }
 }

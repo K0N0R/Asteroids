@@ -71,6 +71,7 @@ export function missionObjectives(
 
 // Only actionable context belongs on the flight HUD. Explanations live under Tab.
 export function flightHint(s: MissionSimulation) {
+    if (s.dockable && s.missionStatus) return s.missionStatus;
     if (s.surfaceContext) return s.surfaceContext;
     const percent = (progress: number, seconds: number) =>
         `${Math.min(100, Math.floor((progress / seconds) * 100))}%`;
@@ -134,15 +135,18 @@ export function flightHint(s: MissionSimulation) {
             : s.cargo.parts >= 1
               ? ' · G  Sabotaż: 3 s / 1 komponent'
               : ' · Sabotaż wymaga 1 komponentu w ładowni';
-        const action = s.outpost.equipmentSecured
-            ? '1  Baza'
-            : s.outpost.secured
-              ? !s.equipmentRoom
-                  ? 'Magazyn wymaga 3 wolnych miejsc w ładowni'
-                  : !s.outpost.equipmentArmed
-                    ? 'Puść E · dostęp do magazynu'
-                    : `E  Zabierz ${WEAPONS[s.outpostEquipment].name} · 5 s / 3 miejsca`
-              : 'E  Wykradnij dane · 4 s';
+        const action =
+            s.storyMode && s.outpost.secured
+                ? '1 Satuk 15 · wróć z danymi'
+                : s.outpost.equipmentSecured
+                  ? '1  Baza'
+                  : s.outpost.secured
+                    ? !s.equipmentRoom
+                        ? 'Magazyn wymaga 3 wolnych miejsc w ładowni'
+                        : !s.outpost.equipmentArmed
+                          ? 'Puść E · dostęp do magazynu'
+                          : `E  Zabierz ${WEAPONS[s.outpostEquipment].name} · 5 s / 3 miejsca`
+                    : 'E  Wykradnij dane · 4 s';
         if (s.outpost.disabledTime > 0)
             return `${action} · skaner wyłączony ${Math.ceil(s.outpost.disabledTime)} s`;
         if (s.outpost.alarm > 0)

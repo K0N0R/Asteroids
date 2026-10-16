@@ -129,12 +129,3 @@ test('Aegis rewards require actual data and a safe return, and pay once', () => 
     assert.deepEqual(failure?.reward, { ore: 0, parts: 0 });
     assert.equal(lost.contractCompletions[6], 0);
 });
-
-test('v12 migration appends only the new contract without changing an active run or existing history', () => {
-    const c = ready();
-    c.contract = 3;
-    beginRun(c, 71);
-    const old = { ...c, version: 12, contractCompletions: c.contractCompletions.slice(0, 6) };
-    assert.deepEqual(parseCampaign(JSON.stringify(old)), c);
-    assert.equal(parseCampaign(JSON.stringify({ ...old, version: 13 })), null);
-});

@@ -151,21 +151,3 @@ test('shield upgrades charge atomically, respect workshop levels, and contribute
     assert.equal(up.parts - bare.parts, 15);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
-
-test('v14 fleets and salvage signals gain level-zero shields while malformed new shield levels fail', () => {
-    const c = newCampaign();
-    c.nextShipId = 4;
-    c.reserveShips = [newShip(2, 'widmo')];
-    c.recoverySignals = [{ id: 3, seed: 71, x: 3000, y: 0, pilot: null, ship: newShip(3, 'tug') }];
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 14;
-    delete old.ship.shield;
-    delete old.reserveShips[0].shield;
-    delete old.recoverySignals[0].ship.shield;
-    assert.deepEqual(parseCampaign(JSON.stringify(old)), c);
-    for (const value of [undefined, -1, 4, 1.5, null, '1']) {
-        const bad = JSON.parse(JSON.stringify(c));
-        bad.reserveShips[0].shield = value;
-        assert.equal(parseCampaign(JSON.stringify(bad)), null);
-    }
-});

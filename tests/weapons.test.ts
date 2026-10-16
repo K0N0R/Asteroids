@@ -72,33 +72,6 @@ test('mounts are per hull and their purchase value is included in scrapping once
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
 
-test('legacy saves migrate every hull and interrupted run without granting new weapons', () => {
-    const c = ready();
-    c.reserveShips = [newShip(2, 'swift')];
-    c.nextShipId = 4;
-    c.recoverySignals = [{ id: 3, seed: 71, x: 1800, y: 0, pilot: null, ship: newShip(3, 'mule') }];
-    beginRun(c, 71);
-    const old = JSON.parse(JSON.stringify(c));
-    old.version = 10;
-    for (const ship of [old.ship, ...old.reserveShips, old.recoverySignals[0].ship]) {
-        delete ship.weapon;
-        delete ship.weapons;
-    }
-    const migrated = parseCampaign(JSON.stringify(old))!;
-    assert.ok(migrated);
-    assert.equal(migrated.version, newCampaign().version);
-    for (const ship of [
-        migrated.ship!,
-        ...migrated.reserveShips,
-        migrated.recoverySignals[0].ship!,
-    ]) {
-        assert.equal(ship.weapon, 'standard');
-        assert.deepEqual(ship.weapons, ['standard']);
-    }
-    assert.equal(migrated.activeRun!.seed, 71);
-    assert.deepEqual(migrated.bank, c.bank);
-});
-
 test('new saves reject unknown, duplicate, missing and unowned mount selections including wrecks', () => {
     for (const mutate of [
         (s: any) => {

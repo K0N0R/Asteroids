@@ -1,7 +1,12 @@
+import { missionObjectiveMet, missionOrderStatus } from '../state/missionOrders';
+import { FirstBossEncounter, type FirstBossHost } from './firstBoss';
 import { SolarExposure, inSolarShadow } from './solarExposure';
 import { generateStorySector, marsCorridorFleet } from '../worlds/storySector';
 import {
     storyRadius,
+    NEPTUNE_ARENA,
+    PLUTO_ARENA,
+    plutoFinaleReady,
     deliverLunarCargo,
     lunarBuildStage,
     recordLunarDefense,
@@ -63,6 +68,7 @@ export interface FlightInput {
     mine?: boolean;
 }
 export interface Rock {
+    beltBarrier?: number;
     defense?: boolean;
     id: number;
     body: RAPIER.RigidBody;
@@ -138,6 +144,10 @@ export class MissionSimulation {
     readonly fortressColliders = new Set<number>();
     enemyKills = 0;
     storyPatrolKills = 0;
+    readonly firstBoss: FirstBossEncounter;
+    bossStartProgress = 0;
+    private bossArmed = true;
+    readonly clearedBeltRocks = new Set<number>();
     readonly statistics = {
         hullDamage: 0,
         shieldDamage: 0,
@@ -313,7 +323,11 @@ export class MissionSimulation {
         for (const rock of this.sector.rocks) {
             const signal = this.recoverySignal;
             // A clear initial approach; moving rocks can still drift into the salvage zone.
-            if (!signal || Math.hypot(rock.x - signal.x, rock.y - signal.y) > rock.radius + 180)
+            if (
+                rock.beltBarrier !== undefined ||
+                !signal ||
+                Math.hypot(rock.x - signal.x, rock.y - signal.y) > rock.radius + 180
+            )
                 this.addRock(rock);
         }
         this.enemies = new EnemyFleet(this.world, [
@@ -324,7 +338,138 @@ export class MissionSimulation {
             campaign.activeRun?.contract === 7
                 ? new ResearchEscort(this.world, this.sector.researchSite)
                 : null;
+        this.firstBoss = new FirstBossEncounter(this.campaign.story?.sector === 'pluto');
         this.previous = this.position;
+    }
+    get missionReport() {
+        return {
+            data: [...this.surveyData],
+            patrolKills: this.storyPatrolKills,
+            firstBossWon: this.firstBoss.complete && !this.firstBoss.finale,
+            finalBossWon: this.firstBoss.complete && this.firstBoss.finale,
+        };
+    }
+    get missionStatus() {
+        return missionOrderStatus(this.campaign, this.missionReport);
+    }
+    get missionReturnBlocked() {
+        return (
+            !!this.campaign.activeRun?.mission &&
+            !this.campaign.activeRun.mission.aborted &&
+            !missionObjectiveMet(this.campaign, this.missionReport)
+        );
+    }
+    get canAbortMission() {
+        return (
+            !!this.campaign.activeRun?.mission &&
+            !this.campaign.activeRun.mission.aborted &&
+            !this.ended
+        );
+    }
+    abortMission() {
+        if (!this.canAbortMission) return false;
+        this.campaign.activeRun!.mission!.aborted = true;
+        this.dockProgress = 0;
+        this.setNotice(this.missionStatus);
+        return true;
+    }
+    get storyMode() {
+        return !!this.campaign.story;
+    }
+    get outerSector() {
+        return (
+            this.campaign.story?.sector === 'pluto' ||
+            this.campaign.story?.sector === 'uranus' ||
+            this.campaign.story?.sector === 'neptune'
+        );
+    }
+    get outerSurveyed() {
+        const p = this.campaign.story;
+        return !!p && this.outerSector && p.claimed.includes(`${p.sector}-survey`);
+    }
+    get firstBossAvailable() {
+        const p = this.campaign.story;
+        return (
+            (p?.sector === 'pluto' && plutoFinaleReady(p) && !p.claimed.includes('pluto-boss')) ||
+            (p?.sector === 'neptune' &&
+                p.claimed.includes('neptune-base') &&
+                !p.claimed.includes('neptune-boss'))
+        );
+    }
+    get bossArena() {
+        return this.campaign.story?.sector === 'pluto' ? PLUTO_ARENA : NEPTUNE_ARENA;
+    }
+    get nearbyBossArena() {
+        return (
+            this.firstBossAvailable &&
+            Math.hypot(this.position.x - this.bossArena.x, this.position.y - this.bossArena.y) < 180
+        );
+    }
+    get outerStatus() {
+        const p = this.campaign.story!;
+        if (this.firstBossAvailable) return this.firstBoss.summary;
+        if (p.sector === 'pluto' && p.claimed.includes('pluto-boss'))
+            return 'Cele operacyjne kampanii ukończone · wcześniejsze sektory dostępne';
+        if (p.claimed.includes(`${p.sector}-route`))
+            return p.sector === 'uranus'
+                ? 'Trasa do Neptuna otwarta · wybierz sektor w stacji'
+                : 'Cele aktu IX rozliczone · zewnętrzna trasa zabezpieczona';
+        if (!this.outerSurveyed) return '7 zwiad podejścia · E odczyt / 1 powrót';
+        if (this.outpost.secured && !p.claimed.includes(`${p.sector}-base`))
+            return 'Dane bazy na pokładzie · wróć do Satuk 15';
+        if (this.outpost.alarm > 0)
+            return `Baza · alarm ${Math.ceil(this.outpost.alarm)} s · terminal zablokowany`;
+        return p.sector === 'pluto'
+            ? '0 terminal bazy · E dane / G skaner: 1 komponent · F osłona · 8 dodatkowe odczyty'
+            : '0 terminal bazy · E dane / G skaner: 1 komponent · F kontakty · 8 dalszy odczyt po raportach';
+    }
+    get saturnSector() {
+        return this.campaign.story?.sector === 'saturn';
+    }
+    get saturnStatus() {
+        const p = this.campaign.story!;
+        if (p.claimed.includes('saturn-route'))
+            return 'Cele Saturna ukończone · zaopatrzenie i trasa zabezpieczone';
+        if (!p.claimed.includes('saturn-survey'))
+            return 'Saturn · 7 rozpoznanie · 2 złoże · E odczyt / 1 powrót';
+        if (p.claimed.includes('saturn-supply') && p.claimed.includes('saturn-patrol'))
+            return 'Zaopatrzenie i rejon zabezpieczone · 8 dalsza trasa · E odczyt';
+        return `Zaopatrzenie ${p.progress['saturn-supply']}/36 · na pokładzie ${this.cargo.ore} rudy · 2 złoże / 5 kryształy / F patrol`;
+    }
+    get jupiterSurveyed() {
+        return this.jupiterSector && !!this.campaign.story?.claimed.includes('jupiter-survey');
+    }
+    get jupiterSector() {
+        return this.campaign.story?.sector === 'jupiter';
+    }
+    get jupiterStatus() {
+        const p = this.campaign.story!;
+        if (p.claimed.includes('jupiter-observations'))
+            return 'Pakiet obserwacyjny zabezpieczony · oczekuj dalszych rozkazów';
+        if (!p.claimed.includes('jupiter-survey'))
+            return 'Jowisz · 7 zwiad podejścia · E odczyt / 1 powrót';
+        if (p.claimed.includes('jupiter-uplink'))
+            return 'Dane węzła zabezpieczone · F patrole / 8 pakiet po raportach';
+        if (this.outpost.secured) return 'Dane węzła na pokładzie · wróć do Satuk 15';
+        if (this.outpost.alarm > 0)
+            return `Węzeł · alarm ${Math.ceil(this.outpost.alarm)} s · terminal zablokowany`;
+        if (this.outpost.disabledTime > 0)
+            return `Węzeł · skaner wyłączony ${Math.ceil(this.outpost.disabledTime)} s · E pobieranie`;
+        return '0 terminal · E dane bez alarmu · G wyłącza skaner: 1 komponent / 20 s · F patrole';
+    }
+    get beltSector() {
+        return this.campaign.story?.sector === 'belt';
+    }
+    get beltStatus() {
+        const p = this.campaign.story!;
+        if (p.claimed.includes('belt-exit'))
+            return 'Akt VI ukończony · przejście pasa potwierdzone';
+        if (!p.claimed.includes('belt-survey'))
+            return 'Pas asteroid · 7 pomiary wejścia · wróć z odczytem';
+        const confirmed = [0, 1, 2].filter((i) => p.claimed.includes(`belt-clear-${i}`)).length;
+        if (confirmed === 3)
+            return 'Trasa oczyszczona · 8 zewnętrzna granica · E odczyt / 1 powrót';
+        return `Przeszkody ${confirmed}/3 zatwierdzone · ${this.clearedBeltRocks.size} na raport · 3 / 4 / 5 skały · PPM laser`;
     }
     get mercurySector() {
         return this.campaign.story?.sector === 'mercury';
@@ -495,7 +640,22 @@ export class MissionSimulation {
         );
     }
     get landmarks() {
-        return this.sector.landmarks.filter(
+        const landmarks = this.beltSector
+            ? this.sector.landmarks.flatMap((l) => {
+                  if (l.key < 3 || l.key > 5) return [l];
+                  const rock = [...this.rocks.values()].find((r) => r.beltBarrier === l.key - 3);
+                  return rock
+                      ? [
+                            {
+                                ...l,
+                                x: rock.body.translation().x * P,
+                                y: rock.body.translation().y * P,
+                            },
+                        ]
+                      : [];
+              })
+            : this.sector.landmarks;
+        return landmarks.filter(
             (l) =>
                 (l.area ?? 'orbit') === this.area &&
                 (!this.marsBaseSector || this.orbitalBaseStage > 0 || l.siteId !== 'archive'),
@@ -521,6 +681,10 @@ export class MissionSimulation {
         );
     }
     get surfaceContext() {
+        if (this.outerSector && (this.firstBoss.active || this.nearbyBossArena))
+            return this.bossStartProgress > 0
+                ? `Przygotowanie starcia · ${Math.floor((this.bossStartProgress / 2) * 100)}%`
+                : this.firstBoss.summary;
         if (this.marsBaseSector)
             return this.nearbyOrbitalBase || this.marsAssault.active ? this.marsBaseStatus : '';
         if (this.venusSector)
@@ -1243,6 +1407,7 @@ export class MissionSimulation {
         this.updateSalvage(input, dt);
         this.updateSurface(input, dt);
         this.updateOrbitalBase(input, dt);
+        this.updateFirstBoss(input, dt);
         this.updateLunarDefense(input, dt);
         this.updateScan(input, dt);
         if (
@@ -1438,10 +1603,11 @@ export class MissionSimulation {
                 spec.guards.map((guard) => guard.id),
                 this.position,
             );
-            this.setNotice('Alarm Cerbera · terminal zablokowany, drony ruszyły w pościg.');
+            this.setNotice(`Alarm: ${spec.name} · terminal zablokowany, drony ruszyły w pościg.`);
         }
         if (this.outpost.secured && !input.interact) this.outpost.equipmentArmed = true;
         const canSteal =
+            !this.campaign.story &&
             this.outpost.secured &&
             this.outpost.equipmentArmed &&
             !this.outpost.equipmentSecured &&
@@ -1465,7 +1631,9 @@ export class MissionSimulation {
             this.surveyData.add('outpost');
             this.addLoot(spec.terminal.x + 18, spec.terminal.y, 'parts', 6);
             this.addLoot(spec.terminal.x - 18, spec.terminal.y, 'ore', 4);
-            this.setNotice('Dane wykradzione · chwytaki mogą zabrać skrzynie. Wróć do Aurory.');
+            this.setNotice(
+                `Dane wykradzione · chwytaki mogą zabrać skrzynie. Wróć do ${this.stationDestination}.`,
+            );
             this.events.push({ ...spec.terminal, kind: 'collect', rich: true, sound: 'complete' });
         }
     }
@@ -1530,13 +1698,18 @@ export class MissionSimulation {
         interrupt = true,
         environmental = false,
     ) {
+        if (enemy.boss)
+            damage = Math.min(
+                Math.max(0, damage),
+                Math.max(0, enemy.health - this.firstBoss.damageFloor),
+            );
         const actualDamage = Math.min(Math.max(0, enemy.health), Math.max(0, damage));
         if (environmental) this.statistics.environmentalEnemyDamage += actualDamage;
         else this.statistics.enemyDamage += actualDamage;
         this.events.push({ ...point, kind: 'hit', strength: damage });
         const velocity = enemy.body.linvel(),
             wreckAngle = enemy.body.rotation();
-        const wreck = this.enemies.damage(enemy.id, damage, interrupt);
+        const wreck = this.enemies.damage(enemy.id, damage, enemy.boss ? false : interrupt);
         if (!wreck) return;
         this.aegis?.hostiles.delete(enemy.id);
         this.clearAtlasTarget(enemy.id);
@@ -1601,6 +1774,7 @@ export class MissionSimulation {
         this.tow.velocity = { x: velocity.x * P, y: velocity.y * P };
     }
     private deliverTow(selected?: SalvageBody) {
+        if (this.campaign.activeRun?.mission?.aborted) return;
         for (const item of selected ? [selected] : [...this.salvage.towing.values()]) {
             const record = deliverSalvage(this.campaign, item.id, item.source);
             if (!record) continue;
@@ -1734,20 +1908,28 @@ export class MissionSimulation {
         if (enemy.target === 'player') this.aegis?.hostiles.add(enemy.id);
         const p = enemyPosition(enemy),
             a = enemy.body.rotation(),
-            v = enemy.body.linvel(),
-            id = ++this.ids;
-        this.addBullet(id, {
-            id,
-            x: p.x + Math.cos(a) * (enemy.config.radius + 11),
-            y: p.y + Math.sin(a) * (enemy.config.radius + 11),
-            vx: v.x * P + Math.cos(a) * enemy.config.shotSpeed,
-            vy: v.y * P + Math.sin(a) * enemy.config.shotSpeed,
-            life: enemy.config.shotLife,
-            team: 'enemy',
-            heavy: enemy.kind === 'lancer',
-            damage: enemy.config.shotDamage,
-            shooterId: enemy.id,
-        });
+            v = enemy.body.linvel();
+        for (const offset of enemy.boss && this.firstBoss.phase === 3
+            ? [-0.3, -0.15, 0, 0.15, 0.3]
+            : enemy.boss && this.firstBoss.phase === 2
+              ? [-0.18, 0, 0.18]
+              : [0]) {
+            if (this.bullets.size >= 80) break;
+            const id = ++this.ids,
+                shotAngle = a + offset;
+            this.addBullet(id, {
+                id,
+                x: p.x + Math.cos(shotAngle) * (enemy.config.radius + 11),
+                y: p.y + Math.sin(shotAngle) * (enemy.config.radius + 11),
+                vx: v.x * P + Math.cos(shotAngle) * enemy.config.shotSpeed,
+                vy: v.y * P + Math.sin(shotAngle) * enemy.config.shotSpeed,
+                life: enemy.config.shotLife,
+                team: 'enemy',
+                heavy: enemy.kind === 'lancer',
+                damage: enemy.config.shotDamage,
+                shooterId: enemy.id,
+            });
+        }
         this.events.push({
             ...p,
             kind: 'shot',
@@ -2769,6 +2951,12 @@ export class MissionSimulation {
     }
     private breakRock(rock: Rock) {
         this.statistics.rocksDestroyed++;
+        if (this.beltSector && rock.beltBarrier !== undefined) {
+            this.clearedBeltRocks.add(rock.beltBarrier);
+            this.setNotice(
+                `Przeszkoda ${rock.beltBarrier + 1} usunięta. Wróć z raportem do Satuk 15.`,
+            );
+        }
         const p = rock.body.translation(),
             v = rock.body.linvel();
         const x = p.x * P,
@@ -2879,6 +3067,91 @@ export class MissionSimulation {
                 });
         },
     };
+    private firstBossHost: FirstBossHost = {
+        spawn: () => {
+            const point = { x: this.bossArena.x + 320, y: this.bossArena.y };
+            this.enemies.add([
+                {
+                    ...point,
+                    id: this.firstBoss.rules.id,
+                    home: { ...this.bossArena },
+                    phase: Math.PI,
+                    kind: 'lancer',
+                    boss: true,
+                    finalBoss: this.firstBoss.finale,
+                },
+            ]);
+            this.enemies.alert([this.firstBoss.rules.id], this.position);
+        },
+        enemy: () => this.enemies.enemies.get(this.firstBoss.rules.id),
+        remove: () => {
+            this.enemies.remove(this.firstBoss.rules.id);
+            this.aegis?.hostiles.delete(this.firstBoss.rules.id);
+            this.clearAtlasTarget(this.firstBoss.rules.id);
+            for (const [id, bullet] of this.bullets)
+                if (bullet.shooterId === this.firstBoss.rules.id) this.bullets.delete(id);
+        },
+    };
+    private updateFirstBoss(input: FlightInput, dt: number) {
+        if (!this.firstBossAvailable) return;
+        if (!input.sabotage) this.bossArmed = true;
+        const ready =
+            this.bossArmed &&
+            this.nearbyBossArena &&
+            !this.firstBoss.active &&
+            !this.firstBoss.complete &&
+            input.sabotage &&
+            !input.interact &&
+            !input.fire &&
+            !input.mine &&
+            !input.repair &&
+            !this.thrusting &&
+            this.speed < 60 &&
+            this.hull > 0 &&
+            this.damageCooldown <= 0;
+        if (!ready) this.bossStartProgress = 0;
+        else if ((this.bossStartProgress += dt) + 1e-8 >= 2 && this.firstBoss.start()) {
+            this.bossStartProgress = 0;
+            this.bossArmed = false;
+            this.setNotice(this.firstBoss.summary);
+        }
+        if (!this.firstBoss.active) return;
+        if (
+            this.hull <= 0 ||
+            Math.hypot(this.position.x - this.bossArena.x, this.position.y - this.bossArena.y) >
+                this.firstBoss.rules.arenaRadius
+        ) {
+            this.firstBoss.fail(
+                this.firstBossHost,
+                this.hull <= 0 ? 'Statek utracony' : 'Opuszczono rejon starcia',
+            );
+            this.bossArmed = false;
+            this.setNotice(this.firstBoss.summary);
+            return;
+        }
+        const phase = this.firstBoss.phase;
+        const contact = this.firstBossHost.enemy();
+        const contactPoint = contact ? enemyPosition(contact) : this.bossArena;
+        this.firstBoss.step(dt, this.firstBossHost);
+        if (phase !== this.firstBoss.phase)
+            this.setNotice(
+                `Ciężka jednostka · faza ${this.firstBoss.phase} · uwaga na salwy wachlarzowe`,
+            );
+        if (this.firstBoss.complete) {
+            this.setNotice(this.firstBoss.summary);
+            this.events.push({ ...this.bossArena, kind: 'collect', sound: 'complete' });
+            if (this.firstBoss.finale)
+                this.events.push({
+                    ...contactPoint,
+                    kind: 'explosion',
+                    strength: 52,
+                    sound: 'destroy',
+                });
+        } else if (this.firstBoss.state === 'failed') {
+            this.bossArmed = false;
+            this.setNotice(this.firstBoss.summary);
+        }
+    }
     private assaultHost: AssaultHost = {
         spawn: (kind, wave) => {
             const id = ++this.assaultSequence,
@@ -3140,6 +3413,11 @@ export class MissionSimulation {
     }
     private interact(dt: number) {
         if (this.dockable) {
+            if (this.missionReturnBlocked) {
+                this.dockProgress = 0;
+                this.setNotice('Najpierw wykonaj cel misji · TAB: awaryjne przerwanie');
+                return;
+            }
             this.dockProgress += dt;
             if (this.dockProgress >= 1.2 && this.hull > 0) {
                 this.deliverTow();

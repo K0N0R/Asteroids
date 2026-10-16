@@ -5,6 +5,7 @@ export interface Point {
     y: number;
 }
 export interface RockSpec extends Point {
+    beltBarrier?: number;
     defense?: boolean;
     radius: number;
     rich: boolean;
@@ -32,6 +33,8 @@ export interface Landmark extends Point {
     radius: number;
 }
 export interface EnemySpec extends Point {
+    boss?: boolean;
+    finalBoss?: boolean;
     assault?: boolean;
     storyPatrol?: boolean;
     kind?: EnemyKind;

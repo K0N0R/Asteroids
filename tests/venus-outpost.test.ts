@@ -303,29 +303,3 @@ test('an unreturned victory is lost on refresh and lunar reports cannot complete
         s.dispose();
     }
 });
-
-test('v24 migration preserves prepared materials and active markers without inventing buildings or shielding', () => {
-    for (const active of [false, true]) {
-        const c = ready();
-        if (active) beginRun(c, 1);
-        const old = JSON.parse(JSON.stringify(c));
-        old.version = 24;
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('mercury-')) delete old.story.progress[key];
-        for (const key of Object.keys(old.story.progress))
-            if (key.startsWith('mars-base-') || key === 'mars-corridor' || key === 'mars-route')
-                delete old.story.progress[key];
-        old.story.version = 6;
-        for (const id of VENUS_EXPANSION_TASKS) delete old.story.progress[id];
-        const next = parseCampaign(JSON.stringify(old))!;
-        assert.ok(next);
-        assert.equal(next.version, 27);
-        assert.equal(next.story!.version, 9);
-        assert.deepEqual(next.activeRun, c.activeRun);
-        assert.deepEqual(next.bank, c.bank);
-        assert.deepEqual(next.story!.claimed, c.story!.claimed);
-        assert.ok(VENUS_EXPANSION_TASKS.every((id) => next.story!.progress[id] === 0));
-        old.story.progress.unknown = 0;
-        assert.equal(parseCampaign(JSON.stringify(old)), null);
-    }
-});

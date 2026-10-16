@@ -1,13 +1,7 @@
+import { hullUnlocked } from './fleetUnlocks';
+import { selectableMission, missionObjectiveMet, type MissionOrder } from './missionOrders';
 import {
     newStoryProgress,
-    migrateStoryV1,
-    migrateStoryV2,
-    migrateStoryV3,
-    migrateStoryV4,
-    migrateStoryV5,
-    migrateStoryV6,
-    migrateStoryV7,
-    migrateStoryV8,
     storyRadius,
     constructionManifest,
     validStory,
@@ -85,7 +79,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 27;
+    version: 34;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
@@ -97,6 +91,7 @@ export interface Campaign {
     selectedPilot: number;
     nextPilotId: number;
     activeRun: {
+        mission?: MissionOrder;
         pilotId: number;
         seed: number;
         contract: number;
@@ -119,6 +114,7 @@ export interface Campaign {
 }
 
 export interface RunResult {
+    aborted?: boolean;
     success: boolean;
     cargo: Cargo;
     pilotName: string;
@@ -149,7 +145,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 27,
+        version: 34,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
@@ -184,16 +180,7 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (
-            !object(p) ||
-            ![
-                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-                24, 25, 26, 27,
-            ].includes(p.version as number) ||
-            !cargo(p.bank) ||
-            !object(p.station)
-        )
-            return null;
+        if (!object(p) || p.version !== 34 || !cargo(p.bank) || !object(p.station)) return null;
         if (!integer(p.station.workshop, 2) || !integer(p.station.storage, 3)) return null;
         if (
             p.ship !== null &&
@@ -264,15 +251,6 @@ export function parseCampaign(json: string | null): Campaign | null {
                 return null;
             if (new Set(deliveries.map((d) => d.id)).size !== deliveries.length) return null;
         }
-        if (p.version === 1) {
-            p.version = 2;
-            p.crew = newCrew();
-            p.repairKits = p.sorties === 0 ? 1 : 0;
-            if (object(p.activeRun)) p.activeRun.repairKits = 0;
-        }
-        if ((p.version as number) < 10 && object(p.crew)) p.crew.quartermaster = false;
-        if ((p.version as number) < 16 && object(p.crew)) p.crew.mechanicAboard = false;
-        if ((p.version as number) < 17 && object(p.crew)) p.crew.quartermasterAboard = false;
         if (
             !object(p.crew) ||
             typeof p.crew.mechanic !== 'boolean' ||
@@ -335,12 +313,6 @@ export function parseCampaign(json: string | null): Campaign | null {
                 ))
         )
             return null;
-        if (p.version === 2) {
-            p.version = 3;
-            if (object(p.ship)) p.ship = { ...p.ship, id: 1, hull: 'prospector' };
-            p.reserveShips = [];
-            p.nextShipId = p.ship ? 2 : 1;
-        }
         const validShip = (ship: unknown): ship is Ship =>
             object(ship) &&
             integer(ship.id) &&
@@ -348,18 +320,16 @@ export function parseCampaign(json: string | null): Campaign | null {
             typeof ship.hull === 'string' &&
             Object.hasOwn(HULLS, ship.hull) &&
             ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
-            (((p.version as number) < 15 && ship.shield === undefined) ||
-                integer(ship.shield, 3)) &&
-            ((p.version as number) < 7 || integer(ship.handling, 3)) &&
-            ((p.version as number) < 11 ||
-                (typeof ship.weapon === 'string' &&
-                    Object.hasOwn(WEAPONS, ship.weapon) &&
-                    Array.isArray(ship.weapons) &&
-                    ship.weapons.length <= 3 &&
-                    ship.weapons.every((w) => typeof w === 'string' && Object.hasOwn(WEAPONS, w)) &&
-                    new Set(ship.weapons).size === ship.weapons.length &&
-                    ship.weapons.includes('standard') &&
-                    ship.weapons.includes(ship.weapon)));
+            integer(ship.shield, 3) &&
+            integer(ship.handling, 3) &&
+            typeof ship.weapon === 'string' &&
+            Object.hasOwn(WEAPONS, ship.weapon) &&
+            Array.isArray(ship.weapons) &&
+            ship.weapons.length <= 3 &&
+            ship.weapons.every((w) => typeof w === 'string' && Object.hasOwn(WEAPONS, w)) &&
+            new Set(ship.weapons).size === ship.weapons.length &&
+            ship.weapons.includes('standard') &&
+            ship.weapons.includes(ship.weapon);
         if (
             (p.ship !== null && !validShip(p.ship)) ||
             !Array.isArray(p.reserveShips) ||
@@ -375,14 +345,6 @@ export function parseCampaign(json: string | null): Campaign | null {
             ships.some((ship) => ship.id >= (p.nextShipId as number))
         )
             return null;
-        if (p.version === 3) {
-            p.version = 4;
-            p.recoverySignals = [];
-            if (object(p.activeRun)) {
-                p.activeRun.recoveryId = null;
-                p.activeRun.lastPosition = { x: 240, y: 0 };
-            }
-        }
         const validPoint = (point: unknown): point is Point =>
             object(point) &&
             ['x', 'y'].every(
@@ -429,18 +391,6 @@ export function parseCampaign(json: string | null): Campaign | null {
             }
         }
         if (allPilotIds.length > 8) return null;
-        if (p.version === 4) {
-            p.version = 5;
-            p.contractCompletions = CONTRACTS.map(() => 0);
-        }
-        if (p.version === 5) {
-            p.version = 6;
-            p.pilots = p.pilots.map((pilot) => ({ ...pilot, xp: 0, skills: newPilot().skills }));
-            for (const signal of p.recoverySignals) {
-                if (object(signal.pilot))
-                    signal.pilot = { ...signal.pilot, xp: 0, skills: newPilot().skills };
-            }
-        }
         if (
             !Array.isArray(p.pilots) ||
             !p.pilots.every(validPilotProgress) ||
@@ -449,35 +399,6 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
         )
             return null;
-        // v5-v7 had four contracts. Pad only a valid legacy journal, preserving all progress.
-        if (
-            (p.version as number) < 8 &&
-            Array.isArray(p.contractCompletions) &&
-            p.contractCompletions.length === 4 &&
-            p.contractCompletions.every((count) => integer(count))
-        )
-            p.contractCompletions.push(0);
-        if (
-            (p.version as number) < 9 &&
-            Array.isArray(p.contractCompletions) &&
-            p.contractCompletions.length === 5 &&
-            p.contractCompletions.every((count) => integer(count))
-        )
-            p.contractCompletions.push(0);
-        if (
-            (p.version as number) < 13 &&
-            Array.isArray(p.contractCompletions) &&
-            p.contractCompletions.length === 6 &&
-            p.contractCompletions.every((count) => integer(count))
-        )
-            p.contractCompletions.push(0);
-        if (
-            (p.version as number) < 14 &&
-            Array.isArray(p.contractCompletions) &&
-            p.contractCompletions.length === 7 &&
-            p.contractCompletions.every((count) => integer(count))
-        )
-            p.contractCompletions.push(0);
         if (
             !Array.isArray(p.contractCompletions) ||
             p.contractCompletions.length !== CONTRACTS.length ||
@@ -495,57 +416,8 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
                 return null;
         }
-        if (p.version === 6) {
-            const migrate = (ship: any) => {
-                if (!ship) return;
-                ship.handling = 0;
-                if (ship.hull === 'prospector') ship.hull = 'fighter';
-            };
-            migrate(p.ship);
-            p.reserveShips.forEach(migrate);
-            p.recoverySignals.forEach((signal) => migrate(signal.ship));
-            p.version = 7;
-        }
-        if ((p.version as number) < 11) {
-            const migrateWeapon = (ship: any) => {
-                if (ship) {
-                    ship.weapon = 'standard';
-                    ship.weapons = ['standard'];
-                }
-            };
-            migrateWeapon(p.ship);
-            p.reserveShips.forEach(migrateWeapon);
-            p.recoverySignals.forEach((signal) => migrateWeapon(signal.ship));
-        }
-        if ((p.version as number) < 15)
-            for (const ship of [p.ship, ...p.reserveShips, ...p.recoverySignals.map((s) => s.ship)])
-                if (ship) ship.shield ??= 0;
-        if ((p.version as number) < 18) {
-            for (const ship of [
-                ...ships,
-                ...p.recoverySignals.map((signal) => signal.ship).filter(Boolean),
-            ] as Ship[])
-                if (ship.hull === 'swift') ship.hull = 'widmo';
-        }
         p.crew.mechanicAboard = false;
         p.crew.quartermasterAboard = false;
-        if ((p.version as number) < 19) p.story = null;
-        if ((p.version as number) < 20 && p.story)
-            p.story = migrateStoryV1(p.story) as StoryProgress;
-        if ((p.version as number) < 21 && p.story)
-            p.story = migrateStoryV2(p.story) as StoryProgress;
-        if ((p.version as number) < 22 && p.story)
-            p.story = migrateStoryV3(p.story) as StoryProgress;
-        if ((p.version as number) < 23 && p.story)
-            p.story = migrateStoryV4(p.story) as StoryProgress;
-        if ((p.version as number) < 24 && p.story)
-            p.story = migrateStoryV5(p.story) as StoryProgress;
-        if ((p.version as number) < 25 && p.story)
-            p.story = migrateStoryV6(p.story) as StoryProgress;
-        if ((p.version as number) < 26 && p.story)
-            p.story = migrateStoryV7(p.story) as StoryProgress;
-        if ((p.version as number) < 27 && p.story)
-            p.story = migrateStoryV8(p.story) as StoryProgress;
         if (p.story !== null && !validStory(p.story)) return null;
         if (
             object(p.activeRun) &&
@@ -572,7 +444,18 @@ export function parseCampaign(json: string | null): Campaign | null {
         if (p.story?.claimed.includes('earth-workshop') && (p.station.workshop as number) < 1)
             return null;
         if (!p.story && object(p.activeRun) && p.activeRun.sector !== undefined) return null;
-        p.version = 27;
+        if (object(p.activeRun) && p.activeRun.mission !== undefined) {
+            const order = p.activeRun.mission;
+            if (
+                !object(order) ||
+                typeof order.task !== 'string' ||
+                typeof order.aborted !== 'boolean' ||
+                p.activeRun.recoveryId !== null ||
+                p.activeRun.freight !== undefined ||
+                !selectableMission(p as unknown as Campaign, order.task)
+            )
+                return null;
+        }
         const campaign = p as unknown as Campaign;
         if (campaign.activeRun?.freight !== undefined) {
             const initial = campaign.activeRun.freight;
@@ -710,7 +593,7 @@ export function buyShip(c: Campaign, hull: HullId = 'prospector'): boolean {
     if (c.activeRun || !Object.hasOwn(HULLS, hull) || ownedShips(c).length >= FLEET_LIMIT)
         return false;
     const config = HULLS[hull];
-    if ('salvageOnly' in config) return false;
+    if ('salvageOnly' in config || !hullUnlocked(c, hull)) return false;
     if (
         c.station.workshop < config.workshop ||
         c.bank.ore < config.ore ||
@@ -743,12 +626,18 @@ export function beginRun(
     seed: number,
     recoveryId: number | null = null,
     loadConstruction = false,
+    missionTask: string | null = null,
 ): boolean {
     if (
         c.activeRun ||
         !c.ship ||
         !selectedPilot(c) ||
         (!c.story && contractLockReason(c, c.contract))
+    )
+        return false;
+    if (
+        missionTask !== null &&
+        (!selectableMission(c, missionTask) || recoveryId !== null || loadConstruction)
     )
         return false;
     const signal = c.recoverySignals.find((signal) => signal.id === recoveryId);
@@ -764,6 +653,7 @@ export function beginRun(
     const repairKits = Math.min(c.repairKits, CREW.embarkKits);
     c.repairKits -= repairKits;
     c.activeRun = {
+        ...(missionTask ? { mission: { task: missionTask, aborted: false } } : {}),
         pilotId: c.selectedPilot,
         seed: signal?.seed ?? (c.story ? STORY_SECTORS[c.story.sector].seed : seed >>> 0),
         contract: c.contract,
@@ -784,6 +674,7 @@ export function deliverSalvage(
     const active = c.activeRun;
     if (
         !active ||
+        active.mission?.aborted ||
         active.deliveries?.some((d) => d.id === id) ||
         (active.deliveries?.length ?? 0) >= 64
     )
@@ -867,7 +758,10 @@ export function finishRun(
         assaultWon?: boolean;
         venusDefenseWon?: boolean;
         marsDefenseWon?: boolean;
+        firstBossWon?: boolean;
+        finalBossWon?: boolean;
         patrolKills?: number;
+        clearedBeltRocks?: readonly number[];
         recycledWreck?: 'patrol' | 'lancer';
         lossPosition?: Point;
         data?: readonly ScanSiteId[];
@@ -877,8 +771,16 @@ export function finishRun(
 ): RunResult | null {
     const active = c.activeRun;
     if (!active) return null;
+    if (success && active.mission && !active.mission.aborted && !missionObjectiveMet(c, recovery))
+        return null;
+    const aborted = success && !!active.mission?.aborted;
+    if (aborted) {
+        collected = { ore: 0, parts: 0 };
+        recovery = {};
+    }
     const pilot = c.pilots.find((p) => p.id === active.pilotId)!;
     const result: RunResult = {
+        ...(aborted ? { aborted: true } : {}),
         success,
         cargo: { ...collected },
         pilotName: pilotName(pilot),
@@ -963,6 +865,21 @@ export function finishRun(
             c.contractCompletions[active.contract]++;
             result.contractText = `✓ ${contract.title} · kontrakt rozliczony`;
         }
+        const finalBossXp =
+            recovery.finalBossWon &&
+            active.sector === 'pluto' &&
+            c.story?.claimed.includes('pluto-base') &&
+            c.story.claimed.includes('pluto-patrol') &&
+            !c.story.claimed.includes('pluto-boss')
+                ? 18
+                : 0;
+        const firstBossXp =
+            recovery.firstBossWon &&
+            active.sector === 'neptune' &&
+            c.story?.claimed.includes('neptune-base') &&
+            !c.story.claimed.includes('neptune-boss')
+                ? 12
+                : 0;
         result.pilotProgress = awardPilotXp(
             pilot,
             Math.min(
@@ -979,7 +896,10 @@ export function finishRun(
                     !c.story && contractReady(active.contract, collected, data, kills),
                     signal && recovery.securedId === signal.id ? signal : null,
                     kills,
-                ) + (active.deliveries ?? []).reduce((sum, d) => sum + d.rescueXp, 0),
+                ) +
+                    firstBossXp +
+                    finalBossXp +
+                    (active.deliveries ?? []).reduce((sum, d) => sum + d.rescueXp, 0),
             ),
         );
         const free = Math.max(0, storageCapacity(c) - storageUsed(c));
@@ -1002,6 +922,15 @@ export function finishRun(
             crystals;
         c.recovered++;
         if (active.sector && c.story) {
+            const closingPluto =
+                active.sector === 'pluto' && !storySectorComplete(c.story, 'pluto');
+            const closingNeptune =
+                active.sector === 'neptune' && !storySectorComplete(c.story, 'neptune');
+            const closingSaturn =
+                active.sector === 'saturn' && !storySectorComplete(c.story, 'saturn');
+            const closingJupiter =
+                active.sector === 'jupiter' && !storySectorComplete(c.story, 'jupiter');
+            const closingPassage = !storySectorComplete(c.story, 'belt');
             const closingMars = !beltPassageReady(c.story);
             const closingTechnology = !beltTechnologyReady(c.story);
             const closingAct = !c.story.claimed.includes('lunar-attack');
@@ -1017,6 +946,10 @@ export function finishRun(
                 recovery.patrolKills ?? 0,
                 !!recovery.venusDefenseWon,
                 !!recovery.marsDefenseWon,
+                recovery.clearedBeltRocks ?? [],
+                Math.max(0, collected.ore - (active.freight?.ore ?? 0)),
+                !!recovery.firstBossWon,
+                !!recovery.finalBossWon,
             );
             if (change) {
                 result.reward.ore += change.reward.ore;
@@ -1037,6 +970,21 @@ export function finishRun(
                 if (closingMars && beltPassageReady(c.story))
                     result.reason =
                         'Akt V ukończony. Baza i korytarz zabezpieczone. Ekspedycja gotowa do przejścia pasa.';
+                if (closingPassage && storySectorComplete(c.story, 'belt'))
+                    result.reason =
+                        'Akt VI ukończony. Przejście pasa potwierdzone. Następny kierunek: Jowisz.';
+                if (closingJupiter && storySectorComplete(c.story, 'jupiter'))
+                    result.reason =
+                        'Pakiet obserwacyjny zabezpieczony. Cele operacyjne Jowisza ukończone.';
+                if (closingSaturn && storySectorComplete(c.story, 'saturn'))
+                    result.reason =
+                        'Cele operacyjne Saturna ukończone. Zaopatrzenie i dalsza trasa zabezpieczone.';
+                if (closingNeptune && storySectorComplete(c.story, 'neptune'))
+                    result.reason =
+                        'Cele operacyjne aktu IX ukończone. Starcie odparte, zewnętrzna trasa zabezpieczona.';
+                if (closingPluto && storySectorComplete(c.story, 'pluto'))
+                    result.reason =
+                        'Cele operacyjne kampanii ukończone. Raport finałowego starcia zabezpieczony. Wcześniejsze sektory pozostają dostępne.';
                 result.contractText = change.titles.length
                     ? `Zadania ukończone: ${change.titles.join(' · ')}`
                     : 'Postęp sektora zachowany. Surowce możesz przekazać w panelu wyprawy.';
@@ -1085,6 +1033,12 @@ export function finishRun(
         c.ship = null;
         if (!signal?.pilot) c.lostPilots++;
     }
+    if (aborted) {
+        result.reason =
+            'Misja przerwana. Pilot i statek wrócili; ładunek z pokładu oraz raport odrzucono.';
+        result.contractText =
+            'Brak nagrody i PD za przerwaną wyprawę. Wcześniej zabezpieczone dostawy pozostają.';
+    }
     c.activeRun = null;
     return result;
 }
@@ -1102,7 +1056,9 @@ export class SaveRepository {
         try {
             const json = this.storage.getItem(this.options.key ?? SAVE_KEY);
             const campaign = parseCampaign(json);
-            if (json && !campaign) this.warning = 'Nieprawidłowy zapis. Uruchomiono nową kampanię.';
+            if (json && !campaign)
+                this.warning =
+                    'Niekompatybilny lub nieprawidłowy zapis. Ta wersja wymaga nowej kampanii.';
             return campaign ?? this.fresh();
         } catch {
             this.warning = 'Zapis lokalny jest niedostępny. Kampania działa w tej sesji.';

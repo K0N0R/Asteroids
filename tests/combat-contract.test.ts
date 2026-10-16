@@ -157,21 +157,3 @@ test('navigation follows one moving drone, switches after destruction and return
         sim.dispose();
     }
 });
-test('v8 journal migrates to v9 without losing active marker, history, fleet or bank; new incomplete journals fail', () => {
-    const c = ready();
-    c.contract = 4;
-    c.contractCompletions = [1, 2, 3, 4, 5, 0, 0, 0];
-    c.bank = { ore: 15, parts: 3 };
-    beginRun(c, 7);
-    const old = { ...c, version: 8, contractCompletions: [1, 2, 3, 4, 5] };
-    const loaded = parseCampaign(JSON.stringify(old));
-    assert.deepEqual(loaded, c);
-    assert.equal(
-        parseCampaign(JSON.stringify({ ...c, contractCompletions: [1, 2, 3, 4, 5] })),
-        null,
-    );
-    assert.equal(
-        parseCampaign(JSON.stringify({ ...old, contractCompletions: [1, 2, 3, 4, -1] })),
-        null,
-    );
-});

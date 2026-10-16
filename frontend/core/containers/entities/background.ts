@@ -1,5 +1,6 @@
 import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { random } from '../../../game/worlds/sector';
+import type { StorySectorId } from '../../../game/state/story';
 import { rotateVector } from '../../../game/systems/flight';
 
 export class Background extends Container {
@@ -54,7 +55,7 @@ export class Background extends Container {
         this.mask = viewportMask;
         this.update(0);
     }
-    setRegion(region: 'earth' | 'lunar' | 'mars' | 'venus' | 'mercury' | null) {
+    setRegion(region: StorySectorId | null) {
         this.planet.visible = region === null;
         const g = this.regionArt.clear();
         if (region === 'earth') {
@@ -75,6 +76,78 @@ export class Background extends Container {
                 .stroke({ color: 0xd4e8ea, width: 11, alpha: 0.4 })
                 .circle(1370, 210, 138)
                 .stroke({ color: 0x8ddaf1, width: 2, alpha: 0.5 });
+        } else if (region === 'pluto') {
+            g.circle(1370, 210, 90)
+                .fill(0x948c86)
+                .ellipse(1391, 200, 33, 38)
+                .fill(0xbfb4a5)
+                .circle(1338, 230, 20)
+                .fill(0x706866)
+                .circle(1370, 210, 90)
+                .stroke({ color: 0xd2c8ba, width: 2, alpha: 0.5 });
+        } else if (region === 'uranus' || region === 'neptune') {
+            const pale = region === 'uranus';
+            g.circle(1370, 210, 145)
+                .fill({ color: pale ? 0x9de0e2 : 0x557fe3, alpha: 0.12 })
+                .circle(1370, 210, 138)
+                .fill(pale ? 0x629fa8 : 0x294f9c);
+            for (let i = -4; i <= 4; i++) {
+                const y = i * 24,
+                    halfWidth = Math.sqrt(138 * 138 - (Math.abs(y) + 5) ** 2);
+                g.rect(1370 - halfWidth, 210 + y - 5, halfWidth * 2, 10).fill({
+                    color: pale ? 0x91c4c7 : 0x416cb9,
+                    alpha: 0.3,
+                });
+            }
+            g.ellipse(1405, 246, 27, 10)
+                .fill({ color: pale ? 0x7db5bb : 0x17376e, alpha: 0.45 })
+                .circle(1370, 210, 138)
+                .stroke({ color: pale ? 0xb4e1df : 0x7eaeef, width: 2, alpha: 0.5 });
+        } else if (region === 'saturn') {
+            g.ellipse(1370, 230, 215, 55).stroke({ color: 0xc6b89a, width: 16, alpha: 0.65 });
+            g.ellipse(1370, 230, 235, 64).stroke({ color: 0x807b70, width: 6, alpha: 0.5 });
+            g.circle(1370, 200, 110).fill(0xb9a47b);
+            for (let i = -4; i <= 4; i++) {
+                const y = i * 20,
+                    halfWidth = Math.sqrt(110 * 110 - (Math.abs(y) + 6) ** 2);
+                g.rect(1370 - halfWidth, 200 + y - 6, halfWidth * 2, 12).fill({
+                    color: i % 2 ? 0x94825f : 0xd6c59c,
+                    alpha: 0.5,
+                });
+            }
+            g.moveTo(1155, 230)
+                .bezierCurveTo(1165, 310, 1575, 310, 1585, 230)
+                .stroke({ color: 0xd4c4a2, width: 10, alpha: 0.8 });
+            g.circle(1370, 200, 110).stroke({ color: 0xe3d1a3, width: 2, alpha: 0.4 });
+        } else if (region === 'jupiter') {
+            g.circle(1370, 210, 148)
+                .fill({ color: 0xd5ac80, alpha: 0.1 })
+                .circle(1370, 210, 140)
+                .fill(0xb89c7e);
+            for (let i = -6; i <= 6; i++) {
+                const y = i * 19,
+                    halfWidth = Math.sqrt(140 * 140 - (Math.abs(y) + 7) ** 2);
+                g.rect(1370 - halfWidth, 210 + y - 7, halfWidth * 2, 14).fill({
+                    color: i % 2 ? 0x805b4b : 0xe0c4a0,
+                    alpha: 0.65,
+                });
+            }
+            g.ellipse(1412, 246, 29, 14)
+                .fill(0x9f5e4c)
+                .ellipse(1410, 245, 20, 8)
+                .fill(0xba7d62)
+                .circle(1370, 210, 140)
+                .stroke({ color: 0xe7cfad, width: 2, alpha: 0.45 });
+        } else if (region === 'belt') {
+            const rng = random(150076);
+            for (let i = 0; i < 65; i++) {
+                const x = 250 + rng() * 1250,
+                    y = 700 - x * 0.32 + (rng() - 0.5) * 180;
+                g.ellipse(x, y, 4 + rng() * 12, 3 + rng() * 7).fill({
+                    color: 0x7b776e,
+                    alpha: 0.09 + rng() * 0.1,
+                });
+            }
         } else if (region === 'mercury') {
             g.circle(1370, 210, 138)
                 .fill(0x77736d)
