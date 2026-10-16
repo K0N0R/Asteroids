@@ -80,20 +80,6 @@ export class MissionHud extends Container {
             C.text,
             250,
         );
-        const count = (
-            this.customObjectives?.() ??
-            missionObjectives(
-                contract,
-                sim.cargo,
-                [...sim.surveyData],
-                !!sim.recoverySignal,
-                sim.recoverySecured,
-                false,
-                sim.enemyKills,
-            )
-        ).length;
-        for (let i = 0; i < count; i++)
-            this.goals.push(label(this, '', 1343, 320 + i * this.goalStep, 15, C.muted, 228));
         if (sim.missionStatus) this.orderStatus = label(this, '', 40, 235, 15, C.mint, 700);
         this.context = label(this, '', 40, 797, 18, C.mint, 670);
         keyHint(this, 'WASD', 'lot', 40, 845, 54);
@@ -342,8 +328,7 @@ export class MissionHud extends Container {
             this.combatComplete = true;
             this.target = s.recoverySignal && !s.recoverySecured ? 5 : 0;
         }
-        this.checks.clear();
-        (
+        const objectives =
             this.customObjectives?.() ??
             missionObjectives(
                 this.contract,
@@ -353,8 +338,19 @@ export class MissionHud extends Container {
                 s.recoverySecured,
                 false,
                 s.enemyKills,
-            )
-        ).forEach((goal, i) => {
+            );
+        // Campaign objectives can be revealed or removed during the same flight.
+        while (this.goals.length > objectives.length) {
+            const view = this.goals.pop()!;
+            this.removeChild(view);
+            view.destroy({ children: true });
+        }
+        while (this.goals.length < objectives.length) {
+            const i = this.goals.length;
+            this.goals.push(label(this, '', 1343, 320 + i * this.goalStep, 15, C.muted, 228));
+        }
+        this.checks.clear();
+        objectives.forEach((goal, i) => {
             const text =
                 goal.id === 'rescue' && s.recoveryDestroyed
                     ? 'Cel ratunkowy utracony'

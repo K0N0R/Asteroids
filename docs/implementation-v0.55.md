@@ -36,3 +36,9 @@ Dowody: [panel](validation-v0.55/industry.png), [kolejka](validation-v0.55/queue
 ## Dalszy zakres
 
 To pierwszy łańcuch, a nie zakończenie balansu gospodarki. Następny krok: odblokowywana tarcza Satuk 15, wykorzystująca moduły zasilania. Następnie pełniejsze zadania aktu I, minigra łączności i eskorta wydobywcza Muła. Drony strażnicze, dodatkowe rudy, surowiec merkuriański i pozostały backlog nie są częścią 0.55.
+
+## Poprawka HUD po budowie stacji księżycowej
+
+HUD nie zakłada już stałej liczby celów z chwili startu. Przy odświeżaniu dopasowuje pola do aktualnie odkrytych zadań i usuwa niepotrzebne widoki. Usuwa to wyjątek `Cannot read properties of undefined (reading 'setText')` po dostawie materiałów odsłaniającej kolejne cele.
+
+Regresja: rzeczywisty MissionHud z symulacją lotu i celami księżycowymi, ujawnienie zadań po fundamentach i instalacjach, zmniejszenie listy, zwalnianie pól oraz wielokrotne odświeżanie bez narastania widoków. Łącznie 13/13 testów HUD, Księżyca i dialogów; typecheck, lint i build przeszły. Format zapisu bez zmiany.
