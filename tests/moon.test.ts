@@ -56,6 +56,7 @@ function enter(s: MissionSimulation) {
     s.step(idle);
     hold(s);
     assert.equal(s.area, 'surface');
+    while (s.transferActive) s.step(idle);
 }
 function steer(s: MissionSimulation, target: { x: number; y: number }, radius = 85) {
     const dx = target.x - s.position.x,
@@ -186,9 +187,10 @@ test('delivered cargo survives death or refresh, while undelivered freight is lo
 
 test('construction requires real surface deliveries and safe return of the final report; rewards settle once', () => {
     const c = lunarReady();
-    c.bank = { ore: 60, parts: 20 };
+    c.station.storage = 1;
+    c.bank = { ore: 172, parts: 20 };
     assert.equal(deliverLunarCargo(c, { ore: 48, parts: 12 }), null);
-    for (let sortie = 0; sortie < 3; sortie++) {
+    for (let sortie = 0; sortie < 5; sortie++) {
         const manifest = constructionManifest(c);
         assert.ok(beginRun(c, 1, null, true));
         const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -197,10 +199,10 @@ test('construction requires real surface deliveries and safe return of the final
             s.step(idle);
             fly(s, MOON.entrance, () => s.area === 'surface');
             assert.equal(s.cargo.ore + s.cargo.parts, manifest.ore + manifest.parts);
-            const targetStage = sortie < 2 ? (sortie === 0 ? 0 : 1) : 2;
+            const targetStage = sortie < 4 ? (sortie < 3 ? 0 : 1) : 2;
             fly(s, MOON.construction, () => s.cargo.ore + s.cargo.parts === 0);
             assert.equal(s.buildStage, targetStage);
-            if (sortie === 2) {
+            if (sortie === 4) {
                 hold(s, 190);
                 assert.ok(s.surveyData.has('archive'));
                 assert.equal(c.story!.progress['lunar-commission'], 0);
@@ -330,4 +332,153 @@ test('surface journals reject impossible areas and unloaded freight does not gen
     finishRun(control, true, { ore: 0, parts: 0 }, 10, 'dock');
     assert.equal(c.pilots[0].xp, control.pilots[0].xp);
     assert.equal(c.bank.ore, 50);
+});
+
+test('distant lunar copper outcrops stay attached, break into loose fragments, and support a real return', () => {
+    const c = lunarReady();
+    beginRun(c, 1);
+    const s = new MissionSimulation(c, c.activeRun!.seed);
+    try {
+        const outcrops = [...s.rocks.values()].filter((r) => r.anchored && r.copper);
+        assert.equal(outcrops.length, 12);
+        assert.ok(outcrops.every((r) => r.body.isFixed()));
+        assert.ok(
+            outcrops.every(
+                (r) => moonDistance({ x: r.previous.x, y: r.previous.y }) + r.radius < MOON.radius,
+            ),
+        );
+        assert.ok(s.sector.landmarks.some((l) => l.key === 5 && l.area === 'surface'));
+        fly(s, MOON.entrance, () => s.area === 'surface');
+        fly(
+            s,
+            MOON.copperRidge,
+            () =>
+                Math.hypot(s.position.x - MOON.copperRidge.x, s.position.y - MOON.copperRidge.y) <
+                420,
+        );
+        for (let frame = 0; frame < 60 * 160 && !s.ended && !(s.cargo.copperOre ?? 0); frame++) {
+            const p = s.position;
+            const loot = [...s.loot.values()]
+                .filter((l) => l.kind === 'copperOre')
+                .sort(
+                    (a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y),
+                )[0];
+            if (loot) s.step(steer(s, loot, 35));
+            else {
+                const rock = [...s.rocks.values()]
+                    .filter((r) => r.copper && moonDistance(r.previous) < MOON.radius)
+                    .sort(
+                        (a, b) =>
+                            Math.hypot(a.previous.x - p.x, a.previous.y - p.y) -
+                            Math.hypot(b.previous.x - p.x, b.previous.y - p.y),
+                    )[0];
+                assert.ok(rock);
+                s.step({ ...steer(s, rock.previous, rock.radius + 85), mine: true });
+            }
+            s.events.length = 0;
+        }
+        assert.equal(s.ended, null);
+        assert.ok((s.cargo.copperOre ?? 0) > 0, 'copper must be physically collected');
+        assert.ok(
+            [...s.rocks.values()].some(
+                (r) =>
+                    r.copper &&
+                    !r.anchored &&
+                    r.body.isDynamic() &&
+                    moonDistance(r.previous) < MOON.radius,
+            ),
+            'broken outcrops release movable fragments',
+        );
+        for (const rock of outcrops.filter((r) => s.rocks.has(r.id))) {
+            assert.equal(rock.body.translation().x * 100, rock.previous.x);
+            assert.equal(rock.body.translation().y * 100, rock.previous.y);
+        }
+        fly(s, MOON.exit, () => s.area === 'orbit');
+        fly(s, { x: 0, y: 0 }, () => s.ended === 'returned');
+        const cargo = { ...s.cargo };
+        const before = c.bank.copperOre ?? 0;
+        finishRun(c, true, cargo, s.elapsed, 'dock');
+        assert.equal(c.bank.copperOre, before + cargo.copperOre!);
+        assert.ok(parseCampaign(JSON.stringify(c)));
+    } finally {
+        s.dispose();
+    }
+});
+
+test('lunar cinematic locks actions and world time in both directions, preserving supplies and held-E protection', () => {
+    const c = lunarReady();
+    beginRun(c, 1);
+    const s = new MissionSimulation(c, 1);
+    try {
+        s.cargo.ore = 9;
+        s.hull -= 10;
+        at(s, MOON.entrance);
+        s.step(idle);
+        hold(s);
+        assert.equal(s.area, 'surface');
+        assert.ok(s.transferActive);
+        const snapshot = () => ({
+            elapsed: s.elapsed,
+            position: { ...s.position },
+            hull: s.hull,
+            shield: s.shield,
+            cargo: { ...s.cargo },
+            kits: s.repairKits,
+            shots: s.bullets.size,
+            ore: s.miningEscort!.cargoOre,
+            health: s.miningEscort!.health,
+        });
+        const before = snapshot();
+        const hostile = {
+            ...idle,
+            thrust: true,
+            turn: 1,
+            fire: true,
+            mine: true,
+            interact: true,
+            repair: true,
+            sabotage: true,
+            boost: true,
+        };
+        for (let i = 0; i < 50; i++) s.step(hostile);
+        assert.ok(s.transferActive);
+        assert.deepEqual(snapshot(), before);
+        for (let i = 0; i < 100 && s.transferActive; i++) s.step(hostile);
+        assert.equal(s.transferActive, false);
+        assert.deepEqual(snapshot(), before);
+        hold(s, 130);
+        assert.equal(s.area, 'surface', 'held E cannot immediately reverse the transfer');
+        s.step(idle);
+        hold(s);
+        assert.equal(s.area, 'orbit');
+        assert.ok(s.transferActive);
+        const back = snapshot();
+        while (s.transferActive) s.step(hostile);
+        assert.deepEqual(snapshot(), back);
+        assert.equal(c.activeRun!.area, undefined);
+        assert.ok(parseCampaign(JSON.stringify(c)));
+    } finally {
+        s.dispose();
+    }
+});
+
+test('releasing E during approach cancels the fade without transferring or locking controls', () => {
+    const c = lunarReady();
+    beginRun(c, 1);
+    const s = new MissionSimulation(c, 1);
+    try {
+        at(s, MOON.entrance);
+        s.step(idle);
+        hold(s, 105);
+        assert.ok(s.passageProgress > 1.6);
+        assert.equal(s.area, 'orbit');
+        assert.equal(s.transferActive, false);
+        s.step(idle);
+        assert.equal(s.passageProgress, 0);
+        for (let i = 0; i < 90; i++) s.step({ ...idle, thrust: true });
+        assert.equal(s.area, 'orbit');
+        assert.ok(s.speed > 60);
+    } finally {
+        s.dispose();
+    }
 });

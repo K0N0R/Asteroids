@@ -1,6 +1,22 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.55** dodaje **przemysł Satuk 15**: wydobycie miedzi, przewodniki, moduły zasilania i konstrukcje segmentów magazynowych. Panel **Stacja → Przemysł** obsługuje produkcję oraz montaż trzech segmentów po +200 miejsca. Produkcja postępuje podczas lotu. Wymagany jest nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.55.md).
+Aktualna wersja **0.63** dodaje **stocznię polową przeciwnika przy Marsie**. Opcjonalny rozkaz Zatrzymaj produkcję prowadzi do bazy regularnie wypuszczającej drony i Lancery. Zniszczenie rdzenia zatrzymuje starty, a bezpieczny powrót utrwala wyłączenie stoczni. Wymagany nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.63.md).
+
+Wersja **0.62** dodaje **animowane przejścia między orbitą a powierzchnią Księżyca**: wygaszenie podejścia, księżycowy horyzont i zbliżenie kamery. Krótki transfer blokuje sterowanie i wstrzymuje symulację, zachowując ładunek i hol. [Zakres i weryfikacja](docs/implementation-v0.62.md).
+
+Wersja **0.61** przenosi Muła na **budowę stacji na Księżycu**. Eskortowany transport wydobywa surowce, wozi kolejne ładunki do placówki i naprawia się z własnych zasobów. Gracz może równolegle dostarczać rudę. Fundamenty wymagają 160 Fe i odblokowują kadłub Muła. Wymagany nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.61.md).
+
+Wersja **0.60** powiększa powierzchnię Księżyca i dodaje odległy **grzbiet miedziowy**. Klawisz **5** na powierzchni prowadzi do opcjonalnego wydobycia Cu z przytwierdzonych do podłoża formacji skalnych. [Zakres i weryfikacja](docs/implementation-v0.60.md).
+
+Wersja **0.59** dodaje **misję ratunkową przy Księżycu**. Po rozpoznaniu trasy można podjąć Sygnał ratunkowy: zabezpieczyć trzy obwody uszkodzonego promu, podłączyć fizyczny hol i odprowadzić cel do Satuk 15. Patrol, uszkodzenia, odłączenie holu i możliwość ponowienia uzupełniają zadanie. Wymagany jest nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.59.md).
+
+Wersja **0.58** dodaje **eskortę wydobywczą Muła** jako dodatkową misję po uruchomieniu ziemskiego zaplecza. Transport AI omija skały, czeka na gracza, wydobywa i zbiera 12 Fe, a następnie wraca do Satuk 15. Gracz odpiera zasadzkę i dostarcza raport. N wskazuje Muła, E rozpoczyna eskortę. Wymagany jest nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.58.md).
+
+Wersja **0.57** dodaje **minigrę łączności orbitalnej przy Ziemi**. Po naciśnięciu E przy przekaźniku dopasowujesz fazy trzech kanałów i zatwierdzasz synchronizację. Świat nadal działa, trafienie lub utrata zasięgu przerywają próbę, a raport zalicza dopiero bezpieczny powrót. [Zakres i weryfikacja](docs/implementation-v0.57.md).
+
+Wersja **0.56** dodaje **generator tarczy Satuk 15**. Po ukończeniu zaplecza ziemskiego można zamontować go za 30 Fe, 6 komponentów i 3 moduły zasilania. Rozszerza ochronę doku z 260 do 850 m, odpycha asteroidy i wrogów oraz zatrzymuje pociski. Dostęp: **Stacja → Przemysł → Tarcza Satuk 15**. Wymagany jest nowy format zapisu. [Zakres i weryfikacja](docs/implementation-v0.56.md).
+
+Wersja **0.55** dodaje **przemysł Satuk 15**: wydobycie miedzi, przewodniki, moduły zasilania i konstrukcje segmentów magazynowych. Panel **Stacja → Przemysł** obsługuje produkcję oraz montaż trzech segmentów po +200 miejsca. Produkcja postępuje podczas lotu. Wymagany jest nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.55.md).
 
 Wersja **0.54** dodaje **odblokowania kadłubów i wybór misji przed startem**. Początkowo dostępne są Prospector i Swift. Zwiad, patrol lub boss mogą być celem wyprawy: dokowanie otwiera się po wykonaniu celu, a TAB pozwala zarządzić odwrót bez raportu, nagrody i ładunku. Swobodny lot pozostaje dostępny. **Starsze formaty zapisów są nieobsługiwane — wymagany jest nowy start.** [Zakres i weryfikacja](docs/implementation-v0.54.md).
 

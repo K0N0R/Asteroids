@@ -204,7 +204,7 @@ test('current save validates all material quantities and cargo-bay bounds and re
     const c = ready();
     c.station.cargoBays = 4;
     assert.equal(parseCampaign(JSON.stringify(c)), null);
-    assert.equal(parseCampaign(JSON.stringify({ ...ready(), version: 34 })), null);
+    assert.equal(parseCampaign(JSON.stringify({ ...ready(), version: 37 })), null);
     assert.equal(resourceTotal({ ore: 2, parts: 3, copperOre: 4, powerModules: 1 }), 10);
 });
 

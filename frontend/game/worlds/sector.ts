@@ -5,6 +5,7 @@ export interface Point {
     y: number;
 }
 export interface RockSpec extends Point {
+    anchored?: boolean;
     beltBarrier?: number;
     defense?: boolean;
     radius: number;
@@ -29,11 +30,13 @@ export interface Landmark extends Point {
         | 'cluster'
         | 'fortress'
         | 'passage'
-        | 'construction';
+        | 'construction'
+        | 'factory';
     siteId?: ScanSiteId;
     radius: number;
 }
 export interface EnemySpec extends Point {
+    factorySpawn?: boolean;
     boss?: boolean;
     finalBoss?: boolean;
     assault?: boolean;

@@ -18,6 +18,7 @@ import {
     type StoryProgress,
 } from '../state/story';
 import { MERCURY_SHELTERS } from '../systems/solarExposure';
+import { ENEMY_FACTORY } from '../systems/enemyFactory';
 import { MOON } from './moon';
 
 const MARS_CORRIDOR_POINTS = [
@@ -115,6 +116,14 @@ export function generateStorySector(progress: StoryProgress) {
                 radius: 180,
             },
             {
+                ...MOON.copperRidge,
+                area: 'surface',
+                key: 5,
+                kind: 'field',
+                name: 'Grzbiet miedziowy · Cu',
+                radius: 350,
+            },
+            {
                 ...MOON.quarry,
                 area: 'surface',
                 key: 2,
@@ -160,6 +169,24 @@ export function generateStorySector(progress: StoryProgress) {
                 y: MOON.quarry.y + Math.sin(angle) * distance,
                 radius: 24 + rng() * 12,
                 rich: i % 2 === 0,
+                variant: Math.floor(rng() * 128),
+                vx: 0,
+                vy: 0,
+            });
+        }
+    }
+    if (progress.sector === 'lunar' && progress.claimed.includes('lunar-survey')) {
+        // Irregular, attached outcrops; broken fragments become loose bodies.
+        for (let i = 0; i < 12; i++) {
+            const angle = rng() * Math.PI * 2;
+            const distance = 85 + rng() * 220;
+            sector.rocks.push({
+                anchored: true,
+                x: MOON.copperRidge.x + Math.cos(angle) * distance,
+                y: MOON.copperRidge.y + Math.sin(angle) * distance,
+                radius: 42 + rng() * 22,
+                rich: true,
+                copper: true,
                 variant: Math.floor(rng() * 128),
                 vx: 0,
                 vy: 0,
@@ -244,6 +271,25 @@ export function generateStorySector(progress: StoryProgress) {
                 (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 360,
             ),
         );
+    }
+    if (progress.sector === 'mars' && marsApproachOpen(progress)) {
+        const p = ENEMY_FACTORY.position;
+        sector.landmarks.push({
+            ...p,
+            key: 5,
+            kind: 'factory',
+            name: progress.claimed.includes('mars-factory')
+                ? 'Ruiny stoczni polowej'
+                : 'Stocznia polowa przeciwnika',
+            radius: ENEMY_FACTORY.radius,
+        });
+        sector.rocks = sector.rocks.filter((r) => {
+            const t = Math.max(0, Math.min(1, (r.x * p.x + r.y * p.y) / (p.x * p.x + p.y * p.y)));
+            return (
+                Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 650 &&
+                Math.hypot(r.x - p.x * t, r.y - p.y * t) > r.radius + 160
+            );
+        });
     }
     if (progress.sector === 'venus') {
         sector.landmarks = [

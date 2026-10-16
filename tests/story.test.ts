@@ -1,3 +1,4 @@
+import { solveRelay } from './relay-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -105,6 +106,7 @@ test('data is not persistent until a real dock return and is lost on death', () 
         const site = s.sector.landmarks.find((l) => l.siteId === 'relay')!;
         s.ship.setTranslation({ x: site.x / 100, y: site.y / 100 }, true);
         for (let i = 0; i < 190; i++) s.step({ ...idle, interact: true });
+        solveRelay(s);
         assert.ok(s.surveyData.has('relay'));
         assert.equal(c.story!.progress['earth-relay'], 0);
         s.ship.setTranslation({ x: 1, y: 0 }, true);
@@ -206,7 +208,7 @@ test('recovery signals cannot silently move between campaign sectors', () => {
     travelStory(c, 'earth');
     assert.ok(beginRun(c, 9, 999));
     assert.equal(c.activeRun!.seed, STORY_SECTORS.earth.seed);
-    assert.equal(storyObjectives(c).length, 5);
+    assert.ok(storyObjectives(c).every((task) => task.id.startsWith('earth-')));
 });
 
 test('losing the starter ship without funds leaves a working emergency route and keeps campaign progress', () => {
@@ -272,9 +274,14 @@ test('a fresh starter can mine, scan, dock, build the workshop and unlock the lu
                     }
                 } else if (!s.surveyData.has(scan)) {
                     const site = s.sector.landmarks.find((l) => l.siteId === scan)!;
-                    input = { ...steer(s, site, 85), interact: true };
+                    input = {
+                        ...steer(s, site, 85),
+                        interact:
+                            c.story!.sector !== 'earth' || scan !== 'relay' || frame % 2 === 0,
+                    };
                 } else input = { ...steer(s, { x: 0, y: 0 }, 85), interact: true };
                 s.step(input);
+                if (s.relayTuning) solveRelay(s);
                 s.events.length = 0;
             }
             assert.equal(

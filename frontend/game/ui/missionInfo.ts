@@ -320,7 +320,9 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         label(
             root,
             c.story
-                ? 'W / S Lot i hamowanie · A / D Skręt · PPM Wydobycie · E Skan / dokowanie · TAB Pokład'
+                ? s.miningEscort
+                    ? s.miningEscort.status
+                    : 'W / S Lot i hamowanie · A / D Skręt · PPM Wydobycie · E Skan / dokowanie · TAB Pokład'
                 : 'F Dron · T Gniazdo / Prąd · H Aegis · Z Wrak · J Zwolnij hol · N Kepler',
             280,
             772,

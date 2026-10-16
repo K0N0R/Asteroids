@@ -20,9 +20,9 @@ export class MoonSurfaceView extends Container {
         this.ground.position.copyFrom(MOON.center);
         const terrain = new Graphics().rect(-6000, -6000, 12000, 12000).fill(0x343f48);
         const rng = random(150015);
-        for (let i = 0; i < 100; i++) {
-            const x = (rng() - 0.5) * 4000,
-                y = (rng() - 0.5) * 4000,
+        for (let i = 0; i < 170; i++) {
+            const x = (rng() - 0.5) * (MOON.radius * 2.3),
+                y = (rng() - 0.5) * (MOON.radius * 2.3),
                 r = 24 + rng() * 140;
             terrain
                 .ellipse(x + 4, y + 9, r, r * 0.82)
@@ -32,10 +32,21 @@ export class MoonSurfaceView extends Container {
                 .ellipse(x - r * 0.13, y - r * 0.13, r * 0.65, r * 0.52)
                 .fill(0x303c45);
         }
-        for (let i = 0; i < 480; i++)
+        for (let i = 0; i < 750; i++)
             terrain
-                .circle((rng() - 0.5) * 4000, (rng() - 0.5) * 4000, 1 + rng() * 3)
+                .circle(
+                    (rng() - 0.5) * (MOON.radius * 2.3),
+                    (rng() - 0.5) * (MOON.radius * 2.3),
+                    1 + rng() * 3,
+                )
                 .fill({ color: 0x8b9499, alpha: 0.2 });
+        // Broad dark shelves distinguish the distant extraction site from the base basin.
+        const ridgeX = MOON.copperRidge.x - MOON.center.x;
+        const ridgeY = MOON.copperRidge.y - MOON.center.y;
+        for (let i = 0; i < 5; i++)
+            terrain
+                .ellipse(ridgeX + i * 65 - 130, ridgeY + i * 45 - 90, 230, 115)
+                .fill({ color: 0x202e37, alpha: 0.65 });
         this.ground.addChild(terrain);
         const gate = (host: Container, x: number, y: number, title: string) => {
             const g = new Container();
@@ -68,6 +79,15 @@ export class MoonSurfaceView extends Container {
         this.titles.push(
             this.status,
             label(this.ground, 'Złoże powierzchniowe · 2', -280, 1060, 20, C.gold),
+            label(this.ground, 'Grzbiet miedziowy · 5', ridgeX - 150, ridgeY + 390, 20, C.gold),
+            label(
+                this.ground,
+                'Cu · opcjonalne wydobycie',
+                ridgeX - 150,
+                ridgeY + 425,
+                16,
+                C.muted,
+            ),
         );
         this.addChild(this.ground, this.orbitGate);
     }

@@ -11,7 +11,14 @@ export const ESCORT = {
     startSeconds: 2,
     researchSeconds: 12,
 } as const;
-export type EscortState = 'idle' | 'travel' | 'waiting' | 'research' | 'complete' | 'destroyed';
+export type EscortState =
+    | 'idle'
+    | 'travel'
+    | 'waiting'
+    | 'research'
+    | 'complete'
+    | 'destroyed'
+    | 'failed';
 export interface NavigationRock extends Point {
     radius: number;
 }
@@ -153,6 +160,11 @@ export class ResearchEscort {
             this.body,
         );
     }
+    protected setDestination(point: Point) {
+        Object.assign(this.destination, point);
+        this.path = [];
+        this.replan = 0;
+    }
     get position(): Point {
         const p = this.body.translation();
         return { x: p.x * P, y: p.y * P };
@@ -162,10 +174,10 @@ export class ResearchEscort {
         return { x: v.x * P, y: v.y * P };
     }
     get vulnerable() {
-        return this.state !== 'complete' && this.state !== 'destroyed';
+        return this.state !== 'complete' && this.state !== 'destroyed' && this.state !== 'failed';
     }
-    damage(amount: number) {
-        if (!this.vulnerable || Math.hypot(this.position.x, this.position.y) < DRONES.safeRadius)
+    damage(amount: number, safeRadius: number = DRONES.safeRadius) {
+        if (!this.vulnerable || Math.hypot(this.position.x, this.position.y) < safeRadius)
             return false;
         this.health = Math.max(0, this.health - amount);
         this.cooldown = 0.5;

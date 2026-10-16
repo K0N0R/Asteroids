@@ -114,7 +114,9 @@ export interface StoryTask {
         | 'construction'
         | 'clearance'
         | 'gather'
-        | 'boss';
+        | 'boss'
+        | 'rescue'
+        | 'factory';
     resource?: 'ore' | 'parts';
     target: number;
     site?: ScanSiteId;
@@ -144,7 +146,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Łączność orbitalna',
-        detail: '7 wskazuje przekaźnik. Zatrzymaj statek, przytrzymaj E i wróć z odczytem do Satuk 15.',
+        detail: '7 wskazuje przekaźnik. Zatrzymaj statek, naciśnij E, dostrój trzy kanały i wróć z odczytem do Satuk 15.',
         required: true,
         kind: 'scan',
         site: 'relay',
@@ -207,11 +209,11 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Fundamenty stacji paliw',
-        detail: '3 wskazuje podejście do Księżyca. Na powierzchni: 7 budowa, E przekazuje rudę z ładowni.',
+        detail: 'Na Księżycu: N wskazuje Muła, E rozpoczyna eskortę. Dostarczcie 160 rudy na budowę (7). Fundamenty odblokują Muła.',
         required: true,
         kind: 'delivery',
         resource: 'ore',
-        target: 48,
+        target: 160,
         dependencies: ['lunar-survey'],
         reward: { ore: 0, parts: 0 },
     },
@@ -266,6 +268,19 @@ export const STORY_TASKS: readonly StoryTask[] = [
         reward: { ore: 40, parts: 8 },
     },
     {
+        id: 'lunar-rescue',
+        sector: 'lunar',
+        act: 1,
+        title: 'Sygnał ratunkowy',
+        detail: 'N: prom · E: zabezpiecz obwody, potem podłącz hol. Odprowadź prom do Satuk 15 i wróć z raportem.',
+        required: false,
+        kind: 'rescue',
+        site: 'rescue',
+        target: 1,
+        dependencies: ['lunar-survey'],
+        reward: { ore: 12, parts: 5 },
+    },
+    {
         id: 'mars-trail',
         sector: 'mars',
         act: 2,
@@ -302,6 +317,19 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['mars-trail', 'mars-patrol'],
         reward: { ore: 20, parts: 4 },
+    },
+    {
+        id: 'mars-factory',
+        sector: 'mars',
+        act: 2,
+        title: 'Zatrzymaj produkcję',
+        detail: '5 wskazuje stocznię polową. Zniszcz jej rdzeń, aby zatrzymać posiłki, i wróć z raportem. Wypuszczone jednostki pozostaną w walce.',
+        required: false,
+        kind: 'factory',
+        site: 'factory',
+        target: 1,
+        dependencies: ['mars-trail', 'mars-patrol'],
+        reward: { ore: 28, parts: 8 },
     },
     {
         id: 'mars-reserve',
@@ -919,7 +947,7 @@ export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 15;
+    version: 19;
     dialogues: string[];
     sector: StorySectorId;
     progress: Record<string, number>;
@@ -927,7 +955,7 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 15,
+    version: 19,
     dialogues: [],
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
@@ -1189,7 +1217,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 15 ||
+        p.version !== 19 ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -1323,7 +1351,7 @@ export function acknowledgeStoryBriefing(c: Campaign) {
     p.progress[task.id] = 1;
     return settle(c);
 }
-export function deliverLunarCargo(c: Campaign, cargo: Cargo) {
+export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = true) {
     const p = c.story;
     if (
         !p ||
@@ -1340,7 +1368,7 @@ export function deliverLunarCargo(c: Campaign, cargo: Cargo) {
     if (amount <= 0) return null;
     cargo[task.resource] -= amount;
     // Loaded supplies are delivered first; newly mined cargo still earns normal XP on return.
-    const freight = c.activeRun.freight;
+    const freight = playerDelivery ? c.activeRun.freight : undefined;
     if (freight) freight[task.resource] = Math.max(0, freight[task.resource] - amount);
     p.progress[task.id] += amount;
     const change = settle(c);
@@ -1460,7 +1488,7 @@ export function recordStoryReturn(
     for (const task of STORY_TASKS)
         if (
             task.sector === sector &&
-            task.kind === 'scan' &&
+            (task.kind === 'scan' || task.kind === 'rescue' || task.kind === 'factory') &&
             task.site &&
             data.includes(task.site) &&
             storyTaskAvailable(c.story, task)

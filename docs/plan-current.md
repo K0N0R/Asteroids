@@ -1,6 +1,6 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-16, wersja 0.55.
+Stan: 2026-10-16, wersja 0.63.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
@@ -12,7 +12,7 @@ Decyzja autora: starsze zapisy są niekompatybilne i nie mogą być otwierane. N
 
 Autor przekazał zakres etapowej rozbudowy sektorów: dialogi i reżyseria, odblokowania floty, nowe misje i minigry, trudniejsza walka, rozbudowa stacji i gospodarki oraz nowa oprawa. [Pełny backlog, zależności, uwagi i proponowane pakiety](content-development.md). To nadrzędny kierunek dalszego rozwoju; historyczne ograniczenia poniżej nie wykluczają teraz wskazanych funkcji.
 
-Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony konfliktu to wojsko Ziemi, wroga prywatna organizacja kosmiczna i obcy. Motywacje, relacje, boss i scenariusz ujawnień pozostają otwarte. Wersja 0.53 wdraża pierwszy pakiet: odprawy przy Ziemi i ujawnianie zadań. Pozostałe funkcje listy są backlogiem. Wersja 0.54 dodaje odblokowania i rozkazy zwiadu/walki z odwrotem. Wersja 0.55 wdraża pierwszy łańcuch gospodarki i segmenty magazynowe. Następny krok to tarcza Satuk 15, następnie pełniejsze misje aktu I.
+Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony konfliktu to wojsko Ziemi, wroga prywatna organizacja kosmiczna i obcy. Motywacje, relacje, boss i scenariusz ujawnień pozostają otwarte. Wersja 0.53 wdraża pierwszy pakiet: odprawy przy Ziemi i ujawnianie zadań. Pozostałe funkcje listy są backlogiem. Wersja 0.54 dodaje odblokowania i rozkazy zwiadu/walki z odwrotem. Wersja 0.55 wdraża pierwszy łańcuch gospodarki i segmenty magazynowe. Wersja 0.56 wdraża generator tarczy Satuk 15. Wersja 0.57 rozpoczyna pełniejsze misje aktu I minigrą łączności. Wersja 0.58 dodaje eskortę wydobywczą Muła. Wersja 0.59 dodaje misję ratunkową z zabezpieczeniem obwodów i fizycznym holowaniem. Wersja 0.60 rozbudowuje powierzchnię Księżyca o odległy grzbiet miedziowy i przytwierdzone formacje skalne. Wersja 0.61 przenosi eskortę Muła do budowy na Księżycu: wspólne dostawy 160 Fe, wielokrotne kursy, naprawy za własne zasoby i odblokowanie kadłuba po fundamentach. Wersja 0.62 dodaje animowane przejścia między orbitą a powierzchnią. Wersja 0.63 wdraża pierwszą bazę produkującą jednostki: opcjonalną stocznię polową przy Marsie. Kolejne pakiety obejmują drony strażnicze Satuk 15, role przeciwników i dalszą rozbudowę sektorów.
 
 ## Zrealizowany zakres
 
@@ -131,10 +131,25 @@ Prospector i Swift są dostępne od początku, pozostałe projekty otwierają ra
 
 Pierwszy łańcuch przemysłowy: wydobycie Cu → przewodniki → moduły zasilania → segmenty magazynowe. Panel Stacja → Przemysł, wspólna kolejka mechanika i trzy dodatkowe segmenty po +200 miejsca. Format kampanii 35 odrzuca starsze zapisy. [Zakres i weryfikacja](implementation-v0.55.md).
 
+## Etap 0.56 — wdrożony
+
+Generator tarczy odblokowywany po zapleczu ziemskim i montowany z modułów zasilania, Fe i komponentów. Ochrona na orbicie 260 → 850 m, wspólny promień fizyki, AI, pocisków, grafiki i radaru; brak osłony stacji na powierzchniach. Format kampanii 36 bez migracji. [Zakres i weryfikacja](implementation-v0.56.md).
+
+## Etap 0.57 — wdrożony
+
+Ziemski przekaźnik: trzy kanały strojenia fazy, ręczne zatwierdzanie i ponowienie, działająca symulacja pod panelem, przerwanie przez trafienie lub utratę zasięgu oraz rozliczenie raportu po powrocie. [Zakres i weryfikacja](implementation-v0.57.md).
+
+## Etap 0.58 — wdrożony
+
+Dodatkowa ziemska eskorta wydobywcza Muła po uruchomieniu zaplecza. AI wyznacza drogę, czeka na gracza, rozbija skały i zbiera rzeczywistą rudę, a po załadunku wraca do doku. Zasadzka, stan kadłuba, jasna porażka i możliwość ponowienia; rozliczenie po powrocie gracza. Format kampanii 37 i dziennika 16 bez migracji. [Zakres i weryfikacja](implementation-v0.58.md).
+
+## Etap 0.59 — wdrożony
+
+Dodatkowy Sygnał ratunkowy po zwiadzie Księżyca: patrol, minigra łączenia obwodów, fizyczny hol promu, dostawa do Satuk 15 i zatwierdzenie raportu. Uszkodzenia, odłączenie i ponowne podpięcie oraz powtarzalna próba po porażce. Format kampanii 38 i dziennika 17 bez migracji. [Zakres i weryfikacja](implementation-v0.59.md).
+
 ## Następne kroki kampanii
 
-- Dokończyć pakiet gospodarki i stacji: odblokowywana tarcza Satuk 15 z praktycznym zastosowaniem modułów zasilania.
-- Następnie rozwinąć akt I o minigrę łączności i eskortę wydobywczą Muła.
+- Rozbudować powierzchnię Księżyca: przestrzeń, niszczalne formacje i działania przy placówce.
 
 - Przeprowadzić testy graczy całego aktu I, dopracować tempo, trudność i komunikowanie wymagań.
 - Uzupełnić dialogi i oprawę fabularnego zwrotu aktu I po ustaleniu jego treści przez autora.
@@ -157,3 +172,23 @@ Wymienne modele części, nowe profesje personelu i kolejne placówki/role przec
 - Wznowienie aktywnej wyprawy. Odświeżenie nadal rozlicza ją jako przegraną, zgodnie z przyjętą zasadą.
 
 Kampania ma zarys autora, przechodnie mechanicznie akty I–VI i operacyjne zakresy aktów VII–X. Trzy strony konfliktu są ustaleniem fabularnym; osobna reputacja, dyplomacja lub symulacja relacji nie wynikają z tego automatycznie. Multiplayer pozostaje poza zakresem. Nową kolejność rozwoju zawartości opisuje dokument podlinkowany na początku planu.
+
+
+## Etap 0.60 — wdrożony
+
+Większa powierzchnia Księżyca, opcjonalny grzbiet miedziowy (5), niszczalne przytwierdzone formacje i luźne odłamki. Dotychczasowe trasy dostaw oraz obrona placówki zachowane. [Zakres i weryfikacja](implementation-v0.60.md).
+
+
+## Etap 0.61 — wdrożony
+
+Eskorta Muła jest częścią głównej budowy na Księżycu. Cel 160 Fe, powtarzane kursy z ładownią 110, naprawy za własne zasoby, wspólne dostawy gracza i transportu, odblokowanie kadłuba po fundamentach. Format kampanii 39 i dziennika 18, bez migracji. [Zakres i weryfikacja](implementation-v0.61.md).
+
+
+## Etap 0.62 — wdrożony
+
+Animowany transfer orbitalny i powierzchniowy na Księżycu. Wygaszenie podejścia, horyzont i zbliżenie kamery, neutralizacja sterowania oraz pauza świata na czas przelotu. Ładunek, hol i postęp budowy zachowane. [Zakres i weryfikacja](implementation-v0.62.md).
+
+
+## Etap 0.63 — wdrożony
+
+Stocznia polowa przy Marsie, opcjonalny rozkaz Zatrzymaj produkcję. Posiłki do czterech żywych jednostek, fizycznie niszczalny rdzeń, trwałe wyłączenie po raporcie. Format kampanii 40 i dziennika 19. [Zakres i weryfikacja](implementation-v0.63.md).

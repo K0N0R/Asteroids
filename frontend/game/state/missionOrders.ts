@@ -19,7 +19,7 @@ export function selectableMission(c: Campaign, id: string) {
     return p &&
         task &&
         task.sector === p.sector &&
-        ['scan', 'patrol', 'boss'].includes(task.kind) &&
+        ['scan', 'patrol', 'boss', 'rescue', 'factory'].includes(task.kind) &&
         !p.claimed.includes(task.id) &&
         storyTaskAvailable(p, task)
         ? task
@@ -30,7 +30,8 @@ export function missionObjectiveMet(c: Campaign, report: MissionReport) {
     if (!order || order.aborted) return false;
     const task = selectableMission(c, order.task);
     if (!task) return false;
-    if (task.kind === 'scan') return !!task.site && !!report.data?.includes(task.site);
+    if (task.kind === 'scan' || task.kind === 'rescue' || task.kind === 'factory')
+        return !!task.site && !!report.data?.includes(task.site);
     if (task.kind === 'patrol')
         return (
             Number.isInteger(report.patrolKills) &&

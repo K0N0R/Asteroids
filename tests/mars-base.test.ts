@@ -114,16 +114,30 @@ test('Act V requires the Mercury report and leaves the earlier Mars journal and 
     assert.ok(actTwoComplete(c.story!));
     assert.equal(storyAct(c.story!), 'AKT V');
     assert.equal(storyObjectives(c).length, 2);
-    assert.equal(storyVisibleTasks(c.story!).length, 10);
+    assert.equal(
+        storyVisibleTasks(c.story!).length,
+        STORY_TASKS.filter((t) => t.sector === 'mars').length,
+    );
+    assert.ok(storyVisibleTasks(c.story!).some((t) => t.id === 'mars-factory'));
     assert.ok(
         storyObjectives(c).every(
-            (t) => !['mars-trail', 'mars-patrol', 'mars-belt', 'mars-reserve'].includes(t.id),
+            (t) =>
+                ![
+                    'mars-trail',
+                    'mars-patrol',
+                    'mars-belt',
+                    'mars-reserve',
+                    'mars-factory',
+                ].includes(t.id),
         ),
     );
     c.story!.claimed = c.story!.claimed.filter((id) => id !== 'mercury-technology');
     c.story!.progress['mercury-technology'] = 0;
     assert.equal(storyAct(c.story!), 'AKT II');
-    assert.equal(storyVisibleTasks(c.story!).length, 4);
+    assert.equal(
+        storyVisibleTasks(c.story!).length,
+        STORY_TASKS.filter((t) => t.sector === 'mars' && t.act === 2).length,
+    );
     assert.equal(contributeStory(c, 'mars-base-ore'), null);
     assert.equal(
         storyTaskAvailable(c.story!, STORY_TASKS.find((t) => t.id === 'mars-base-ore')!),

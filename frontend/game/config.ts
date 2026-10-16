@@ -104,6 +104,8 @@ export const SCAN_SITES = {
     outpost: { name: 'Dane placówki Cerber', key: 0 },
     fortress: { name: 'Rdzeń twierdzy Aegis', key: 14 },
     escort: { name: 'Badania Keplera', key: 16 },
+    rescue: { name: 'Dostawa promu ratunkowego', key: 17 },
+    factory: { name: 'Zniszczenie stoczni polowej', key: 5 },
 } as const;
 export type ScanSiteId = keyof typeof SCAN_SITES;
 export interface Mount {

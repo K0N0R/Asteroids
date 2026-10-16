@@ -1,3 +1,4 @@
+import { solveRelay } from './relay-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -88,7 +89,7 @@ test('new campaign offers only Prospector and Swift, while legacy shops keep all
     assert.equal(buyShip(poor, 'swift'), false);
 });
 
-test('every normal hull has a campaign unlock and real workshop completion opens Mule without free hulls or bypassing prices', () => {
+test('every normal hull has a campaign unlock and lunar construction opens Mule without free hulls or bypassing prices', () => {
     const c = newStoryCampaign();
     for (const [hull, rule] of Object.entries(HULL_UNLOCKS)) {
         assert.ok(STORY_TASKS.some((t) => t.id === rule.task));
@@ -100,6 +101,9 @@ test('every normal hull has a campaign unlock and real workshop completion opens
     finishRun(c, true, empty, 1, 'dock', c.activeRun!.repairKits, { data: ['relay'] });
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
+    assert.equal(hullUnlocked(c, 'mule'), false);
+    grant(c, 'lunar-survey');
+    grant(c, 'lunar-foundation');
     assert.ok(hullUnlocked(c, 'mule'));
     assert.equal(c.ship!.hull, 'prospector');
     assert.equal(buyShip(c, 'mule'), false);
@@ -145,6 +149,7 @@ test('stock Prospector cannot dock before a selected scan, flies the real relay,
         assert.deepEqual(c, before);
         fly(s, s.landmarks.find((l) => l.siteId === 'relay')!);
         hold(s, { ...idle, interact: true }, 200);
+        solveRelay(s);
         assert.ok(s.surveyData.has('relay'));
         assert.equal(s.missionReturnBlocked, false);
         assert.match(s.missionStatus, /Cel wykonany/);

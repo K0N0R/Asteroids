@@ -3,12 +3,14 @@ import type { Point } from './sector';
 // Separate coordinate space keeps both maps alive for the duration of one sortie.
 export const MOON = {
     center: { x: 24000, y: 24000 },
-    radius: 1600,
+    radius: 2600,
     entrance: { x: -1800, y: -1300 },
     exit: { x: 23100, y: 24000 },
     construction: { x: 24300, y: 24000 },
     quarry: { x: 23900, y: 24650 },
+    copperRidge: { x: 25450, y: 22600 },
     transferSeconds: 2,
+    arrivalSeconds: 1.2,
     deliverySeconds: 2,
 } as const;
 export function moonDistance(p: Point) {

@@ -67,7 +67,10 @@ function report(c: ReturnType<typeof venusReady>, data: ('relay' | 'archive')[] 
 test('the Earth briefing requires the Mars report, the correct sector and a docked station', () => {
     const fresh = newStoryCampaign();
     assert.equal(acknowledgeStoryBriefing(fresh), null);
-    assert.equal(storyVisibleTasks(fresh.story!).length, 5);
+    assert.equal(
+        storyVisibleTasks(fresh.story!).some((task) => task.id === 'earth-debrief'),
+        false,
+    );
     const c = marsReported();
     assert.ok(actOneComplete(c.story!));
     assert.equal(actTwoComplete(c.story!), false);
@@ -77,7 +80,7 @@ test('the Earth briefing requires the Mars report, the correct sector and a dock
     assert.ok(storyNextStep(c.story!).includes('Wróć do sektora Ziemi'));
     travelStory(c, 'earth');
     assert.equal(storyAct(c.story!), 'AKT II');
-    assert.equal(storyVisibleTasks(c.story!).length, 6);
+    assert.ok(storyVisibleTasks(c.story!).some((task) => task.id === 'earth-debrief'));
     assert.equal(c.story!.progress['earth-debrief'], 0); // Visiting does not accept the plan.
     assert.ok(beginRun(c, 1));
     assert.equal(acknowledgeStoryBriefing(c), null);

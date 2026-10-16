@@ -24,7 +24,7 @@ test('HUD reconciles objectives revealed by lunar construction during an active 
     try {
         const initial = goals().length;
         assert.equal(rows().length, initial);
-        c.story!.progress['lunar-foundation'] = 48;
+        c.story!.progress['lunar-foundation'] = 160;
         c.story!.claimed.push('lunar-foundation');
         assert.ok(goals().length > initial);
         assert.doesNotThrow(() => hud.update(101));

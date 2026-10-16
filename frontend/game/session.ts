@@ -1,3 +1,6 @@
+import { rescueRepairPanel } from './ui/rescueRepair';
+import { relayTuningPanel } from './ui/relayTuning';
+import { installStationShield } from './state/stationShield';
 import { resourceSummary } from './state/resources';
 import {
     DialoguePlayback,
@@ -100,6 +103,9 @@ export class GameSession {
     lobby: LobbyView;
     private overlay = new Container();
     private hasOverlay = false;
+    private interactionPanel: Container | null = null;
+    private interactionRevision = -1;
+    private interactionModel: object | null = null;
     private dialogue: DialoguePlayback | null = null;
     private launching = false;
     private crewSaveSeconds = 0;
@@ -187,6 +193,11 @@ export class GameSession {
                     () => scrapShip(this.campaign, id),
                     'Kadłub zezłomowany. Odzyskane materiały trafiły do magazynu.',
                 ),
+            installStationShield: () =>
+                this.change(
+                    () => installStationShield(this.campaign),
+                    'Generator tarczy aktywny. Satuk 15 chroni obszar w promieniu 850 m.',
+                ),
             installCargoBay: () =>
                 this.change(
                     () => installCargoBay(this.campaign),
@@ -235,6 +246,14 @@ export class GameSession {
                         this.renderDialogue();
                     return;
                 }
+                if (
+                    (this.mission?.simulation.relayTuning ||
+                        this.mission?.simulation.rescueOperation?.repair ||
+                        this.mission?.simulation.transferActive) &&
+                    message.name === 'keydown' &&
+                    !['escape', 'tab'].includes(message.data)
+                )
+                    return;
                 if (message.name === 'keydown') {
                     this.sandboxSetup?.handleKey(message.data);
                     if (this.sandboxRun && !this.hasOverlay && !PopupContainer.hasActivePopup()) {
@@ -284,7 +303,7 @@ export class GameSession {
                     !this.hasOverlay &&
                     !PopupContainer.hasActivePopup()
                 )
-                    this.hud.target = 15;
+                    this.hud.target = this.mission?.simulation.rescueOperation ? 16 : 15;
                 if (
                     message.name === 'keydown' &&
                     message.data === 'z' &&
@@ -695,6 +714,7 @@ export class GameSession {
     }
     update(deltaMS: number) {
         if (!this.mission) {
+            this.syncInteractionPanel();
             this.lobby.update(deltaMS);
             if (!this.hasOverlay && !this.launching && !PopupContainer.hasActivePopup()) {
                 const d = pendingDialogue(this.campaign);
@@ -707,22 +727,29 @@ export class GameSession {
             SoundManager.stopGroup('gameplay');
             return;
         }
+        const simInput = this.mission.simulation;
+        const tuning =
+            !!simInput.relayTuning || !!simInput.rescueOperation?.repair || simInput.transferActive;
+        if (simInput.transferActive) InputHandler.clear();
         const local = this.mission.camera.toLocal(InputHandler.pointer);
-        const elapsedBefore = this.mission.simulation.elapsed;
+        const elapsedBefore = simInput.elapsed;
         this.mission.update(deltaMS, {
-            target: local,
-            thrust: InputHandler.isKeyPressed('THRUST'),
-            brake: InputHandler.isKeyPressed('BRAKE'),
-            turn:
-                Number(InputHandler.isKeyPressed('RIGHT')) -
-                Number(InputHandler.isKeyPressed('LEFT')),
-            boost: InputHandler.isKeyPressed('BOOST'),
-            fire: InputHandler.primaryPressed && InputHandler.pointerInCanvas,
-            mine: InputHandler.secondaryPressed && InputHandler.pointerInCanvas,
-            interact: InputHandler.isKeyPressed('INTERACT'),
-            repair: InputHandler.isKeyPressed('REPAIR'),
-            sabotage: InputHandler.isKeyPressed('SABOTAGE'),
+            target: tuning ? simInput.position : local,
+            thrust: !tuning && InputHandler.isKeyPressed('THRUST'),
+            brake: !tuning && InputHandler.isKeyPressed('BRAKE'),
+            turn: tuning
+                ? 0
+                : Number(InputHandler.isKeyPressed('RIGHT')) -
+                  Number(InputHandler.isKeyPressed('LEFT')),
+            boost: !tuning && InputHandler.isKeyPressed('BOOST'),
+            fire: !tuning && InputHandler.primaryPressed && InputHandler.pointerInCanvas,
+            mine: !tuning && InputHandler.secondaryPressed && InputHandler.pointerInCanvas,
+            interact: !tuning && InputHandler.isKeyPressed('INTERACT'),
+            repair: !tuning && InputHandler.isKeyPressed('REPAIR'),
+            sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });
+        this.syncInteractionPanel();
+        if (this.hud) this.hud.visible = !this.mission.simulation.transferActive;
         if (this.sandboxRun) {
             const sim = this.mission.simulation;
             this.background.camera = sim.position;
@@ -797,6 +824,43 @@ export class GameSession {
             InputHandler.clear();
             if (result) this.showResult(result);
         }
+    }
+    private syncInteractionPanel() {
+        const sim = this.mission?.simulation;
+        const tuning = !sim?.ended ? (sim?.relayTuning ?? sim?.rescueOperation?.repair) : null;
+        if (!tuning) {
+            if (this.interactionPanel) destroyDisplayTree(this.interactionPanel);
+            this.interactionPanel = null;
+            this.interactionRevision = -1;
+            this.interactionModel = null;
+            return;
+        }
+        if (
+            this.interactionPanel &&
+            this.interactionModel === tuning &&
+            this.interactionRevision === tuning.revision
+        )
+            return;
+        if (!this.interactionPanel) {
+            this.interactionPanel = new Container();
+            this.uiHost.addChild(this.interactionPanel);
+            InputHandler.clear();
+        } else clear(this.interactionPanel);
+        this.interactionRevision = tuning.revision;
+        this.interactionModel = tuning;
+        if (sim?.rescueOperation?.repair) {
+            rescueRepairPanel(this.interactionPanel, sim.rescueOperation.repair, (action) => {
+                sim.rescueRepairAction(action);
+                InputHandler.clear();
+                this.syncInteractionPanel();
+            });
+            return;
+        }
+        relayTuningPanel(this.interactionPanel, sim!.relayTuning!, (action) => {
+            sim!.relayAction(action);
+            InputHandler.clear();
+            this.syncInteractionPanel();
+        });
     }
     private showPrototypeChoice() {
         const sim = this.mission?.simulation;

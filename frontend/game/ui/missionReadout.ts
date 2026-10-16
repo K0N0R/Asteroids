@@ -1,3 +1,4 @@
+import { ENEMY_FACTORY } from '../systems/enemyFactory';
 import {
     CONTRACTS,
     GAME,
@@ -71,6 +72,37 @@ export function missionObjectives(
 
 // Only actionable context belongs on the flight HUD. Explanations live under Tab.
 export function flightHint(s: MissionSimulation) {
+    if (
+        s.enemyFactory &&
+        (s.factoryMission ||
+            Math.hypot(
+                s.position.x - ENEMY_FACTORY.position.x,
+                s.position.y - ENEMY_FACTORY.position.y,
+            ) < ENEMY_FACTORY.activateRange)
+    ) {
+        const f = s.enemyFactory;
+        if (f.destroyed)
+            return s.dockable
+                ? 'E · dokuj i zatwierdź raport o stoczni'
+                : 'Stocznia zniszczona · posiłki zatrzymane · 1: Satuk 15';
+        return `Stocznia · ${Math.ceil(f.health)}/${ENEMY_FACTORY.health} HP · 5: rdzeń · zniszcz, aby zatrzymać produkcję`;
+    }
+
+    if (s.rescueOperation) {
+        const r = s.rescueOperation;
+        if (r.delivered && s.dockable) return 'E · dokuj i przekaż raport ratunkowy';
+        if (
+            ['ready', 'distress'].includes(r.state) &&
+            Math.hypot(s.position.x - r.position.x, s.position.y - r.position.y) < 170 &&
+            s.speed >= 60
+        )
+            return 'S · wyhamuj przy promie do prędkości poniżej 60 m/s';
+        if (r.state === 'ready' && s.salvage.full) return 'Hol zajęty · J zwolnij inny wrak';
+        if (r.attachProgress > 0)
+            return `E · podłączanie holu ${Math.floor((r.attachProgress / 3) * 100)}%`;
+        return r.status;
+    }
+    if (s.relayTuning) return 'Strojenie łączności · dopasuj fazy i zatwierdź sygnał';
     if (s.dockable && s.missionStatus) return s.missionStatus;
     if (s.surfaceContext) return s.surfaceContext;
     const percent = (progress: number, seconds: number) =>
@@ -79,7 +111,8 @@ export function flightHint(s: MissionSimulation) {
     if (s.escort?.state === 'idle' && s.nearbyEscort)
         return s.escort.startProgress > 0
             ? `E Eskorta · ${percent(s.escort.startProgress, 2)}`
-            : 'E Rozpocznij eskortę Keplera · 2 s';
+            : `E Rozpocznij eskortę: ${s.escortName} · 2 s`;
+    if (s.miningEscort && s.area === 'surface') return s.miningEscort.status;
     if (s.escort?.state === 'waiting')
         return s.escort.waitingReason === 'player'
             ? 'N Wróć do Keplera · czeka na eskortę'
@@ -162,7 +195,11 @@ export function flightHint(s: MissionSimulation) {
     if (site?.siteId && !s.surveyData.has(site.siteId))
         return s.speed > SCAN.speed
             ? 'S  Wyhamuj do skanu · <60 m/s'
-            : 'E  Skanuj · przytrzymaj 3 s';
+            : s.relayRequired
+              ? 'E  Otwórz strojenie łączności'
+              : 'E  Skanuj · przytrzymaj 3 s';
+    if (s.stationShieldActive && s.distanceHome >= 350 && s.distanceHome < s.stationSafeRadius)
+        return `${s.stationName} · bezpieczny obszar tarczy`;
     if (s.distanceHome < 350) {
         if (s.grippers.arms.some((arm) => arm.held)) return 'Chwytaki zaciągają łup…';
         return s.dockable

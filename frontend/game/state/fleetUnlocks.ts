@@ -2,7 +2,10 @@ import { HULLS, type HullId } from '../config';
 import type { Campaign } from './campaign';
 
 export const HULL_UNLOCKS: Partial<Record<HullId, { task: string; label: string }>> = {
-    mule: { task: 'earth-workshop', label: 'Uruchom warsztat w zadaniu Zaplecze stacji' },
+    mule: {
+        task: 'lunar-foundation',
+        label: 'Ukończ fundamenty stacji na Księżycu z dostawami Muła',
+    },
     tug: { task: 'lunar-survey', label: 'Zakończ zwiad trasy księżycowej' },
     fighter: { task: 'lunar-commission', label: 'Zakończ odbiór stacji księżycowej' },
     falcon: { task: 'earth-debrief', label: 'Zatwierdź ziemską odprawę przed Wenus' },

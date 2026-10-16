@@ -1,3 +1,4 @@
+import { stationShieldOverview } from './stationShield';
 import { industryOverview } from './industry';
 import { resourceTotal, resourceSummary } from '../state/resources';
 import { hullUnlockReason } from '../state/fleetUnlocks';
@@ -77,7 +78,8 @@ export type LobbyTab =
     | 'pilots'
     | 'crew'
     | 'recovery'
-    | 'industry';
+    | 'industry'
+    | 'stationShield';
 export interface LobbyActions {
     replayDialogue?: () => void;
     openSandbox?: () => void;
@@ -101,6 +103,7 @@ export interface LobbyActions {
     scrapShip: (id: number) => void;
     rescue: () => void;
     installCargoBay?: () => void;
+    installStationShield?: () => void;
     hireMechanic: () => void;
     hireQuartermaster: () => void;
     queueJob: (kind: JobKind) => void;
@@ -250,7 +253,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.55', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.63', 30, 851, 11, C.muted);
         const industrial = resourceSummary({
             copperOre: c.bank.copperOre,
             conductors: c.bank.conductors,
@@ -270,6 +273,27 @@ export class LobbyView extends Container {
         if (this.tab === 'industry') {
             this.section('Przemysł Satuk 15', 'Rudy → komponenty → moduły → konstrukcje.');
             industryOverview(ui, c, { ...this.actions, back: () => this.go('station') });
+            button(
+                ui,
+                'TARCZA SATUK 15 →',
+                650,
+                218,
+                355,
+                () => this.go('stationShield'),
+                false,
+                true,
+                34,
+                14,
+            );
+        }
+        if (this.tab === 'stationShield') {
+            this.section('Ochrona Satuk 15', 'Rozbuduj bezpieczny obszar wokół stacji.');
+            stationShieldOverview(
+                ui,
+                c,
+                () => this.go('industry'),
+                this.actions.installStationShield,
+            );
         }
         if (this.tab === 'pilots') this.pilots(ui);
         if (this.tab === 'crew') this.crew(ui);
@@ -340,7 +364,7 @@ export class LobbyView extends Container {
                 27,
             );
         const manifest = constructionManifest(c);
-        if (ready && recoveryId === null && manifest.ore + manifest.parts > 0)
+        if (ready && recoveryId === null && !this.missionTask && manifest.ore + manifest.parts > 0)
             button(
                 ui,
                 `WYLOT Z DOSTAWĄ · ${manifest.ore} R / ${manifest.parts} K`,
@@ -1141,7 +1165,7 @@ export class LobbyView extends Container {
         });
         const industry = choiceCard(ui, 760, 650, 225, 141, false, () => this.go('industry'));
         label(industry, 'Przemysł', 20, 23, 23);
-        label(industry, 'Produkcja i segmenty', 20, 60, 15, C.muted);
+        label(industry, 'Produkcja, magazyn, tarcza', 20, 60, 15, C.muted);
         label(industry, 'OTWÓRZ →', 20, 108, 14, C.mint);
         label(ui, 'MODUŁ STACJI', 1072, 244, 13, C.muted);
         label(ui, part === 'workshop' ? 'Warsztat' : 'Magazyn', 1072, 276, 31);

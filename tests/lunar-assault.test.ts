@@ -40,6 +40,7 @@ function enter(s: MissionSimulation) {
     at(s, MOON.entrance);
     s.step(idle);
     for (let i = 0; i < 125; i++) s.step({ ...idle, interact: true });
+    while (s.transferActive) s.step(idle);
     at(s, MOON.construction);
     s.step(idle);
 }

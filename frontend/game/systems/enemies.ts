@@ -157,6 +157,7 @@ export class EnemyFleet {
         fire: (enemy: Enemy) => boolean,
         signature = 1,
         ally?: { position: Point; velocity: Point; kind?: 'station' },
+        safeRadius: number = DRONES.safeRadius,
     ) {
         if (this.disposed) return;
         for (const enemy of this.enemies.values()) {
@@ -167,12 +168,12 @@ export class EnemyFleet {
                 : Infinity;
             const playerDistance = Math.hypot(playerPosition.x - p0.x, playerPosition.y - p0.y);
             const playerVisible =
-                Math.hypot(playerPosition.x, playerPosition.y) >= DRONES.safeRadius &&
+                Math.hypot(playerPosition.x, playerPosition.y) >= safeRadius &&
                 playerDistance < config.loseRange * signature &&
                 this.lineClear(p0, playerPosition, isRock);
             const chooseAlly =
                 !!ally &&
-                Math.hypot(ally.position.x, ally.position.y) >= DRONES.safeRadius &&
+                Math.hypot(ally.position.x, ally.position.y) >= safeRadius &&
                 allyDistance < config.loseRange &&
                 this.lineClear(p0, ally.position, isRock) &&
                 (!playerVisible || allyDistance < playerDistance);
@@ -187,7 +188,7 @@ export class EnemyFleet {
                 dy = player.y - p.y;
             const distance = Math.hypot(dx, dy),
                 homeDistance = Math.hypot(p.x - enemy.home.x, p.y - enemy.home.y);
-            const safe = Math.hypot(player.x, player.y) < DRONES.safeRadius;
+            const safe = Math.hypot(player.x, player.y) < safeRadius;
             const visible =
                 !safe &&
                 distance < config.loseRange * targetSignature &&
@@ -282,7 +283,7 @@ export class EnemyFleet {
                     vy += (ay / Math.max(1, length)) * push;
                 }
             }
-            if (Math.hypot(p.x, p.y) < DRONES.safeRadius) {
+            if (Math.hypot(p.x, p.y) < safeRadius) {
                 const radius = Math.max(1, Math.hypot(p.x, p.y));
                 vx = (p.x / radius) * speed;
                 vy = (p.y / radius) * speed;

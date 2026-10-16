@@ -38,6 +38,8 @@ export class MissionHud extends Container {
     private supportStatus: Typography | null = null;
     private orderStatus: Typography | null = null;
     private defenseStatus: Typography | null = null;
+    private convoyStatus: Typography | null = null;
+    private rescueStatus: Typography | null = null;
     constructor(
         readonly sim: MissionSimulation,
         private contract: number,
@@ -52,6 +54,9 @@ export class MissionHud extends Container {
         if (firstSite) this.target = SCAN_SITES[firstSite].key - 1;
         if (CONTRACTS[contract].kills) this.trackEnemy();
         if (sim.recoverySignal) this.target = 5;
+        if (sim.miningEscort) this.target = 15;
+        if (sim.factoryMission) this.target = 4;
+        if (sim.rescueOperation) this.target = 16;
         this.addChild(this.meters, this.map, this.checks, this.arrow);
         for (const graphic of [this.meters, this.map, this.checks, this.arrow])
             graphic.eventMode = 'none';
@@ -70,6 +75,8 @@ export class MissionHud extends Container {
             this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
         if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
             this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
+        if (sim.rescueOperation) this.rescueStatus = label(this, '', 40, 185, 16, C.gold, 720);
+        if (sim.miningEscort) this.convoyStatus = label(this, '', 40, 215, 14, C.gold, 760);
         this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
         label(
             this,
@@ -155,6 +162,11 @@ export class MissionHud extends Container {
     }
     get waypoint() {
         const s = this.sim;
+        if (this.target === 15 && s.miningEscort) {
+            return s.area === 'orbit'
+                ? { ...MOON.entrance, name: 'Muł · podejście do Księżyca' }
+                : { ...s.miningEscort.position, name: 'Muł · budowa stacji' };
+        }
         if (s.area === 'surface') {
             if (this.target === 10)
                 return s.enemies.enemies.size
@@ -176,11 +188,17 @@ export class MissionHud extends Container {
         }
         if (this.target === 5 && s.recoverySignal?.area === 'surface')
             return { ...MOON.entrance, name: 'Ratunek na powierzchni · wejście' };
+        if (this.target === 16 && this.sim.rescueOperation) {
+            const r = this.sim.rescueOperation;
+            return ['delivered', 'destroyed'].includes(r.state)
+                ? { x: 0, y: 0, name: 'Satuk 15 / ratunek' }
+                : { ...r.position, name: 'Prom / sygnał SOS' };
+        }
         if (this.target === 15) {
             const e = this.sim.escort;
             return !e || e.state === 'destroyed' || e.state === 'complete'
-                ? { x: 0, y: 0, name: 'Aurora / koniec eskorty' }
-                : { ...e.position, name: 'RV Kepler' };
+                ? { x: 0, y: 0, name: `${this.sim.stationName} / koniec eskorty` }
+                : { ...e.position, name: this.sim.miningEscort ? 'Muł / eskorta' : 'RV Kepler' };
         }
         if (this.target === 14) {
             if (this.wreckId === null || !this.sim.salvage.items.has(this.wreckId))
@@ -220,6 +238,15 @@ export class MissionHud extends Container {
         }
     }
     private refresh() {
+        const rescue = this.sim.rescueOperation;
+        this.rescueStatus?.setText(
+            rescue
+                ? `Prom · ${rescue.state === 'destroyed' ? 'utracony' : rescue.delivered ? 'dostarczony' : `${Math.ceil(rescue.item.health)}/${rescue.item.maxHealth} HP`}`
+                : '',
+        );
+        this.convoyStatus?.setText(
+            `${(this.sim.area === 'surface' ? this.sim.miningEscort?.status : 'Muł czeka przy budowie na Księżycu') ?? ''} · HP ${Math.ceil(this.sim.escort?.health ?? 0)}`,
+        );
         if (this.sim.mercurySector)
             this.defenseStatus?.setColor(
                 this.sim.solar.heat >= 85
@@ -229,23 +256,25 @@ export class MissionHud extends Container {
                       : C.gold,
             );
         this.defenseStatus?.setText(
-            this.sim.outerSector
-                ? this.sim.outerStatus
-                : this.sim.saturnSector
-                  ? this.sim.saturnStatus
-                  : this.sim.jupiterSector
-                    ? this.sim.jupiterStatus
-                    : this.sim.beltSector
-                      ? this.sim.beltStatus
-                      : this.sim.mercurySector
-                        ? this.sim.solar.summary
-                        : this.sim.orbitalBaseSector || this.sim.area === 'surface'
-                          ? this.sim.defenseSummary
-                          : '',
+            this.sim.rescueOperation
+                ? ''
+                : this.sim.outerSector
+                  ? this.sim.outerStatus
+                  : this.sim.saturnSector
+                    ? this.sim.saturnStatus
+                    : this.sim.jupiterSector
+                      ? this.sim.jupiterStatus
+                      : this.sim.beltSector
+                        ? this.sim.beltStatus
+                        : this.sim.mercurySector
+                          ? this.sim.solar.summary
+                          : this.sim.orbitalBaseSector || this.sim.area === 'surface'
+                            ? this.sim.defenseSummary
+                            : '',
         );
         if (this.areaRevision !== this.sim.areaRevision) {
             this.areaRevision = this.sim.areaRevision;
-            this.target = this.sim.area === 'surface' ? 0 : 2;
+            this.target = this.sim.area === 'surface' ? (this.sim.miningEscort ? 15 : 0) : 2;
             this.trail = new RadarTrail();
         }
         const s = this.sim,
@@ -411,7 +440,7 @@ export class MissionHud extends Container {
         this.trail.update(p, s.elapsed);
         this.map
             .beginPath()
-            .circle(x, y, DRONES.safeRadius * scale)
+            .circle(x, y, s.stationSafeRadius * scale)
             .fill({ color: C.cyan, alpha: 0.12 })
             .stroke({ color: C.cyan, width: 1, alpha: 0.5 });
         const homes = new Map<string, { x: number; y: number }>();
@@ -449,7 +478,11 @@ export class MissionHud extends Container {
                     .circle(mx, my, site.radius * scale)
                     .fill({ color: s.surveyData.has('fortress') ? C.mint : C.red, alpha: 0.12 })
                     .stroke({ color: C.red, width: 1, alpha: 0.6 });
-            if (site.siteId)
+            if (site.kind === 'factory')
+                this.map
+                    .rect(mx - 4, my - 4, 8, 8)
+                    .stroke({ color: s.enemyFactory?.destroyed ? C.muted : C.red, width: 1.5 });
+            else if (site.siteId)
                 this.map
                     .rect(mx - 3, my - 3, 6, 6)
                     .fill(s.surveyData.has(site.siteId) ? C.mint : C.cyan);
@@ -466,6 +499,12 @@ export class MissionHud extends Container {
             this.map
                 .poly([mx, my - 5, mx + 5, my, mx, my + 5, mx - 5, my])
                 .stroke({ color: C.mint, width: 1.5 });
+        }
+        if (s.rescueOperation && !['destroyed', 'delivered'].includes(s.rescueOperation.state)) {
+            const p = s.rescueOperation.position;
+            this.map
+                .circle(x + p.x * scale, y + p.y * scale, 4)
+                .stroke({ color: C.gold, width: 2 });
         }
         for (const item of s.salvage.items.values()) {
             if (item.source === 'recovery') continue;
@@ -574,6 +613,16 @@ export class MissionHud extends Container {
             map.circle(p.x, p.y, l.kind === 'passage' ? 5 : 3).fill(
                 l.kind === 'passage' ? C.cyan : C.gold,
             );
+        }
+        if (s.miningEscort && s.miningEscort.state !== 'destroyed') {
+            const m = point(s.miningEscort.position);
+            map.circle(m.x, m.y, 4).fill(C.mint);
+        }
+        for (const e of s.enemies.enemies.values()) {
+            const ep = enemyPosition(e);
+            if (Math.hypot(ep.x - MOON.center.x, ep.y - MOON.center.y) > s.sectorRadius) continue;
+            const p = point(ep);
+            map.circle(p.x, p.y, 3).fill(C.red);
         }
         const signal = s.recoverySignal;
         const d = s.lunarDefense;

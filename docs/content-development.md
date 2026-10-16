@@ -4,7 +4,7 @@ Stan: 2026-10-16. Podstawa: lista autora przekazana po ukończeniu szkieletu kam
 
 ## Bieżąca polityka zapisu
 
-Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.55 przyjmuje wyłącznie format kampanii 35; wcześniejsze są odrzucane.
+Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.63 przyjmuje wyłącznie format kampanii 40 i dziennika 19; wcześniejsze są odrzucane.
 
 ## Ustalenia autora
 
@@ -91,7 +91,7 @@ Z referencji warto przenieść czytelność sylwetek, rytm kształtów, ogranicz
 
 ## Pierwszy zakres — wdrożony w 0.53
 
-[Implementacja i wyniki sprawdzeń](implementation-v0.53.md): trzy odprawy ziemskie i stopniowe odkrywanie zadań. Poniższy opis zachowuje założenia tego pakietu. Wersja 0.54 dodaje cykl wybranej wyprawy dla zwiadu i walki, odwrót oraz odblokowania floty. Wersja 0.55 rozpoczyna pakiet gospodarki i stacji: ruda miedzi, przewodniki, moduły zasilania i wytwarzane segmenty magazynowe. Tarcza stacji pozostaje następnym krokiem.
+[Implementacja i wyniki sprawdzeń](implementation-v0.53.md): trzy odprawy ziemskie i stopniowe odkrywanie zadań. Poniższy opis zachowuje założenia tego pakietu. Wersja 0.54 dodaje cykl wybranej wyprawy dla zwiadu i walki, odwrót oraz odblokowania floty. Wersja 0.55 rozpoczyna pakiet gospodarki i stacji: ruda miedzi, przewodniki, moduły zasilania i wytwarzane segmenty magazynowe. Wersja 0.56 dodaje generator tarczy stacji wykorzystujący moduły zasilania. Wersja 0.57 dodaje minigrę ziemskiej łączności. Wersja 0.58 dodaje eskortę wydobywczą Muła. Wersja 0.59 dodaje misję ratunkową z minigrą obwodów i fizycznym holowaniem promu. Wersja 0.60 rozbudowuje powierzchnię Księżyca o odległy grzbiet miedziowy i przytwierdzone formacje skalne. Wersja 0.61 przenosi eskortę Muła do budowy na Księżycu: wspólne dostawy 160 Fe, wielokrotne kursy, naprawy za własne zasoby i odblokowanie kadłuba po fundamentach. Wersja 0.62 dodaje animowane przejścia między orbitą a powierzchnią. Wersja 0.63 wdraża pierwszą bazę produkującą jednostki: opcjonalną stocznię polową przy Marsie. Kolejne pakiety obejmują drony strażnicze Satuk 15, role przeciwników i dalszą rozbudowę sektorów.
 
 ### Założenia pierwszego pakietu
 

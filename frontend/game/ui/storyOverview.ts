@@ -236,7 +236,7 @@ export function storyOverview(
                         ? 'Stacja paliw działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
                         : p.sector === 'earth'
                           ? 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
-                          : 'Rozpoznaj trasę i zbuduj księżycową stację paliw: 48 rudy na fundamenty, potem 12 komponentów na instalacje. Ziemia pozostaje dostępna.',
+                          : 'Rozpoznaj trasę i zbuduj księżycową stację paliw: 160 rudy na fundamenty (eskorta Muła i własne dostawy), potem 12 komponentów na instalacje. Ziemia pozostaje dostępna.',
         1072,
         320,
         17,
@@ -314,7 +314,7 @@ export function storyOverview(
                           : p.sector === 'mars'
                             ? 'F przeciwnik · 7 ślad pościgu · 8 pas po rozpoznaniu · 1 powrót. E odczyt / dokowanie. Przelot przez pas wymaga technologii.'
                             : p.sector === 'lunar'
-                              ? 'Orbita: 3 Księżyc po zwiadzie. Powierzchnia: 7 budowa · 2 złoże · 1 wyjście. E odczyt / dostawa / przejście.'
+                              ? 'Orbita: 3 Księżyc po zwiadzie. Powierzchnia: 7 budowa · 2 złoże · 5 miedź · 1 wyjście. E odczyt / dostawa / przejście.'
                               : '2 złoże · 7 łączność · 8 dalszy węzeł po odblokowaniu · 1 powrót · E odczyt / dokowanie',
         1072,
         657,

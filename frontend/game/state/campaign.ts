@@ -80,14 +80,14 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 35;
+    version: 40;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
     nextShipId: number;
     recoverySignals: RecoverySignal[];
-    station: { workshop: number; storage: number; cargoBays?: number };
+    station: { workshop: number; storage: number; cargoBays?: number; shield: boolean };
     pilots: Pilot[];
     selectedPilot: number;
     nextPilotId: number;
@@ -146,14 +146,14 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 35,
+        version: 40,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
         nextShipId: 2,
         recoverySignals: [],
-        station: { workshop: 0, storage: 0 },
+        station: { workshop: 0, storage: 0, shield: false },
         pilots: [newPilot()],
         selectedPilot: 1,
         nextPilotId: 2,
@@ -182,11 +182,12 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 35 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 40 || !cargo(p.bank) || !object(p.station)) return null;
         if (
             !integer(p.station.workshop, 2) ||
             !integer(p.station.storage, 3) ||
-            (p.station.cargoBays !== undefined && !integer(p.station.cargoBays, 3))
+            (p.station.cargoBays !== undefined && !integer(p.station.cargoBays, 3)) ||
+            typeof p.station.shield !== 'boolean'
         )
             return null;
         if (
@@ -570,8 +571,8 @@ export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
     if (c.activeRun) return false;
     const station = upgrade === 'storage' || upgrade === 'workshop';
     if (!station && !c.ship) return false;
-    const target = station ? c.station : c.ship!;
-    const level = (target as Record<string, number>)[upgrade];
+    const level =
+        upgrade === 'workshop' || upgrade === 'storage' ? c.station[upgrade] : c.ship![upgrade];
     const limit = upgrade === 'workshop' ? 2 : station ? 3 : c.station.workshop + 1;
     const price = upgradePrice(c, upgrade);
     if (
@@ -584,7 +585,8 @@ export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
     c.bank.ore -= price.ore;
     c.bank.parts -= price.parts;
     if (price.crystals) c.bank.crystals = (c.bank.crystals ?? 0) - price.crystals;
-    (target as Record<string, number>)[upgrade]++;
+    if (upgrade === 'workshop' || upgrade === 'storage') c.station[upgrade]++;
+    else c.ship![upgrade]++;
     return true;
 }
 export function hirePilot(c: Campaign, archetype: number): boolean {
