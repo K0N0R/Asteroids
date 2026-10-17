@@ -1,6 +1,8 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.64** dodaje **drony strażnicze Satuk 15**. Budowany hangar zapewnia trzy sojusznicze jednostki patrolujące stację na orbicie, wykrywające i ostrzeliwujące lokalnych przeciwników. Uszkodzone wracają na naprawę; zniszczone wymagają materiałów i czasu odbudowy. Dostęp: **Stacja → Przemysł → Ochrona Satuk 15 → Drony strażnicze**. Format kampanii 41 wymaga nowego zapisu. [Zakres i weryfikacja](docs/implementation-v0.64.md).
+Aktualna wersja **0.65** dodaje **cztery role przeciwników**: przechwytującego, ciężkiego Pancernika, naprawczego Serwisanta i stawiacza min. Mieszane składy pojawiają się w stoczni marsjańskiej; wszystkie cztery role można od razu sprawdzić przez **Sandbox / testy → Oddział mieszany**. Różne sylwetki, wiązki naprawcze, zapowiedź salwy i uzbrajanie min pokazują działania przeciwnika. Format kampanii pozostaje 41, dziennika 19: zapis 0.64 nadal działa. [Zakres i weryfikacja](docs/implementation-v0.65.md).
+
+Wersja **0.64** dodaje **drony strażnicze Satuk 15**. Budowany hangar zapewnia trzy sojusznicze jednostki patrolujące stację na orbicie, wykrywające i ostrzeliwujące lokalnych przeciwników. Uszkodzone wracają na naprawę; zniszczone wymagają materiałów i czasu odbudowy. Dostęp: **Stacja → Przemysł → Ochrona Satuk 15 → Drony strażnicze**. Format kampanii 41 wymaga nowego zapisu. [Zakres i weryfikacja](docs/implementation-v0.64.md).
 
 Wersja **0.63** dodaje **stocznię polową przeciwnika przy Marsie**. Opcjonalny rozkaz Zatrzymaj produkcję prowadzi do bazy regularnie wypuszczającej drony i Lancery. Zniszczenie rdzenia zatrzymuje starty, a bezpieczny powrót utrwala wyłączenie stoczni. [Zakres i weryfikacja](docs/implementation-v0.63.md).
 

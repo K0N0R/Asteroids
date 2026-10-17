@@ -27,6 +27,7 @@ import {
     AEGIS,
     ATLAS_WEAPONS,
     DRONES,
+    ENEMY_MINES,
     GAME,
     HULLS,
     OUTPOST,
@@ -76,6 +77,8 @@ export class MissionWorld extends Container {
     private salvageStatus = new Graphics();
     private enemyViews = new Map<number, DroneView>();
     private enemyStatus = new Graphics();
+    private mineView = new Graphics();
+    private repairBeams = new Graphics();
     private loot = new Map<number, Graphics>();
     private particles: {
         view: Graphics;
@@ -160,6 +163,7 @@ export class MissionWorld extends Container {
             this.camera.addChildAt(trail, this.camera.getChildIndex(this.shipView));
         }
         this.camera.addChild(this.enemyStatus, this.effectLayer, this.salvageStatus);
+        this.camera.addChild(this.mineView, this.repairBeams);
         this.camera.addChild(this.atlasLockView, this.burningView);
         this.supportDrone.addChild(
             new Graphics()
@@ -813,6 +817,7 @@ export class MissionWorld extends Container {
                 this.enemyViews.delete(id);
             }
         this.enemyStatus.clear();
+        this.repairBeams.clear();
         for (const enemy of s.enemies.enemies.values()) {
             let view = this.enemyViews.get(enemy.id);
             if (!view) {
@@ -848,6 +853,26 @@ export class MissionWorld extends Container {
             view.flame.scale.x = 0.7 + Math.sin(this.clock * 37 + enemy.id) * 0.15;
             view.alpha = enemy.hitFlash > 0 ? 0.45 : 1;
             view.visible = this.inView(pos);
+            const repaired =
+                enemy.repairTarget === null ? undefined : s.enemies.enemies.get(enemy.repairTarget);
+            if (repaired) {
+                const target = enemyPosition(repaired);
+                if (view.visible || this.inView(target)) {
+                    this.repairBeams
+                        .beginPath()
+                        .moveTo(pos.x, pos.y)
+                        .lineTo(target.x, target.y)
+                        .stroke({
+                            color: 0xe4cd8b,
+                            width: 2,
+                            alpha: 0.55 + Math.sin(this.clock * 9) * 0.2,
+                        });
+                    this.repairBeams
+                        .beginPath()
+                        .circle(target.x, target.y, repaired.config.radius + 6)
+                        .stroke({ color: 0xe4cd8b, width: 1.5, alpha: 0.6 });
+                }
+            }
             if (!view.visible) continue;
             const healthWidth = enemy.boss ? 110 : 48,
                 healthY = pos.y - (enemy.boss ? 85 : 47);
@@ -873,14 +898,67 @@ export class MissionWorld extends Container {
                         -Math.PI / 2 + (enemy.charge / enemy.config.windup) * Math.PI * 2,
                     )
                     .stroke({ color: C.red, width: 3 });
-                this.enemyStatus
-                    .moveTo(pos.x + Math.cos(a) * 35, pos.y + Math.sin(a) * 35)
-                    .lineTo(
-                        pos.x + Math.cos(a) * (enemy.kind === 'lancer' ? 350 : 100),
-                        pos.y + Math.sin(a) * (enemy.kind === 'lancer' ? 350 : 100),
-                    )
-                    .stroke({ color: C.red, width: 1, alpha: 0.5 });
+                for (const offset of enemy.kind === 'heavy' ? [-0.16, 0, 0.16] : [0]) {
+                    const length =
+                        enemy.kind === 'lancer' ? 350 : enemy.kind === 'heavy' ? 220 : 100;
+                    this.enemyStatus
+                        .beginPath()
+                        .moveTo(
+                            pos.x + Math.cos(a + offset) * 35,
+                            pos.y + Math.sin(a + offset) * 35,
+                        )
+                        .lineTo(
+                            pos.x + Math.cos(a + offset) * length,
+                            pos.y + Math.sin(a + offset) * length,
+                        )
+                        .stroke({ color: C.red, width: 1, alpha: 0.5 });
+                }
             }
+        }
+        this.mineView.clear();
+        for (const mine of s.mines.mines.values()) {
+            if (!this.inView(mine)) continue;
+            const color = mine.armRemaining > 0 ? C.gold : C.red;
+            const pulse = 0.65 + Math.sin(this.clock * (mine.life < 3 ? 18 : 6)) * 0.25;
+            this.mineView
+                .beginPath()
+                .circle(mine.x, mine.y, ENEMY_MINES.triggerRadius)
+                .stroke({ color, width: 1, alpha: 0.12 });
+            this.mineView
+                .beginPath()
+                .poly([
+                    mine.x - 13,
+                    mine.y,
+                    mine.x - 6,
+                    mine.y - 6,
+                    mine.x,
+                    mine.y - 13,
+                    mine.x + 6,
+                    mine.y - 6,
+                    mine.x + 13,
+                    mine.y,
+                    mine.x + 6,
+                    mine.y + 6,
+                    mine.x,
+                    mine.y + 13,
+                    mine.x - 6,
+                    mine.y + 6,
+                ])
+                .fill(0x424952)
+                .stroke({ color, width: 2, alpha: pulse });
+            this.mineView.beginPath().circle(mine.x, mine.y, 4).fill({ color, alpha: pulse });
+            if (mine.armRemaining > 0)
+                this.mineView
+                    .beginPath()
+                    .arc(
+                        mine.x,
+                        mine.y,
+                        19,
+                        -Math.PI / 2,
+                        -Math.PI / 2 +
+                            (1 - mine.armRemaining / ENEMY_MINES.armSeconds) * Math.PI * 2,
+                    )
+                    .stroke({ color, width: 2 });
         }
         this.surveyRings.clear();
         this.cacheRings.clear();

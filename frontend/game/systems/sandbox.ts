@@ -1,4 +1,4 @@
-import { HULLS, WEAPONS, GAME, type HullId, type WeaponId } from '../config';
+import { HULLS, WEAPONS, GAME, type HullId, type WeaponId, type EnemyKind } from '../config';
 import { beginRun, newCampaign, newShip, type ShipModules } from '../state/campaign';
 import { newPilot } from '../state/pilots';
 import { generateSector, random, type Point, type RockSpec } from '../worlds/sector';
@@ -20,6 +20,11 @@ export const SANDBOX_SCENARIOS = {
     combat: {
         name: 'Walka',
         detail: 'Pokonaj dwa drony i wróć do bazy. Walka zaczyna się poza tarczą Aurory.',
+        target: 1,
+    },
+    combinedArms: {
+        name: 'Oddział mieszany',
+        detail: 'Pancernik, przechwytujący, Serwisant i stawiacz min. Cel: cztery jednostki i bezpieczny powrót.',
         target: 1,
     },
     salvage: {
@@ -119,6 +124,26 @@ function sandboxSector(config: SandboxConfig) {
             x: 2000,
             y: 0,
             name: 'Poligon bojowy',
+        });
+    } else if (config.scenario === 'combinedArms') {
+        spawn = { x: 1500, y: 0 };
+        sector.rocks = [];
+        const squad: { kind: EnemyKind; x: number; y: number }[] = [
+            { kind: 'interceptor', x: 2120, y: 130 },
+            { kind: 'heavy', x: 2220, y: -190 },
+            { kind: 'support', x: 2500, y: -40 },
+            { kind: 'minelayer', x: 2330, y: 270 },
+        ];
+        sector.enemies = squad.map((spec, index) => ({
+            ...spec,
+            id: 8101 + index,
+            home: { x: 2250, y: 0 },
+            phase: Math.PI,
+        }));
+        Object.assign(sector.landmarks.find((landmark) => landmark.key === 2)!, {
+            x: 2250,
+            y: 0,
+            name: 'Poligon oddziału mieszanego',
         });
     } else if (config.scenario === 'salvage') {
         spawn = { x: 1040, y: 0 };
@@ -222,12 +247,12 @@ export class SandboxRun {
                 progress: `${s.cargoUsed}/10`,
                 complete: s.cargoUsed >= 10,
             });
-        if (this.config.scenario === 'combat')
+        if (this.config.scenario === 'combat' || this.config.scenario === 'combinedArms')
             goals.push({
                 id: 'kills',
-                title: 'Drony',
-                progress: `${s.enemyKills}/2`,
-                complete: s.enemyKills >= 2,
+                title: this.config.scenario === 'combinedArms' ? 'Oddział mieszany' : 'Drony',
+                progress: `${s.enemyKills}/${this.config.scenario === 'combinedArms' ? 4 : 2}`,
+                complete: s.enemyKills >= (this.config.scenario === 'combinedArms' ? 4 : 2),
             });
         if (this.config.scenario === 'salvage')
             goals.push({

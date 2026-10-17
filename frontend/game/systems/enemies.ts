@@ -1,6 +1,6 @@
 import { firstBossProfile, finalBossProfile } from './firstBoss';
 import RAPIER from '@dimforge/rapier2d-compat';
-import { DRONES, ENEMY_PROFILES, EnemyKind, GAME } from '../config';
+import { DRONES, ENEMY_PROFILES, ENEMY_SUPPORT, EnemyKind, GAME } from '../config';
 import type { EnemySpec, Point } from '../worlds/sector';
 
 const P = GAME.pixelsPerMeter;
@@ -27,6 +27,7 @@ export interface Enemy extends EnemySpec {
     thrusting: boolean;
     lastSeen: Point;
     routeIndex: number;
+    repairTarget: number | null;
     target: 'player' | 'escort' | 'station' | `sentry:${number}`;
 }
 export const enemyPosition = (enemy: Enemy): Point => {
@@ -101,6 +102,7 @@ export class EnemyFleet {
                 ...spec,
                 route: spec.route?.map((point) => ({ ...point })),
                 routeIndex: 0,
+                repairTarget: null,
                 target: 'player',
                 kind,
                 config,
@@ -237,7 +239,13 @@ export class EnemyFleet {
             }
             let vx: number, vy: number;
             const speed = enemy.state === 'chase' ? config.chaseSpeed : config.patrolSpeed;
-            const tracked = visible ? player : enemy.lastSeen;
+            const pursuitTime =
+                enemy.kind === 'interceptor' && visible
+                    ? Math.min(0.9, distance / config.chaseSpeed)
+                    : 0;
+            const tracked = visible
+                ? { x: player.x + velocity.x * pursuitTime, y: player.y + velocity.y * pursuitTime }
+                : enemy.lastSeen;
             const tx = tracked.x - p.x,
                 ty = tracked.y - p.y,
                 trackedDistance = Math.hypot(tx, ty);
@@ -271,6 +279,51 @@ export class EnemyFleet {
                 const approach = Math.min(speed, length * 1.5);
                 vx = (tx / Math.max(1, length)) * approach;
                 vy = (ty / Math.max(1, length)) * approach;
+            }
+            enemy.repairTarget = null;
+            if (
+                enemy.kind === 'support' &&
+                !enemy.weaponDisabled &&
+                !safe &&
+                Math.hypot(p.x, p.y) >= safeRadius
+            ) {
+                const wounded = [...this.enemies.values()]
+                    .filter((ally) => {
+                        const position = enemyPosition(ally);
+                        return (
+                            ally.id !== enemy.id &&
+                            !ally.boss &&
+                            ally.state === 'chase' &&
+                            ally.health > 0 &&
+                            ally.health < ally.config.hull &&
+                            Math.hypot(position.x - p.x, position.y - p.y) <=
+                                ENEMY_SUPPORT.followRange &&
+                            this.lineClear(p, position, isRock)
+                        );
+                    })
+                    .sort(
+                        (first, second) =>
+                            first.health / first.config.hull - second.health / second.config.hull ||
+                            first.id - second.id,
+                    )[0];
+                if (wounded) {
+                    const position = enemyPosition(wounded);
+                    const dx = position.x - p.x,
+                        dy = position.y - p.y;
+                    const length = Math.max(1, Math.hypot(dx, dy));
+                    if (length <= ENEMY_SUPPORT.range) {
+                        wounded.health = Math.min(
+                            wounded.config.hull,
+                            wounded.health + ENEMY_SUPPORT.repairPerSecond * dt,
+                        );
+                        enemy.repairTarget = wounded.id;
+                        vx *= 0.25;
+                        vy *= 0.25;
+                    } else {
+                        vx = (dx / length) * speed;
+                        vy = (dy / length) * speed;
+                    }
+                }
             }
             // Short forward feelers add avoidance; Rapier resolves contact with moving rocks.
             const travelAngle = Math.atan2(vy, vx);
@@ -318,8 +371,8 @@ export class EnemyFleet {
             const lead =
                 enemy.state === 'chase' && visible
                     ? interceptTime(
-                          tx,
-                          ty,
+                          dx,
+                          dy,
                           relative.x,
                           relative.y,
                           config.shotSpeed,
@@ -328,7 +381,7 @@ export class EnemyFleet {
                     : 0;
             const angle =
                 enemy.state === 'chase'
-                    ? Math.atan2(ty + relative.y * lead, tx + relative.x * lead)
+                    ? Math.atan2(dy + relative.y * lead, dx + relative.x * lead)
                     : Math.atan2(vy, vx);
             const error = Math.atan2(
                 Math.sin(angle - enemy.body.rotation()),
@@ -352,6 +405,7 @@ export class EnemyFleet {
                 enemy.state === 'chase' &&
                 visible &&
                 !enemy.weaponDisabled &&
+                enemy.repairTarget === null &&
                 distance < config.fireRange &&
                 Math.abs(error) < 0.2 &&
                 enemy.cooldown <= 0 &&

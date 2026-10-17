@@ -1,4 +1,5 @@
 import { EnemyFactory, ENEMY_FACTORY } from './enemyFactory';
+import { EnemyMines, type EnemyMine } from './enemyMines';
 import { RescueOperation, RESCUE_OPERATION } from './rescueOperation';
 import { RescueRepair, type RescueRepairAction } from './rescueRepair';
 import { MiningEscort, MINING_CONVOY } from './miningEscort';
@@ -43,6 +44,7 @@ import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody }
 import type { SoundCue } from './audioPolicy';
 import {
     AEGIS,
+    ENEMY_MINES,
     ATLAS_WEAPONS,
     CREW,
     JOBS,
@@ -130,6 +132,8 @@ const clamp = (v: number, low: number, high: number) => Math.max(low, Math.min(h
 export class MissionSimulation {
     readonly sector;
     readonly world = new RAPIER.World({ x: 0, y: 0 });
+    readonly mines = new EnemyMines(this.world);
+    private mineAreaRevision = 0;
     readonly kineticShield: KineticShield;
     readonly harpoonArms: HarpoonArms | null;
     readonly aegis: AegisSupport | null;
@@ -1202,6 +1206,10 @@ export class MissionSimulation {
             return;
         }
         this.elapsed += dt;
+        if (this.mineAreaRevision !== this.areaRevision) {
+            this.mines.clear();
+            this.mineAreaRevision = this.areaRevision;
+        }
         this.kineticShield.update(dt, this.area === 'orbit' && this.distanceHome < GAME.dockRadius);
         this.shotCooldown -= dt;
         this.laserEffectCooldown -= dt;
@@ -1566,6 +1574,7 @@ export class MissionSimulation {
                 : input.mine
         )
             this.mine(dt);
+        this.updateEnemyMines(dt);
         this.syncTow();
         for (const item of [...this.salvage.towing.values()])
             if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < GAME.dockRadius)
@@ -2008,7 +2017,7 @@ export class MissionSimulation {
             leavesWreck(this.sector.seed, enemy.id) &&
             this.salvage.add(
                 enemy.id,
-                enemy.kind,
+                enemy.kind === 'lancer' || enemy.kind === 'heavy' ? 'lancer' : 'patrol',
                 wreck,
                 { x: velocity.x * P * 0.35, y: velocity.y * P * 0.35 },
                 wreckAngle,
@@ -2235,7 +2244,9 @@ export class MissionSimulation {
             ? [-0.3, -0.15, 0, 0.15, 0.3]
             : enemy.boss && this.firstBoss.phase === 2
               ? [-0.18, 0, 0.18]
-              : [0]) {
+              : enemy.kind === 'heavy'
+                ? [-0.16, 0, 0.16]
+                : [0]) {
             if (this.bullets.size >= 80) break;
             const id = ++this.ids,
                 shotAngle = a + offset;
@@ -2247,7 +2258,7 @@ export class MissionSimulation {
                 vy: v.y * P + Math.sin(shotAngle) * enemy.config.shotSpeed,
                 life: enemy.config.shotLife,
                 team: 'enemy',
-                heavy: enemy.kind === 'lancer',
+                heavy: enemy.kind === 'lancer' || enemy.kind === 'heavy',
                 damage: enemy.config.shotDamage,
                 shooterId: enemy.id,
             });
@@ -2255,7 +2266,7 @@ export class MissionSimulation {
         this.events.push({
             ...p,
             kind: 'shot',
-            sound: enemy.kind === 'lancer' ? 'lancer' : 'enemy',
+            sound: enemy.kind === 'lancer' || enemy.kind === 'heavy' ? 'lancer' : 'enemy',
         });
         return true;
     }
@@ -2644,6 +2655,7 @@ export class MissionSimulation {
             rock?: Rock;
             enemy?: Enemy;
             factory?: boolean;
+            mine?: number;
         }[] = [];
         this.world.intersectionsWithShape(
             { x: position.x / P, y: position.y / P },
@@ -2655,11 +2667,13 @@ export class MissionSimulation {
                     this.enemies.colliders.get(collider.handle)!,
                 );
                 const factory = collider.handle === this.enemyFactory?.collider?.handle;
-                if (rock || enemy || factory) targets.push({ collider, rock, enemy, factory });
+                const mine = this.mines.colliders.get(collider.handle);
+                if (rock || enemy || factory || mine !== undefined)
+                    targets.push({ collider, rock, enemy, factory, mine });
                 return true;
             },
         );
-        for (const { collider, rock, enemy, factory } of targets) {
+        for (const { collider, rock, enemy, factory, mine } of targets) {
             const center = collider.translation();
             const obstruction = this.world.castRay(
                 new RAPIER.Ray(
@@ -2691,7 +2705,63 @@ export class MissionSimulation {
             if (enemy && this.enemies.enemies.has(enemy.id))
                 this.damageEnemy(enemy, bullet.damage, { x: center.x * P, y: center.y * P });
             if (factory) this.damageFactory(bullet.damage, { x: center.x * P, y: center.y * P });
+            if (mine !== undefined) this.damageMine(mine, bullet.damage);
         }
+    }
+    private damageMine(id: number, damage: number) {
+        const mine = this.mines.mines.get(id);
+        if (!mine) return;
+        this.events.push({ ...mine, kind: 'hit', strength: damage });
+        if (this.mines.damage(id, damage))
+            this.events.push({ ...mine, kind: 'break', strength: ENEMY_MINES.radius });
+    }
+    private updateEnemyMines(dt: number) {
+        const targets: Point[] = this.dashTime > 0 ? [] : [this.position];
+        for (const drone of this.sentries.drones.values()) targets.push(sentryPosition(drone));
+        if (this.aegis?.dronePosition) targets.push(this.aegis.dronePosition);
+        if (this.escort?.vulnerable && (!this.miningEscort || this.area === 'surface'))
+            targets.push(this.escort.position);
+        for (const item of this.salvage.items.values()) targets.push(salvagePosition(item));
+        if (this.activeAssault.active) targets.push(this.assaultSite);
+        this.mines.update(
+            dt,
+            this.enemies,
+            this.stationSafeRadius,
+            targets,
+            (collider) => this.isObstacle(collider),
+            (mine) => this.explodeEnemyMine(mine),
+        );
+    }
+    private explodeEnemyMine(mine: EnemyMine) {
+        this.events.push({
+            ...mine,
+            kind: 'explosion',
+            sound: 'destroy',
+            strength: ENEMY_MINES.blastRadius,
+        });
+        const exposed = (point: Point) =>
+            Math.hypot(point.x, point.y) >= this.stationSafeRadius &&
+            Math.hypot(point.x - mine.x, point.y - mine.y) <= ENEMY_MINES.blastRadius &&
+            !shieldEntry(mine, point, this.stationSafeRadius) &&
+            this.enemies.lineClear(mine, point, (collider) => this.isObstacle(collider));
+        if (this.dashTime <= 0 && exposed(this.position))
+            this.takeDamage(ENEMY_MINES.damage, 'Kadłub zniszczony przez minę.', this.position);
+        for (const drone of [...this.sentries.drones.values()])
+            if (exposed(sentryPosition(drone)))
+                this.damageSentry(drone.id, ENEMY_MINES.damage, sentryPosition(drone));
+        if (this.aegis?.dronePosition && exposed(this.aegis.dronePosition))
+            this.damageSupportDrone(ENEMY_MINES.damage, this.aegis.dronePosition);
+        if (
+            this.escort?.vulnerable &&
+            (!this.miningEscort || this.area === 'surface') &&
+            exposed(this.escort.position)
+        )
+            this.damageEscort(ENEMY_MINES.damage, this.escort.position);
+        for (const item of [...this.salvage.items.values()])
+            if (exposed(salvagePosition(item)))
+                this.damageSalvage(item, ENEMY_MINES.damage, salvagePosition(item));
+        if (this.activeAssault.active && exposed(this.assaultSite))
+            this.activeAssault.damage(ENEMY_MINES.damage);
     }
     get energyDamage() {
         return (
@@ -3038,6 +3108,8 @@ export class MissionSimulation {
             this.dashHits.add(enemy.collider.handle);
             this.damageEnemy(enemy, this.dashDamage, p);
         }
+        for (const mine of [...this.mines.mines.values()])
+            if (touches(mine, ENEMY_MINES.radius)) this.damageMine(mine.id, this.dashDamage);
         if (!length) return;
         const ray = new RAPIER.Ray(
             { x: from.x / P, y: from.y / P },
@@ -3128,7 +3200,8 @@ export class MissionSimulation {
                             (this.escort?.vulnerable &&
                                 collider.handle === this.escort.collider.handle))) ||
                     (bullet.team === 'player'
-                        ? this.enemies.colliders.has(collider.handle)
+                        ? this.enemies.colliders.has(collider.handle) ||
+                          this.mines.colliders.has(collider.handle)
                         : this.dashTime <= 0 && collider.handle === this.shipCollider.handle),
             );
             const next = { x: bullet.x + bullet.vx * dt, y: bullet.y + bullet.vy * dt };
@@ -3194,6 +3267,12 @@ export class MissionSimulation {
                 if (salvage && bullet.team === 'enemy')
                     this.damageSalvage(salvage, bullet.damage, contact);
                 const rock = this.rocks.get(this.asteroidColliders.get(hit.collider.handle)!);
+                const mineId = this.mines.colliders.get(hit.collider.handle);
+                if (bullet.team === 'player' && mineId !== undefined) {
+                    this.damageMine(mineId, bullet.damage);
+                    this.bullets.delete(bullet.id);
+                    continue;
+                }
                 if (
                     hit.collider.handle === this.enemyFactory?.collider?.handle &&
                     bullet.team === 'player'
@@ -3221,7 +3300,11 @@ export class MissionSimulation {
                             this.aegis?.hostiles.add(enemy.id);
                         }
                         const multiplier = bullet.stingerAmmo
-                            ? STINGER_AMMO[bullet.stingerAmmo][enemy.kind]
+                            ? STINGER_AMMO[bullet.stingerAmmo][
+                                  enemy.kind === 'lancer' || enemy.kind === 'heavy'
+                                      ? 'lancer'
+                                      : 'patrol'
+                              ]
                             : 1;
                         this.damageEnemy(enemy, bullet.damage * multiplier, contact);
                     }
@@ -3280,7 +3363,9 @@ export class MissionSimulation {
                 this.shipCollider,
                 undefined,
                 (collider) =>
-                    this.isObstacle(collider) || this.enemies.colliders.has(collider.handle),
+                    this.isObstacle(collider) ||
+                    this.enemies.colliders.has(collider.handle) ||
+                    this.mines.colliders.has(collider.handle),
             );
             if (obstruction) {
                 tip = {
@@ -3327,10 +3412,19 @@ export class MissionSimulation {
                 (collider) =>
                     collider.handle === this.enemyFactory?.collider?.handle ||
                     this.asteroidColliders.has(collider.handle) ||
-                    this.enemies.colliders.has(collider.handle),
+                    this.enemies.colliders.has(collider.handle) ||
+                    this.mines.colliders.has(collider.handle),
             );
         });
         for (const { collider, point } of contacts.values()) {
+            const mineId = this.mines.colliders.get(collider.handle);
+            if (mineId !== undefined) {
+                this.damageMine(
+                    mineId,
+                    HARPOON_ARMS.shipDamage * arms.damageMultiplier * this.armament.power,
+                );
+                continue;
+            }
             if (collider.handle === this.enemyFactory?.collider?.handle) {
                 this.damageFactory(
                     HARPOON_ARMS.shipDamage * arms.damageMultiplier * this.armament.power,
@@ -3396,13 +3490,21 @@ export class MissionSimulation {
             undefined,
             this.shipCollider,
             undefined,
-            (collider) => this.isObstacle(collider) || this.enemies.colliders.has(collider.handle),
+            (collider) =>
+                this.isObstacle(collider) ||
+                this.enemies.colliders.has(collider.handle) ||
+                this.mines.colliders.has(collider.handle),
         );
         const distance = hit ? hit.timeOfImpact * P : this.laserRange * this.armament.range;
         const to = { x: from.x + direction.x * distance, y: from.y + direction.y * distance };
         this.laserBeam = { from, to };
         this.laserBeams.push({ from, to });
         if (!hit) return;
+        const mineId = this.mines.colliders.get(hit.collider.handle);
+        if (mineId !== undefined) {
+            this.damageMine(mineId, GAME.laserDamage * this.hullConfig.miningPower * dt);
+            return;
+        }
         if (hit.collider.handle === this.enemyFactory?.collider?.handle) {
             this.damageFactory(
                 (this.modules.hull === 'phoenix'
@@ -3962,6 +4064,7 @@ export class MissionSimulation {
         this.structureHealth.clear();
         this.destroyedFortressWalls.clear();
         this.aegis?.dispose();
+        this.mines.clear();
         this.sentries.clear();
         this.escort?.dispose();
         this.salvage.dispose();

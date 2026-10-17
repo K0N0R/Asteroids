@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier2d-compat';
-import { GAME } from '../config';
+import { GAME, type EnemyKind } from '../config';
 import type { Point } from '../worlds/sector';
 import type { EnemyFleet } from './enemies';
 
@@ -11,6 +11,14 @@ export const ENEMY_FACTORY = {
     firstLaunch: 6,
     interval: 14,
     limit: 4,
+    roster: [
+        'interceptor',
+        'support',
+        'lancer',
+        'heavy',
+        'minelayer',
+        'patrol',
+    ] as readonly EnemyKind[],
 } as const;
 
 export class EnemyFactory {
@@ -74,7 +82,7 @@ export class EnemyFactory {
                     ...point,
                     id,
                     phase: a,
-                    kind: this.launched % 3 === 0 ? 'lancer' : 'patrol',
+                    kind: ENEMY_FACTORY.roster[(this.launched - 1) % ENEMY_FACTORY.roster.length],
                     factorySpawn: true,
                     home: { ...p },
                 },

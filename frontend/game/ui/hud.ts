@@ -571,11 +571,23 @@ export class MissionHud extends Container {
                 my = y + e.y * scale;
             this.map
                 .poly(
-                    enemy.kind === 'lancer'
+                    enemy.kind === 'lancer' || enemy.kind === 'heavy'
                         ? [mx + 4, my, mx, my - 3, mx - 4, my, mx, my + 3]
                         : [mx + 3, my, mx - 2, my - 2, mx - 2, my + 2],
                 )
                 .fill(enemy.state === 'chase' ? C.red : 0xb3696c);
+        }
+        for (const mine of s.mines.mines.values()) {
+            if (Math.hypot(mine.x - p.x, mine.y - p.y) > 1000) continue;
+            const mx = x + mine.x * scale,
+                my = y + mine.y * scale;
+            this.map
+                .beginPath()
+                .moveTo(mx - 2, my - 2)
+                .lineTo(mx + 2, my + 2)
+                .moveTo(mx - 2, my + 2)
+                .lineTo(mx + 2, my - 2)
+                .stroke({ color: mine.armRemaining > 0 ? C.gold : C.red, width: 1 });
         }
         if (distance > 1 && this.target !== 0)
             this.map

@@ -255,7 +255,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.64', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.65', 30, 851, 11, C.muted);
         const industrial = resourceSummary({
             copperOre: c.bank.copperOre,
             conductors: c.bank.conductors,

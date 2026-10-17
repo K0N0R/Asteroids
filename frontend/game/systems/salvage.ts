@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier2d-compat';
-import { GAME, type EnemyKind } from '../config';
+import { GAME } from '../config';
 import { random, type Point } from '../worlds/sector';
 
 export const SALVAGE = {
@@ -16,7 +16,7 @@ export function leavesWreck(seed: number, id: number) {
 }
 export interface SalvageBody {
     id: number;
-    source: EnemyKind | 'recovery';
+    source: 'patrol' | 'lancer' | 'recovery';
     body: RAPIER.RigidBody;
     collider: RAPIER.Collider;
     radius: number;

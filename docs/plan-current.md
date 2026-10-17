@@ -1,6 +1,6 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-17, wersja 0.64.
+Stan: 2026-10-17, wersja 0.65.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
@@ -17,8 +17,8 @@ Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony k
 ## Uzgodniona kolejność dalszej rozbudowy
 
 1. **Drony strażnicze Satuk 15**: wdrożone w 0.64, budowany hangar, trzy patrole, ograniczony zasięg, naprawa i płatna odbudowa. [Zakres](implementation-v0.64.md).
-2. **Zróżnicowani przeciwnicy**: przechwytujący, ciężka jednostka nacisku, wsparcie naprawcze i stawiacz min; kombinacje wymuszające zmianę taktyki i kolejności celów. Bezpośrednio następny pakiet.
-3. **Obrony baz**: większe mieszane fale dolatujące spoza ekranu, bez wskaźników kierunku nadejścia; współpraca gracza, tarczy i garnizonu.
+2. **Zróżnicowani przeciwnicy**: wdrożone w 0.65, przechwytujący, Pancernik, Serwisant i stawiacz min; mieszane składy stoczni marsjańskiej oraz osobny poligon. [Zakres](implementation-v0.65.md).
+3. **Obrony baz**: większe mieszane fale dolatujące spoza ekranu, bez wskaźników kierunku nadejścia; współpraca gracza, tarczy i garnizonu. Bezpośrednio następny pakiet.
 4. **Hakowanie i minigry**: włamania, przekierowanie zasilania i naprawy instalacji; odmienne ułatwienia Sokoła i Feniksa.
 5. **Merkury i Harpun**: złoża odporne na ostrzał, wyrywanie materiału i produkcja ulepszonych tarcz kinetycznych stacji.
 6. **Większe sektory**: nieregularne skupiska, dryf asteroid, spokojne przeloty, alternatywne trasy i opcjonalne odkrycia.

@@ -4,9 +4,9 @@ Stan: 2026-10-16. Podstawa: lista autora przekazana po ukończeniu szkieletu kam
 
 ## Bieżąca polityka zapisu
 
-Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.64 przyjmuje wyłącznie format kampanii 41 i dziennika 19; wcześniejsze są odrzucane.
+Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.65 przyjmuje wyłącznie format kampanii 41 i dziennika 19, bez zmiany względem 0.64; wcześniejsze formaty są odrzucane.
 
-Aktualna kolejność pakietów jest zapisana w [bieżącym planie](plan-current.md#uzgodniona-kolejność-dalszej-rozbudowy). Drony strażnicze wdrożono w 0.64; następne są role przeciwników, potem większe obrony baz. Scenariusz aktu I rozwijamy równolegle, bez przesądzania zwrotów, motywacji i finału.
+Aktualna kolejność pakietów jest zapisana w [bieżącym planie](plan-current.md#uzgodniona-kolejność-dalszej-rozbudowy). Drony strażnicze wdrożono w 0.64, role przeciwników w 0.65; następne są większe obrony baz. Scenariusz aktu I rozwijamy równolegle, bez przesądzania zwrotów, motywacji i finału.
 
 ## Ustalenia autora
 

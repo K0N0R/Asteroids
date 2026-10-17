@@ -279,6 +279,71 @@ export class DroneView extends Container {
     readonly flame = new Graphics();
     constructor(kind: EnemyKind = 'patrol') {
         super();
+        if (kind !== 'patrol' && kind !== 'lancer') {
+            const hulls = {
+                interceptor: [-25, -6, -12, -18, 1, -11, 32, 0, 1, 11, -12, 18, -25, 6],
+                heavy: [
+                    -37, -25, -24, -38, 15, -38, 34, -23, 38, 0, 34, 23, 15, 38, -24, 38, -37, 25,
+                ],
+                support: [
+                    -27, -21, -9, -27, 9, -18, 24, -11, 24, 11, 9, 18, -9, 27, -27, 21, -17, 0,
+                ],
+                minelayer: [-31, -25, 10, -28, 29, -14, 31, 14, 10, 28, -31, 25, -20, 0],
+            };
+            const accent =
+                kind === 'support'
+                    ? 0xd6c38a
+                    : kind === 'interceptor'
+                      ? 0xd2988a
+                      : kind === 'minelayer'
+                        ? 0xd0a575
+                        : 0xbda09a;
+            this.flame
+                .poly([-27, -6, -49, 0, -27, 6])
+                .fill({ color: SHIP_COLORS.flame, alpha: 0.8 });
+            this.addChild(this.flame);
+            const guns = new Graphics();
+            for (const offset of kind === 'heavy' ? [-17, 0, 17] : [0])
+                guns.rect(17, offset - 3, kind === 'heavy' ? 29 : 19, 6).fill(SHIP_COLORS.gun);
+            this.addChild(guns);
+            const body = new Graphics();
+            roundedPanel(body, hulls[kind], 3, kind === 'heavy' ? 0x5c5e62 : 0x59686e, 0xa4adb0);
+            for (const side of [-1, 1]) {
+                body.beginPath()
+                    .rect(-20, side * (kind === 'heavy' ? 27 : 15) - 3, 20, 6)
+                    .fill(accent);
+                body.beginPath()
+                    .rect(-28, side * 12 - 3, 7, 6)
+                    .fill(SHIP_COLORS.engine);
+            }
+            if (kind === 'heavy') {
+                roundedPanel(
+                    body,
+                    [-21, -23, 16, -23, 25, 0, 16, 23, -21, 23],
+                    3,
+                    0x7c7e7d,
+                    0xafb1ab,
+                );
+                body.beginPath().rect(-11, -21, 7, 42).fill(0x494e54);
+            }
+            if (kind === 'support') {
+                body.beginPath().rect(-3, -11, 6, 22).rect(-11, -3, 22, 6).fill(accent);
+                body.beginPath().circle(20, -14, 4).circle(20, 14, 4).fill(0xc4d9db);
+            }
+            if (kind === 'minelayer')
+                for (const side of [-1, 1])
+                    for (let index = 0; index < 3; index++) {
+                        const x = -22 + index * 10,
+                            y = side * 19;
+                        body.beginPath()
+                            .poly([x - 4, y, x, y - 4, x + 4, y, x, y + 4])
+                            .fill(0x373c43)
+                            .stroke({ color: accent, width: 1 });
+                    }
+            if (kind !== 'support') visor(body, kind === 'heavy' ? 13 : 7, 0, 6, 5);
+            this.addChild(body);
+            return;
+        }
         const heavy = kind === 'lancer',
             g = new Graphics();
         this.flame.poly([-29, -7, -54, 0, -29, 7]).fill({ color: SHIP_COLORS.flame, alpha: 0.8 });

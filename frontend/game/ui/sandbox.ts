@@ -56,9 +56,9 @@ export class SandboxSetup extends Container {
             button(
                 this,
                 SANDBOX_SCENARIOS[key].name,
-                120 + (i % 3) * 270,
-                197 + Math.floor(i / 3) * 45,
-                252,
+                120 + (i % 4) * 202,
+                197 + Math.floor(i / 4) * 45,
+                188,
                 () => {
                     c.scenario = key;
                     this.render();

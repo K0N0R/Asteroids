@@ -113,7 +113,7 @@ test('factory activates locally, respects launch cadence, blocked pads and live-
     }
 });
 
-test('stock Prospector flies to the factory, fights its real launches, destroys the core and safely reports permanent shutdown once', () => {
+test('stock Prospector prioritizes repair support at the factory, fights real launches and safely reports permanent shutdown once', () => {
     const c = ready();
     assert.ok(beginRun(c, 1, null, false, 'mars-factory'));
     const s = new MissionSimulation(c, 1);
@@ -132,14 +132,15 @@ test('stock Prospector flies to the factory, fights its real launches, destroys 
                 )
                 .sort(
                     (a, b) =>
+                        Number(b.kind === 'support') - Number(a.kind === 'support') ||
                         Math.hypot(
                             enemyPosition(a).x - s.position.x,
                             enemyPosition(a).y - s.position.y,
                         ) -
-                        Math.hypot(
-                            enemyPosition(b).x - s.position.x,
-                            enemyPosition(b).y - s.position.y,
-                        ),
+                            Math.hypot(
+                                enemyPosition(b).x - s.position.x,
+                                enemyPosition(b).y - s.position.y,
+                            ),
                 )[0];
             if (enemy) {
                 input.target = enemyPosition(enemy);
