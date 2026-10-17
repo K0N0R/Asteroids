@@ -1,4 +1,5 @@
 import { RESOURCE_IDS, resourceTotal, type ResourceStore } from './resources';
+import { STATION_DRONES, type StationDroneState } from './stationDrones';
 import { hullUnlocked } from './fleetUnlocks';
 import { selectableMission, missionObjectiveMet, type MissionOrder } from './missionOrders';
 import {
@@ -80,14 +81,20 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 40;
+    version: 41;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
     nextShipId: number;
     recoverySignals: RecoverySignal[];
-    station: { workshop: number; storage: number; cargoBays?: number; shield: boolean };
+    station: {
+        workshop: number;
+        storage: number;
+        cargoBays?: number;
+        shield: boolean;
+        sentries: StationDroneState[] | null;
+    };
     pilots: Pilot[];
     selectedPilot: number;
     nextPilotId: number;
@@ -146,14 +153,14 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 40,
+        version: 41,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
         nextShipId: 2,
         recoverySignals: [],
-        station: { workshop: 0, storage: 0, shield: false },
+        station: { workshop: 0, storage: 0, shield: false, sentries: null },
         pilots: [newPilot()],
         selectedPilot: 1,
         nextPilotId: 2,
@@ -182,12 +189,32 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 40 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 41 || !cargo(p.bank) || !object(p.station)) return null;
         if (
             !integer(p.station.workshop, 2) ||
             !integer(p.station.storage, 3) ||
             (p.station.cargoBays !== undefined && !integer(p.station.cargoBays, 3)) ||
             typeof p.station.shield !== 'boolean'
+        )
+            return null;
+        if (
+            p.station.sentries !== null &&
+            (!p.station.shield ||
+                !Array.isArray(p.station.sentries) ||
+                p.station.sentries.length !== STATION_DRONES.count ||
+                !p.station.sentries.every(
+                    (drone) =>
+                        object(drone) &&
+                        typeof drone.hull === 'number' &&
+                        Number.isFinite(drone.hull) &&
+                        drone.hull >= 0 &&
+                        drone.hull <= STATION_DRONES.hull &&
+                        typeof drone.rebuildRemaining === 'number' &&
+                        Number.isFinite(drone.rebuildRemaining) &&
+                        drone.rebuildRemaining >= 0 &&
+                        drone.rebuildRemaining <= STATION_DRONES.rebuildSeconds &&
+                        (drone.hull === 0 || drone.rebuildRemaining === 0),
+                ))
         )
             return null;
         if (

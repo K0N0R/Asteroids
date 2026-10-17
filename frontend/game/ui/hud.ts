@@ -1,5 +1,6 @@
 import { salvagePosition } from '../systems/salvage';
 import { RadarTrail } from '../systems/radarTrail';
+import { sentryPosition } from '../systems/stationSentries';
 import { Container, Graphics } from 'pixi.js';
 import { Typography } from '../../core/containers/components/typography';
 import { CONTRACTS, GAME, SCAN_SITES, DRONES } from '../config';
@@ -515,6 +516,15 @@ export class MissionHud extends Container {
                 .beginPath()
                 .poly([mx, my - 4, mx + 4, my, mx, my + 4, mx - 4, my])
                 .stroke({ color: s.salvage.towing.has(item.id) ? C.mint : C.gold, width: 1 });
+        }
+        for (const drone of s.sentries.drones.values()) {
+            const p = sentryPosition(drone),
+                mx = x + p.x * scale,
+                my = y + p.y * scale;
+            this.map
+                .beginPath()
+                .poly([mx, my - 3, mx + 3, my, mx, my + 3, mx - 3, my])
+                .fill(C.mint);
         }
         if (s.escort) {
             const site = s.sector.researchSite,

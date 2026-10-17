@@ -1,6 +1,8 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.63** dodaje **stocznię polową przeciwnika przy Marsie**. Opcjonalny rozkaz Zatrzymaj produkcję prowadzi do bazy regularnie wypuszczającej drony i Lancery. Zniszczenie rdzenia zatrzymuje starty, a bezpieczny powrót utrwala wyłączenie stoczni. Wymagany nowy zapis. [Zakres i weryfikacja](docs/implementation-v0.63.md).
+Aktualna wersja **0.64** dodaje **drony strażnicze Satuk 15**. Budowany hangar zapewnia trzy sojusznicze jednostki patrolujące stację na orbicie, wykrywające i ostrzeliwujące lokalnych przeciwników. Uszkodzone wracają na naprawę; zniszczone wymagają materiałów i czasu odbudowy. Dostęp: **Stacja → Przemysł → Ochrona Satuk 15 → Drony strażnicze**. Format kampanii 41 wymaga nowego zapisu. [Zakres i weryfikacja](docs/implementation-v0.64.md).
+
+Wersja **0.63** dodaje **stocznię polową przeciwnika przy Marsie**. Opcjonalny rozkaz Zatrzymaj produkcję prowadzi do bazy regularnie wypuszczającej drony i Lancery. Zniszczenie rdzenia zatrzymuje starty, a bezpieczny powrót utrwala wyłączenie stoczni. [Zakres i weryfikacja](docs/implementation-v0.63.md).
 
 Wersja **0.62** dodaje **animowane przejścia między orbitą a powierzchnią Księżyca**: wygaszenie podejścia, księżycowy horyzont i zbliżenie kamery. Krótki transfer blokuje sterowanie i wstrzymuje symulację, zachowując ładunek i hol. [Zakres i weryfikacja](docs/implementation-v0.62.md).
 

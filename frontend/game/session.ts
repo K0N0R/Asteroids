@@ -1,6 +1,7 @@
 import { rescueRepairPanel } from './ui/rescueRepair';
 import { relayTuningPanel } from './ui/relayTuning';
 import { installStationShield } from './state/stationShield';
+import { installStationDrones } from './state/stationDrones';
 import { resourceSummary } from './state/resources';
 import {
     DialoguePlayback,
@@ -197,6 +198,11 @@ export class GameSession {
                 this.change(
                     () => installStationShield(this.campaign),
                     'Generator tarczy aktywny. Satuk 15 chroni obszar w promieniu 850 m.',
+                ),
+            installStationDrones: () =>
+                this.change(
+                    () => installStationDrones(this.campaign),
+                    'Hangar gotowy. Trzy drony strażnicze rozpoczną patrol przy kolejnym wylocie.',
                 ),
             installCargoBay: () =>
                 this.change(

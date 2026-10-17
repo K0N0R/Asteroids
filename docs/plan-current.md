@@ -1,6 +1,6 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-16, wersja 0.63.
+Stan: 2026-10-17, wersja 0.64.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
@@ -13,6 +13,23 @@ Decyzja autora: starsze zapisy są niekompatybilne i nie mogą być otwierane. N
 Autor przekazał zakres etapowej rozbudowy sektorów: dialogi i reżyseria, odblokowania floty, nowe misje i minigry, trudniejsza walka, rozbudowa stacji i gospodarki oraz nowa oprawa. [Pełny backlog, zależności, uwagi i proponowane pakiety](content-development.md). To nadrzędny kierunek dalszego rozwoju; historyczne ograniczenia poniżej nie wykluczają teraz wskazanych funkcji.
 
 Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony konfliktu to wojsko Ziemi, wroga prywatna organizacja kosmiczna i obcy. Motywacje, relacje, boss i scenariusz ujawnień pozostają otwarte. Wersja 0.53 wdraża pierwszy pakiet: odprawy przy Ziemi i ujawnianie zadań. Pozostałe funkcje listy są backlogiem. Wersja 0.54 dodaje odblokowania i rozkazy zwiadu/walki z odwrotem. Wersja 0.55 wdraża pierwszy łańcuch gospodarki i segmenty magazynowe. Wersja 0.56 wdraża generator tarczy Satuk 15. Wersja 0.57 rozpoczyna pełniejsze misje aktu I minigrą łączności. Wersja 0.58 dodaje eskortę wydobywczą Muła. Wersja 0.59 dodaje misję ratunkową z zabezpieczeniem obwodów i fizycznym holowaniem. Wersja 0.60 rozbudowuje powierzchnię Księżyca o odległy grzbiet miedziowy i przytwierdzone formacje skalne. Wersja 0.61 przenosi eskortę Muła do budowy na Księżycu: wspólne dostawy 160 Fe, wielokrotne kursy, naprawy za własne zasoby i odblokowanie kadłuba po fundamentach. Wersja 0.62 dodaje animowane przejścia między orbitą a powierzchnią. Wersja 0.63 wdraża pierwszą bazę produkującą jednostki: opcjonalną stocznię polową przy Marsie. Kolejne pakiety obejmują drony strażnicze Satuk 15, role przeciwników i dalszą rozbudowę sektorów.
+
+## Uzgodniona kolejność dalszej rozbudowy
+
+1. **Drony strażnicze Satuk 15**: wdrożone w 0.64, budowany hangar, trzy patrole, ograniczony zasięg, naprawa i płatna odbudowa. [Zakres](implementation-v0.64.md).
+2. **Zróżnicowani przeciwnicy**: przechwytujący, ciężka jednostka nacisku, wsparcie naprawcze i stawiacz min; kombinacje wymuszające zmianę taktyki i kolejności celów. Bezpośrednio następny pakiet.
+3. **Obrony baz**: większe mieszane fale dolatujące spoza ekranu, bez wskaźników kierunku nadejścia; współpraca gracza, tarczy i garnizonu.
+4. **Hakowanie i minigry**: włamania, przekierowanie zasilania i naprawy instalacji; odmienne ułatwienia Sokoła i Feniksa.
+5. **Merkury i Harpun**: złoża odporne na ostrzał, wyrywanie materiału i produkcja ulepszonych tarcz kinetycznych stacji.
+6. **Większe sektory**: nieregularne skupiska, dryf asteroid, spokojne przeloty, alternatywne trasy i opcjonalne odkrycia.
+7. **Gospodarka i Satuk 15**: dalsze rudy, receptury, moduły, konstrukcje i poziomy stacji; czytelne koszty i zastosowania zasobów.
+8. **Dłuższe misje specjalistyczne**: skradanie, przechwycenia, transport i walka; kilka etapów oraz zmiany sytuacji podczas wyprawy.
+9. **Powierzchnie i unikalne zadania sektorów**: odmienne warunki, przeszkody i cele na bazie doświadczeń księżycowych.
+10. **Reżyseria**: animacje dokowania i wylotu, kamera w świecie gry i dialogi reagujące na odkrycia oraz zagrożenia.
+11. **Grafika i piloci**: rozpoznawalne planety, spokojne tła, różnorodne portrety; najpierw próbka jednego sektora oceniona w grze.
+12. **Pełne przejście i balans**: ciągły nowy zapis, ekonomia, odblokowania, czas wypraw, straty i trudność; przygotowane sektory tylko jako uzupełnienie.
+
+Scenariusz aktu I rozwijamy równolegle. Kluczowe zwroty, motywacje stron i finał pozostają do wspólnego ustalenia. Ta kolejność ma pierwszeństwo przed dawnymi sugestiami „następny etap” w historycznych raportach.
 
 ## Zrealizowany zakres
 
@@ -192,3 +209,7 @@ Animowany transfer orbitalny i powierzchniowy na Księżycu. Wygaszenie podejśc
 ## Etap 0.63 — wdrożony
 
 Stocznia polowa przy Marsie, opcjonalny rozkaz Zatrzymaj produkcję. Posiłki do czterech żywych jednostek, fizycznie niszczalny rdzeń, trwałe wyłączenie po raporcie. Format kampanii 40 i dziennika 19. [Zakres i weryfikacja](implementation-v0.63.md).
+
+## Etap 0.64 — wdrożony
+
+Hangar dronów strażniczych Satuk 15, trzy sojusznicze patrole na orbicie, lokalne wykrywanie i rzeczywisty ostrzał, naprawa w hangarze oraz płatna odbudowa u wolnego mechanika. Kadłub i opłacona odbudowa pozostają zapisane także po stracie statku. Format kampanii 41 i dziennika 19, bez migracji. [Zakres i weryfikacja](implementation-v0.64.md).

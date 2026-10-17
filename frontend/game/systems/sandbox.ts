@@ -177,7 +177,7 @@ export class SandboxRun {
         c.ship.weapons = ['standard', 'pulse', 'rail'];
         for (const key of MODULE_KEYS) c.ship[key] = this.config[key];
         c.pilots = [newPilot(1, 3)];
-        c.station = { workshop: 2, storage: 3, shield: true };
+        c.station = { workshop: 2, storage: 3, shield: true, sentries: null };
         c.repairKits = 3;
         c.contract = this.config.scenario === 'escort' ? 7 : 0;
         c.contractCompletions = c.contractCompletions.map(() => 1);

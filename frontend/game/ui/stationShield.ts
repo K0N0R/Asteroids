@@ -3,14 +3,19 @@ import type { Campaign } from '../state/campaign';
 import { STATION_SHIELD, stationProtectionRadius, stationShieldLock } from '../state/stationShield';
 import { C } from '../graphics/shapes';
 import { button, label } from './primitives';
+import { STATION_DRONES as D, stationDronesLock } from '../state/stationDrones';
+import { StationSentryView } from '../graphics/stationSentryView';
 
 export function stationShieldOverview(
     ui: Container,
     c: Campaign,
     back: () => void,
     install?: () => void,
+    openDrones?: () => void,
 ) {
     button(ui, '← PRZEMYSŁ I MAGAZYN', 280, 218, 300, back, false, true, 36, 14);
+    if (openDrones)
+        button(ui, 'DRONY STRAŻNICZE →', 1072, 218, 456, openDrones, false, true, 36, 14);
     const active = !c.story || c.station.shield;
     const g = new Graphics(),
         x = 625,
@@ -70,6 +75,110 @@ export function stationShieldOverview(
         active ? 'TARCZA ZAMONTOWANA' : 'ZAMONTUJ GENERATOR',
         1072,
         731,
+        456,
+        () => install?.(),
+        true,
+        !!install && !lock,
+        44,
+        16,
+    );
+}
+
+export function stationDronesOverview(
+    ui: Container,
+    c: Campaign,
+    back: () => void,
+    install?: () => void,
+) {
+    button(ui, '← OCHRONA SATUK 15', 280, 218, 300, back, false, true, 36, 14);
+    const diagram = new Graphics();
+    const x = 625,
+        y = 490;
+    diagram.circle(x, y, 220).stroke({ color: C.line, width: 2, alpha: 0.6 });
+    diagram
+        .beginPath()
+        .circle(x, y, 120)
+        .fill({ color: C.cyan, alpha: 0.07 })
+        .stroke({ color: C.cyan, width: 2 });
+    diagram.beginPath().circle(x, y, 44).fill(C.ink).stroke({ color: C.mint, width: 3 });
+    diagram.beginPath().circle(x, y, 16).fill(C.cyan);
+    ui.addChild(diagram);
+    for (let id = 0; id < D.count; id++) {
+        const angle = (id * Math.PI * 2) / D.count;
+        const view = new StationSentryView();
+        view.position.set(x + Math.cos(angle) * 175, y + Math.sin(angle) * 175);
+        view.rotation = angle + Math.PI / 2;
+        view.scale.set(1.6);
+        view.alpha = c.station.sentries ? (c.station.sentries[id].hull > 0 ? 1 : 0.25) : 0.45;
+        ui.addChild(view);
+    }
+    label(ui, 'SATUK 15', x - 44, y + 60, 16, C.text);
+    label(ui, `Patrol ${D.orbit} m · granica ${D.leash} m`, 360, 755, 22, C.mint, 580);
+    label(ui, 'MODUŁ OBRONNY / STACJA', 1072, 244, 13, C.mint);
+    label(ui, 'Drony strażnicze', 1072, 278, 30, C.text);
+    label(
+        ui,
+        c.station.sentries ? 'HANGAR AKTYWNY' : 'NIEZAMONTOWANY',
+        1072,
+        326,
+        17,
+        c.station.sentries ? C.mint : C.gold,
+    );
+    label(
+        ui,
+        `Garnizon: ${D.count} × ${D.hull} HP · wykrywanie ${D.detection} m\nDziało: ${D.damage} obrażeń / ${D.shotInterval} s · zasięg ${D.range} m`,
+        1072,
+        367,
+        17,
+        C.text,
+        456,
+    );
+    for (let id = 0; id < D.count; id++) {
+        const state = c.station.sentries?.[id];
+        const status = !state
+            ? 'brak jednostki'
+            : state.hull > 0
+              ? `${Math.ceil(state.hull)} / ${D.hull} HP`
+              : state.rebuildRemaining > 0
+                ? `odbudowa ${Math.ceil(state.rebuildRemaining)} s`
+                : 'utracony · oczekuje na odbudowę';
+        label(
+            ui,
+            `Strażnik ${id + 1} · ${status}`,
+            1072,
+            438 + id * 29,
+            16,
+            state?.hull ? C.mint : C.muted,
+            456,
+        );
+    }
+    label(
+        ui,
+        'Naprawa w hangarze: 4 HP/s po 8 s bez kontaktu. Odbudowa: 30 s, 2 K + 1 MZ za jednostkę. Serwis wymaga wolnego mechanika w stacji; działa tylko podczas lotu na orbicie.',
+        1072,
+        543,
+        16,
+        C.muted,
+        456,
+    );
+    label(ui, 'Montaż z 3 dronami: 40 Fe · 12 K · 3 MZ', 1072, 654, 18, C.gold, 456);
+    const lock = stationDronesLock(c);
+    label(
+        ui,
+        c.station.sentries
+            ? 'Garnizon pozostaje przy stacji. Nie osłania powierzchni.'
+            : (lock ?? 'Zaplecze i materiały gotowe.'),
+        1072,
+        695,
+        15,
+        C.muted,
+        456,
+    );
+    button(
+        ui,
+        c.station.sentries ? 'HANGAR ZAMONTOWANY' : 'ZAMONTUJ HANGAR',
+        1072,
+        758,
         456,
         () => install?.(),
         true,

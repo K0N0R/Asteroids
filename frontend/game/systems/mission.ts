@@ -36,6 +36,8 @@ import { ARMAMENT_KITS, PHASE_DASH, FORTRESS_WALL_HALF_WIDTH } from '../config';
 import { KineticShield, shieldProfile } from './kineticShield';
 import { HarpoonArms, HARPOON_ARMS } from './harpoonArms';
 import { AegisSupport } from './aegisSupport';
+import { StationSentries, sentryPosition, type StationSentry } from './stationSentries';
+import { STATION_DRONES } from '../state/stationDrones';
 import { ResearchEscort, ESCORT } from './escort';
 import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
 import type { SoundCue } from './audioPolicy';
@@ -106,7 +108,7 @@ export interface Projectile extends Point {
     explosive?: 'rocket' | 'grenade';
     targetId?: number;
     energy?: boolean;
-    source?: 'drone';
+    source?: 'drone' | 'sentry';
     shooterId?: number;
 }
 export interface Loot extends Point {
@@ -131,6 +133,7 @@ export class MissionSimulation {
     readonly kineticShield: KineticShield;
     readonly harpoonArms: HarpoonArms | null;
     readonly aegis: AegisSupport | null;
+    readonly sentries: StationSentries;
     readonly atlasLock = {
         target: null as number | null,
         progress: 0,
@@ -406,6 +409,14 @@ export class MissionSimulation {
             ...this.sector.enemies,
             ...this.sector.fortress.guards,
         ]);
+        this.sentries = new StationSentries(this.world, campaign);
+        this.sentries.update(
+            0,
+            true,
+            this.enemies,
+            (collider) => this.isObstacle(collider),
+            () => false,
+        );
         this.enemyFactory =
             campaign.story?.sector === 'mars' && marsApproachOpen(campaign.story)
                 ? new EnemyFactory(this.world, campaign.story.claimed.includes('mars-factory'))
@@ -1386,6 +1397,13 @@ export class MissionSimulation {
             this.miningEscort.previous = this.miningEscort.position;
         }
         const beforeImpact = this.velocity;
+        this.sentries.update(
+            dt,
+            this.area === 'orbit',
+            this.enemies,
+            (collider) => this.isObstacle(collider),
+            (drone, enemy) => this.fireSentry(drone, enemy),
+        );
         const chasingBefore = [...this.enemies.enemies.values()].filter(
             (enemy) => enemy.state === 'chase',
         ).length;
@@ -1402,6 +1420,7 @@ export class MissionSimulation {
                   ? { position: this.escort.position, velocity: this.escort.velocity }
                   : undefined,
             this.stationSafeRadius,
+            this.sentries.allies,
         );
         if (
             !chasingBefore &&
@@ -1422,6 +1441,10 @@ export class MissionSimulation {
             velocities.set(item.collider.handle, { x: v.x * P, y: v.y * P });
         }
         if (this.escort) velocities.set(this.escort.collider.handle, this.escort.velocity);
+        for (const drone of this.sentries.drones.values()) {
+            const velocity = drone.body.linvel();
+            velocities.set(drone.collider.handle, { x: velocity.x * P, y: velocity.y * P });
+        }
         if (this.aegis?.drone) {
             const velocity = this.aegis.drone.body.linvel();
             velocities.set(this.aegis.drone.collider.handle, {
@@ -1480,6 +1503,18 @@ export class MissionSimulation {
                 }
                 if (this.escort?.collider.handle === handle && this.escort.cooldown <= 0)
                     this.damageEscort(damage, point);
+                const sentryId = this.sentries.colliders.get(handle);
+                const sentry =
+                    sentryId === undefined ? undefined : this.sentries.drones.get(sentryId);
+                if (
+                    sentry &&
+                    sentry.impactCooldown <= 0 &&
+                    Math.hypot(sentryPosition(sentry).x, sentryPosition(sentry).y) >=
+                        this.stationSafeRadius
+                ) {
+                    sentry.impactCooldown = 0.5;
+                    this.damageSentry(sentry.id, damage, point);
+                }
                 if (
                     this.aegis?.drone?.collider.handle === handle &&
                     this.distanceHome >= this.stationSafeRadius
@@ -2186,8 +2221,10 @@ export class MissionSimulation {
                   ? !this.escort?.vulnerable ||
                     Math.hypot(this.escort.position.x, this.escort.position.y) <
                         this.stationSafeRadius
-                  : this.opticalCloak ||
-                    Math.hypot(this.position.x, this.position.y) < this.stationSafeRadius)
+                  : enemy.target.startsWith('sentry:')
+                    ? !this.sentries.drones.has(Number(enemy.target.slice(7)))
+                    : this.opticalCloak ||
+                      Math.hypot(this.position.x, this.position.y) < this.stationSafeRadius)
         )
             return false;
         if (enemy.target === 'player') this.aegis?.hostiles.add(enemy.id);
@@ -2685,11 +2722,48 @@ export class MissionSimulation {
             });
         }
     }
+    private damageSentry(id: number, damage: number, point: Point) {
+        const remaining = this.absorbSupport(`sentry:${id}`, damage, point);
+        this.events.push({ ...point, kind: 'hit', strength: remaining });
+        if (this.sentries.damage(id, remaining)) {
+            this.events.push({
+                ...point,
+                kind: 'break',
+                sound: 'destroy',
+                strength: STATION_DRONES.radius,
+            });
+            this.setNotice(
+                'Dron strażniczy zniszczony · odbudowa: 2 K + 1 MZ, wolny mechanik w stacji.',
+            );
+        }
+    }
+    private fireSentry(drone: StationSentry, target: Enemy) {
+        if (this.bullets.size >= 80) return false;
+        const position = sentryPosition(drone),
+            enemy = enemyPosition(target);
+        const angle = Math.atan2(enemy.y - position.y, enemy.x - position.x);
+        const id = ++this.ids;
+        this.addBullet(id, {
+            id,
+            x: position.x + Math.cos(angle) * (STATION_DRONES.radius + 4),
+            y: position.y + Math.sin(angle) * (STATION_DRONES.radius + 4),
+            vx: Math.cos(angle) * 850,
+            vy: Math.sin(angle) * 850,
+            life: STATION_DRONES.range / 850,
+            team: 'player',
+            source: 'sentry',
+            damage: STATION_DRONES.damage,
+        });
+        this.events.push({ ...position, kind: 'shot', sound: 'standard' });
+        return true;
+    }
     private updateAegis(input: FlightInput) {
         const support = this.aegis!;
         if (input.mine && !support.pulsePressed) {
             const allies: (Point & { id: string })[] = [];
             if (support.dronePosition) allies.push({ ...support.dronePosition, id: 'drone' });
+            for (const drone of this.sentries.drones.values())
+                allies.push({ ...sentryPosition(drone), id: `sentry:${drone.id}` });
             if (this.escort && this.escort.state !== 'destroyed')
                 allies.push({ ...this.escort.position, id: 'escort' });
             for (const item of this.salvage.items.values())
@@ -3050,6 +3124,7 @@ export class MissionSimulation {
                         (this.salvage.colliders.has(collider.handle) ||
                             collider.handle === this.stationCollider?.handle ||
                             collider.handle === this.aegis?.drone?.collider.handle ||
+                            this.sentries.colliders.has(collider.handle) ||
                             (this.escort?.vulnerable &&
                                 collider.handle === this.escort.collider.handle))) ||
                     (bullet.team === 'player'
@@ -3105,6 +3180,9 @@ export class MissionSimulation {
                 }
                 if (bullet.team === 'enemy' && this.escort?.collider.handle === hit.collider.handle)
                     this.damageEscort(bullet.damage, contact);
+                const sentryId = this.sentries.colliders.get(hit.collider.handle);
+                if (bullet.team === 'enemy' && sentryId !== undefined)
+                    this.damageSentry(sentryId, bullet.damage, contact);
                 if (
                     bullet.team === 'enemy' &&
                     this.aegis?.drone?.collider.handle === hit.collider.handle
@@ -3121,7 +3199,7 @@ export class MissionSimulation {
                     bullet.team === 'player'
                 ) {
                     this.damageFactory(bullet.damage, contact);
-                } else if (rock && bullet.team === 'player') {
+                } else if (rock && bullet.team === 'player' && bullet.source !== 'sentry') {
                     const damage = bullet.energy
                         ? AEGIS.rockDamage * (1 + this.modules.drill * 0.25) * this.pilot.mining
                         : GAME.shotRockDamage;
@@ -3884,6 +3962,7 @@ export class MissionSimulation {
         this.structureHealth.clear();
         this.destroyedFortressWalls.clear();
         this.aegis?.dispose();
+        this.sentries.clear();
         this.escort?.dispose();
         this.salvage.dispose();
         this.enemies.dispose();

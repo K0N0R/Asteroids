@@ -1,4 +1,7 @@
 import { EnemyFactoryView } from '../graphics/enemyFactoryView';
+import { StationSentryView } from '../graphics/stationSentryView';
+import { sentryPosition } from '../systems/stationSentries';
+import { STATION_DRONES } from '../state/stationDrones';
 import { newShip } from '../state/campaign';
 import { destroyDisplayTree } from '../../core/systems/destroyDisplayTree';
 import { drawKineticShield } from '../graphics/kineticShieldView';
@@ -92,6 +95,8 @@ export class MissionWorld extends Container {
     private burningView = new Graphics();
     private supportShields = new Graphics();
     private supportDrone = new Container();
+    private sentryViews = new Map<number, StationSentryView>();
+    private sentryStatus = new Graphics();
     private rockLayer = new Container();
     private effectLayer = new Container();
     private shapes = new ShapeLibrary();
@@ -176,6 +181,7 @@ export class MissionWorld extends Container {
                     .stroke({ color: 0xa8cbdc, width: 0.7 }),
             );
         this.camera.addChild(this.supportDrone, this.supportShields);
+        this.camera.addChild(this.sentryStatus);
         this.camera.addChildAt(this.kineticView, this.camera.getChildIndex(this.shipView) + 1);
         this.camera.addChildAt(this.laser, this.camera.getChildIndex(this.shipView));
         this.camera.addChildAt(this.grabberLines, this.camera.getChildIndex(this.shipView));
@@ -655,6 +661,9 @@ export class MissionWorld extends Container {
                 else if (id === 'escort') {
                     position = s.escort?.position ?? null;
                     radius = 46;
+                } else if (id.startsWith('sentry:')) {
+                    const drone = s.sentries.drones.get(Number(id.split(':')[1]));
+                    if (drone) position = sentryPosition(drone);
                 } else {
                     const item = s.salvage.items.get(Number(id.split(':')[1]));
                     if (item) {
@@ -766,6 +775,37 @@ export class MissionWorld extends Container {
                     .fill(
                         arm.held === 'crystals' ? 0xc2a0ec : arm.held === 'parts' ? C.gold : C.mint,
                     );
+        }
+        for (const [id, view] of this.sentryViews)
+            if (!s.sentries.drones.has(id)) {
+                destroyDisplayTree(view);
+                this.sentryViews.delete(id);
+            }
+        this.sentryStatus.clear();
+        for (const drone of s.sentries.drones.values()) {
+            let view = this.sentryViews.get(drone.id);
+            if (!view) {
+                view = new StationSentryView();
+                this.sentryViews.set(drone.id, view);
+                this.effectLayer.addChild(view);
+            }
+            const p = sentryPosition(drone);
+            view.position.set(
+                interpolate(drone.previous.x, p.x, alpha),
+                interpolate(drone.previous.y, p.y, alpha),
+            );
+            view.rotation = drone.body.rotation();
+            view.visible = this.inView(p);
+            view.flame.visible = Math.hypot(drone.body.linvel().x, drone.body.linvel().y) > 0.2;
+            view.flame.scale.x = 0.8 + Math.sin(this.clock * 29 + drone.id) * 0.15;
+            if (view.visible)
+                this.sentryStatus
+                    .beginPath()
+                    .rect(p.x - 23, p.y - 34, 46, 4)
+                    .fill(C.line)
+                    .beginPath()
+                    .rect(p.x - 23, p.y - 34, (46 * drone.state.hull) / STATION_DRONES.hull, 4)
+                    .fill(drone.mode === 'repair' ? C.gold : C.mint);
         }
         for (const [id, view] of this.enemyViews)
             if (!s.enemies.enemies.has(id)) {

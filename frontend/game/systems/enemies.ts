@@ -27,7 +27,7 @@ export interface Enemy extends EnemySpec {
     thrusting: boolean;
     lastSeen: Point;
     routeIndex: number;
-    target: 'player' | 'escort' | 'station';
+    target: 'player' | 'escort' | 'station' | `sentry:${number}`;
 }
 export const enemyPosition = (enemy: Enemy): Point => {
     const p = enemy.body.translation();
@@ -158,6 +158,7 @@ export class EnemyFleet {
         signature = 1,
         ally?: { position: Point; velocity: Point; kind?: 'station' },
         safeRadius: number = DRONES.safeRadius,
+        sentries: readonly { id: number; position: Point; velocity: Point }[] = [],
     ) {
         if (this.disposed) return;
         for (const enemy of this.enemies.values()) {
@@ -177,12 +178,27 @@ export class EnemyFleet {
                 allyDistance < config.loseRange &&
                 this.lineClear(p0, ally.position, isRock) &&
                 (!playerVisible || allyDistance < playerDistance);
-            const target = chooseAlly ? (ally!.kind ?? 'escort') : 'player';
+            let target: Enemy['target'] = chooseAlly ? (ally!.kind ?? 'escort') : 'player';
+            let player = chooseAlly ? ally!.position : playerPosition,
+                velocity = chooseAlly ? ally!.velocity : playerVelocity;
+            let nearest = chooseAlly ? allyDistance : playerVisible ? playerDistance : Infinity;
+            for (const drone of sentries) {
+                const distance = Math.hypot(drone.position.x - p0.x, drone.position.y - p0.y);
+                if (
+                    distance >= nearest ||
+                    distance >= config.loseRange ||
+                    Math.hypot(drone.position.x, drone.position.y) < safeRadius ||
+                    !this.lineClear(p0, drone.position, isRock)
+                )
+                    continue;
+                target = `sentry:${drone.id}`;
+                player = drone.position;
+                velocity = drone.velocity;
+                nearest = distance;
+            }
             if (enemy.target !== target) enemy.charge = 0;
             enemy.target = target;
-            const player = chooseAlly ? ally!.position : playerPosition,
-                velocity = chooseAlly ? ally!.velocity : playerVelocity;
-            const targetSignature = chooseAlly ? 1 : signature;
+            const targetSignature = target === 'player' ? signature : 1;
             const p = enemyPosition(enemy),
                 dx = player.x - p.x,
                 dy = player.y - p.y;

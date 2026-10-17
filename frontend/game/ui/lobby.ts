@@ -1,4 +1,4 @@
-import { stationShieldOverview } from './stationShield';
+import { stationShieldOverview, stationDronesOverview } from './stationShield';
 import { industryOverview } from './industry';
 import { resourceTotal, resourceSummary } from '../state/resources';
 import { hullUnlockReason } from '../state/fleetUnlocks';
@@ -79,7 +79,8 @@ export type LobbyTab =
     | 'crew'
     | 'recovery'
     | 'industry'
-    | 'stationShield';
+    | 'stationShield'
+    | 'stationDrones';
 export interface LobbyActions {
     replayDialogue?: () => void;
     openSandbox?: () => void;
@@ -104,6 +105,7 @@ export interface LobbyActions {
     rescue: () => void;
     installCargoBay?: () => void;
     installStationShield?: () => void;
+    installStationDrones?: () => void;
     hireMechanic: () => void;
     hireQuartermaster: () => void;
     queueJob: (kind: JobKind) => void;
@@ -253,7 +255,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.63', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.64', 30, 851, 11, C.muted);
         const industrial = resourceSummary({
             copperOre: c.bank.copperOre,
             conductors: c.bank.conductors,
@@ -275,7 +277,7 @@ export class LobbyView extends Container {
             industryOverview(ui, c, { ...this.actions, back: () => this.go('station') });
             button(
                 ui,
-                'TARCZA SATUK 15 →',
+                'OCHRONA SATUK 15 →',
                 650,
                 218,
                 355,
@@ -293,6 +295,16 @@ export class LobbyView extends Container {
                 c,
                 () => this.go('industry'),
                 this.actions.installStationShield,
+                () => this.go('stationDrones'),
+            );
+        }
+        if (this.tab === 'stationDrones') {
+            this.section('Ochrona Satuk 15', 'Garnizon stacji');
+            stationDronesOverview(
+                ui,
+                c,
+                () => this.go('stationShield'),
+                this.actions.installStationDrones,
             );
         }
         if (this.tab === 'pilots') this.pilots(ui);
