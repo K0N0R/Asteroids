@@ -18,40 +18,40 @@ Początkowo dostępne konstrukcje: Prospector i Swift. Pozostałe statki mają b
 
 ## Pełny backlog autora
 
-| Obszar | Zakres |
-| --- | --- |
-| Dialogi | Sekwencje kwestii w dolnym panelu z portretem i osobą mówiącą; ręczne przechodzenie przez kolejne kwestie do końca sekwencji. |
-| Reżyseria | Kamera pokazuje wydarzenie poza widokiem gracza, komentarz dialogowy i powrót do statku. Animacje wylotu, dokowania oraz przejścia z kosmosu nad planetę. |
-| Flota | Początek z Prospectorem i Swiftem, odblokowania kolejnych kadłubów, praktyczne znaczenie specjalizacji i misje wymagające odpowiednich możliwości statku. |
-| Walka | Wytrzymalsi i liczniejsi wrogowie, większe fale oraz nowe typy przeciwników. Podczas obrony stacji pojawiają się poza ekranem bez wskaźnika kierunku nadejścia. |
-| Bazy przeciwnika | Obiekt regularnie wysyła jednostki aż do zniszczenia bazy. |
-| Misje | Więcej rodzajów i unikalne zadania sektorów, dłuższe wyprawy, minigry inspirowane prostymi zadaniami przestrzennymi i technicznymi, zastępujące część przytrzymywania przycisków. |
-| Eskorta | Muł sterowany przez AI zbiera zasoby, gracz zapewnia osłonę. |
-| Ratunek | Holowanie sojuszników po wypadkach i atakach. Rozwinąć istniejące holowanie i odzysk w autorskie zadania kampanii. |
-| Dostępność celów | Kolejna misja ujawnia się po wykonaniu poprzedniej. Pokazywać zadania ukończone i aktualne, ukrywać przyszłe. |
-| Powrót | Autor chce blokady powrotu do bazy przed wykonaniem misji. Wymaga zaprojektowania rozliczania misji w locie i reguł przerwania, zanim zastąpi obecne krótkie wyprawy. |
-| Przestrzeń | Większe sektory i dłuższe puste odcinki między interesującymi miejscami; nieregularne układy asteroid i dryf w trakcie wypraw. |
-| Powierzchnie | Większe obszary nad planetami, wystające i niszczalne skały, animowane przejścia. |
-| Wydobycie | Dłuższe zbieranie i niszczenie skał oraz więcej surowców z nazwami nawiązującymi do prawdziwych pierwiastków. |
-| Produkcja | Osobne kategorie: rudy → komponenty → moduły → konstrukcje. Rudy przetapia się na komponenty, z nich składa moduły, a z modułów konstrukcje. Większy magazyn stacji. |
-| Satuk 15 | Więcej poziomów i modułów rozbudowy. Odblokowywana tarcza tworząca bezpieczny obszar oraz moduł sojuszniczych dronów AI patrolujących otoczenie. |
-| Merkury | Pozyskanie Harpunem specjalnego materiału do ulepszeń tarcz kinetycznych stacji. Materiał odporny na pociski, laser, granaty i rakiety. |
-| Postacie | Większa różnorodność twarzy, sylwetek portretów i włosów pilotów; portrety również w dialogach. |
-| Oprawa | Kierunek inspirowany załączonymi ilustracjami: wyraziste płaskie kolory, proste geometryczne bryły, zaokrąglone detale, warstwy cienia, czytelne planety i kosmiczne tła. Planety mają zachować rozpoznawalne cechy rzeczywistych odpowiedników. |
+| Obszar           | Zakres                                                                                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dialogi          | Sekwencje kwestii w dolnym panelu z portretem i osobą mówiącą; ręczne przechodzenie przez kolejne kwestie do końca sekwencji.                                                                                                                    |
+| Reżyseria        | Kamera pokazuje wydarzenie poza widokiem gracza, komentarz dialogowy i powrót do statku. Animacje wylotu, dokowania oraz przejścia z kosmosu nad planetę.                                                                                        |
+| Flota            | Początek z Prospectorem i Swiftem, odblokowania kolejnych kadłubów, praktyczne znaczenie specjalizacji i misje wymagające odpowiednich możliwości statku.                                                                                        |
+| Walka            | Wytrzymalsi i liczniejsi wrogowie, większe fale oraz nowe typy przeciwników. Podczas obrony stacji pojawiają się poza ekranem bez wskaźnika kierunku nadejścia.                                                                                  |
+| Bazy przeciwnika | Obiekt regularnie wysyła jednostki aż do zniszczenia bazy.                                                                                                                                                                                       |
+| Misje            | Więcej rodzajów i unikalne zadania sektorów, dłuższe wyprawy, minigry inspirowane prostymi zadaniami przestrzennymi i technicznymi, zastępujące część przytrzymywania przycisków.                                                                |
+| Eskorta          | Muł sterowany przez AI zbiera zasoby, gracz zapewnia osłonę.                                                                                                                                                                                     |
+| Ratunek          | Holowanie sojuszników po wypadkach i atakach. Rozwinąć istniejące holowanie i odzysk w autorskie zadania kampanii.                                                                                                                               |
+| Dostępność celów | Kolejna misja ujawnia się po wykonaniu poprzedniej. Pokazywać zadania ukończone i aktualne, ukrywać przyszłe.                                                                                                                                    |
+| Powrót           | Autor chce blokady powrotu do bazy przed wykonaniem misji. Wymaga zaprojektowania rozliczania misji w locie i reguł przerwania, zanim zastąpi obecne krótkie wyprawy.                                                                            |
+| Przestrzeń       | Większe sektory i dłuższe puste odcinki między interesującymi miejscami; nieregularne układy asteroid i dryf w trakcie wypraw.                                                                                                                   |
+| Powierzchnie     | Większe obszary nad planetami, wystające i niszczalne skały, animowane przejścia.                                                                                                                                                                |
+| Wydobycie        | Dłuższe zbieranie i niszczenie skał oraz więcej surowców z nazwami nawiązującymi do prawdziwych pierwiastków.                                                                                                                                    |
+| Produkcja        | Osobne kategorie: rudy → komponenty → moduły → konstrukcje. Rudy przetapia się na komponenty, z nich składa moduły, a z modułów konstrukcje. Większy magazyn stacji.                                                                             |
+| Satuk 15         | Więcej poziomów i modułów rozbudowy. Odblokowywana tarcza tworząca bezpieczny obszar oraz moduł sojuszniczych dronów AI patrolujących otoczenie.                                                                                                 |
+| Merkury          | Pozyskanie Harpunem specjalnego materiału do ulepszeń tarcz kinetycznych stacji. Materiał odporny na pociski, laser, granaty i rakiety.                                                                                                          |
+| Postacie         | Większa różnorodność twarzy, sylwetek portretów i włosów pilotów; portrety również w dialogach.                                                                                                                                                  |
+| Oprawa           | Kierunek inspirowany załączonymi ilustracjami: wyraziste płaskie kolory, proste geometryczne bryły, zaokrąglone detale, warstwy cienia, czytelne planety i kosmiczne tła. Planety mają zachować rozpoznawalne cechy rzeczywistych odpowiedników. |
 
 ## Proponowana kolejność
 
 Numery oznaczają pakiety robocze, nie obiecane numery wydań. Każdy pakiet musi zachować ukończalność kampanii od nowego zapisu i jasno odrzucać niezgodne formaty.
 
-| Pakiet | Rezultat | Dlaczego w tej kolejności |
-| --- | --- | --- |
-| 1. Narracja i odkrywanie celów | System dialogów, pierwsza sekwencja objęcia dowodzenia, wspólny portret, ukrywanie przyszłych zadań, dziennik odkrytych i ukończonych celów. | Wspólna podstawa dla późniejszych sektorów; umożliwia nadawanie sensu misjom bez dopisywania całej fabuły. |
-| 2. Cykl wyprawy i flota | Wybrana misja wyprawy, cele kończone w locie i osobne oddanie raportu; zasady odwrotu i blokady dokowania; początkowe kadłuby i odblokowania. | Obecny model wymaga wielu bezpiecznych powrotów. Blokada dokowania bez tej zmiany tworzyłaby sprzeczne warunki zaliczenia. |
-| 3. Gospodarka i stacja | Mały początkowy zestaw rud, receptur i kategorii przedmiotów, większy magazyn, rozbudowa i tarcza Satuk 15. | Stabilne koszty przed wyceną dużej liczby nowych zadań, nagród i odblokowań. |
-| 4. Pełniejszy akt I | Jedna kompletna misja ratunkowa, minigra łączności, eskorta wydobywcza Muła, rozbudowana powierzchnia Księżyca i obrona. | Sprawdzenie nowych systemów na jednym dopracowanym odcinku zamiast powierzchownego zmieniania dziesięciu aktów. |
-| 5. Walka i obiekty AI | Nowe role przeciwników, większe fale, baza produkująca kontakty, drony strażnicze stacji; limity i zasady rozstrzygania. | Systemy mają już konkretne scenariusze testowe z aktu I. |
-| 6. Ekspedycje i specjalizacje | Większe przestrzenie, dryf i skupiska asteroid, kolejne minigry; Merkury z wydobyciem Harpuna; misje skradania, szybkości i intensywnej walki. | Każda nowa mechanika trafia najpierw do właściwego sektora i dostaje znaczenie dla statku. |
-| 7. Kolejne sektory i oprawa | Unikalne misje kolejnych aktów, reżyseria scen, rozwój konfliktu trzech stron, wdrażanie uzgodnionej stylistyki. | Przenoszenie sprawdzonych systemów i budowanie odmiennych sytuacji, zamiast powtarzania zestawu zwiad–baza–patrol. |
+| Pakiet                         | Rezultat                                                                                                                                       | Dlaczego w tej kolejności                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1. Narracja i odkrywanie celów | System dialogów, pierwsza sekwencja objęcia dowodzenia, wspólny portret, ukrywanie przyszłych zadań, dziennik odkrytych i ukończonych celów.   | Wspólna podstawa dla późniejszych sektorów; umożliwia nadawanie sensu misjom bez dopisywania całej fabuły.                 |
+| 2. Cykl wyprawy i flota        | Wybrana misja wyprawy, cele kończone w locie i osobne oddanie raportu; zasady odwrotu i blokady dokowania; początkowe kadłuby i odblokowania.  | Obecny model wymaga wielu bezpiecznych powrotów. Blokada dokowania bez tej zmiany tworzyłaby sprzeczne warunki zaliczenia. |
+| 3. Gospodarka i stacja         | Mały początkowy zestaw rud, receptur i kategorii przedmiotów, większy magazyn, rozbudowa i tarcza Satuk 15.                                    | Stabilne koszty przed wyceną dużej liczby nowych zadań, nagród i odblokowań.                                               |
+| 4. Pełniejszy akt I            | Jedna kompletna misja ratunkowa, minigra łączności, eskorta wydobywcza Muła, rozbudowana powierzchnia Księżyca i obrona.                       | Sprawdzenie nowych systemów na jednym dopracowanym odcinku zamiast powierzchownego zmieniania dziesięciu aktów.            |
+| 5. Walka i obiekty AI          | Nowe role przeciwników, większe fale, baza produkująca kontakty, drony strażnicze stacji; limity i zasady rozstrzygania.                       | Systemy mają już konkretne scenariusze testowe z aktu I.                                                                   |
+| 6. Ekspedycje i specjalizacje  | Większe przestrzenie, dryf i skupiska asteroid, kolejne minigry; Merkury z wydobyciem Harpuna; misje skradania, szybkości i intensywnej walki. | Każda nowa mechanika trafia najpierw do właściwego sektora i dostaje znaczenie dla statku.                                 |
+| 7. Kolejne sektory i oprawa    | Unikalne misje kolejnych aktów, reżyseria scen, rozwój konfliktu trzech stron, wdrażanie uzgodnionej stylistyki.                               | Przenoszenie sprawdzonych systemów i budowanie odmiennych sytuacji, zamiast powtarzania zestawu zwiad–baza–patrol.         |
 
 Prace artystyczne mogą rozpocząć się wcześniej od małej próbki: Ziemia, fragment tła, skała, portret, panel dialogu i stacja. Próbka powinna zostać oceniona w ruchu i przy ostrzale przed zmianą całego zestawu grafiki. Nie wymaga ponownego projektowania wszystkich sylwetek statków.
 

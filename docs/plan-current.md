@@ -190,21 +190,17 @@ Wymienne modele części, nowe profesje personelu i kolejne placówki/role przec
 
 Kampania ma zarys autora, przechodnie mechanicznie akty I–VI i operacyjne zakresy aktów VII–X. Trzy strony konfliktu są ustaleniem fabularnym; osobna reputacja, dyplomacja lub symulacja relacji nie wynikają z tego automatycznie. Multiplayer pozostaje poza zakresem. Nową kolejność rozwoju zawartości opisuje dokument podlinkowany na początku planu.
 
-
 ## Etap 0.60 — wdrożony
 
 Większa powierzchnia Księżyca, opcjonalny grzbiet miedziowy (5), niszczalne przytwierdzone formacje i luźne odłamki. Dotychczasowe trasy dostaw oraz obrona placówki zachowane. [Zakres i weryfikacja](implementation-v0.60.md).
-
 
 ## Etap 0.61 — wdrożony
 
 Eskorta Muła jest częścią głównej budowy na Księżycu. Cel 160 Fe, powtarzane kursy z ładownią 110, naprawy za własne zasoby, wspólne dostawy gracza i transportu, odblokowanie kadłuba po fundamentach. Format kampanii 39 i dziennika 18, bez migracji. [Zakres i weryfikacja](implementation-v0.61.md).
 
-
 ## Etap 0.62 — wdrożony
 
 Animowany transfer orbitalny i powierzchniowy na Księżycu. Wygaszenie podejścia, horyzont i zbliżenie kamery, neutralizacja sterowania oraz pauza świata na czas przelotu. Ładunek, hol i postęp budowy zachowane. [Zakres i weryfikacja](implementation-v0.62.md).
-
 
 ## Etap 0.63 — wdrożony
 
