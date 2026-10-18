@@ -2,6 +2,8 @@ import { Container, Graphics } from 'pixi.js';
 import { MOON } from '../worlds/moon';
 import { random } from '../worlds/sector';
 import { worldLabel as label } from '../ui/primitives';
+import { rotateVector } from '../systems/flight';
+import type { Point } from '../worlds/sector';
 import { C } from './shapes';
 
 export class MoonSurfaceView extends Container {
@@ -9,7 +11,7 @@ export class MoonSurfaceView extends Container {
     private site = new Graphics();
     private orbitGate = new Container();
     private status: ReturnType<typeof label> | null = null;
-    private titles: ReturnType<typeof label>[] = [];
+    private titles: { view: ReturnType<typeof label>; anchor: Point; offset: Point }[] = [];
     private stage = -1;
     private defenseMarkers = new Graphics();
     constructor(enabled: boolean) {
@@ -58,8 +60,8 @@ export class MoonSurfaceView extends Container {
                     .poly([-40, 15, 0, -25, 40, 15])
                     .stroke({ color: C.mint, width: 5 }),
             );
-            this.titles.push(label(g, title, 0, 170, 20, C.cyan, 260));
-            this.titles.push(label(g, 'E · 2 s', 0, 201, 16, C.muted));
+            this.addTitle(g, title, { x: 0, y: 0 }, { x: 0, y: 170 }, 20, C.cyan, 260);
+            this.addTitle(g, 'E · 2 s', { x: 0, y: 0 }, { x: 0, y: 201 }, 16, C.muted);
             host.addChild(g);
         };
         gate(this.orbitGate, MOON.entrance.x, MOON.entrance.y, 'Podejście do Księżyca');
@@ -74,33 +76,69 @@ export class MoonSurfaceView extends Container {
             MOON.construction.y - MOON.center.y,
         );
         this.ground.addChild(this.site, this.defenseMarkers);
-        this.status = label(
+        this.status = this.addTitle(
             this.ground,
             '',
-            MOON.construction.x - MOON.center.x,
-            150,
+            { x: MOON.construction.x - MOON.center.x, y: 0 },
+            { x: 0, y: 150 },
             20,
             C.mint,
             340,
         );
-        this.titles.push(
-            this.status,
-            label(
-                this.ground,
-                'Złoże powierzchniowe · 2',
-                MOON.quarry.x - MOON.center.x,
-                1060,
-                20,
-                C.gold,
-            ),
-            label(this.ground, 'Grzbiet miedziowy · 5', ridgeX, ridgeY + 390, 20, C.gold),
-            label(this.ground, 'Cu · opcjonalne wydobycie', ridgeX, ridgeY + 425, 16, C.muted),
+        this.addTitle(
+            this.ground,
+            'Złoże powierzchniowe · 2',
+            { x: MOON.quarry.x - MOON.center.x, y: MOON.quarry.y - MOON.center.y },
+            { x: 0, y: 220 },
+            20,
+            C.gold,
+        );
+        this.addTitle(
+            this.ground,
+            'Grzbiet miedziowy · 5',
+            { x: ridgeX, y: ridgeY },
+            { x: 0, y: 390 },
+            20,
+            C.gold,
+        );
+        this.addTitle(
+            this.ground,
+            'Cu · opcjonalne wydobycie',
+            { x: ridgeX, y: ridgeY },
+            { x: 0, y: 425 },
+            16,
+            C.muted,
         );
         this.addChild(this.ground, this.orbitGate);
     }
+    private addTitle(
+        host: Container,
+        text: string,
+        anchor: Point,
+        offset: Point,
+        size: number,
+        color: number,
+        width?: number,
+    ) {
+        const view = label(
+            host,
+            text,
+            anchor.x + offset.x,
+            anchor.y + offset.y,
+            size,
+            color,
+            width,
+        );
+        this.titles.push({ view, anchor, offset });
+        return view;
+    }
     update(surface: boolean, stage: number, cameraAngle: number) {
         if (!this.visible) return;
-        for (const title of this.titles) title.rotation = -cameraAngle;
+        for (const title of this.titles) {
+            title.view.rotation = -cameraAngle;
+            const offset = rotateVector(title.offset, -cameraAngle);
+            title.view.position.set(title.anchor.x + offset.x, title.anchor.y + offset.y);
+        }
         this.ground.visible = surface;
         this.orbitGate.visible = !surface;
         if (stage === this.stage) return;

@@ -70,17 +70,19 @@ export class HarpoonArms {
     }
     get poses(): readonly HarpoonArmPose[] {
         const angle = Math.atan2(this.target.y, this.target.x);
-        const distance = Math.min(
-            this.reach,
-            Math.max(65, Math.hypot(this.target.x, this.target.y)),
-        );
+        const distance = Math.min(this.reach, Math.hypot(this.target.x, this.target.y));
         return [-1, 1].map((side, index) => {
             const shoulder = { x: 8, y: side * 18 };
-            const spread = side * (28 - this.closure * 16);
+            const spread = side * Math.min(28 - this.closure * 16, distance * 0.15);
             const deployed = {
                 x: Math.cos(angle) * distance,
                 y: Math.sin(angle) * distance + spread,
             };
+            const deployedLength = Math.hypot(deployed.x, deployed.y);
+            if (deployedLength > distance) {
+                deployed.x *= distance / deployedLength;
+                deployed.y *= distance / deployedLength;
+            }
             const tip = this.limits.get(index) ?? {
                 x: 12 + (deployed.x - 12) * this.extension,
                 y: side * 40 + (deployed.y - side * 40) * this.extension,

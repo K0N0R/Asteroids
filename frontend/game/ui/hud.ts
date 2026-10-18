@@ -1,3 +1,4 @@
+import { RESOURCE_IDS, RESOURCES } from '../state/resources';
 import { salvagePosition } from '../systems/salvage';
 import { RadarTrail } from '../systems/radarTrail';
 import { sentryPosition } from '../systems/stationSentries';
@@ -16,6 +17,7 @@ import { hudLabel as label, keyHint, mouseHint, objectiveMark } from './hudIcons
 export class MissionHud extends Container {
     cameraAngle = 0;
     target = 1;
+    private cargoControls: Typography;
     private health: Typography;
     private shieldValue: Typography;
     private cargo: Typography;
@@ -66,7 +68,8 @@ export class MissionHud extends Container {
             graphic.eventMode = 'none';
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
-        this.cargo = label(this, '', 80, 93, 20);
+        this.cargo = label(this, '', 80, 93, 18);
+        this.cargoControls = label(this, '', 80, 146, 13, C.muted, 560);
         this.hyperStatus = label(this, '', 560, 40, 14, C.cyan, 650);
         if (
             sim.surfaceUnlocked ||
@@ -79,7 +82,7 @@ export class MissionHud extends Container {
         )
             this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
         if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
-            this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
+            this.supportStatus = label(this, '', 80, 166, 14, C.cyan, 600);
         if (sim.anomalyMission) this.anomalyStatus = label(this, '', 40, 215, 16, 0xda8cf1, 760);
         if (sim.rescueOperation) this.rescueStatus = label(this, '', 40, 245, 16, C.gold, 720);
         if (sim.miningEscort) this.convoyStatus = label(this, '', 40, 215, 14, C.gold, 760);
@@ -335,8 +338,16 @@ export class MissionHud extends Container {
             this.supportStatus?.setText(
                 `Zestawy ${s.repairKits} · produkcja ${s.repairKits ? 'zapas musi wynosić 0' : `${s.repairKitCost.ore} rudy / ${s.repairKitCost.parts} komponenty`}`,
             );
+        const cargoKinds = RESOURCE_IDS.filter((id) => (s.cargo[id] ?? 0) > 0);
         this.cargo.setText(
-            `${s.cargoUsed} / ${s.cargoCapacity}${s.cargo.copperOre ? ` · Cu ${s.cargo.copperOre}` : ''}${s.cargo.mercuryOre ? ` · Sp ${s.cargo.mercuryOre}` : ''}`,
+            `${s.cargoUsed} / ${s.cargoCapacity}${
+                cargoKinds.length
+                    ? ` · ${cargoKinds
+                          .slice(0, 4)
+                          .map((id) => `${RESOURCES[id].short} ${s.cargo[id]}`)
+                          .join(' · ')}${cargoKinds.length > 4 ? ' …' : ''}`
+                    : ''
+            }`,
         );
         this.cargo.setColor(s.cargoUsed >= s.cargoCapacity ? C.gold : C.text);
         this.meters
@@ -366,15 +377,27 @@ export class MissionHud extends Container {
             .rect(288, 72, (100 * shield.charge) / shield.profile.capacity, 5)
             .fill(0x86bded);
         this.meters.rect(80, 124, 190, 5).fill({ color: C.line, alpha: 0.65 });
-        if (s.cargoUsed > 0)
-            this.meters
-                .rect(80, 124, 190 * Math.min(1, s.cargoUsed / s.cargoCapacity), 5)
-                .fill(C.gold);
-        this.hyperStatus.visible = s.hyperUnlocked;
+        let cargoOffset = 0;
+        for (const id of RESOURCE_IDS) {
+            const width =
+                (190 * Math.min(s.cargo[id] ?? 0, Math.max(0, s.cargoCapacity - cargoOffset))) /
+                s.cargoCapacity;
+            if (width > 0)
+                this.meters
+                    .rect(80 + (190 * cargoOffset) / s.cargoCapacity, 124, width, 7)
+                    .fill(RESOURCES[id].color);
+            cargoOffset += s.cargo[id] ?? 0;
+        }
+        this.hyperStatus.visible = true;
         this.hyperStatus.setText(
-            `HIPER ${s.hyperFuel}/3 · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA skok / K śluza · kolizja = utrata'}`,
+            !s.hyperUnlocked
+                ? 'HIPER: brak modułu · montaż w stacji'
+                : `HIPER ${s.hyperFuel}/${s.hyperCapacity} · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA skok / K śluza · kolizja = utrata'}`,
         );
         this.context.setText(flightHint(s));
+        this.cargoControls.setText(
+            `O zbieranie: ${s.grippers.enabled ? 'ON' : 'OFF'} · B: ${RESOURCES[s.selectedCargo].short} ${s.cargo[s.selectedCargo] ?? 0} · X wyrzuć`,
+        );
         this.orderStatus?.setText(s.missionStatus);
         const towedIds = [...s.salvage.towing.keys()].join(',');
         if (this.towedIds !== towedIds) {
@@ -482,6 +505,17 @@ export class MissionHud extends Container {
             .circle(x, y, s.stationSafeRadius * scale)
             .fill({ color: C.cyan, alpha: 0.12 })
             .stroke({ color: C.cyan, width: 1, alpha: 0.5 });
+        for (const zone of s.magneticZones) {
+            this.map
+                .circle(x + zone.x * scale, y + zone.y * scale, zone.radius * scale)
+                .fill({ color: C.cyan, alpha: 0.06 })
+                .stroke({ color: C.cyan, width: 1, alpha: 0.5 });
+        }
+        for (const relay of s.magneticRelays) {
+            this.map
+                .circle(x + relay.x * scale, y + relay.y * scale, 2)
+                .fill(s.activeMagneticRelays.includes(relay.id) ? C.mint : C.gold);
+        }
         const homes = new Map<string, { x: number; y: number }>();
         for (const enemy of enemies.filter((e) => !e.route))
             homes.set(`${Math.round(enemy.home.x)},${Math.round(enemy.home.y)}`, enemy.home);

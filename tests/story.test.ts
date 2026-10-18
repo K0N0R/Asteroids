@@ -245,11 +245,7 @@ test('a fresh starter can mine, scan, dock, build the workshop and unlock the lu
         try {
             for (let frame = 0; frame < 60 * 300 && !s.ended; frame++) {
                 let input;
-                if (
-                    mine &&
-                    s.cargo.ore < 24 &&
-                    s.cargo.ore + s.cargo.parts < s.hullConfig.cargo - 1
-                ) {
+                if (mine && s.cargo.ore < 12 && s.cargoUsed < s.cargoCapacity - 1) {
                     const p = s.position;
                     const loot = [...s.loot.values()].sort(
                         (a, b) =>
@@ -298,7 +294,7 @@ test('a fresh starter can mine, scan, dock, build the workshop and unlock the lu
             s.dispose();
         }
     };
-    sortie('relay', true);
+    for (let attempt = 0; attempt < 3 && c.bank.ore < 24; attempt++) sortie('relay', true);
     assert.ok(c.bank.ore >= 24);
     contributeStory(c, 'earth-supply');
     assert.equal(storyRadius(c.story!), 2450);

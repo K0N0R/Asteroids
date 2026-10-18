@@ -6,27 +6,6 @@ export interface AsteroidDrift extends Point {
     phase: number;
 }
 
-// A slow, bounded tidal flow. Rapier still resolves impacts; never teleport a rock.
-export function driftVelocity(
-    p: Point,
-    velocity: Point,
-    drift: AsteroidDrift,
-    time: number,
-    dt: number,
-) {
-    const goal = {
-        x: drift.x + Math.sin(time * 0.041 + drift.phase) * drift.radius * 0.65,
-        y: drift.y + Math.sin(time * 0.029 + drift.phase * 1.7) * drift.radius * 0.65,
-    };
-    const dx = (goal.x - p.x) * 0.12,
-        dy = (goal.y - p.y) * 0.12,
-        scale = Math.min(1, 6 / Math.max(0.001, Math.hypot(dx, dy))),
-        ex = dx * scale - velocity.x,
-        ey = dy * scale - velocity.y,
-        response = Math.min(1, (1.8 * dt) / Math.max(0.001, Math.hypot(ex, ey)));
-    return { x: velocity.x + ex * response, y: velocity.y + ey * response };
-}
-
 export function driftingField(
     seed: number,
     center: Point,
@@ -70,4 +49,31 @@ export function driftingField(
         }
     }
     return rocks;
+}
+
+// Do not let collisions or sleeping physics turn orbital resources into static scenery.
+export function cruisingVelocity(v: Point, variant: number, massive = false): Point {
+    const minimum = massive ? 0.5 : 2.5;
+    if (Math.hypot(v.x, v.y) >= minimum) return v;
+    const angle = variant * 2.399963;
+    return { x: Math.cos(angle) * (massive ? 1 : 3), y: Math.sin(angle) * (massive ? 1 : 3) };
+}
+export function recycleAsteroid(
+    p: Point,
+    v: Point,
+    radius: number,
+    size: number,
+    rng: () => number,
+) {
+    const edge = radius + Math.max(400, size * 3);
+    if (Math.hypot(p.x, p.y) <= edge) return null;
+    const angle = Math.atan2(p.y, p.x) + Math.PI + (rng() - 0.5) * 0.7;
+    const position = { x: Math.cos(angle) * edge, y: Math.sin(angle) * edge };
+    const targetAngle = rng() * Math.PI * 2,
+        targetRadius = Math.sqrt(rng()) * radius * 0.65;
+    const dx = Math.cos(targetAngle) * targetRadius - position.x,
+        dy = Math.sin(targetAngle) * targetRadius - position.y,
+        length = Math.hypot(dx, dy),
+        speed = Math.max(0.6, Math.min(85, Math.hypot(v.x, v.y)));
+    return { position, velocity: { x: (dx / length) * speed, y: (dy / length) * speed } };
 }

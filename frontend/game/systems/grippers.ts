@@ -1,10 +1,11 @@
+import type { ResourceId } from '../state/resources';
 import type { Mount } from '../config';
 import { rotateVector } from './flight';
 import type { Point } from '../worlds/sector';
 
 export interface Resource extends Point {
     id: number;
-    kind: 'ore' | 'parts' | 'crystals' | 'copperOre' | 'mercuryOre';
+    kind: ResourceId;
     amount: number;
 }
 export interface Gripper {
@@ -13,7 +14,7 @@ export interface Gripper {
     targetId: number | null;
     tip: Point;
     previous: Point;
-    held: 'ore' | 'parts' | 'crystals' | 'copperOre' | 'mercuryOre' | null;
+    held: ResourceId | null;
 }
 export class GripperSystem {
     readonly arms: Gripper[];
@@ -31,6 +32,7 @@ export class GripperSystem {
         }));
     }
     speedMultiplier = 1;
+    enabled = true;
     origin(arm: Gripper, ship: Point, angle: number, size: number): Point {
         const p = rotateVector({ x: arm.mount.x * size, y: arm.mount.y * size }, angle);
         return { x: ship.x + p.x, y: ship.y + p.y };
@@ -42,7 +44,7 @@ export class GripperSystem {
         size: number,
         space: number,
         loot: Map<number, Resource>,
-        deliver: (kind: 'ore' | 'parts' | 'crystals' | 'copperOre' | 'mercuryOre') => void,
+        deliver: (kind: ResourceId) => void,
         clearLine: (a: Point, b: Point) => boolean,
     ) {
         const reserved = new Set(this.arms.map((arm) => arm.targetId).filter((id) => id !== null));
@@ -53,7 +55,7 @@ export class GripperSystem {
                 arm.tip = { ...origin };
                 arm.previous = { ...origin };
                 const pending = this.arms.filter((other) => other.phase !== 'idle').length;
-                if (space <= pending) continue;
+                if (!this.enabled || space <= pending) continue;
                 let best: Resource | undefined,
                     distance = this.range;
                 for (const item of loot.values()) {

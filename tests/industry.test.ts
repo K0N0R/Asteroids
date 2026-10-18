@@ -51,8 +51,12 @@ function hold(s: MissionSimulation, input: FlightInput, frames = 180) {
         s.events.length = 0;
     }
 }
-function fly(s: MissionSimulation, target: { x: number; y: number }) {
+function fly(
+    s: MissionSimulation,
+    destination: { x: number; y: number } | (() => { x: number; y: number }),
+) {
     for (let f = 0; f < 60 * 150 && !s.ended; f++) {
+        const target = typeof destination === 'function' ? destination() : destination;
         const dx = target.x - s.position.x,
             dy = target.y - s.position.y,
             d = Math.hypot(dx, dy),
@@ -225,10 +229,20 @@ test('stock Prospector mines real copper, returns it and feeds the complete comp
                 .slice(0, 2);
             assert.equal(veins.length, 2);
             for (const rock of veins) {
-                const target = { ...rock.previous };
-                fly(s, target);
+                fly(s, () =>
+                    s.rocks.has(rock.id)
+                        ? { x: rock.body.translation().x * 100, y: rock.body.translation().y * 100 }
+                        : rock.previous,
+                );
                 for (let f = 0; f < 1800 && s.rocks.has(rock.id) && !s.ended; f++) {
-                    s.step({ ...idle, target, mine: true });
+                    s.step({
+                        ...idle,
+                        target: {
+                            x: rock.body.translation().x * 100,
+                            y: rock.body.translation().y * 100,
+                        },
+                        mine: true,
+                    });
                     s.events.length = 0;
                 }
                 assert.equal(s.rocks.has(rock.id), false);

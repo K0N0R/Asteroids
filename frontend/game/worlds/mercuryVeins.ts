@@ -1,4 +1,4 @@
-/** Small anchored inclusions on a separate branch with its own solar shelter. */
+/** Small slowly drifting inclusions on a separate branch with its own solar shelter. */
 export const MERCURY_VEINS = {
     x: 1750,
     y: 1350,
@@ -6,11 +6,11 @@ export const MERCURY_VEINS = {
     health: 180,
     yield: 3,
     nodes: [
-        { x: 1670, y: 1300 },
-        { x: 1740, y: 1300 },
-        { x: 1810, y: 1300 },
+        { x: 1655, y: 1275 },
+        { x: 1745, y: 1310 },
+        { x: 1830, y: 1285 },
         { x: 1670, y: 1400 },
-        { x: 1740, y: 1400 },
-        { x: 1810, y: 1400 },
+        { x: 1750, y: 1445 },
+        { x: 1840, y: 1395 },
     ],
 } as const;

@@ -88,7 +88,15 @@ export function flightHint(s: MissionSimulation) {
         return `Stocznia · ${Math.ceil(f.health)}/${ENEMY_FACTORY.health} HP · 5: rdzeń · zniszcz, aby zatrzymać produkcję`;
     }
 
-    if (s.rescueOperation) {
+    if (
+        s.rescueOperation &&
+        (s.rescueOperation.delivered ||
+            s.rescueOperation.state === 'towing' ||
+            Math.hypot(
+                s.position.x - s.rescueOperation.position.x,
+                s.position.y - s.rescueOperation.position.y,
+            ) < 220)
+    ) {
         const r = s.rescueOperation;
         if (r.delivered && s.dockable) return 'E · dokuj · dostawa potwierdzona przez radio';
         if (

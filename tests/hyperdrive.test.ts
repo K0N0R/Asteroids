@@ -43,7 +43,9 @@ function ready() {
         c.story!.progress[id] = t.target;
         if (!c.story!.claimed.includes(id)) c.story!.claimed.push(id);
     }
-    c.bank = { ore: 60, parts: 8 };
+    c.bank = { ore: 60, parts: 8, hydrogen: 6 };
+    c.ship!.hyperdriveLevel = 1;
+    c.ship!.hyperFuel = 3;
     assert.ok(parseCampaign(JSON.stringify(c)));
     return c;
 }
@@ -106,6 +108,7 @@ test('stock Prospector flies to a gate, crosses the full lane and returns with s
     const s = run();
     try {
         fly(s, s.sector.hyperlanes[0].a);
+        clear(s); // Moving hazards are exercised separately; this checks gate navigation and fuel.
         assert.equal(s.hyperFuel, 3);
         s.step({ ...idle, hyperdrive: true });
         assert.equal(s.hyperdrive.state, 'charging');
@@ -122,7 +125,7 @@ test('stock Prospector flies to a gate, crosses the full lane and returns with s
         s.step({ ...idle, hyperdrive: true });
         advance(s, 120);
         assert.equal(s.hyperFuel, 1);
-        assert.ok(Math.hypot(s.position.x, s.position.y + 500) < 1);
+        assert.ok(Math.hypot(s.position.x, s.position.y + 1300) < 1);
         assert.ok(parseCampaign(JSON.stringify(s.campaign)));
     } finally {
         s.dispose();
@@ -232,6 +235,7 @@ test('fuel production and partial refuelling are atomic, per ship, persistent an
     assert.equal(c.bank.hyperFuel, 2);
     c.reserveShips.push(newShip(c.nextShipId++));
     c.reserveShips[0].hyperFuel = 0;
+    c.reserveShips[0].hyperdriveLevel = 1;
     assert.ok(selectShip(c, c.reserveShips[0].id));
     assert.equal(c.ship!.hyperFuel, 0);
     assert.ok(refuelHyperdrive(c));

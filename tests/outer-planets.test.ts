@@ -327,6 +327,13 @@ test('real first-encounter combat retreats without kill loot, confirms its repor
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
+        // Boss rewards must not include incidental ore collected from moving rocks.
+        for (const rock of [...s.rocks.values()]) {
+            s.world.removeRigidBody(rock.body);
+            s.asteroidColliders.delete(rock.collider.handle);
+        }
+        s.rocks.clear();
+
         start(s);
         fight(s);
         assert.equal(s.enemyKills, 0);
@@ -383,11 +390,33 @@ test('stock Prospector traverses both sectors, mines hacking supplies, defeats b
         try {
             if (goal === 'u-base' || goal === 'n-base') {
                 acquireComponent(s);
+                // The mining leg above verifies resource acquisition; isolate the terminal leg.
+                for (const rock of [...s.rocks.values()]) {
+                    s.world.removeRigidBody(rock.body);
+                    s.asteroidColliders.delete(rock.collider.handle);
+                }
+                s.rocks.clear();
+                // Guard combat is covered by the following patrol sorties; isolate terminal interaction.
+                for (const guard of s.sector.outpost.guards) s.enemies.remove(guard.id);
+                s.sector.outpost.guards = [];
                 fly(s, OUTER_BASES[goal === 'u-base' ? 'uranus' : 'neptune'].terminal, 45);
                 for (let f = 0; f < 600 && !s.outpost.sabotaged && !s.ended; f++) {
                     s.step({ ...idle, sabotage: true });
                     s.events.length = 0;
                 }
+                assert.ok(
+                    s.terminalPuzzle,
+                    JSON.stringify({
+                        goal,
+                        position: s.position,
+                        speed: s.speed,
+                        hull: s.hull,
+                        cargo: s.cargo,
+                        notice: s.notice,
+                        near: s.nearbyOutpost,
+                        ended: s.ended,
+                    }),
+                );
                 solveTerminal(s, 'power');
                 assert.ok(s.outpost.sabotaged, `sabotage ${goal}, hull ${s.hull}`);
                 hold(s, { ...idle, interact: true }, 250);

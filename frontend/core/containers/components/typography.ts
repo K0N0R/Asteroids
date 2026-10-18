@@ -67,7 +67,6 @@ export class Typography extends PIXI.Container {
     }
 
     setColor(color: number) {
-        this.text.style.stroke = color;
         this.text.style.fill = color;
     }
 

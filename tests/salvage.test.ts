@@ -313,9 +313,10 @@ test('recycling pays only after a safe return, respects storage and cannot pay t
     assert.equal(overflow.overflow, 18);
 });
 
-test('a destroyed rescue tow cannot be rescued again and its missing pilot is lost only once', () => {
+test('a disabled rescue tow stays in the sector and can be attached again without losing its pilot', () => {
     const c = newCampaign();
     c.nextPilotId = 3;
+    c.nextShipId = 3;
     c.recoverySignals = [
         { id: 2, seed: 71, x: 3000, y: 0, ship: null, pilot: { ...c.pilots[0], id: 2 } },
     ];
@@ -334,16 +335,19 @@ test('a destroyed rescue tow cannot be rescued again and its missing pilot is lo
         item.body.setLinvel({ x: 0, y: 0 }, true);
         shot(sim, 3200, 'enemy', 1000);
         sim.step(idle);
-        assert.equal(sim.recoveryDestroyed, true);
+        assert.equal(sim.recoveryDestroyed, false);
         assert.equal(sim.recoverySecured, false);
         for (let i = 0; i < 241; i++) sim.step({ ...idle, interact: true });
         assert.equal(sim.recoverySecured, false);
+        sim.ship.setTranslation({ x: 33, y: 0 }, true);
+        sim.step(idle);
+        for (let i = 0; i < 241; i++) sim.step({ ...idle, interact: true });
+        assert.equal(sim.recoverySecured, true);
         finishRun(c, true, { ore: 0, parts: 0 }, 60, 'dock', 0, {
             destroyedRecoveryId: 2,
-            securedId: 2,
         });
-        assert.equal(c.recoverySignals.length, 0);
-        assert.equal(c.lostPilots, 1);
+        assert.equal(c.recoverySignals.length, 1);
+        assert.equal(c.lostPilots, 0);
         assert.equal(c.pilots.length, 1);
         assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
     } finally {

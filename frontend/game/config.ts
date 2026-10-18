@@ -718,8 +718,9 @@ export const PILOT_SKILLS = {
 export type PilotSkillId = keyof typeof PILOT_SKILLS;
 export const JOBS = {
     hyperFuel: {
-        title: 'Ogniwa hipernapędu',
-        ore: 6,
+        title: 'Ogniwa wodorowe',
+        materials: { hydrogen: 6 },
+        ore: 0,
         parts: 1,
         seconds: 45,
         output: 'hyperFuel',

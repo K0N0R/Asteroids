@@ -122,7 +122,7 @@ test('an early return or unrelated mission cannot claim the recovery target', ()
     assert.equal(c.pilots.length, 1);
 });
 
-test('a failed or refreshed rescue loses its target, including a pilot already secured on tow', () => {
+test('a failed or refreshed flight leaves the rescue target and its pilot in the sector', () => {
     const c = lostCampaign(),
         target = c.recoverySignals[0];
     emergencyKit(c);
@@ -132,11 +132,11 @@ test('a failed or refreshed rescue loses its target, including a pilot already s
     const result = finishRun(loaded, false, { ore: 10, parts: 1 }, 0, 'reload', 0, {
         securedId: target.id,
     });
-    assert.ok(!loaded.recoverySignals.some((s) => s.id === target.id));
+    assert.ok(loaded.recoverySignals.some((s) => s.id === target.id));
     assert.ok(!loaded.pilots.some((p) => p.id === target.pilot!.id));
     assert.ok(!loaded.reserveShips.some((s) => s.id === target.id));
-    assert.ok(loaded.lostPilots >= 1);
-    assert.match(result!.recoveryText, /poprzedniej akcji/);
+    assert.equal(loaded.lostPilots, 0);
+    assert.doesNotMatch(result!.recoveryText, /poprzedniej akcji/);
     assert.deepEqual(loaded.bank, { ore: 0, parts: 0 });
     assert.deepEqual(parseCampaign(JSON.stringify(loaded)), loaded);
 });
@@ -160,7 +160,7 @@ test('full hangar converts the rescued hull to materials with storage overflow r
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
 
-test('missing pilots reserve roster slots and oldest signals expire at the bounded limit', () => {
+test('missing pilots reserve roster slots and older signals remain available through repeated losses', () => {
     const c = lostCampaign();
     emergencyKit(c);
     c.bank.ore = 100;
@@ -177,9 +177,9 @@ test('missing pilots reserve roster slots and oldest signals expire at the bound
         beginRun(chain, seed);
         finishRun(chain, false, { ore: 0, parts: 0 }, 0, 'loss');
     }
-    assert.equal(chain.recoverySignals.length, RECOVERY.signalLimit);
-    assert.equal(chain.lostPilots, 1);
-    assert.ok(!chain.recoverySignals.some((s) => s.id === 1));
+    assert.equal(chain.recoverySignals.length, 4);
+    assert.equal(chain.lostPilots, 0);
+    assert.ok(chain.recoverySignals.some((s) => s.id === 1));
     assert.deepEqual(parseCampaign(JSON.stringify(chain)), chain);
 });
 

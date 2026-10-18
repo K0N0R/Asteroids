@@ -22,7 +22,7 @@ export class OrbitalOutpostView extends Container {
         this.visible = stage >= 0;
         if (!this.visible) return;
         this.title.rotation = -angle;
-        this.title.position.copyFrom(rotateVector({ x: -160, y: 155 }, -angle));
+        this.title.position.copyFrom(rotateVector({ x: 0, y: 155 }, -angle));
         const built = stage > 0,
             shielded = stage > 1;
         if (stage !== this.stage) {

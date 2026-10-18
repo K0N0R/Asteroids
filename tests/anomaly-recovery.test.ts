@@ -121,7 +121,7 @@ test('exposure has a warning, deals the same timed damage at different steps, an
     assert.ok(e.step({ x: -2600, y: -1800 }, { x: -1700, y: -1800 }, 6, 30) > 0);
 });
 
-test('recovery is optional, unlocks after survey, and creates only the selected physical probe and route', () => {
+test('recovery is optional, unlocks after survey, and creates the physical probe and route in an ordinary flight', () => {
     const c = ready(false, false);
     assert.equal(selectableMission(c, 'jupiter-recovery'), null);
     const unlocked = ready(true, false);
@@ -129,7 +129,7 @@ test('recovery is optional, unlocks after survey, and creates only the selected 
     beginRun(unlocked, 1);
     const free = new MissionSimulation(unlocked, unlocked.activeRun!.seed);
     try {
-        assert.equal(free.anomalyMission, false);
+        assert.equal(free.anomalyMission, true);
     } finally {
         free.dispose();
     }
@@ -173,6 +173,13 @@ test('stock Prospector flies the safe maze, physically attaches and tows the pro
     const c = ready(),
         s = new MissionSimulation(c, c.activeRun!.seed);
     try {
+        // Isolate contamination navigation from the independently tested drifting asteroid hazards.
+        for (const rock of [...s.rocks.values()]) {
+            s.world.removeRigidBody(rock.body);
+            s.asteroidColliders.delete(rock.collider.handle);
+        }
+        s.rocks.clear();
+
         for (const point of ANOMALY.waypoints) fly(s, point);
         fly(s, { x: ANOMALY.probe.x, y: ANOMALY.probe.y - 110 });
         assert.equal(s.statistics.hullDamage, 0);

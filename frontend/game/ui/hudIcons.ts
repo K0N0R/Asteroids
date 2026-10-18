@@ -10,9 +10,7 @@ export function hudLabel(
     color: number = C.text,
     wrapWidth?: number,
 ) {
-    return label(parent, text, x, y, size, color, wrapWidth, {
-        dropShadow: { color: 0x020810, alpha: 0.95, blur: 4, distance: 0, angle: 0 },
-    });
+    return label(parent, text, x, y, size, color, wrapWidth);
 }
 
 export function keyHint(

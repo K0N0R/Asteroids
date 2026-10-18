@@ -20,6 +20,61 @@ test('every selected cue has a real Ogg asset with a bounded volume', () => {
     }
 });
 
+test('nearby AI engines and mining are audible while distant or idle AI stays quiet', () => {
+    let id = 0;
+    const playing = new Map<number, { cue: SoundCue; volume: number }>();
+    const audio = new MissionAudio<number>(
+        {
+            play(cue, volume) {
+                const key = ++id;
+                playing.set(key, { cue, volume });
+                return key;
+            },
+            stop(key) {
+                playing.delete(key);
+            },
+            volume(key, volume) {
+                playing.get(key)!.volume = volume;
+            },
+        },
+        () => true,
+    );
+    const guide = {
+        state: 'travel',
+        position: { x: 200, y: 0 },
+        velocity: { x: 60, y: 0 },
+        beams: [] as unknown[],
+    };
+    const state = {
+        ended: null,
+        pendingChoice: null,
+        thrusting: false,
+        boosting: false,
+        engineFault: false,
+        laserBeams: [],
+        repairProgress: 0,
+        position: { x: 0, y: 0 },
+        guide,
+    };
+    audio.update(state);
+    assert.ok([...playing.values()].some((voice) => voice.cue === 'engine'));
+    guide.velocity = { x: 0, y: 0 };
+    guide.beams = [{}];
+    audio.update(state);
+    assert.ok([...playing.values()].some((voice) => voice.cue === 'mining'));
+    assert.equal(
+        [...playing.values()].some((voice) => voice.cue === 'engine'),
+        false,
+    );
+    guide.position = { x: 2000, y: 0 };
+    audio.update(state);
+    assert.equal(playing.size, 0);
+    guide.position = { x: 200, y: 0 };
+    guide.beams = [];
+    audio.update(state);
+    assert.equal(playing.size, 0);
+});
+
 test('production imports match the source manifest, encoded files, loop boundaries and preload budget', () => {
     const recipe = JSON.parse(readFileSync('scripts/audio-assets.json', 'utf8'));
     const report = JSON.parse(readFileSync('docs/audio-assets.json', 'utf8'));

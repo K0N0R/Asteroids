@@ -313,6 +313,12 @@ test('surface quarry supports actual mining and collection with the starter ship
         assert.ok(s.cargo.ore > 0);
         assert.ok(s.cargo.parts > 0);
         assert.ok(s.statistics.rocksDestroyed > 0);
+        // Leave the solid quarry around its northern edge before approaching construction.
+        fly(
+            s,
+            { x: s.position.x, y: MOON.construction.y - 150 },
+            () => Math.abs(s.position.y - (MOON.construction.y - 150)) < 120,
+        );
         fly(s, MOON.construction, () => c.story!.progress['lunar-foundation'] > 0);
     } finally {
         s.dispose();

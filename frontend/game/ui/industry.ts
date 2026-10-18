@@ -20,6 +20,7 @@ export function industryOverview(
         toggleIndustry?: () => void;
         openNavigation?: () => void;
         refuelHyperdrive?: () => void;
+        upgradeHyperdrive?: () => void;
     },
     page: 'basic' | 'kinetic' | 'navigation' = 'basic',
 ) {
@@ -41,7 +42,7 @@ export function industryOverview(
     const advancedIds = ['mercuryOre', 'kineticPlates', 'kineticModules'];
     const visible = RESOURCE_IDS.filter((id) =>
         navigation
-            ? ['hyperFuel', 'ore', 'parts'].includes(id)
+            ? ['hydrogen', 'hyperFuel', 'ore', 'parts'].includes(id)
             : advanced
               ? advancedIds.includes(id) ||
                 ['powerModules', 'storageFrames', 'ore', 'parts'].includes(id)
@@ -146,7 +147,7 @@ export function industryOverview(
     label(
         ui,
         navigation
-            ? `Zbiornik: ${c.ship?.hyperFuel ?? 0}/3 · zapas ${c.bank.hyperFuel ?? 0} OH`
+            ? `Zbiornik: ${c.ship?.hyperFuel ?? 0}/${c.ship?.hyperdriveLevel ? 2 + c.ship.hyperdriveLevel : 0} · zapas ${c.bank.hyperFuel ?? 0} OH`
             : `Zajęte: ${storageUsed(c)} / ${storageCapacity(c)}`,
         1072,
         325,
@@ -199,7 +200,8 @@ export function industryOverview(
             ? !!actions.refuelHyperdrive &&
                   !c.activeRun &&
                   !!c.ship &&
-                  c.ship.hyperFuel < 3 &&
+                  c.ship.hyperdriveLevel > 0 &&
+                  c.ship.hyperFuel < 2 + c.ship.hyperdriveLevel &&
                   (c.bank.hyperFuel ?? 0) > 0
             : advanced
               ? !!actions.installReinforcedBay && !kineticInstallationLock(c, 'storage')
@@ -214,6 +216,31 @@ export function industryOverview(
         42,
         14,
     );
+    if (navigation) {
+        const level = (c.ship?.hyperdriveLevel ?? 0) + 1;
+        button(
+            ui,
+            level > 3
+                ? 'HIPERNAPĘD III · MAKSIMUM'
+                : `HIPER ${level} · ${20 * level} Fe / ${4 * level} K / ${level} MZ`,
+            1072,
+            510,
+            456,
+            () => actions.upgradeHyperdrive?.(),
+            false,
+            !!actions.upgradeHyperdrive &&
+                !c.activeRun &&
+                !!c.ship &&
+                level <= 3 &&
+                c.crew.mechanic &&
+                c.station.workshop >= 1 &&
+                c.bank.ore >= 20 * level &&
+                c.bank.parts >= 4 * level &&
+                (c.bank.powerModules ?? 0) >= level,
+            24,
+            12,
+        );
+    }
     const jobs = workerJobs(c, 'mechanic');
     label(ui, `MECHANIK · KOLEJKA ${jobs.length}/${CREW.queueLimit}`, 1072, 536, 13, C.muted);
     if (!c.crew.mechanic)

@@ -99,18 +99,20 @@ test('a roaming drone travels between waypoints and pursues from a local anchor'
     }
 });
 
-test('Perseid asteroids keep moving in Rapier without leaving their flow orbit', () => {
+test('Perseid asteroids travel through the sector without a forced circular orbit', () => {
     const sim = new MissionSimulation(newCampaign(), 731);
     try {
         sim.enemies.dispose();
-        const rock = [...sim.rocks.values()].find((r) => r.orbit && r.orbit.speed > 90)!;
+        const rock = [...sim.rocks.values()].find(
+            (r) => Math.hypot(r.previousVelocity.x, r.previousVelocity.y) > 90,
+        )!;
         for (const other of [...sim.rocks.values()])
             if (other !== rock) {
                 sim.world.removeRigidBody(other.body);
                 sim.rocks.delete(other.id);
             }
-        const start = { ...rock.previous },
-            flow = rock.orbit!;
+        const start = { ...rock.previous };
+        assert.equal(rock.orbit, undefined);
         for (let i = 0; i < 1800; i++)
             sim.step({
                 target: { x: 0, y: 0 },
@@ -121,7 +123,7 @@ test('Perseid asteroids keep moving in Rapier without leaving their flow orbit',
             });
         const p = rock.body.translation();
         assert.ok(Math.hypot(p.x * 100 - start.x, p.y * 100 - start.y) > 300);
-        assert.ok(Math.abs(Math.hypot(p.x * 100 - flow.x, p.y * 100 - flow.y) - flow.radius) < 130);
+        assert.ok(Math.hypot(p.x * 100, p.y * 100) <= sim.sectorRadius + 500);
         assert.ok(Math.hypot(rock.body.linvel().x, rock.body.linvel().y) * 100 > 50);
     } finally {
         sim.dispose();

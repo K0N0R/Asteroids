@@ -1,6 +1,12 @@
 # Orbit · Asteroids
 
-Aktualna wersja **0.78** usuwa podkłady HUD i obrót paralaksy przy skręcaniu, zaokrągla asteroidy oraz panele przekaźników i usuwa dekoracyjne obrysy wypełnionych obiektów. Instruktor pomaga wydobywać prawdziwe skały, a księżycowy Muł pokazuje dwie wiązki z własnych laserów. Format kampanii **47**, dziennika **21** bez zmian. [Zakres i weryfikacja](docs/implementation-v0.78.md).
+## Aktualizacja 0.80
+
+Dryf i recykling asteroid, ulepszany hipernapęd z paliwem wodorowym, pierwsza sieć magnetyczna przy Ziemi oraz zarządzanie ładunkiem. **Nowy zapis: kampania 49.** [Zakres i sterowanie](docs/implementation-v0.80.md).
+
+Wersja **0.79** otwiera sektor bez wybierania misji. Ratunek jest częścią świata, a nieudana wyprawa nie usuwa wcześniejszych celów; wraki, porzucone hole i stan promu są zapisywane. Instruktor pokazuje wydobycie do dwóch sztuk rudy, ma dźwięki i pojedynczy komunikat o zasięgu. Nowy szum napędu, wyśrodkowane podpisy, planety zakotwiczone w świecie, pas Drogi Mlecznej i powiększanie globu przy podejściu do Księżyca. **Kampania 48, dziennik 21 — wymagany nowy zapis, bez migracji.** [Zakres i weryfikacja](docs/implementation-v0.79.md).
+
+Wersja **0.78** usuwa podkłady HUD i obrót paralaksy przy skręcaniu, zaokrągla asteroidy oraz panele przekaźników i usuwa dekoracyjne obrysy wypełnionych obiektów. Instruktor pomaga wydobywać prawdziwe skały, a księżycowy Muł pokazuje dwie wiązki z własnych laserów. Format kampanii **47**, dziennika **21** bez zmian. [Zakres i weryfikacja](docs/implementation-v0.78.md).
 
 Wersja **0.77** rozpoczyna szeroki lifting oprawy w kierunku referencji Kurzgesagt: wspólna paleta, panele i HUD, jedenaście ilustracji sektorów, nowa Satuk 15, pastelowa flota oraz uproszczone asteroidy i powierzchnia Księżyca. Zachowuje sylwetki i ulepszenia statków. Format kampanii **47**, dziennika **21** bez zmian. [Zakres, weryfikacja i dalsza oprawa](docs/implementation-v0.77.md).
 

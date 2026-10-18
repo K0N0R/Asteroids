@@ -141,14 +141,8 @@ export function generateStorySector(progress: StoryProgress) {
         const angle = rng() * Math.PI * 2,
             distance = 880 + rng() * (radius - 1050);
         return {
-            x:
-                i < 9
-                    ? 1040 + (i % 3) * 100 + (earth ? (fieldRng() - 0.5) * 45 : 0)
-                    : Math.cos(angle) * distance,
-            y:
-                i < 9
-                    ? (Math.floor(i / 3) - 1) * 140 + (earth ? (fieldRng() - 0.5) * 50 : 0)
-                    : Math.sin(angle) * distance,
+            x: i < 9 ? 1100 + (fieldRng() - 0.5) * 440 : Math.cos(angle) * distance,
+            y: i < 9 ? (fieldRng() - 0.5) * 540 : Math.sin(angle) * distance,
             radius: i < 9 ? 28 : 25 + rng() * 25,
             rich: i % 3 === 0,
             crystal: i > 12 && i % 11 === 0,
@@ -909,14 +903,43 @@ export function generateStorySector(progress: StoryProgress) {
         if (field) field.name = 'Złoże Fe / Cu';
     }
     if (earth && progress.claimed.includes('earth-workshop')) {
+        // A first fuel batch must be reachable before installing or fuelling a drive.
+        for (const [i, point] of [
+            { x: 950, y: -200 },
+            { x: 1220, y: 230 },
+        ].entries())
+            sector.rocks.push({
+                ...point,
+                radius: 32,
+                crystal: true,
+                rich: false,
+                variant: 71 + i,
+                vx: 4 + i,
+                vy: -3,
+            });
+        const localField = sector.landmarks.find((l) => l.key === 2);
+        if (localField) localField.name = 'Złoże Fe / Cu / H';
+        sector.rocks.push({
+            x: 130,
+            y: -4500,
+            radius: 125,
+            rich: true,
+            variant: 777,
+            vx: 0.7,
+            vy: 0.4,
+        });
         sector.hyperlanes = [
-            { name: 'Zewnętrzne złoża', a: { x: 0, y: -500 }, b: { x: 0, y: -4100 } },
-            { name: 'Węzeł dalszej orbity', a: { x: -400, y: 0 }, b: { x: -1450, y: 550 } },
+            { name: 'Zewnętrzne złoża', a: { x: 0, y: -1300 }, b: { x: 0, y: -4100 } },
+            {
+                name: 'Zewnętrzne złoża · śluza zachodnia',
+                a: { x: -1100, y: -400 },
+                b: { x: -450, y: -4100 },
+            },
         ];
         sector.regions = [
             { x: 0, y: 0, name: 'Satuk 15 / bliska orbita', radius: 1400 },
             { x: -1750, y: 700, name: 'Węzeł łączności', radius: 600 },
-            { x: 0, y: -4500, name: 'Zewnętrzne złoża', radius: 600 },
+            { x: 0, y: -4500, name: 'Metaliczne złoże', radius: 700 },
         ];
         sector.rocks = sector.rocks.filter((r) =>
             sector.hyperlanes.every((l) => segmentDistance(r, l.a, l.b) > r.radius + 150),
@@ -933,5 +956,46 @@ export function generateStorySector(progress: StoryProgress) {
             ...driftingField(def.seed ^ 0x7070, { x: 0, y: -4500 }, sector.hyperlanes),
         );
     }
+    // Seeded rejection sampling removes rows, rings and overlapping orbital deposits.
+    const placed: RockSpec[] = [];
+    for (const original of sector.rocks) {
+        let rock = { ...original };
+        const surface =
+            Math.hypot(rock.x - MOON.center.x, rock.y - MOON.center.y) < MOON.radius + 500;
+        if (!surface && rock.beltBarrier === undefined && !rock.anchored) {
+            const origin = { ...rock };
+            for (let attempt = 0; attempt < 60; attempt++) {
+                const candidate = {
+                    x: origin.x + (fieldRng() - 0.5) * 130,
+                    y: origin.y + (fieldRng() - 0.5) * 130,
+                };
+                if (
+                    placed.some(
+                        (r) =>
+                            Math.hypot(r.x - candidate.x, r.y - candidate.y) <
+                            r.radius + rock.radius + 20,
+                    )
+                )
+                    continue;
+                if (
+                    sector.hyperlanes.some(
+                        (l) => segmentDistance(candidate, l.a, l.b) < rock.radius + 150,
+                    )
+                )
+                    continue;
+                rock = { ...rock, ...candidate };
+                break;
+            }
+            const heading = fieldRng() * Math.PI * 2,
+                speed = rock.radius >= 100 ? 0.6 + fieldRng() * 1.8 : 3 + fieldRng() * 27;
+            rock.vx = Math.cos(heading) * speed;
+            rock.vy = Math.sin(heading) * speed;
+            delete rock.orbit;
+            delete rock.drift;
+        }
+        if (surface) rock = { ...rock, vx: 0, vy: 0 };
+        placed.push(rock);
+    }
+    sector.rocks = placed;
     return sector;
 }

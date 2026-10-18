@@ -64,16 +64,29 @@ function steer(s: MissionSimulation, target: { x: number; y: number }, radius: n
 }
 function win(s: MissionSimulation) {
     for (let f = 0; f < 60 * 240 && s.lunarAssault.active && !s.ended; f++) {
-        const enemy = [...s.enemies.enemies.values()].sort((a, b) => {
-            const ap = enemyPosition(a),
-                bp = enemyPosition(b);
-            return (
-                Math.hypot(ap.x - MOON.construction.x, ap.y - MOON.construction.y) -
-                Math.hypot(bp.x - MOON.construction.x, bp.y - MOON.construction.y)
+        const enemy = [...s.enemies.enemies.values()]
+            .filter((enemy) => enemy.assault)
+            .sort((a, b) => {
+                const ap = enemyPosition(a),
+                    bp = enemyPosition(b);
+                return (
+                    Math.hypot(ap.x - MOON.construction.x, ap.y - MOON.construction.y) -
+                    Math.hypot(bp.x - MOON.construction.x, bp.y - MOON.construction.y)
+                );
+            })[0];
+        if (enemy) {
+            const p = enemyPosition(enemy);
+            const dx = p.x - MOON.construction.x,
+                dy = p.y - MOON.construction.y;
+            const distance = Math.hypot(dx, dy),
+                limit = Math.min(1, 1050 / Math.max(1, distance));
+            const input = steer(
+                s,
+                { x: MOON.construction.x + dx * limit, y: MOON.construction.y + dy * limit },
+                distance > 1050 ? 60 : 240,
             );
-        })[0];
-        if (enemy) s.step({ ...steer(s, enemyPosition(enemy), 240), fire: true, mine: true });
-        else if (s.hull < s.maxHull && s.repairKits) s.step({ ...idle, repair: true });
+            s.step({ ...input, target: p, fire: true, mine: true });
+        } else if (s.hull < s.maxHull && s.repairKits) s.step({ ...idle, repair: true });
         else s.step(steer(s, MOON.construction, 200));
         s.events.length = 0;
     }
@@ -99,7 +112,10 @@ test('the starter ship can repel real AI waves; radio confirmation completes Act
         assert.equal(actOneComplete(c.story!), true);
         assert.ok(storyObjectives(c, [], true).find((t) => t.id === 'lunar-attack')!.complete);
         assert.equal(s.loot.size, 0);
-        assert.equal(s.salvage.items.size, 0);
+        assert.equal(
+            [...s.salvage.items.values()].filter((item) => item.source !== 'recovery').length,
+            0,
+        );
         // Normal flight from the surface, through its exit, to the Satuk 15 dock.
         s.step(idle);
         for (let f = 0; f < 60 * 90 && s.area === 'surface'; f++)
@@ -148,7 +164,7 @@ test('AI can target and damage the station; a failed attack keeps earlier tasks 
         assert.ok(targetingStation);
         assert.equal(s.lunarAssault.state, 'failed');
         assert.equal(s.lunarAssault.health, 0);
-        assert.equal(s.enemies.enemies.size, 0);
+        assert.equal([...s.enemies.enemies.values()].filter((enemy) => enemy.assault).length, 0);
         assert.equal(s.bullets.size, 0);
         assert.equal(c.story!.progress['lunar-commission'], 1);
         assert.equal(c.story!.progress['lunar-attack'], 0);
@@ -175,7 +191,7 @@ test('leaving the surface interrupts the attack and clears its projectiles and a
         for (let i = 0; i < 125; i++) s.step({ ...idle, interact: true });
         assert.equal(s.area, 'orbit');
         assert.equal(s.lunarAssault.state, 'failed');
-        assert.equal(s.enemies.enemies.size, 0);
+        assert.equal([...s.enemies.enemies.values()].filter((enemy) => enemy.assault).length, 0);
         assert.equal(s.bullets.size, 0);
         assert.equal(actOneComplete(c.story!), false);
     } finally {

@@ -392,7 +392,11 @@ test('Harpoon articulated jaws extend toward aim, fold to attached shoulders and
     );
     for (let frame = 0; frame < 60; frame++) arms.update(GAME.step, target, true, false);
     assert.equal(arms.extension, 1);
-    assert.ok(arms.poses.every((arm) => arm.tip.x === HARPOON_ARMS.reach));
+    assert.ok(
+        arms.poses.every(
+            (arm) => Math.abs(Math.hypot(arm.tip.x, arm.tip.y) - HARPOON_ARMS.reach) < 0.001,
+        ),
+    );
     let strikes = 0;
     for (let frame = 0; frame < 120; frame++)
         if (arms.update(GAME.step, target, true, true)) strikes++;

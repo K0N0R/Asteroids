@@ -1,4 +1,5 @@
 export const RESOURCES = {
+    hydrogen: { name: 'Wodór', short: 'H', category: 'PIERWIASTKI', color: 0x9ddff5 },
     hyperFuel: { name: 'Ogniwa hipernapędu', short: 'OH', category: 'PALIWO', color: 0xa3a9f2 },
     mercuryOre: { name: 'Spiek merkuriański', short: 'Sp', category: 'RUDY', color: 0xa6d2df },
     kineticPlates: {
@@ -29,10 +30,11 @@ export const RESOURCES = {
         category: 'KONSTRUKCJE',
         color: 0xb6c8d5,
     },
-    crystals: { name: 'Kryształy', short: '◆', category: 'MINERAŁY', color: 0xc2a0ec },
+    crystals: { name: 'Krzem', short: 'Si', category: 'MINERAŁY', color: 0xc2a0ec },
 } as const;
 export type ResourceId = keyof typeof RESOURCES;
 export const STORAGE_PRIORITY: readonly ResourceId[] = [
+    'hydrogen',
     'hyperFuel',
     'kineticModules',
     'kineticPlates',

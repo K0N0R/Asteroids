@@ -1,3 +1,4 @@
+import { milkyWayView } from '../../../game/graphics/milkyWayView';
 import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { random } from '../../../game/worlds/sector';
 import type { StorySectorId } from '../../../game/state/story';
@@ -23,14 +24,24 @@ export class Background extends Container {
         super();
         this.eventMode = 'none';
         this.addChild(new Graphics().rect(0, 0, 1600, 900).fill(C.space));
-        const clouds = new Graphics();
-        clouds
-            .ellipse(1200, 210, 590, 300)
-            .fill({ color: 0x282154, alpha: 0.32 })
-            .ellipse(1330, 180, 430, 200)
-            .fill({ color: 0x343064, alpha: 0.2 })
-            .ellipse(520, 830, 650, 260)
-            .fill({ color: 0x292253, alpha: 0.18 });
+        const clouds = milkyWayView();
+        for (const [x, y, tilt] of [
+            [310, 180, -0.4],
+            [1240, 650, 0.6],
+            [710, 790, -0.8],
+        ]) {
+            const galaxy = new Graphics();
+            galaxy
+                .ellipse(0, 0, 11, 3)
+                .fill({ color: 0x9e9cc1, alpha: 0.22 })
+                .ellipse(0, 0, 5, 2)
+                .fill({ color: 0xe7ced3, alpha: 0.36 })
+                .circle(0, 0, 1.2)
+                .fill({ color: 0xf4e1d8, alpha: 0.65 });
+            galaxy.position.set(x, y);
+            galaxy.rotation = tilt;
+            this.clouds.addChild(galaxy);
+        }
         this.clouds.addChild(clouds);
         this.addChild(this.clouds);
         const rng = random(819),
@@ -54,6 +65,7 @@ export class Background extends Container {
             this.addChild(view);
         }
         this.illustration = planetView(null);
+        this.scenery.label = 'world-planet';
         this.scenery.addChild(this.illustration);
         this.addChild(this.scenery);
         const viewportMask = new Graphics().rect(0, 0, 1600, 900).fill(0xffffff);
@@ -70,8 +82,8 @@ export class Background extends Container {
     }
     setFlight(active: boolean) {
         this.flight = active;
-        this.scenery.position.set(1360, 190);
-        this.scenery.scale.set(active ? 0.95 : 1);
+        if (!active) this.scenery.position.set(1360, 190);
+        if (!active) this.scenery.scale.set(1);
         this.scenery.alpha = active ? 0.38 : 0.95;
     }
     update(deltaMS: number) {
@@ -86,7 +98,7 @@ export class Background extends Container {
                 this.cameraZoom,
             );
             this.scenery.position.copyFrom(position);
-            this.scenery.rotation = this.cameraAngle;
+            this.scenery.rotation = 0;
             this.scenery.scale.set(0.95 * this.cameraZoom);
             this.clouds.pivot.set(800, 450);
             this.clouds.position.copyFrom(

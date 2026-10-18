@@ -1,4 +1,4 @@
-import { refuelHyperdrive } from './state/crew';
+import { refuelHyperdrive, upgradeHyperdrive } from './state/crew';
 import { installKineticUpgrade } from './state/kineticIndustry';
 import { terminalPuzzlePanel } from './ui/terminalPuzzle';
 import { rescueRepairPanel } from './ui/rescueRepair';
@@ -197,6 +197,11 @@ export class GameSession {
                     () => scrapShip(this.campaign, id),
                     'Kadłub zezłomowany. Odzyskane materiały trafiły do magazynu.',
                 ),
+            upgradeHyperdrive: () =>
+                this.change(
+                    () => upgradeHyperdrive(this.campaign),
+                    'Moduł hipernapędu zamontowany. Zatankuj ogniwa przed wylotem.',
+                ),
             refuelHyperdrive: () =>
                 this.change(
                     () => refuelHyperdrive(this.campaign),
@@ -303,6 +308,16 @@ export class GameSession {
                     (message.name === 'keydown' && ['escape', 'tab'].includes(message.data))
                 )
                     this.mission?.audio.pause();
+                if (
+                    message.name === 'keydown' &&
+                    this.mission &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup()
+                ) {
+                    if (message.data === 'o') this.mission.simulation.toggleCollection();
+                    if (message.data === 'b') this.mission.simulation.cycleCargo();
+                    if (message.data === 'x') this.mission.simulation.jettisonCargo();
+                }
                 if (message.name === 'keydown' && message.data === 'tab') this.toggleMissionInfo();
                 if (
                     message.name === 'keydown' &&
@@ -828,6 +843,10 @@ export class GameSession {
             repair: !tuning && InputHandler.isKeyPressed('REPAIR'),
             sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });
+        this.background.camera = this.mission.simulation.position;
+        this.background.cameraAngle = this.mission.camera.rotation;
+        this.background.cameraZoom = this.mission.camera.scale.x;
+        this.background.surface = this.mission.simulation.area === 'surface';
         this.syncInteractionPanel();
         if (this.hud)
             this.hud.visible =

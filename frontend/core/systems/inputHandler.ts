@@ -62,7 +62,10 @@ export class InputHandlerBase {
             this.pressedKeys.delete(key);
             Bus.emit('input', { name: 'keyup', data: key });
         });
+        const flightCursor = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><g fill="none" stroke="#8ce4ed" stroke-width="2" stroke-linecap="round"><circle cx="16" cy="16" r="6"/><path d="M16 2v6m0 16v6M2 16h6m16 0h6"/></g><circle cx="16" cy="16" r="1.5" fill="#ffffff"/></svg>')}") 16 16, crosshair`;
         window.addEventListener('pointermove', (evt) => {
+            if (evt.target instanceof HTMLCanvasElement)
+                evt.target.style.cursor = GameState.state === 'gameplay' ? flightCursor : 'default';
             this.pointer = { x: evt.clientX, y: evt.clientY };
             this.pointerInCanvas = evt.target instanceof HTMLCanvasElement;
             Bus.emit('input', { name: 'pointermove', data: this.pointer });

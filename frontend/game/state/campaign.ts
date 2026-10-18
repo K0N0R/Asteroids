@@ -69,6 +69,7 @@ export type ShipModules = Record<
 >;
 export interface Ship extends ShipModules {
     hyperFuel: number;
+    hyperdriveLevel: number;
     id: number;
     hull: HullId;
     weapon: WeaponId;
@@ -83,13 +84,14 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 48;
+    version: 49;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
     nextShipId: number;
     recoverySignals: RecoverySignal[];
+    magneticRelays: number[];
     nextSalvageId: number;
     worldSalvage: {
         id: number;
@@ -100,7 +102,7 @@ export interface Campaign {
         area?: 'surface';
     }[];
     rescueSites: Partial<
-        Record<'lunar-rescue' | 'jupiter-recovery', Point & { stabilized: boolean }>
+        Record<'lunar-rescue' | 'jupiter-recovery', Point & { stabilized: boolean; health: number }>
     >;
     station: {
         workshop: number;
@@ -164,7 +166,8 @@ export const SAVE_KEY = 'asteroids.campaign.v1';
 export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
     id,
     hull,
-    hyperFuel: 3,
+    hyperFuel: 0,
+    hyperdriveLevel: 0,
     weapon: 'standard',
     weapons: ['standard'],
     engine: 0,
@@ -176,7 +179,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 48,
+        version: 49,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
@@ -186,6 +189,7 @@ export function newCampaign(): Campaign {
         nextSalvageId: 100000,
         worldSalvage: [],
         rescueSites: {},
+        magneticRelays: [],
         station: {
             workshop: 0,
             storage: 0,
@@ -222,7 +226,7 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 48 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 49 || !cargo(p.bank) || !object(p.station)) return null;
         if (
             !integer(p.station.workshop, 2) ||
             !integer(p.station.storage, 3) ||
@@ -410,7 +414,11 @@ export function parseCampaign(json: string | null): Campaign | null {
             Object.hasOwn(HULLS, ship.hull) &&
             ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
             integer(ship.shield, 3) &&
-            integer(ship.hyperFuel, 3) &&
+            integer(ship.hyperdriveLevel, 3) &&
+            integer(
+                ship.hyperFuel,
+                ship.hyperdriveLevel === 0 ? 0 : 2 + (ship.hyperdriveLevel as number),
+            ) &&
             integer(ship.handling, 3) &&
             typeof ship.weapon === 'string' &&
             Object.hasOwn(WEAPONS, ship.weapon) &&
@@ -444,6 +452,9 @@ export function parseCampaign(json: string | null): Campaign | null {
                     Math.abs(point[key] as number) <= 1000000,
             );
         if (
+            !Array.isArray(p.magneticRelays) ||
+            !p.magneticRelays.every((id) => integer(id, 2)) ||
+            new Set(p.magneticRelays).size !== p.magneticRelays.length ||
             !integer(p.nextSalvageId) ||
             (p.nextSalvageId as number) < 100000 ||
             !Array.isArray(p.worldSalvage) ||
@@ -465,7 +476,10 @@ export function parseCampaign(json: string | null): Campaign | null {
                     ['lunar-rescue', 'jupiter-recovery'].includes(key) &&
                     object(item) &&
                     validPoint(item) &&
-                    typeof item.stabilized === 'boolean',
+                    typeof item.stabilized === 'boolean' &&
+                    typeof item.health === 'number' &&
+                    item.health >= 1 &&
+                    item.health <= 120,
             )
         )
             return null;

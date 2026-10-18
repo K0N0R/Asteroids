@@ -41,6 +41,7 @@ export class LunarTransferView extends Container {
         const opacity = 1 - ease;
         g.rect(0, 0, 1600, 900).fill({ color: C.ink, alpha: opacity });
         const approach = surface ? ease : 1 - ease;
+        this.moon.rotation = 0;
         this.moon.position.set(800, 450 + approach * 500);
         this.moon.scale.set(0.95 + approach * approach * 32);
         this.moon.alpha =

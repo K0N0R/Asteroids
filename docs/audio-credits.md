@@ -40,3 +40,7 @@ Usunięto cisze przed efektami, ograniczono ogony krótkich sygnałów i dodano 
 206 nagrań: Black Lodge — 50 WAV; `60-sci-fi-sfx` — 60 OGG; `sci-fi-sfx` — 50 OGG; `sfx_loops` — 30 OGG; `Laser` — 15 MP3; `ObservingTheStar` — 1 OGG oraz projekt LMMS. Wszystkie pliki audio przeszły dekodowanie podczas przeglądu. Dwie ostatnie paczki nie mają dołączonej licencji i nie są używane w tym pakiecie. Nie dodano muzyki.
 
 Dobór opiera się na rolach efektów, analizie parametrów, kontroli zapętleń i próbie odtwarzania WebAudio. Subiektywny balans podczas dłuższej gry pozostaje do oceny przez gracza; montaż próbek nie zastępuje odsłuchu pełnej rozgrywki.
+
+## Korekta napędu 0.79
+
+Pętla silnika korzysta teraz z `sfx_loops/noise_01.ogg` (ta sama paczka CC0), przyciętego i zapętlonego do 3,96 s, z filtracją 55–420 Hz. Zastępuje `machine_06.ogg`. Aktualny rozmiar całego zestawu: **234 772 bajty**. Bieżące pomiary i SHA-256 w [manifeście](audio-assets.json). Odległość instruktora i Muła wpływa na głośność napędu i wydobycia.

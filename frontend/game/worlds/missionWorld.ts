@@ -1,3 +1,4 @@
+import { RESOURCES } from '../state/resources';
 import { anomalyFieldView, recoveryProbeView } from '../graphics/anomalyFieldView';
 import { EnemyFactoryView } from '../graphics/enemyFactoryView';
 import { StationSentryView } from '../graphics/stationSentryView';
@@ -61,7 +62,7 @@ export class MissionWorld extends Container {
     private moonPrepared = false;
     private transfer = new LunarTransferView();
     private routes = new Graphics();
-    private gateLabels: ReturnType<typeof label>[] = [];
+    private gateLabels: { view: ReturnType<typeof label>; origin: Point }[] = [];
     private journeyOverlay = new Container();
     private journeyInk = new Graphics();
     private lossTitle = label(this.journeyOverlay, 'SYGNAŁ UTRACONY', 585, 600, 32, C.gold);
@@ -85,6 +86,7 @@ export class MissionWorld extends Container {
     readonly shipView;
     private dashGhosts: Container[] = [];
     private dashTrailView = new Container();
+    private magneticRelayViews = new Map<number, Container>();
     private rocks = new Map<number, Graphics>();
     private bullets = new Map<number, Graphics>();
     private researchView = researchShipView();
@@ -183,16 +185,15 @@ export class MissionWorld extends Container {
                     .stroke({ color: 0xa3a9f2, width: 4, alpha: 0.8 })
                     .circle(point.x, point.y, 85)
                     .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
-                this.gateLabels.push(
-                    worldLabel(
-                        this.camera,
-                        `K · Śluza / ${lane.name}`,
-                        point.x,
-                        point.y + 135,
-                        16,
-                        0xb5baff,
-                    ),
+                const view = worldLabel(
+                    this.camera,
+                    `K · Śluza / ${lane.name}`,
+                    point.x,
+                    point.y + 135,
+                    16,
+                    0xb5baff,
                 );
+                this.gateLabels.push({ view, origin: point });
             }
         }
         this.homeTitle = worldLabel(this.home, simulation.stationName, 0, 165, 18, C.mint);
@@ -326,7 +327,11 @@ export class MissionWorld extends Container {
         const s = this.simulation,
             g = this.journeyInk.clear(),
             dead = s.ended === 'destroyed';
-        for (const title of this.gateLabels) title.rotation = -this.camera.rotation;
+        for (const title of this.gateLabels) {
+            title.view.rotation = -this.camera.rotation;
+            const offset = rotateVector({ x: 0, y: 135 }, -this.camera.rotation);
+            title.view.position.set(title.origin.x + offset.x, title.origin.y + offset.y);
+        }
         this.lossTitle.visible = this.lossDetail.visible = dead;
         this.shipView.visible = !dead || this.deathElapsed < 0.12;
         this.kineticView.visible = !dead;
@@ -888,18 +893,7 @@ export class MissionWorld extends Container {
                 .moveTo(tip.x - nx * 7 + ny * 6, tip.y - ny * 7 - nx * 6)
                 .lineTo(tip.x + nx * 3 + ny * 5, tip.y + ny * 3 - nx * 5)
                 .stroke({ color: 0xc3c3c3, width: 2 });
-            if (arm.held)
-                this.grabberLines
-                    .poly([tip.x, tip.y - 7, tip.x + 6, tip.y, tip.x, tip.y + 7, tip.x - 6, tip.y])
-                    .fill(
-                        arm.held === 'mercuryOre'
-                            ? 0xa6d2df
-                            : arm.held === 'crystals'
-                              ? 0xc2a0ec
-                              : arm.held === 'parts'
-                                ? C.gold
-                                : C.mint,
-                    );
+            if (arm.held) this.grabberLines.circle(tip.x, tip.y, 6).fill(RESOURCES[arm.held].color);
         }
         for (const [id, view] of this.sentryViews)
             if (!s.sentries.drones.has(id)) {
@@ -1599,34 +1593,12 @@ export class MissionWorld extends Container {
         for (const item of s.loot.values()) {
             let view = this.loot.get(item.id);
             if (!view) {
+                const color = RESOURCES[item.kind].color;
                 view = new Graphics()
-                    .poly([0, -7, 6, 0, 0, 7, -6, 0])
-                    .fill(
-                        item.kind === 'mercuryOre'
-                            ? 0xa6d2df
-                            : item.kind === 'copperOre'
-                              ? 0xd48c62
-                              : item.kind === 'crystals'
-                                ? 0xc2a0ec
-                                : item.kind === 'parts'
-                                  ? C.gold
-                                  : C.mint,
-                    )
-                    .circle(0, 0, 12)
-                    .stroke({
-                        color:
-                            item.kind === 'mercuryOre'
-                                ? 0xa6d2df
-                                : item.kind === 'copperOre'
-                                  ? 0xd48c62
-                                  : item.kind === 'crystals'
-                                    ? 0xc2a0ec
-                                    : item.kind === 'parts'
-                                      ? C.gold
-                                      : C.mint,
-                        width: 1,
-                        alpha: 0.3,
-                    });
+                    .circle(0, 0, 6)
+                    .fill(color)
+                    .circle(-2, -2, 2)
+                    .fill({ color: 0xffffff, alpha: 0.45 });
                 this.loot.set(item.id, view);
                 this.effectLayer.addChild(view);
             }
@@ -1634,6 +1606,34 @@ export class MissionWorld extends Container {
             view.alpha = 0.8 + Math.sin(this.clock * 3 + item.id) * 0.2;
         }
         this.navigation.clear();
+        for (const zone of s.magneticZones) {
+            this.navigation
+                .circle(zone.x, zone.y, zone.radius)
+                .stroke({ color: C.cyan, width: 2, alpha: 0.16 });
+        }
+        for (const relay of s.magneticRelays.filter((r) => r.id !== 0)) {
+            let view = this.magneticRelayViews.get(relay.id);
+            if (!view) {
+                view = surveySiteView('relay');
+                const title = worldLabel(
+                    view,
+                    `${relay.name} · E synchronizacja`,
+                    0,
+                    110,
+                    16,
+                    C.cyan,
+                );
+                title.label = 'relay-title';
+                this.magneticRelayViews.set(relay.id, view);
+                this.camera.addChild(view);
+            }
+            view.position.set(relay.x, relay.y);
+            view.alpha = s.activeMagneticRelays.includes(relay.id) ? 1 : 0.65;
+            const title = view.getChildByLabel('relay-title')!;
+            title.rotation = -this.camera.rotation;
+            const offset = rotateVector({ x: 0, y: 110 }, -this.camera.rotation);
+            title.position.set(offset.x, offset.y);
+        }
         if (s.firstBossAvailable) {
             this.navigation
                 .circle(s.bossArena.x, s.bossArena.y, 180)

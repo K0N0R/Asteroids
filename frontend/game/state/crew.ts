@@ -171,10 +171,36 @@ export function installCargoBay(c: Campaign) {
 }
 
 export function refuelHyperdrive(c: Campaign) {
-    if (c.activeRun || !c.ship || c.ship.hyperFuel >= 3 || (c.bank.hyperFuel ?? 0) <= 0)
+    if (
+        c.activeRun ||
+        !c.ship ||
+        c.ship.hyperdriveLevel === 0 ||
+        c.ship.hyperFuel >= 2 + c.ship.hyperdriveLevel ||
+        (c.bank.hyperFuel ?? 0) <= 0
+    )
         return false;
-    const amount = Math.min(3 - c.ship.hyperFuel, c.bank.hyperFuel ?? 0);
+    const amount = Math.min(2 + c.ship.hyperdriveLevel - c.ship.hyperFuel, c.bank.hyperFuel ?? 0);
     c.bank.hyperFuel = (c.bank.hyperFuel ?? 0) - amount;
     c.ship.hyperFuel += amount;
+    return true;
+}
+
+export function upgradeHyperdrive(c: Campaign) {
+    const ship = c.ship;
+    if (
+        !ship ||
+        c.activeRun ||
+        !c.crew.mechanic ||
+        c.station.workshop < 1 ||
+        ship.hyperdriveLevel >= 3
+    )
+        return false;
+    const level = ship.hyperdriveLevel + 1;
+    if (c.bank.ore < 20 * level || c.bank.parts < 4 * level || (c.bank.powerModules ?? 0) < level)
+        return false;
+    c.bank.ore -= 20 * level;
+    c.bank.parts -= 4 * level;
+    c.bank.powerModules = (c.bank.powerModules ?? 0) - level;
+    ship.hyperdriveLevel = level;
     return true;
 }

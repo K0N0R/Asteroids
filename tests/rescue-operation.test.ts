@@ -214,7 +214,7 @@ test('J releases a secured mission tow and reattachment uses the existing stabil
     }
 });
 
-test('a real projectile can destroy the mission target, closing repair and allowing retreat and a fresh retry without reward', () => {
+test('a real projectile disables the rescue tow but leaves the damaged prom in the world without a separate mission', () => {
     const c = ready(),
         s = new MissionSimulation(c, 1);
     try {
@@ -234,19 +234,20 @@ test('a real projectile can destroy the mission target, closing repair and allow
             life: 1,
         });
         s.step(idle);
-        assert.equal(r.state, 'destroyed');
+        assert.equal(r.state, 'distress');
+        assert.equal(r.item.health, 1);
         assert.equal(r.repair, null);
         assert.equal(s.surveyData.has('rescue'), false);
-        assert.ok(s.missionReturnBlocked);
-        assert.ok(s.abortMission());
+        delete c.activeRun!.mission;
+        assert.equal(s.missionReturnBlocked, false);
         const bank = structuredClone(c.bank);
-        finishRun(c, true, s.cargo, s.elapsed, 'retreat', s.repairKits, s.missionReport);
+        finishRun(c, true, s.cargo, s.elapsed, 'dock', s.repairKits, s.missionReport);
         assert.deepEqual(c.bank, bank);
-        assert.ok(beginRun(c, 2, null, false, 'lunar-rescue'));
+        assert.ok(beginRun(c, 2));
         const retry = new MissionSimulation(c, 2);
         try {
             assert.equal(retry.rescueOperation!.state, 'distress');
-            assert.equal(retry.rescueOperation!.item.health, 80);
+            assert.equal(retry.rescueOperation!.item.health, 1);
         } finally {
             retry.dispose();
         }

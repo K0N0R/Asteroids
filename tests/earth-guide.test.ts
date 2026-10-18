@@ -125,6 +125,8 @@ test('instructor turns towards a real asteroid, fires from his laser and leaves 
         assert.ok(firing, 'the visible beam must accompany actual asteroid damage');
         assert.equal(s.rocks.has(rock.id), false);
         assert.ok([...s.loot.values()].some((l) => l.source === 'asteroid'));
+        assert.ok(guide.minedOre > 0 && guide.minedOre <= 2);
+        assert.ok([...s.loot.values()].filter((l) => l.kind === 'ore').length <= 2);
         assert.equal(s.cargo.ore, 0);
         assert.equal(c.story!.progress['earth-supply'], 0);
         s.cargo.ore = 24;
@@ -161,7 +163,7 @@ test('physical route planning avoids a large asteroid, reaches the approach and 
     }
 });
 
-test('losing and regaining contact cannot teleport the instructor or spam radio', () => {
+test('instructor warns once then ignores player range without teleporting', () => {
     const world = new RAPIER.World({ x: 0, y: 0 }),
         c = newStoryCampaign(),
         cargo = { ore: 0, parts: 0 };
@@ -173,15 +175,15 @@ test('losing and regaining contact cannot teleport the instructor or spam radio'
             g.guide(1 / 60, c, cargo, { x: 4000, y: 0 }, [], (t) => messages.push(t));
             world.step();
         }
-        assert.equal(g.waitingReason, 'player');
-        assert.ok(Math.hypot(g.position.x - start.x, g.position.y - start.y) < 2);
-        assert.equal(messages.filter((t) => t.includes('kontakt wzrokowy')).length, 1);
+        assert.notEqual(g.waitingReason, 'player');
+        assert.ok(Math.hypot(g.position.x - start.x, g.position.y - start.y) > 100);
+        assert.equal(messages.filter((t) => t.includes('Oddaliliśmy')).length, 1);
         for (let i = 0; i < 300; i++) {
             g.guide(1 / 60, c, cargo, g.position, [], (t) => messages.push(t));
             world.step();
         }
         assert.notEqual(g.waitingReason, 'player');
-        assert.equal(messages.filter((t) => t.includes('Widzę')).length, 1);
+        assert.equal(messages.filter((t) => t.includes('Widzę')).length, 0);
         assert.ok(Math.hypot(g.position.x - start.x, g.position.y - start.y) > 100);
     } finally {
         g.dispose();

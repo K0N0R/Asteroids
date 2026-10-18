@@ -127,19 +127,16 @@ test('stock Harpoon flies from Satuk, tears out real material, collects it, dock
     try {
         fly(s, MERCURY_SHELTERS[0]);
         for (let index = 0; index < 2; index++) {
-            const target = MERCURY_VEINS.nodes[index];
-            fly(s, { x: target.x - 125, y: target.y }, 15);
             const node = [...s.rocks.values()].find(
-                (r) =>
-                    r.mercuryVein &&
-                    Math.abs(r.previous.x - target.x) < 1 &&
-                    Math.abs(r.previous.y - target.y) < 1,
+                (r) => r.mercuryVein && r.variant === 90 + index,
             )!;
+            const target = { ...node.previous };
+            fly(s, { x: target.x - 125, y: target.y }, 15);
             assert.ok(node);
             for (let f = 0; f < 600 && s.rocks.has(node.id) && !s.ended; f++) {
                 s.step({
                     ...idle,
-                    target,
+                    target: { ...node.previous },
                     mine: true,
                     fire: f % 24 === 0,
                     turn: Math.max(

@@ -1,6 +1,6 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-18, wersja 0.78.
+Stan: 2026-10-18, wersja 0.79.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
@@ -13,6 +13,10 @@ Decyzja autora: starsze zapisy są niekompatybilne i nie mogą być otwierane. N
 Autor przekazał zakres etapowej rozbudowy sektorów: dialogi i reżyseria, odblokowania floty, nowe misje i minigry, trudniejsza walka, rozbudowa stacji i gospodarki oraz nowa oprawa. [Pełny backlog, zależności, uwagi i proponowane pakiety](content-development.md). To nadrzędny kierunek dalszego rozwoju; historyczne ograniczenia poniżej nie wykluczają teraz wskazanych funkcji.
 
 Nowy kanon: anomalie są wywołane obecnością obcej cywilizacji. Trzy strony konfliktu to wojsko Ziemi, wroga prywatna organizacja kosmiczna i obcy. Motywacje, relacje, boss i scenariusz ujawnień pozostają otwarte. Wersja 0.53 wdraża pierwszy pakiet: odprawy przy Ziemi i ujawnianie zadań. Pozostałe funkcje listy są backlogiem. Wersja 0.54 dodaje odblokowania i rozkazy zwiadu/walki z odwrotem. Wersja 0.55 wdraża pierwszy łańcuch gospodarki i segmenty magazynowe. Wersja 0.56 wdraża generator tarczy Satuk 15. Wersja 0.57 rozpoczyna pełniejsze misje aktu I minigrą łączności. Wersja 0.58 dodaje eskortę wydobywczą Muła. Wersja 0.59 dodaje misję ratunkową z zabezpieczeniem obwodów i fizycznym holowaniem. Wersja 0.60 rozbudowuje powierzchnię Księżyca o odległy grzbiet miedziowy i przytwierdzone formacje skalne. Wersja 0.61 przenosi eskortę Muła do budowy na Księżycu: wspólne dostawy 160 Fe, wielokrotne kursy, naprawy za własne zasoby i odblokowanie kadłuba po fundamentach. Wersja 0.62 dodaje animowane przejścia między orbitą a powierzchnią. Wersja 0.63 wdraża pierwszą bazę produkującą jednostki: opcjonalną stocznię polową przy Marsie. Wersja 0.64 dodaje drony strażnicze Satuk 15, 0.65 cztery role przeciwników, a 0.66 mieszane fale obrony placówek. Kolejne pakiety określa bieżący plan.
+
+## Aktualizacja autora — 0.79
+
+Cele podejmujemy w świecie, bez wyboru misji przed startem. Odzysk jest trwałą możliwością sektora; nieudana wyprawa nie usuwa wcześniejszego celu. Widok Ratunek pokazuje lokalizacje. Wdrożenie obejmuje także korektę instruktora, jego audio, napędu, podpisów oraz projekcji planet, Drogi Mlecznej i podejścia do Księżyca. [Zakres](implementation-v0.79.md). Ta decyzja ma pierwszeństwo przed historycznymi zasadami wyboru rozkazu i wygasania akcji ratunkowej.
 
 ## Uzgodniona kolejność dalszej rozbudowy
 
@@ -228,3 +232,7 @@ Dwie minigry terminali: obracane obwody włamania i zachowanie bilansu energii p
 ## Etap 0.68 — wdrożony
 
 Spójny pakiet Merkurego, przemysłu i Satuk 15: sześć odpornych złóż wyrywanych Harpunem, osobna osłonięta odnoga sektora, trzy nowe zasoby, dwie receptury, zadanie Osłona kinetyczna Satuk 15, tarcza I–II (1000/1150 m) i dwa wzmocnione magazyny (+400 każdy). Format kampanii 42 i dziennika 20 bez migracji. Podstawowa ścieżka aktu IV nie wymaga dodatkowej inwestycji. [Zakres i weryfikacja](implementation-v0.68.md).
+
+## Aktualizacja 0.80 — eksploracja
+
+Wdrożono dryf wszystkich asteroid orbitalnych, recykling poza krawędziami, nieregularne pola, nowy wrak, okrągłe zasoby i kolorowy ładunek, przełącznik zbierania/wyrzucanie, montaż hipernapędu I–III i produkcję z H, celownik oraz ograniczenie narzędzi kursorem. Pierwsza sieć magnetyczna działa przy Ziemi z dodatkowymi przekaźnikami. Następne: strefy generowane przez wrogie/obce statki i skażenia w dalszych sektorach, badania wydajności paliwa, balans tras i ekonomii wodoru. Szczegóły: implementation-v0.80.md.

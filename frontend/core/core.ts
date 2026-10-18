@@ -30,7 +30,6 @@ export class Core {
         EffectsManager.updateUi(ticker.deltaMS);
         this.uiContainer?.update(ticker.deltaMS);
         this.popupContainer.update(ticker.deltaMS);
-        this.background.update(ticker.deltaMS);
 
         if (GameState.state === 'initialization') {
         } else {
@@ -42,6 +41,7 @@ export class Core {
             }
             this.worldContainer?.update(scaledDeltaMS);
         }
+        this.background.update(ticker.deltaMS);
     }
 
     async init() {

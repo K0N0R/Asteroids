@@ -104,6 +104,7 @@ export interface LobbyActions {
     rescue: () => void;
     installCargoBay?: () => void;
     refuelHyperdrive?: () => void;
+    upgradeHyperdrive?: () => void;
     installStationShield?: () => void;
     installKineticShield?: () => void;
     installReinforcedBay?: () => void;
@@ -148,6 +149,7 @@ export class LobbyView extends Container {
     private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield' = 'engine';
     private scrapCandidate: number | null = null;
     private recoveryId: number | null = null;
+    private recoveryPage = 0;
     private storyPage = 0;
     private storyPageSector: StorySectorId | null = null;
     constructor(
@@ -261,7 +263,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.79', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.80', 30, 851, 11, C.muted);
         const industrial = resourceSummary({
             copperOre: c.bank.copperOre,
             conductors: c.bank.conductors,
@@ -808,7 +810,8 @@ export class LobbyView extends Container {
                 {
                     ...modules,
                     id: ship?.id ?? 0,
-                    hyperFuel: ship?.hyperFuel ?? 3,
+                    hyperFuel: ship?.hyperFuel ?? 0,
+                    hyperdriveLevel: ship?.hyperdriveLevel ?? 0,
                     weapon: modules.weapon ?? 'standard',
                     weapons: ship?.weapons ?? ['standard'],
                 },
@@ -1640,39 +1643,74 @@ export class LobbyView extends Container {
             625,
             429,
         );
-        c.recoverySignals.forEach((entry, i) => {
-            const card = choiceCard(
+        const lastPage = Math.max(0, Math.ceil(c.recoverySignals.length / 3) - 1);
+        this.recoveryPage = Math.min(this.recoveryPage, lastPage);
+        c.recoverySignals
+            .slice(this.recoveryPage * 3, this.recoveryPage * 3 + 3)
+            .forEach((entry, i) => {
+                const card = choiceCard(
+                    ui,
+                    280 + i * 240,
+                    683,
+                    225,
+                    108,
+                    entry.id === this.recoveryId,
+                    () => {
+                        this.recoveryId = entry.id;
+                        this.refresh();
+                    },
+                );
+                label(card, `Sygnał #${entry.id}`, 18, 18, 21);
+                label(
+                    card,
+                    entry.area === 'surface'
+                        ? 'Powierzchnia Księżyca · wejście przez 3'
+                        : `${(Math.hypot(entry.x, entry.y) / 1000).toFixed(1)} km od ${c.story ? 'Satuk 15' : 'Aurory'}`,
+                    18,
+                    49,
+                    14,
+                    C.muted,
+                );
+                label(
+                    card,
+                    `${entry.pilot ? 'Kapsuła' : ''}${entry.pilot && entry.ship ? ' + ' : ''}${entry.ship ? 'wrak' : ''}`,
+                    18,
+                    78,
+                    13,
+                    C.gold,
+                );
+            });
+        if (lastPage > 0) {
+            button(
                 ui,
-                280 + i * 240,
-                683,
-                225,
-                108,
-                entry.id === this.recoveryId,
+                '←',
+                280,
+                808,
+                80,
                 () => {
-                    this.recoveryId = entry.id;
+                    this.recoveryPage = Math.max(0, this.recoveryPage - 1);
                     this.refresh();
                 },
+                false,
+                this.recoveryPage > 0,
+                27,
             );
-            label(card, `Sygnał #${entry.id}`, 18, 18, 21);
-            label(
-                card,
-                entry.area === 'surface'
-                    ? 'Powierzchnia Księżyca · wejście przez 3'
-                    : `${(Math.hypot(entry.x, entry.y) / 1000).toFixed(1)} km od ${c.story ? 'Satuk 15' : 'Aurory'}`,
-                18,
-                49,
-                14,
-                C.muted,
+            label(ui, `${this.recoveryPage + 1}/${lastPage + 1}`, 620, 814, 14, C.muted);
+            button(
+                ui,
+                '→',
+                900,
+                808,
+                80,
+                () => {
+                    this.recoveryPage = Math.min(lastPage, this.recoveryPage + 1);
+                    this.refresh();
+                },
+                false,
+                this.recoveryPage < lastPage,
+                27,
             );
-            label(
-                card,
-                `${entry.pilot ? 'Kapsuła' : ''}${entry.pilot && entry.ship ? ' + ' : ''}${entry.ship ? 'wrak' : ''}`,
-                18,
-                78,
-                13,
-                C.gold,
-            );
-        });
+        }
         if (!signal) {
             label(ui, 'Brak sygnałów do odzyskania.', 381, 718, 22, C.muted);
             label(ui, 'Cisza w eterze.', 1072, 279, 30);
@@ -1698,6 +1736,9 @@ export class LobbyView extends Container {
             );
             return;
         }
+        const sectorName =
+            Object.values(STORY_SECTORS).find((sector) => sector.seed === signal.seed)?.name ??
+            'Sektor swobodny';
         label(ui, 'POŁOŻENIE SYGNAŁU', 1072, 244, 13, C.muted);
         label(ui, `Sygnał #${signal.id}`, 1072, 276, 31);
         label(
@@ -1744,7 +1785,7 @@ export class LobbyView extends Container {
         label(ui, '6 · cel    E · podjęcie    1 · powrót', 1072, 616, 16, C.muted);
         label(
             ui,
-            `Pozycja: ${Math.round(signal.x)}, ${Math.round(signal.y)} · sygnał pozostaje w sektorze`,
+            `${sectorName} · ${signal.area === 'surface' ? 'powierzchnia' : 'orbita'} · ${Math.round(signal.x)}, ${Math.round(signal.y)}`,
             1072,
             656,
             15,

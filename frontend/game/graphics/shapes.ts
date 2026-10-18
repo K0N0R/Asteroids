@@ -440,16 +440,31 @@ export function cacheView() {
 
 export function wreckView() {
     const view = new Container();
-    const g = new Graphics().poly([-75, -28, -15, -35, 12, -12, -10, 20, -65, 32]).fill(0x51616b);
-    g.poly([30, -15, 73, -28, 92, 4, 56, 24, 18, 17]).fill(0x667079);
-    g.rect(-60, -18, 25, 5).rect(-53, 12, 20, 4).fill(C.gold);
-    g.circle(0, 0, 135).stroke({ color: 0x9a9e9d, width: 1, alpha: 0.17 });
-    for (const y of [-16, 16]) {
-        g.roundRect(-59, y - 2, 32, 4, 1).fill(0x2d3e49);
-        g.circle(-62, y, 2).fill(0xa5b0b4);
+    const g = new Graphics();
+    // A broken survey craft, with readable bow, cockpit and detached engine.
+    g.roundRect(-72, -26, 102, 52, 22).fill(0x34435e);
+    g.roundRect(-66, -23, 81, 46, 18).fill(0x8e9db6);
+    g.roundRect(-59, -17, 39, 34, 14).fill(0x536b8f);
+    g.ellipse(-43, -2, 15, 12).fill(0x88cde1);
+    g.ellipse(-47, -6, 5, 3).fill(0xd9eff2);
+    g.roundRect(-18, -17, 28, 34, 8).fill(0x61728c);
+    g.roundRect(-14, -11, 17, 5, 2).fill(0xa9b7c7);
+    g.roundRect(-14, 1, 17, 5, 2).fill(0xa9b7c7);
+    g.poly([12, -25, 31, -17, 18, -9, 30, 0, 14, 9, 24, 19, 10, 26]).fill(0x202c45);
+    for (const y of [-36, 26]) {
+        g.roundRect(-48, y, 52, 10, 5).fill(0x667e9d);
+        g.roundRect(-40, y + 2, 24, 5, 2).fill(0xd9b982);
     }
-    g.poly([-12, -9, 5, -4, -4, 8, -16, 5]).fill(0x23343f);
-    g.beginPath().moveTo(31, -8).lineTo(57, 7).lineTo(71, 3).stroke({ color: 0x313e47, width: 3 });
+    g.roundRect(47, -20, 40, 34, 10).fill(0x72859d);
+    g.roundRect(67, -16, 14, 26, 5).fill(0x2e3d57);
+    g.roundRect(49, -12, 10, 18, 4).fill(0xc4a781);
+    for (const [x, y, r] of [
+        [33, 29, 5],
+        [46, -33, 4],
+        [19, 42, 3],
+        [91, 25, 3],
+    ])
+        g.circle(x, y, r).fill(0x697b94);
     view.addChild(g);
     return view;
 }

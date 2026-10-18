@@ -4,7 +4,7 @@ Stan: 2026-10-17. Podstawa: lista autora przekazana po ukończeniu szkieletu kam
 
 ## Bieżąca polityka zapisu
 
-Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.78 przyjmuje wyłącznie format kampanii 47 i dziennika 21; wcześniejsze formaty są odrzucane.
+Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.79 przyjmuje wyłącznie format kampanii 48 i dziennika 21; wcześniejsze formaty są odrzucane.
 
 Aktualna kolejność pakietów jest zapisana w [bieżącym planie](plan-current.md#uzgodniona-kolejność-dalszej-rozbudowy). Drony strażnicze wdrożono w 0.64, role przeciwników w 0.65, większe obrony placówek w 0.66, a obwody włamania, przekierowanie zasilania i premie hakowania statków w 0.67; 0.68 dodaje wydobycie Harpunem na Merkurym i przemysł kinetyczny. 0.69 wdraża pierwszy pakiet nawigacji: większą orbitę Ziemi, śluzy, hipernapęd z paliwem oraz animację śmierci. 0.70 dodaje nieregularne skupiska przy Ziemi i fizyczny dryf dalszego złoża. 0.71 wdraża ziemskie potwierdzenia radiowe i transfer ładunku C poza dokiem. 0.72 przenosi potwierdzenia i transfer na Księżyc, z odblokowaniem powierzchni i Muła w tej samej wyprawie. 0.73 dodaje instruktora AI w drugim Prospectorze przy Ziemi. Kolejne pakiety obejmują rozwój pozostałych sektorów i ich raportowania. Scenariusz aktu I rozwijamy równolegle, bez przesądzania zwrotów, motywacji i finału.
 
@@ -124,3 +124,9 @@ Grywalny fragment w docelowym sektorze, poprawne bieżące zapisy i odrzucanie n
 Na prośbę autora lifting wspólnej oprawy otrzymał priorytet przed animacjami dokowania. Wdrożono paletę, panele, HUD, planety wszystkich sektorów, Satuk 15, kolory floty i asteroidy. Osobne projekty przeciwników, instalacji, portretów i efektów pozostają kolejnym pakietem. [Zakres i dalsze kroki](implementation-v0.77.md).
 
 Korekta autora w 0.78: usunięte podkłady HUD; ilustracje mają opierać się na zaokrągleniach i wypełnieniach bez dekoracyjnych obrysów. Tło nie obraca się ze statkiem. Instruktor pomaga laserem przy skałach, a Muł pokazuje obie wiązki wydobycia. [Zakres](implementation-v0.78.md).
+
+## Swobodny świat — aktualizacja autora 0.79
+
+Brak wyboru misji i osobnych wypraw ratunkowych. Dostępne cele realizujemy w sektorze. Odzysk zachowuje wraki i kapsuły po porażce; widok bazy pokazuje lokalizacje. Instruktor wydobywa do dwóch jednostek i czeka, ostrzega o zasięgu raz. Tło ma kotwice świata, pas Drogi Mlecznej i drobne odległe galaktyki, a lądowanie powiększa ten sam glob. [Wdrożenie i ograniczenia](implementation-v0.79.md).
+
+Aktualizacja 0.80: bieżący format kampanii to **49**, dziennik **21**. Wdrożone zmiany i ograniczenia opisuje `implementation-v0.80.md`; starsze numery powyżej dotyczą historycznych pakietów.

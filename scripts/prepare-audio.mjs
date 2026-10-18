@@ -48,6 +48,7 @@ for (const asset of config.assets) {
     );
     if (!a.length || a.some((x) => !Number.isFinite(x)))
         throw new Error(`Invalid samples: ${asset.source}`);
+    if (asset.cue === 'engine') a = a.slice(0, rate * 4);
     if (asset.loop) {
         // Blend end into start, then place the splice inside the loop. The outer
         // boundary joins two adjacent original samples instead of two unrelated ends.
