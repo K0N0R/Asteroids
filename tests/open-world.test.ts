@@ -121,10 +121,44 @@ test('distant planet follows camera projection and repeated flight updates canno
         assert.equal(planet.y, 450);
         bg.cameraAngle = 1;
         bg.update(16);
-        assert.equal(planet.rotation, 0);
+        assert.equal(planet.rotation, bg.cameraAngle);
+        assert.equal(planet.rotation - bg.cameraAngle, 0);
         bg.setFlight(true);
         assert.equal(planet.x, 800);
         assert.equal(planet.y, 450);
+        bg.setFlight(false);
+        bg.update(16);
+        assert.equal(planet.rotation, 0);
+    } finally {
+        destroyDisplayTree(bg);
+    }
+});
+
+test('opaque planets cover the Milky Way and move on a distinctly nearer parallax plane', () => {
+    const bg = new Background();
+    try {
+        bg.setFlight(true);
+        bg.update(0);
+        const planet = bg.getChildByLabel('world-planet')!;
+        const galaxy = bg.getChildByLabel('milky-way', true)!.parent!;
+        assert.ok(bg.getChildIndex(galaxy) < bg.getChildIndex(planet));
+        assert.equal(planet.alpha, 1);
+        const planetX = planet.x,
+            galaxyX = galaxy.x;
+        bg.camera = { x: 1000, y: 0 };
+        bg.update(16);
+        const planetMotion = planetX - planet.x,
+            galaxyMotion = galaxyX - galaxy.x;
+        assert.ok(galaxyMotion > 0);
+        assert.ok(planetMotion > galaxyMotion * 10);
+        bg.cameraAngle = -0.7;
+        bg.cameraZoom = 1.4;
+        bg.update(16);
+        assert.equal(planet.rotation, galaxy.rotation);
+        assert.equal(planet.scale.x, 0.95 * bg.cameraZoom);
+        bg.surface = true;
+        bg.update(16);
+        assert.equal(planet.visible, false);
     } finally {
         destroyDisplayTree(bg);
     }

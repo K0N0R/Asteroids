@@ -84,7 +84,7 @@ export class Background extends Container {
         this.flight = active;
         if (!active) this.scenery.position.set(1360, 190);
         if (!active) this.scenery.scale.set(1);
-        this.scenery.alpha = active ? 0.38 : 0.95;
+        this.scenery.alpha = 1;
     }
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
@@ -98,7 +98,7 @@ export class Background extends Container {
                 this.cameraZoom,
             );
             this.scenery.position.copyFrom(position);
-            this.scenery.rotation = 0;
+            this.scenery.rotation = this.cameraAngle;
             this.scenery.scale.set(0.95 * this.cameraZoom);
             this.clouds.pivot.set(800, 450);
             this.clouds.position.copyFrom(
@@ -106,7 +106,7 @@ export class Background extends Container {
                     { x: 0, y: 0 },
                     this.camera,
                     this.cameraAngle,
-                    0.025,
+                    0.002,
                     this.cameraZoom,
                 ),
             );

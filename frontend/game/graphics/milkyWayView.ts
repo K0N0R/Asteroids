@@ -38,36 +38,47 @@ export function milkyWayView() {
         left = -1000,
         top = -500;
     const pixels = new Uint8Array(width * height * 4);
-    const spine = (x: number) => 570 - (x - 200) * 0.27 + Math.sin((x + 350) / 590) * 65;
-    const coreAt = (x: number) => Math.exp(-1 * ((x - 650) / 660) ** 2);
+    const spine = (x: number) => 510 - (x - 800) * 0.16 + Math.sin((x + 350) / 690) * 34;
+    const coreAt = (x: number) => Math.exp(-1 * ((x - 760) / 470) ** 2);
     const density = (x: number, offset: number) => {
         const core = coreAt(x),
-            broad = 145 + core * 125;
+            broad = 68 + core * 90;
         const warp = clouds(x / 360 + 7, offset / 200 - 11);
         const detail = clouds(x / 150 + warp * 1.8, offset / 95 + warp * 1.5);
         const dust = clouds(x / 210 - 15 + warp, offset / 88 + 8);
-        const obscured = smooth(Math.min(1, Math.max(0, (dust - 0.43) / 0.29)));
+        const lane = Math.exp(-0.5 * ((offset - (warp - 0.5) * 110) / (16 + core * 18)) ** 2);
+        const obscured = smooth(Math.min(1, Math.max(0, (dust - 0.38) / 0.32)));
         const profile = Math.exp(-0.5 * (offset / broad) ** 2);
-        return { core, light: profile * (0.18 + detail * 1.15) * (1 - obscured * 0.83) };
+        const wisps = Math.floor(detail * 7) / 6;
+        const halo = Math.exp(-0.5 * (offset / (broad * 1.85)) ** 2);
+        return {
+            core,
+            halo,
+            light: profile * (0.22 + wisps * 1.05) * (1 - obscured * lane * 0.9),
+        };
     };
     for (let y = 0; y < height; y++) {
         const worldY = top + y * scale;
         for (let x = 0; x < width; x++) {
             const worldX = left + x * scale,
                 offset = worldY - spine(worldX);
-            const { core, light } = density(worldX, offset);
+            const { core, halo, light } = density(worldX, offset);
             const taper = Math.min(1, x / 110, (width - 1 - x) / 110);
-            const alpha = Math.min(0.56, light * (0.29 + core * 0.45)) * taper;
-            const warm = core * (0.45 + clouds(worldX / 270, offset / 110) * 0.55);
+            const alpha = Math.min(0.82, halo * 0.09 + light * (0.42 + core * 0.46)) * taper;
+            const luminous = Math.min(1, light * (0.3 + core * 0.85));
+            const blue = smooth(
+                Math.min(1, Math.max(0, 1 - Math.abs(offset) / (100 + core * 110))),
+            );
+            const edge = clouds(worldX / 250 + 30, offset / 120);
             const index = (y * width + x) * 4;
-            pixels[index] = (144 + warm * 76) * alpha;
-            pixels[index + 1] = (158 + warm * 39) * alpha;
-            pixels[index + 2] = (193 - warm * 8) * alpha;
+            pixels[index] = (91 + edge * 39 + luminous * 104) * alpha;
+            pixels[index + 1] = (42 + blue * 101 + luminous * 108) * alpha;
+            pixels[index + 2] = (174 + blue * 43 + luminous * 38) * alpha;
             pixels[index + 3] = alpha * 255;
         }
     }
     // Subpixel splats keep the stars fine instead of turning the band into confetti.
-    const star = (x: number, y: number, alpha: number, warm: number) => {
+    const star = (x: number, y: number, alpha: number, blue: number) => {
         const px = (x - left) / scale,
             py = (y - top) / scale;
         const ix = Math.floor(px),
@@ -77,9 +88,9 @@ export function milkyWayView() {
                 if (ix + dx < 0 || ix + dx >= width || iy + dy < 0 || iy + dy >= height) continue;
                 const a = alpha * (dx ? px - ix : 1 - (px - ix)) * (dy ? py - iy : 1 - (py - iy));
                 const i = ((iy + dy) * width + ix + dx) * 4;
-                pixels[i] = pixels[i] * (1 - a) + (225 + warm * 25) * a;
-                pixels[i + 1] = pixels[i + 1] * (1 - a) + (231 - warm * 6) * a;
-                pixels[i + 2] = pixels[i + 2] * (1 - a) + (251 - warm * 35) * a;
+                pixels[i] = pixels[i] * (1 - a) + (245 - blue * 35) * a;
+                pixels[i + 1] = pixels[i + 1] * (1 - a) + (246 - blue * 8) * a;
+                pixels[i + 2] = pixels[i + 2] * (1 - a) + 255 * a;
                 pixels[i + 3] = pixels[i + 3] * (1 - a) + 255 * a;
             }
     };
@@ -87,7 +98,7 @@ export function milkyWayView() {
     for (let i = 0; i < 62000; i++) {
         const x = -950 + rng() * 3500,
             core = coreAt(x);
-        const offset = (rng() + rng() + rng() + rng() - 2) * (175 + core * 100);
+        const offset = (rng() + rng() + rng() + rng() - 2) * (90 + core * 100);
         const sample = density(x, offset);
         if (rng() > sample.light * 1.15) continue;
         star(x, spine(x) + offset, 0.18 + rng() * 0.67, core * rng());
