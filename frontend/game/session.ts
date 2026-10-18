@@ -324,61 +324,9 @@ export class GameSession {
                     this.hud &&
                     !this.hasOverlay &&
                     !PopupContainer.hasActivePopup() &&
-                    (/^[0-9]$/.test(message.data) || ['t', 'h'].includes(message.data))
+                    [',', '.'].includes(message.data)
                 )
-                    this.hud.target =
-                        message.data === 'h'
-                            ? 13
-                            : message.data === 't'
-                              ? this.hud.target === 11
-                                  ? 12
-                                  : 11
-                              : Number(message.data) - 1;
-                if (
-                    message.name === 'keydown' &&
-                    message.data === 'k' &&
-                    this.hud &&
-                    !this.hasOverlay &&
-                    !PopupContainer.hasActivePopup()
-                )
-                    this.hud.target = 17;
-                if (
-                    message.name === 'keydown' &&
-                    message.data === 'v' &&
-                    this.hud &&
-                    !this.hasOverlay &&
-                    !PopupContainer.hasActivePopup() &&
-                    this.mission?.simulation.guide
-                )
-                    this.hud.target = 18;
-                if (
-                    message.name === 'keydown' &&
-                    message.data === 'f' &&
-                    this.hud &&
-                    !this.hasOverlay &&
-                    !PopupContainer.hasActivePopup()
-                )
-                    this.hud.trackEnemy();
-                if (
-                    message.name === 'keydown' &&
-                    message.data === 'n' &&
-                    this.hud &&
-                    !this.hasOverlay &&
-                    !PopupContainer.hasActivePopup()
-                )
-                    this.hud.target = this.mission?.simulation.rescueOperation
-                        ? this.mission.simulation.miningEscort && this.hud.target === 16
-                            ? 15
-                            : 16
-                        : 15;
-                if (
-                    message.name === 'keydown' &&
-                    message.data === 'z' &&
-                    this.hud &&
-                    !this.hasOverlay &&
-                    !PopupContainer.hasActivePopup()
-                )
-                    this.hud.trackWreck();
+                    this.hud.cycleTarget(message.data === '.' ? 1 : -1);
                 if (
                     message.name === 'keydown' &&
                     message.data === 'j' &&
@@ -748,16 +696,16 @@ export class GameSession {
             if (this.campaign.story)
                 simulation.setNotice(
                     this.campaign.story?.sector === 'pluto'
-                        ? 'Akt X: 7 zwiad · 0 baza / F osłona · 3 finał po obu raportach: G 2 s · 8 dodatkowy odczyt · 1 powrót.'
+                        ? 'Akt X: zwiad · baza / osłona · finał po obu raportach: G 2 s · dodatkowy odczyt · powrót.'
                         : simulation.outerSector
-                          ? 'Akt IX: 7 zwiad · 0 baza po zwiadzie · F kontakty · 8 dalsza trasa · Neptun: 3 starcie / G 2 s.'
+                          ? 'Akt IX: zwiad · baza po zwiadzie · kontakty · dalsza trasa · Neptun: starcie / G 2 s.'
                           : simulation.saturnSector
-                            ? 'Saturn: 2 złoże · 7 zwiad · 5 kryształy po zwiadzie · F patrol · 8 trasa po raportach · 1 powrót.'
+                            ? 'Saturn: złoże · zwiad · kryształy po zwiadzie · patrol · trasa po raportach · powrót.'
                             : simulation.jupiterSector
-                              ? 'Jowisz: 7 zwiad · 0 terminal po zwiadzie · F patrole · 8 pakiet po raportach · 1 powrót.'
+                              ? 'Jowisz: zwiad · terminal po zwiadzie · patrole · pakiet po raportach · powrót.'
                               : simulation.beltSector
-                                ? 'Pas asteroid: 7 pomiary · 3 / 4 / 5 przeszkody po zwiadzie · 8 granica po oczyszczeniu · 1 powrót.'
-                                : 'Satuk 15: 2 złoże · 7 przekaźnik · E odczyt / dokowanie. Zadania możesz realizować równolegle.',
+                                ? 'Pas asteroid: pomiary · przeszkody po zwiadzie · granica po oczyszczeniu · powrót.'
+                                : 'Satuk 15: złoże · przekaźnik · E odczyt / dokowanie. Zadania możesz realizować równolegle.',
                 );
             this.hud.cameraAngle = this.mission.camera.rotation;
             this.worldHost.addChild(this.mission);
@@ -842,6 +790,7 @@ export class GameSession {
             fire: !tuning && InputHandler.primaryPressed && InputHandler.pointerInCanvas,
             mine: !tuning && InputHandler.secondaryPressed && InputHandler.pointerInCanvas,
             interact: !tuning && InputHandler.isKeyPressed('INTERACT'),
+            tow: !tuning && InputHandler.isKeyPressed('TOW'),
             repair: !tuning && InputHandler.isKeyPressed('REPAIR'),
             sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });

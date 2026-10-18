@@ -46,8 +46,11 @@ export class GripperSystem {
         loot: Map<number, Resource>,
         deliver: (kind: ResourceId) => void,
         clearLine: (a: Point, b: Point) => boolean,
+        reservedIds: readonly (number | null)[] = [],
     ) {
-        const reserved = new Set(this.arms.map((arm) => arm.targetId).filter((id) => id !== null));
+        const reserved = new Set(
+            [...this.arms.map((arm) => arm.targetId), ...reservedIds].filter((id) => id !== null),
+        );
         for (const arm of this.arms) {
             const origin = this.origin(arm, ship, angle, size);
             arm.previous = { ...arm.tip };

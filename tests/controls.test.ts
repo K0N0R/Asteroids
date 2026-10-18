@@ -237,7 +237,7 @@ test('live rescue attaches a physical loose tow without contacts against the pla
     try {
         clearSector(sim);
         sim.ship.setTranslation({ x: 6.5, y: 0 }, true);
-        for (let i = 0; i < 250; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 250; i++) sim.step({ ...idle, tow: true });
         assert.equal(sim.recoverySecured, true);
         assert.ok(sim.tow);
         for (let i = 0; i < 180; i++) {

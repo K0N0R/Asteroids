@@ -188,8 +188,21 @@ test('leaving the surface interrupts the attack and clears its projectiles and a
         assert.ok(s.enemies.enemies.size);
         at(s, MOON.exit);
         s.step(idle);
-        for (let i = 0; i < 125; i++) s.step({ ...idle, interact: true });
-        assert.equal(s.area, 'orbit');
+        for (let frame = 0; frame < 60 * 10 && s.area === 'surface' && !s.ended; frame++)
+            s.step({ ...idle, interact: true });
+        assert.equal(s.ended, null);
+        assert.equal(
+            s.area,
+            'orbit',
+            JSON.stringify({
+                position: s.position,
+                speed: s.speed,
+                hull: s.hull,
+                damageCooldown: s.damageCooldown,
+                passage: s.nearbyPassage,
+                progress: s.passageProgress,
+            }),
+        );
         assert.equal(s.lunarAssault.state, 'failed');
         assert.equal([...s.enemies.enemies.values()].filter((enemy) => enemy.assault).length, 0);
         assert.equal(s.bullets.size, 0);

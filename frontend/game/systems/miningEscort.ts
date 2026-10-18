@@ -4,17 +4,18 @@ import { MOON } from '../worlds/moon';
 import type RAPIER from '@dimforge/rapier2d-compat';
 import type { Point } from '../worlds/sector';
 import type { NavigationRock } from './escort';
+import { GripperSystem } from './grippers';
 
 export const MINING_CONVOY = {
     site: { x: MOON.center.x - 500, y: MOON.center.y + 900 },
     home: { x: MOON.construction.x + 230, y: MOON.construction.y },
     target: HULLS.mule.cargo,
-    damagePerSecond: 12,
     radius: 330,
     kitCost: { ore: JOBS.kit.ore * 2, parts: JOBS.kit.parts * 2 },
 } as const;
 
 export class MiningEscort extends ResearchEscort {
+    readonly grippers = new GripperSystem(HULLS.mule.grabbers, HULLS.mule.grabberRange);
     cargoOre = 0;
     cargoParts = 0;
     deliveredOre = 0;

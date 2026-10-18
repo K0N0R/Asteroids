@@ -33,6 +33,21 @@ function shot(sim: MissionSimulation, x: number, team: 'player' | 'enemy', damag
     sim.bullets.set(9999, { id: 9999, x, y: 0, vx: 10000, vy: 0, life: 1, team, damage });
 }
 
+test('interaction cannot attach a wreck; towing requires its own held input', () => {
+    const { sim } = arena();
+    try {
+        const item = sim.salvage.add(1001, 'patrol', { x: 3050, y: 0 }, { x: 0, y: 0 })!;
+        for (let frame = 0; frame < 200; frame++) sim.step({ ...idle, interact: true });
+        assert.equal(sim.salvageProgress, 0);
+        assert.equal(sim.salvage.towed, null);
+        for (let frame = 0; frame < 200 && !sim.salvage.towed; frame++)
+            sim.step({ ...idle, tow: true });
+        assert.equal(sim.salvage.towed, item);
+    } finally {
+        sim.dispose();
+    }
+});
+
 test('wreck chance is stable per enemy, varies between seeds and stays near 35 percent', () => {
     let count = 0;
     for (let seed = 0; seed < 1000; seed++) {
@@ -145,11 +160,11 @@ test('pickup requires a calm continuous hold, permits full cargo and supports on
         const item = sim.salvage.add(1, 'patrol', { x: 3120, y: 0 }, { x: 0, y: 0 })!;
         sim.salvage.add(2, 'lancer', { x: 3100, y: 100 }, { x: 0, y: 0 });
         sim.cargo.ore = sim.cargoCapacity;
-        for (let i = 0; i < 90; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 90; i++) sim.step({ ...idle, tow: true });
         assert.ok(sim.salvageProgress > 1.4);
-        sim.step({ ...idle, interact: true, fire: true });
+        sim.step({ ...idle, tow: true, fire: true });
         assert.equal(sim.salvageProgress, 0);
-        for (let i = 0; i < 181; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 181; i++) sim.step({ ...idle, tow: true });
         assert.equal(sim.salvage.towed, item);
         assert.equal(sim.recycledWreck, 'patrol');
         assert.equal(sim.salvage.attach(sim.salvage.items.get(2)!, sim.ship), false);
@@ -162,12 +177,12 @@ test('pickup requires a calm continuous hold, permits full cargo and supports on
     }
 });
 
-test('Manta picks up two wrecks with E, rejects a third and delivers both only once', () => {
+test('Manta picks up two wrecks with H, rejects a third and delivers both only once', () => {
     const { c, sim } = arena(71, 'tug');
     try {
         const first = sim.salvage.add(1, 'patrol', { x: 3120, y: -50 }, { x: 0, y: 0 })!;
         const second = sim.salvage.add(2, 'lancer', { x: 3120, y: 50 }, { x: 0, y: 0 })!;
-        for (let frame = 0; frame < 361; frame++) sim.step({ ...idle, interact: true });
+        for (let frame = 0; frame < 361; frame++) sim.step({ ...idle, tow: true });
         assert.equal(sim.salvage.towing.size, 2);
         const third = sim.salvage.add(3, 'patrol', { x: 3000, y: 140 }, { x: 0, y: 0 })!;
         assert.equal(sim.salvage.attach(third, sim.ship), false);
@@ -210,10 +225,10 @@ test('Manta can tow a rescue and wreck together, releases only the wreck and wai
         for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
         sim.rocks.clear();
         sim.ship.setTranslation({ x: 30, y: 0 }, true);
-        for (let frame = 0; frame < 241; frame++) sim.step({ ...idle, interact: true });
+        for (let frame = 0; frame < 241; frame++) sim.step({ ...idle, tow: true });
         const rescue = sim.salvage.towed!;
         const wreck = sim.salvage.add(10, 'patrol', { x: 3120, y: 80 }, { x: 0, y: 0 })!;
-        for (let frame = 0; frame < 181; frame++) sim.step({ ...idle, interact: true });
+        for (let frame = 0; frame < 181; frame++) sim.step({ ...idle, tow: true });
         assert.equal(sim.salvage.towing.size, 2);
         sim.releaseWreck();
         assert.equal(sim.salvage.towed, rescue);
@@ -327,7 +342,7 @@ test('a disabled rescue tow stays in the sector and can be attached again withou
         for (const r of sim.rocks.values()) sim.world.removeRigidBody(r.body);
         sim.rocks.clear();
         sim.ship.setTranslation({ x: 30, y: 0 }, true);
-        for (let i = 0; i < 241; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 241; i++) sim.step({ ...idle, tow: true });
         assert.ok(sim.recoverySecured);
         const item = sim.salvage.towed!;
         sim.salvage.detach();
@@ -337,11 +352,11 @@ test('a disabled rescue tow stays in the sector and can be attached again withou
         sim.step(idle);
         assert.equal(sim.recoveryDestroyed, false);
         assert.equal(sim.recoverySecured, false);
-        for (let i = 0; i < 241; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 241; i++) sim.step({ ...idle, tow: true });
         assert.equal(sim.recoverySecured, false);
         sim.ship.setTranslation({ x: 33, y: 0 }, true);
         sim.step(idle);
-        for (let i = 0; i < 241; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 241; i++) sim.step({ ...idle, tow: true });
         assert.equal(sim.recoverySecured, true);
         finishRun(c, true, { ore: 0, parts: 0 }, 60, 'dock', 0, {
             destroyedRecoveryId: 2,
@@ -463,7 +478,7 @@ test('delivered pilots and ships are restored immediately and remain safe if the
         for (const r of sim.rocks.values()) sim.world.removeRigidBody(r.body);
         sim.rocks.clear();
         sim.ship.setTranslation({ x: 30, y: 0 }, true);
-        for (let i = 0; i < 241; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 241; i++) sim.step({ ...idle, tow: true });
         const item = sim.salvage.towed!;
         sim.ship.setTranslation({ x: 0, y: 0 }, true);
         sim.ship.setLinvel({ x: 0, y: 0 }, true);

@@ -7,6 +7,7 @@ import {
     newStoryCampaign,
     parseCampaign,
     buyUpgrade,
+    newShip,
 } from '../frontend/game/state/campaign';
 import {
     contributeStory,
@@ -20,8 +21,12 @@ import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mi
 import { MOON, moonDistance, moonOrbitPoint } from '../frontend/game/worlds/moon';
 import { salvagePosition } from '../frontend/game/systems/salvage';
 import { angleDifference } from '../frontend/game/systems/flight';
-import { lunarTransferPose } from '../frontend/game/graphics/lunarTransfer';
+import { lunarTransferPose, lunarTransferPoint } from '../frontend/game/graphics/lunarTransfer';
 import { ShapeLibrary } from '../frontend/game/graphics/shapes';
+import { MoonSurfaceView } from '../frontend/game/graphics/moonSurface';
+import { MissionWorld } from '../frontend/game/worlds/missionWorld';
+import { RECOVERY } from '../frontend/game/config';
+import type { Container, Graphics } from 'pixi.js';
 
 before(async () => RAPIER.init());
 const idle: FlightInput = {
@@ -504,6 +509,7 @@ test('lunar approach grows the actual map continuously from globe LOD to the lan
     assert.equal(start.zoom * MOON.radius, 126 * 0.95);
     assert.deepEqual(start.pivot, MOON.center);
     assert.equal(start.detail, 0);
+    assert.equal(start.pitch, 0);
     assert.ok(Math.abs(end.zoom - zoom) < 1e-12);
     assert.deepEqual(end.pivot, MOON.exit);
     assert.equal(end.detail, 1);
@@ -517,8 +523,211 @@ test('lunar approach grows the actual map continuously from globe LOD to the lan
         previousZoom = pose.zoom;
     }
     assert.equal(lunarTransferPose(0.4, true, zoom).detail, 1);
+    assert.equal(lunarTransferPose(0.5, true, zoom).pitch, 1);
     assert.deepEqual(lunarTransferPose(-1, true, zoom), start);
     assert.deepEqual(lunarTransferPose(2, true, zoom), end);
+});
+
+test('lunar transfer keeps the ship centered and its tow at a stable screen offset in both directions', () => {
+    const zoom = 1.15;
+    for (const surface of [true, false]) {
+        const anchor = surface ? MOON.exit : MOON.entrance;
+        const ship = { x: anchor.x + 23, y: anchor.y - 31 };
+        const tow = { x: ship.x - 120, y: ship.y + 50 };
+        for (const progress of [0, 0.25, 0.5, 0.75, 0.999999, 1]) {
+            const pose = lunarTransferPose(progress, surface, zoom);
+            const shipView = lunarTransferPoint(ship, ship, pose, zoom);
+            const towView = lunarTransferPoint(tow, ship, pose, zoom);
+            assert.deepEqual(shipView, pose.pivot);
+            assert.ok(
+                Math.abs((towView.x - shipView.x) * pose.zoom - (tow.x - ship.x) * zoom) < 1e-8,
+            );
+            assert.ok(
+                Math.abs((towView.y - shipView.y) * pose.zoom - (tow.y - ship.y) * zoom) < 1e-8,
+            );
+            assert.ok(Math.abs(pose.zoom * (zoom / pose.zoom) - zoom) < 1e-12);
+        }
+        assert.deepEqual(lunarTransferPoint(ship, ship, null, zoom), ship);
+        assert.deepEqual(lunarTransferPoint(tow, ship, null, zoom), tow);
+    }
+});
+
+test('renderer keeps the physical tow visible and has no endpoint jump in either lunar transfer direction', () => {
+    for (const surface of [false, true]) {
+        const campaign = lunarReady();
+        beginRun(campaign, 1);
+        const simulation = new MissionSimulation(campaign, 1);
+        let world: MissionWorld | null = null;
+        try {
+            simulation.area = surface ? 'surface' : 'orbit';
+            const anchor = surface ? MOON.exit : MOON.entrance;
+            at(simulation, anchor);
+            simulation.previous = simulation.position;
+            const item = simulation.salvage.add(
+                1001,
+                'patrol',
+                { x: anchor.x - 90, y: anchor.y },
+                { x: 0, y: 0 },
+            )!;
+            assert.ok(simulation.salvage.attach(item, simulation.ship));
+            const timing = simulation as unknown as { transferRemaining: number };
+            timing.transferRemaining = MOON.arrivalSeconds;
+            world = new MissionWorld(simulation, campaign.ship!);
+            const views = (world as unknown as { salvageViews: Map<number, Container> })
+                .salvageViews;
+            let previousTow: { x: number; y: number } | null = null;
+            for (const progress of [0, 0.25, 0.5, 0.75, 0.999999, 1]) {
+                timing.transferRemaining = MOON.arrivalSeconds * (1 - progress);
+                world.update(0, idle);
+                const tow = views.get(item.id)!;
+                assert.ok(tow.visible, `tow hidden at ${progress}, surface ${surface}`);
+                const shipScreen = world.shipView.getGlobalPosition();
+                const towScreen = tow.getGlobalPosition();
+                assert.ok(Math.abs(shipScreen.x - 800) < 1e-7);
+                assert.ok(Math.abs(shipScreen.y - 450) < 1e-7);
+                assert.ok(Math.abs(tow.scale.x * world.camera.scale.x - 1) < 1e-12);
+                if (previousTow)
+                    assert.ok(
+                        Math.hypot(towScreen.x - previousTow.x, towScreen.y - previousTow.y) < 1e-7,
+                    );
+                previousTow = { x: towScreen.x, y: towScreen.y };
+            }
+        } finally {
+            world?.destroy({ children: true });
+            simulation.dispose();
+        }
+    }
+});
+
+test('recovery outlines and attachment progress do not inherit other signals or tow paths', () => {
+    for (const surface of [false, true]) {
+        const campaign = lunarReady();
+        beginRun(campaign, 1);
+        const anchor = surface ? MOON.construction : MOON.entrance;
+        campaign.recoverySignals = [2, 3, 4].map((id) => ({
+            id,
+            seed: campaign.activeRun!.seed,
+            x: anchor.x + (id - 4) * 100,
+            y: anchor.y + 30,
+            ship: newShip(id),
+            pilot: null,
+            ...(surface ? { area: 'surface' as const } : {}),
+        }));
+        const simulation = new MissionSimulation(campaign, campaign.activeRun!.seed);
+        let world: MissionWorld | null = null;
+        try {
+            simulation.area = surface ? 'surface' : 'orbit';
+            at(simulation, anchor);
+            simulation.previous = simulation.position;
+            const item =
+                simulation.salvage.items.get(-2) ??
+                simulation.salvage.add(-2, 'recovery', campaign.recoverySignals[0], {
+                    x: 0,
+                    y: 0,
+                })!;
+            assert.ok(simulation.salvage.attach(item, simulation.ship));
+            const target = campaign.recoverySignals[2];
+            simulation.recoverySignal = target;
+            world = new MissionWorld(simulation, campaign.ship!);
+            const ring = (world as unknown as { recoveryRing: Graphics }).recoveryRing;
+            for (const fraction of [0.25, 0.6]) {
+                simulation.recoveryProgress = simulation.recoverySeconds * fraction;
+                world.update(0, idle);
+                const strokes = ring.context.instructions.filter(
+                    (instruction) => instruction.action === 'stroke',
+                );
+                assert.equal(strokes.length, 4);
+                assert.deepEqual(
+                    strokes[0].data.path.instructions.map((instruction) => instruction.action),
+                    ['moveTo', 'lineTo'],
+                );
+                for (const index of [1, 2]) {
+                    const path = strokes[index].data.path.instructions;
+                    assert.deepEqual(
+                        path.map((instruction) => instruction.action),
+                        ['circle'],
+                    );
+                    assert.deepEqual(path[0].data.slice(0, 3), [
+                        campaign.recoverySignals[index].x,
+                        campaign.recoverySignals[index].y,
+                        RECOVERY.radius,
+                    ]);
+                }
+                const progress = strokes[3].data.path.instructions;
+                assert.ok(
+                    progress.every((instruction) => ['arc', 'moveTo'].includes(instruction.action)),
+                );
+                const arc = progress.find((instruction) => instruction.action === 'arc')!;
+                assert.deepEqual(arc.data.slice(0, 5), [
+                    target.x,
+                    target.y,
+                    RECOVERY.radius,
+                    -Math.PI / 2,
+                    -Math.PI / 2 + fraction * Math.PI * 2,
+                ]);
+            }
+            simulation.recoveryProgress = 0;
+            world.update(0, idle);
+            assert.equal(ring.context.instructions.length, 3);
+        } finally {
+            world?.destroy({ children: true });
+            simulation.dispose();
+        }
+    }
+});
+
+test('holding E draws an isolated passage progress arc and releasing E clears it', () => {
+    const view = new MoonSurfaceView(true);
+    try {
+        const progress = view.getChildByLabel('lunar-passage-progress') as Graphics;
+        for (const surface of [false, true]) {
+            const anchor = surface ? MOON.exit : MOON.entrance;
+            view.update(surface, 0, 0.7, 1, MOON.transferSeconds / 2);
+            const strokes = progress.context.instructions.filter(
+                (instruction) => instruction.action === 'stroke',
+            );
+            assert.equal(strokes.length, 1);
+            const instructions = strokes[0].data.path.instructions;
+            assert.ok(
+                instructions.every((instruction) => ['arc', 'moveTo'].includes(instruction.action)),
+            );
+            const arc = instructions.find((instruction) => instruction.action === 'arc')!;
+            assert.deepEqual(arc.data.slice(0, 5), [
+                anchor.x,
+                anchor.y,
+                155,
+                -Math.PI / 2,
+                Math.PI / 2,
+            ]);
+            view.update(surface, 0, 0.7, 1, 0);
+            assert.equal(progress.context.instructions.length, 0);
+        }
+    } finally {
+        view.destroy({ children: true });
+    }
+});
+
+test('lunar passage marker strokes do not inherit the filled approach circle', () => {
+    const view = new MoonSurfaceView(true);
+    try {
+        for (const gate of [view.children[0].children[4], view.children[1].children[0]]) {
+            const marker = gate.children[0] as Graphics;
+            const strokes = marker.context.instructions.filter(
+                (instruction) => instruction.action === 'stroke',
+            );
+            assert.equal(strokes.length, 1);
+            assert.deepEqual(
+                strokes[0].data.path.instructions.map((instruction) => instruction.action),
+                ['poly'],
+            );
+            assert.deepEqual(
+                strokes[0].data.path.instructions[0].data[0],
+                [-40, 15, 0, -25, 40, 15],
+            );
+        }
+    } finally {
+        view.destroy({ children: true });
+    }
 });
 
 test('lunar outcrops use their own cached faceted shapes rather than orbital asteroid silhouettes', () => {

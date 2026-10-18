@@ -68,7 +68,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         );
         label(
             root,
-            `HIPER ${s.hyperFuel}/${s.hyperCapacity} · SPACJA skok / anuluj ładowanie · K śluza · kolizja = utrata`,
+            `HIPER ${s.hyperFuel}/${s.hyperCapacity} · SPACJA skok / śluza / anuluj ładowanie · kolizja = utrata`,
             280,
             208,
             13,
@@ -299,29 +299,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         );
         label(
             root,
-            c.story
-                ? s.area === 'surface'
-                    ? 'KSIĘŻYC · 1 Orbita · 2 Złoże · 6 Ratunek · 7 Budowa · G Obrona przy budowie: 2 s'
-                    : c.story.sector === 'pluto'
-                      ? 'PLUTON · 7 Zwiad · 0 Baza / F Osłona · 3 Finał po obu raportach: G 2 s · 8 Dodatkowe odczyty · 1 Powrót'
-                      : s.outerSector
-                        ? 'URAN / NEPTUN · 7 Zwiad · 0 Baza po zwiadzie · E Dane / G Skaner · F Kontakty · 8 Trasa · Neptun: 3 Starcie / G 2 s'
-                        : s.saturnSector
-                          ? 'SATURN · 1 Satuk 15 · 2 Złoże · 5 Kryształy po zwiadzie · 7 Pomiary · F Patrol · 8 Dalsza trasa po raportach'
-                          : s.jupiterSector
-                            ? 'JOWISZ · 1 Satuk 15 · 2 Złoże · 7 Zwiad · 0 Terminal po zwiadzie · F Patrole · 8 Pakiet po raportach'
-                            : s.beltSector
-                              ? 'PAS · 1 Satuk 15 · 3 / 4 / 5 Przeszkody po zwiadzie · 7 Wejście · 8 Granica po oczyszczeniu · F Opcjonalne patrole'
-                              : c.story.sector === 'mercury'
-                                ? 'MERKURY · 1 Satuk 15 · 3 / 4 / 5 Schronienia · 7 Pomiary · 8 Technologia po zwiadzie i walce · F Przeciwnik'
-                                : c.story.sector === 'venus'
-                                  ? 'WENUS · 1 Satuk 15 · 2 Złoże · 4 Pozostałości · 6 Ratunek · 7 Przekaźnik · 8 Placówka po zwiadzie'
-                                  : s.marsBaseSector
-                                    ? 'MARS · 1 Satuk 15 · 2 Złoże · 6 Ratunek · 7 Baza · 8 Pomiary po montażu · G Obrona przy bazie · F Patrole'
-                                    : c.story.sector === 'mars'
-                                      ? 'MARS · 1 Satuk 15 · 2 Złoże · 4 Pozostałości · 6 Ratunek · 7 Ślad · 8 Pas po rozpoznaniu · F Przeciwnik'
-                                      : '1 Satuk 15 · 2 Złoże · 3 Księżyc po zwiadzie · 4 Pozostałości · 6 Ratunek · 7 Przekaźnik · 8 Dalsza orbita'
-                : '1 Baza · 2 Ruda · 3 Pas · 4 Wrak · 5 Żyła · 6 Ratunek · 7 Lumen · 8 Mnemos · 9 Skrytki · 0 Cerber',
+            ', / . Poprzedni / następny cel · H Podłącz hol · J Zwolnij hol',
             280,
             753,
             13,
@@ -333,7 +311,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                 ? s.miningEscort
                     ? s.miningEscort.status
                     : 'W / S Lot i hamowanie · A / D Skręt · PPM Wydobycie · E Skan / dokowanie · TAB Pokład'
-                : 'F Dron · T Gniazdo / Prąd · H Aegis · Z Wrak · J Zwolnij hol · N Kepler',
+                : 'W / S Lot i hamowanie · A / D Skręt · PPM Wydobycie · E Interakcja · TAB Pokład',
             280,
             772,
             13,

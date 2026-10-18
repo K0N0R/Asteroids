@@ -49,8 +49,8 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             ['S / SHIFT', 'Hamowanie i wsteczny / boost podczas lotu W'],
             ['MYSZ', 'Celowanie niezależnie od kadłuba'],
             ['LPM / PPM', 'Broń / narzędzie; Widmo: kamuflaż 3 s; Mule: lasery / zestaw'],
-            ['E', 'Wrak / przytrzymaj: skrytka, skan, odzysk, dokowanie'],
-            ['1–9', 'Nawigacja · 6 ratunek, 7/8 nauka, 9 skrytki'],
+            ['E / H / J', 'Interakcja / podłącz hol / zwolnij hol'],
+            [', / .', 'Poprzedni / następny cel nawigacji'],
             ['R', 'Naprawa; Widmo: LPM dash / PPM kamuflaż optyczny'],
             ['TAB', 'Pokład · szczegóły statku, pilot, prototypy i załoga'],
         ];

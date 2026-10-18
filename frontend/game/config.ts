@@ -1067,7 +1067,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     },
     {
         title: 'Ochrona szlaku',
-        detail: 'Zniszcz 3 drony w jednej wyprawie i wróć do Aurory. F wskazuje najbliższego drona.',
+        detail: 'Zniszcz 3 drony w jednej wyprawie i wróć do Aurory.',
         ore: 0,
         parts: 0,
         rewardOre: 24,
@@ -1078,7 +1078,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     },
     {
         title: 'Przełamanie Aegis',
-        detail: 'H wskazuje twierdzę. Pokonaj 5 obrońców, pobierz dane rdzenia (E) i wróć do Aurory.',
+        detail: 'Leć do twierdzy. Pokonaj 5 obrońców, pobierz dane rdzenia (E) i wróć do Aurory.',
         ore: 0,
         parts: 0,
         rewardOre: 48,
@@ -1088,7 +1088,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     },
     {
         title: 'Eskorta Keplera',
-        detail: 'N wskazuje statek badawczy. E rozpoczyna eskortę. Osłaniaj Keplera w locie i podczas badań, potem wróć z danymi.',
+        detail: 'Podejdź do statku badawczego. E rozpoczyna eskortę. Osłaniaj Keplera w locie i podczas badań, potem wróć z danymi.',
         ore: 0,
         parts: 0,
         rewardOre: 36,

@@ -169,7 +169,7 @@ export function industryOverview(
     label(
         ui,
         navigation
-            ? 'Spacja ładuje skok; ponowna spacja anuluje ładowanie. K wskazuje śluzę. Kolizja podczas przelotu niszczy statek.'
+            ? 'Spacja ładuje skok; ponowna spacja anuluje ładowanie. Śluzę wybierz jako cel nawigacji. Kolizja podczas przelotu niszczy statek.'
             : advanced
               ? `Montaż: ${resourceSummary(REINFORCED_BAY_COST)}. Warsztat II, mechanik i zwiad Merkurego.`
               : 'Montaż: 1 SM + 20 Fe + 2 K. Wymaga warsztatu I i mechanika. Segment zużywany jest przy instalacji.',

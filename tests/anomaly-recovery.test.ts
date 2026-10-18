@@ -47,9 +47,9 @@ function at(s: MissionSimulation, p: Point) {
     s.ship.setTranslation({ x: p.x / 100, y: p.y / 100 }, true);
     s.ship.setLinvel({ x: 0, y: 0 }, true);
 }
-function hold(s: MissionSimulation, count: number, interact = false) {
+function hold(s: MissionSimulation, count: number, tow = false) {
     for (let i = 0; i < count && !s.ended; i++) {
-        s.step({ ...idle, interact });
+        s.step({ ...idle, tow });
         s.events.length = 0;
     }
 }
@@ -184,6 +184,9 @@ test('stock Prospector flies the safe maze, physically attaches and tows the pro
         fly(s, { x: ANOMALY.probe.x, y: ANOMALY.probe.y - 110 });
         assert.equal(s.statistics.hullDamage, 0);
         assert.equal(s.statistics.shieldDamage, 0);
+        for (let frame = 0; frame < 210; frame++) s.step({ ...idle, interact: true });
+        assert.equal(s.rescueOperation!.state, 'ready');
+        assert.equal(s.rescueOperation!.attachProgress, 0);
         hold(s, 210, true);
         assert.equal(s.rescueOperation!.state, 'towing');
         assert.equal(c.story!.progress['jupiter-recovery'], 0);

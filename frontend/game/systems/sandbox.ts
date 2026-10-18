@@ -39,7 +39,7 @@ export const SANDBOX_SCENARIOS = {
     },
     escort: {
         name: 'Eskorta',
-        detail: 'N wskazuje Keplera, E rozpoczyna eskortę. Zakończ badania i wróć do bazy.',
+        detail: 'Podejdź do Keplera; E rozpoczyna eskortę. Zakończ badania i wróć do bazy.',
         target: 15,
     },
 } as const;

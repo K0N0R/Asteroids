@@ -48,7 +48,7 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
             id: 'mining',
             title: 'Wydobycie',
             message:
-                'Lecę na skraj złoża. 2 wskazuje skały; celuj myszą i wydobywaj prawym przyciskiem. Potrzebujemy 24 Fe. V zawsze wskaże mój statek; zaczekam, jeśli zostaniesz z tyłu.',
+                'Lecę na skraj złoża. Celuj myszą w skały i wydobywaj prawym przyciskiem. Potrzebujemy 24 Fe. Zaczekam, jeśli zostaniesz z tyłu.',
         };
     }
     if (!claimed.includes('earth-relay')) return relay();
@@ -66,7 +66,7 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
         id: 'archive',
         title: 'Dalszy węzeł',
         message:
-            '8 wskazuje dalszy węzeł. Zatrzymaj się przy nim i przytrzymaj E; raport prześle radio. Ja polecę zwykłym napędem. Jeśli użyjesz hipernapędu, nie musisz na mnie czekać.',
+            'Leć do dalszego węzła. Zatrzymaj się przy nim i przytrzymaj E; raport prześle radio. Ja polecę zwykłym napędem. Jeśli użyjesz hipernapędu, nie musisz na mnie czekać.',
     };
 }
 function relay(): GuideGoal {
@@ -76,7 +76,7 @@ function relay(): GuideGoal {
         id: 'relay',
         title: 'Przekaźnik orbitalny',
         message:
-            '7 wskazuje przekaźnik. Zatrzymaj się, naciśnij E i dopasuj trzy kanały. Potwierdzenie przyjdzie przez radio. Ja czekam obok; samo dotarcie mojego statku nie zalicza zadania.',
+            'Leć do przekaźnika. Zatrzymaj się, naciśnij E i dopasuj trzy kanały. Potwierdzenie przyjdzie przez radio. Ja czekam obok; samo dotarcie mojego statku nie zalicza zadania.',
     };
 }
 
@@ -124,7 +124,7 @@ export class EarthGuide extends ResearchEscort {
             this.rangeReported = true;
             this.once(
                 'lost',
-                'Oddaliliśmy się. V wskazuje moją pozycję; zaczekam przy złożu. Kontynuuj we własnym tempie.',
+                'Oddaliliśmy się. Zaczekam przy złożu. Kontynuuj we własnym tempie.',
                 say,
             );
         }

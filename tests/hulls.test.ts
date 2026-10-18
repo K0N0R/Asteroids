@@ -1239,17 +1239,15 @@ test('Harpoon halves wreck and rescue pickup time without changing calm-flight r
             assert.equal(sim.salvageSeconds, seconds);
             assert.equal(sim.recoverySeconds, hull === 'harpoon' ? 2 : 4);
             assert.ok(flightHint(sim).includes(`${seconds} s`));
-            for (let frame = 0; frame < seconds * 30; frame++)
-                sim.step({ ...idle, interact: true });
+            for (let frame = 0; frame < seconds * 30; frame++) sim.step({ ...idle, tow: true });
             assert.equal(sim.salvage.towed, null);
             assert.ok(Math.abs(sim.salvageProgress - seconds / 2) < 1e-8);
             assert.match(flightHint(sim), /(?:49|50)%/);
-            sim.step({ ...idle, interact: true, fire: true });
+            sim.step({ ...idle, tow: true, fire: true });
             assert.equal(sim.salvageProgress, 0);
-            for (let frame = 0; frame < seconds * 60 - 1; frame++)
-                sim.step({ ...idle, interact: true });
+            for (let frame = 0; frame < seconds * 60 - 1; frame++) sim.step({ ...idle, tow: true });
             assert.equal(sim.salvage.towed, null);
-            sim.step({ ...idle, interact: true });
+            sim.step({ ...idle, tow: true });
             assert.equal(sim.salvage.towed, wreck);
         } finally {
             sim.dispose();
@@ -1262,16 +1260,16 @@ test('Harpoon halves wreck and rescue pickup time without changing calm-flight r
             clean(rescue);
             rescue.ship.setTranslation({ x: 30, y: 0 }, true);
             for (let frame = 0; frame < rescue.recoverySeconds * 30; frame++)
-                rescue.step({ ...idle, interact: true });
+                rescue.step({ ...idle, tow: true });
             assert.equal(rescue.recoverySecured, false);
             assert.ok(Math.abs(rescue.recoveryProgress - rescue.recoverySeconds / 2) < 1e-8);
             assert.match(flightHint(rescue), /(?:49|50)%/);
-            rescue.step({ ...idle, interact: true, mine: true });
+            rescue.step({ ...idle, tow: true, mine: true });
             assert.equal(rescue.recoveryProgress, 0);
             for (let frame = 0; frame < rescue.recoverySeconds * 60 - 1; frame++)
-                rescue.step({ ...idle, interact: true });
+                rescue.step({ ...idle, tow: true });
             assert.equal(rescue.recoverySecured, false);
-            rescue.step({ ...idle, interact: true });
+            rescue.step({ ...idle, tow: true });
             assert.equal(rescue.recoverySecured, true);
             assert.equal(rescue.salvage.towed?.source, 'recovery');
         } finally {

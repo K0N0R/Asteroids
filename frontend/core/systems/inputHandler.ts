@@ -11,6 +11,7 @@ const defaultKeysConfiguration = {
     HYPERDRIVE: 'space',
     UNLOAD: 'c',
     INTERACT: 'e',
+    TOW: 'h',
     REPAIR: 'r',
     SABOTAGE: 'g',
 };
@@ -49,7 +50,7 @@ export class InputHandlerBase {
         });
         window.addEventListener('keydown', (evt) => {
             const key = evt.code === 'Space' ? 'space' : evt.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'shift', 'e', 'r', 'c', 'g'].includes(key))
+            if (['w', 'a', 's', 'd', 'shift', 'e', 'h', 'r', 'c', 'g', ',', '.'].includes(key))
                 evt.preventDefault();
             if (key === 'space' && GameState.state === 'gameplay') evt.preventDefault();
             if (['tab', 'f6', 'f7'].includes(key) && GameState.state === 'gameplay')

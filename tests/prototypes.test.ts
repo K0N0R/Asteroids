@@ -124,7 +124,7 @@ test('a rescue overlapping a cache is secured first, then the cache remains avai
     try {
         clean(sim);
         approach(sim);
-        for (let i = 0; i < 240; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 240; i++) sim.step({ ...idle, tow: true });
         assert.equal(sim.recoverySecured, true);
         assert.equal(sim.pendingChoice, null);
         assert.equal(sim.openedCaches.size, 0);

@@ -488,7 +488,7 @@ export class LobbyView extends Container {
                 card,
                 lock ||
                     (entry.sites.includes('escort')
-                        ? 'Lot i badania · N Kepler'
+                        ? 'Lot i badania · Kepler'
                         : entry.sites.includes('fortress')
                           ? '5 obrońców · dane rdzenia'
                           : entry.kills

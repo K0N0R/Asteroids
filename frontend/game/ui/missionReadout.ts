@@ -107,7 +107,7 @@ export function flightHint(s: MissionSimulation) {
             return `S · wyhamuj przy ${r.probe ? 'sondzie' : 'promie'} do prędkości poniżej 60 m/s`;
         if (r.state === 'ready' && s.salvage.full) return 'Hol zajęty · J zwolnij inny wrak';
         if (r.attachProgress > 0)
-            return `E · podłączanie holu ${Math.floor((r.attachProgress / 3) * 100)}%`;
+            return `H · podłączanie holu ${Math.floor((r.attachProgress / 3) * 100)}%`;
         return r.status;
     }
     if (s.cargoTransferRemaining > 0 || s.canTransferCargo) return s.context;
@@ -124,7 +124,7 @@ export function flightHint(s: MissionSimulation) {
     if (s.miningEscort && s.area === 'surface') return s.miningEscort.status;
     if (s.escort?.state === 'waiting')
         return s.escort.waitingReason === 'player'
-            ? 'N Wróć do Keplera · czeka na eskortę'
+            ? 'Kepler czeka na eskortę'
             : 'Kepler szuka bezpiecznej drogi';
     if (s.escort?.state === 'research')
         return 'Osłaniaj Keplera · badania wymagają spokojnego otoczenia';
@@ -134,9 +134,9 @@ export function flightHint(s: MissionSimulation) {
         return `E  Magazyn · ${percent(s.outpost.equipmentProgress, OUTPOST.equipmentSeconds)}`;
     if (s.repairProgress > 0) return `R  Naprawa · ${percent(s.repairProgress, s.repairSeconds)}`;
     if (s.salvageProgress > 0)
-        return `E Holowanie wraku · ${percent(s.salvageProgress, s.salvageSeconds)}`;
+        return `H Holowanie wraku · ${percent(s.salvageProgress, s.salvageSeconds)}`;
     if (s.recoveryProgress > 0)
-        return `E  Odzysk · ${percent(s.recoveryProgress, s.recoverySeconds)}`;
+        return `H  Odzysk · ${percent(s.recoveryProgress, s.recoverySeconds)}`;
     if (s.scanProgress > 0) return `E  Skan · ${percent(s.scanProgress, SCAN.seconds)}`;
     if (s.cacheProgress > 0) return `E  Skrytka · ${percent(s.cacheProgress, CACHE.seconds)}`;
     if (s.dockProgress > 0) return `E  Dokowanie · ${percent(s.dockProgress, 1.2)}`;
@@ -152,17 +152,17 @@ export function flightHint(s: MissionSimulation) {
             ? 'J Zwolnij wrak, aby podjąć cel ratunkowy'
             : s.speed > RECOVERY.speed
               ? 'S  Wyhamuj do odzysku · <80 m/s'
-              : `E  Podejmij cel · przytrzymaj ${s.recoverySeconds} s`;
+              : `H  Podejmij cel · przytrzymaj ${s.recoverySeconds} s`;
     if (s.nearbyWreck)
         return s.speed > 80
             ? 'S Wyhamuj przy wraku · <80 m/s'
-            : `E Holuj wrak · przytrzymaj ${s.salvageSeconds} s`;
+            : `H Holuj wrak · przytrzymaj ${s.salvageSeconds} s`;
     if (s.salvage.towed) {
         const item = s.salvage.towed;
         if (s.distanceHome > 350)
             return s.salvage.towing.size > 1
-                ? `Hol ${s.salvage.towing.size}/${s.salvage.capacity} · 1 Aurora · J zwolnij wraki`
-                : `Hol ${Math.ceil(item.health)}/${item.maxHealth} · 1 Aurora${item.source !== 'recovery' ? ' · J zwolnij' : ''}`;
+                ? `Hol ${s.salvage.towing.size}/${s.salvage.capacity} · ${s.stationName} · J zwolnij wraki`
+                : `Hol ${Math.ceil(item.health)}/${item.maxHealth} · ${s.stationName}${item.source !== 'recovery' ? ' · J zwolnij' : ''}`;
     }
     if (s.nearbyCache)
         return s.speed > CACHE.speed
@@ -177,9 +177,9 @@ export function flightHint(s: MissionSimulation) {
               : ' · Sabotaż wymaga 1 komponentu w ładowni';
         const action =
             s.storyMode && s.outpost.secured
-                ? 'Dane zabezpieczone · raport przez radio · 1 Satuk 15'
+                ? 'Dane zabezpieczone · raport przez radio · Satuk 15'
                 : s.outpost.equipmentSecured
-                  ? '1  Baza'
+                  ? 'Powrót do bazy'
                   : s.outpost.secured
                     ? !s.equipmentRoom
                         ? 'Magazyn wymaga 3 wolnych miejsc w ładowni'
@@ -216,11 +216,13 @@ export function flightHint(s: MissionSimulation) {
               : 'Zbliż się do pierścienia dokowania';
     }
     if (s.engineFault)
-        return s.repairKits ? 'R  Napraw napęd · przytrzymaj 5 s' : 'Napęd uszkodzony · 1  Baza';
+        return s.repairKits
+            ? 'R  Napraw napęd · przytrzymaj 5 s'
+            : 'Napęd uszkodzony · powrót do bazy';
     const wreck = s.sector.landmarks.find((l) => l.kind === 'wreck');
     if (wreck && !s.wreckVisited && Math.hypot(wreck.x - p.x, wreck.y - p.y) < 160)
         return 'E  Przeszukaj wrak';
-    if (s.cargoUsed >= s.cargoCapacity) return 'Ładownia pełna · 1  Baza';
+    if (s.cargoUsed >= s.cargoCapacity) return 'Ładownia pełna · powrót do bazy';
     if (s.hull < s.maxHull && s.repairKits > 0) return 'R  Napraw kadłub · przytrzymaj 5 s';
     if (s.hullId === 'widmo')
         return `LPM Dash ${s.dashCooldown > 0 ? `${Math.ceil(s.dashCooldown)} s` : 'gotowy'} · PPM Kamuflaż ${s.opticalCloak ? 'aktywny' : s.opticalCloakCooldown > 0 ? `${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy'}`;

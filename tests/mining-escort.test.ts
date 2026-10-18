@@ -21,6 +21,8 @@ import { angleDifference } from '../frontend/game/systems/flight';
 import { hullUnlocked } from '../frontend/game/state/fleetUnlocks';
 import { MOON } from '../frontend/game/worlds/moon';
 import { MiningEscort, MINING_CONVOY } from '../frontend/game/systems/miningEscort';
+import { GAME, HULLS } from '../frontend/game/config';
+import { GripperSystem } from '../frontend/game/systems/grippers';
 
 before(async () => RAPIER.init());
 const idle: FlightInput = {
@@ -112,7 +114,8 @@ test('construction Mule appears only after lunar survey, waits on the surface, a
                     Math.hypot(
                         rock.previous.x - other.previous.x,
                         rock.previous.y - other.previous.y,
-                    ) > rock.radius + other.radius + 11,
+                    ) >
+                        rock.radius + other.radius + 11,
                 );
         }
         const p = e.position;
@@ -140,6 +143,9 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
         }
         assert.notEqual(e.state, 'idle');
         let sawLasers = false;
+        let sawExtendedGripper = false,
+            sawHeldResource = false,
+            sawGripperDelivery = false;
         let sawMining = false,
             sawReturn = false;
         for (let f = 0; f < 60 * 900 && !s.ended && e.state !== 'complete'; f++) {
@@ -167,12 +173,30 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
                 input.target = enemyPosition(enemy);
                 input.fire = true;
             }
+            const cargoBefore = e.cargoUsed;
+            const returningResource = e.grippers.arms.some(
+                (arm) => arm.phase === 'return' && arm.held,
+            );
             s.step(input);
             s.events.length = 0;
+            sawExtendedGripper ||= e.grippers.arms.some((arm) => arm.phase === 'extend');
+            sawHeldResource ||= e.grippers.arms.some((arm) => arm.held !== null);
+            if (e.cargoUsed > cargoBefore) {
+                assert.ok(
+                    returningResource,
+                    'cargo may arrive only on a returning physical gripper',
+                );
+                sawGripperDelivery = true;
+            }
             assert.ok(e.cargoUsed <= MINING_CONVOY.target);
             sawMining ||= e.extracting;
             if (e.beams.length) {
                 assert.equal(e.beams.length, 2);
+                for (const beam of e.beams)
+                    assert.ok(
+                        Math.hypot(beam.to.x - beam.from.x, beam.to.y - beam.from.y) <=
+                            HULLS.mule.laserRange + 1e-6,
+                    );
                 assert.ok(
                     Math.hypot(
                         e.beams[0].from.x - e.beams[1].from.x,
@@ -191,6 +215,7 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
         );
         assert.ok(sawMining && sawReturn);
         assert.ok(sawLasers, 'real deliveries must include both visible mining lasers');
+        assert.ok(sawExtendedGripper && sawHeldResource && sawGripperDelivery);
         assert.ok(e.trips >= 2);
         assert.ok(e.ambushed);
         assert.ok(s.enemyKills >= 2);
@@ -214,6 +239,101 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
         assert.ok(parseCampaign(JSON.stringify(c)));
     } finally {
         s.dispose();
+    }
+});
+
+test('Mule uses the same timed gripper mechanism, capacity and target reservations as a player ship', () => {
+    const world = new RAPIER.World({ x: 0, y: 0 });
+    const escort = new MiningEscort(world);
+    try {
+        assert.ok(escort.grippers instanceof GripperSystem);
+        assert.equal(escort.grippers.range, HULLS.mule.grabberRange);
+        assert.deepEqual(
+            escort.grippers.arms.map((arm) => arm.mount),
+            HULLS.mule.grabbers,
+        );
+        const loot = new Map([[1, { id: 1, x: 150, y: 0, kind: 'ore' as const, amount: 3 }]]);
+        let cargo = 0;
+        const tick = (reserved: number[] = [], clear = true) =>
+            escort.grippers.update(
+                GAME.step,
+                { x: 0, y: 0 },
+                0,
+                HULLS.mule.size,
+                1 - cargo,
+                loot,
+                () => cargo++,
+                () => clear,
+                reserved,
+            );
+        tick([1]);
+        assert.ok(escort.grippers.arms.every((arm) => arm.phase === 'idle'));
+        tick([], false);
+        assert.ok(escort.grippers.arms.every((arm) => arm.phase === 'idle'));
+        tick();
+        assert.equal(cargo, 0);
+        assert.equal(loot.get(1)!.amount, 3);
+        assert.ok(escort.grippers.arms.some((arm) => arm.phase === 'extend'));
+        for (let frame = 0; frame < 120; frame++) tick();
+        assert.equal(cargo, 1);
+        assert.equal(loot.get(1)!.amount, 2);
+    } finally {
+        escort.dispose();
+        world.free();
+    }
+});
+
+test('Mule mining applies both stock lasers through real ray hits and cannot damage through a rock', () => {
+    const campaign = ready();
+    beginRun(campaign, 1);
+    const simulation = new MissionSimulation(campaign, 1);
+    try {
+        simulation.area = 'surface';
+        const escort = simulation.miningEscort!;
+        escort.ambushed = true;
+        const [target, blocker] = [...simulation.rocks.values()].filter(
+            (rock) => rock.surface && rock.anchored && !rock.copper,
+        );
+        for (const rock of [...simulation.rocks.values()]) {
+            if (rock === target || rock === blocker) continue;
+            simulation.world.removeRigidBody(rock.body);
+            simulation.rocks.delete(rock.id);
+        }
+        const site = MINING_CONVOY.site;
+        const place = (rock: typeof target, x: number, y: number) => {
+            rock.body.setTranslation({ x: x / 100, y: y / 100 }, true);
+            rock.body.setLinvel({ x: 0, y: 0 }, true);
+            rock.previous = { x, y };
+            rock.health = 10000;
+        };
+        place(target, site.x + 240, site.y);
+        place(blocker, site.x + 120, site.y + 500);
+        blocker.defense = true;
+        escort.body.setTranslation({ x: site.x / 100, y: site.y / 100 }, true);
+        escort.body.setRotation(0, true);
+        escort.resumeMining({ ...site });
+        simulation.ship.setTranslation({ x: (site.x - 200) / 100, y: site.y / 100 }, true);
+        simulation.world.step();
+        simulation.step(idle);
+        assert.equal(escort.beams.length, HULLS.mule.lasers.length);
+        assert.ok(
+            Math.abs(
+                target.health -
+                    (10000 -
+                        HULLS.mule.lasers.length *
+                            GAME.laserDamage *
+                            HULLS.mule.miningPower *
+                            GAME.step),
+            ) < 1e-6,
+        );
+        const targetHealth = target.health;
+        place(blocker, site.x + 120, site.y);
+        simulation.world.step();
+        simulation.step(idle);
+        assert.equal(target.health, targetHealth);
+        assert.ok(blocker.health < 10000);
+    } finally {
+        simulation.dispose();
     }
 });
 

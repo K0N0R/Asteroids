@@ -2,6 +2,21 @@ import { Container, Graphics } from 'pixi.js';
 import { label } from '../ui/primitives';
 import { C } from './shapes';
 import { MOON } from '../worlds/moon';
+import type { Point } from '../worlds/sector';
+
+export function lunarTransferPoint(
+    point: Point,
+    ship: Point,
+    pose: ReturnType<typeof lunarTransferPose> | null,
+    zoom: number,
+): Point {
+    if (!pose) return point;
+    const scale = zoom / pose.zoom;
+    return {
+        x: pose.pivot.x + (point.x - ship.x) * scale,
+        y: pose.pivot.y + (point.y - ship.y) * scale,
+    };
+}
 
 export function lunarTransferPose(progress: number, surface: boolean, zoom: number) {
     const t = Math.max(0, Math.min(1, progress));
@@ -15,6 +30,7 @@ export function lunarTransferPose(progress: number, surface: boolean, zoom: numb
             y: MOON.center.y + (MOON.exit.y - MOON.center.y) * approach,
         },
         detail: Math.min(1, approach * 3),
+        pitch: Math.sin(Math.PI * t) ** 2,
     };
 }
 

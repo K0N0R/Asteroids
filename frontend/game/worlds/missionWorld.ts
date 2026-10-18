@@ -52,7 +52,11 @@ import { outpostView } from '../graphics/outpostView';
 import { impactParticleCount } from '../systems/impact';
 import { CACHE } from '../systems/prototypes';
 import { OrbitalOutpostView } from '../graphics/venusOutpost';
-import { LunarTransferView, lunarTransferPose } from '../graphics/lunarTransfer';
+import {
+    LunarTransferView,
+    lunarTransferPose,
+    lunarTransferPoint,
+} from '../graphics/lunarTransfer';
 import { MOON, moonOrbitPoint } from './moon';
 import { MoonSurfaceView } from '../graphics/moonSurface';
 
@@ -627,6 +631,7 @@ export class MissionWorld extends Container {
             s.transferActive
                 ? lunarTransferPose(s.transferFraction, s.area === 'surface', 1).detail
                 : 1,
+            s.passageProgress,
         );
         this.moon.updateDefense(
             s.lunarDefense,
@@ -727,14 +732,21 @@ export class MissionWorld extends Container {
                     .stroke({ color: 0xc2eaff, width: 1.5, alpha: 0.3 });
             }
         }
-        this.shipView.position.set(
-            interpolate(s.previous.x, p.x, alpha),
-            interpolate(s.previous.y, p.y, alpha),
-        );
-        if (s.transferActive && s.area === 'orbit') {
-            this.shipView.x += MOON.exit.x - MOON.entrance.x;
-            this.shipView.y += MOON.exit.y - MOON.entrance.y;
-        }
+        const normalZoom = followCameraZoom(this.camera.scale.x / this.transferZoom, s.speed, dt);
+        const t = s.transferFraction;
+        const approach = s.transferActive
+            ? lunarTransferPose(t, s.area === 'surface', normalZoom)
+            : null;
+        const shipPosition = {
+            x: interpolate(s.previous.x, p.x, alpha),
+            y: interpolate(s.previous.y, p.y, alpha),
+        };
+        const transferPoint = (point: Point) =>
+            lunarTransferPoint(point, shipPosition, approach, normalZoom);
+        const towPoint = (point: Point, id: number) =>
+            s.salvage.towing.has(id) ? transferPoint(point) : point;
+        const transferScale = approach ? normalZoom / approach.zoom : 1;
+        this.shipView.position.copyFrom(transferPoint(shipPosition));
         const deltaAngle = Math.atan2(
             Math.sin(s.ship.rotation() - s.previousAngle),
             Math.cos(s.ship.rotation() - s.previousAngle),
@@ -753,8 +765,8 @@ export class MissionWorld extends Container {
         this.shipView.aimAt(s.aimTarget);
         if (s.harpoonArms) this.shipView.updateArms(s.harpoonArms.poses);
         this.shipView.updateDrive(
-            s.thrusting && !s.reversing,
-            s.reversing || (s.braking && s.speed > 5),
+            s.transferActive || (s.thrusting && !s.reversing),
+            !s.transferActive && (s.reversing || (s.braking && s.speed > 5)),
             s.engineFault,
             s.boosting,
             this.clock,
@@ -841,22 +853,31 @@ export class MissionWorld extends Container {
             }
         }
         this.camera.rotation = followCameraAngle(this.camera.rotation, this.shipView.rotation, dt);
-        const normalZoom = followCameraZoom(this.camera.scale.x / this.transferZoom, s.speed, dt);
-        const t = s.transferFraction;
-        const approach = s.transferActive
-            ? lunarTransferPose(t, s.area === 'surface', normalZoom)
-            : null;
         this.transferZoom = approach ? approach.zoom / normalZoom : 1;
         this.camera.scale.set(normalZoom * this.transferZoom);
+        const shipScale = s.hullConfig.size / this.transferZoom;
+        this.shipView.scale.set(
+            shipScale * (1 - (approach?.pitch ?? 0) * 0.16),
+            shipScale * (1 + (approach?.pitch ?? 0) * 0.035),
+        );
         this.transfer.update(s.transferActive, t, s.area === 'surface');
         this.camera.pivot.copyFrom(approach?.pivot ?? this.shipView.position);
         this.camera.position.set(800, 450);
         this.homeTitle.rotation = -this.camera.rotation;
         this.homeTitle.position.copyFrom(rotateVector({ x: 0, y: 165 }, -this.camera.rotation));
         this.laser.clear();
-        for (const { from, to } of s.laserBeams) {
-            const combat = s.hullId === 'phoenix',
-                level = laserUpgradeLevel(s.hullId, this.modules.drill);
+        for (const { from, to, combat, level } of [
+            ...s.laserBeams.map((beam) => ({
+                ...beam,
+                combat: s.hullId === 'phoenix',
+                level: laserUpgradeLevel(s.hullId, this.modules.drill),
+            })),
+            ...(s.area === 'surface' ? (s.miningEscort?.beams ?? []) : []).map((beam) => ({
+                ...beam,
+                combat: false,
+                level: laserUpgradeLevel('mule', 0),
+            })),
+        ]) {
             this.laser
                 .beginPath()
                 .moveTo(from.x, from.y)
@@ -881,35 +902,59 @@ export class MissionWorld extends Container {
                 .fill(combat ? 0xffb49a : C.text);
         }
         this.grabberLines.clear();
-        for (const arm of s.grippers.arms) {
-            if (arm.phase === 'idle') continue;
-            const origin = s.grippers.origin(
-                arm,
-                this.shipView.position,
-                this.shipView.rotation,
-                s.hullConfig.size,
-            );
-            const tip = {
-                x: interpolate(arm.previous.x, arm.tip.x, alpha),
-                y: interpolate(arm.previous.y, arm.tip.y, alpha),
-            };
-            const dx = tip.x - origin.x,
-                dy = tip.y - origin.y,
-                length = Math.max(1, Math.hypot(dx, dy));
-            const nx = dx / length,
-                ny = dy / length;
-            this.grabberLines
-                .moveTo(origin.x, origin.y)
-                .lineTo(tip.x, tip.y)
-                .stroke({ color: 0x737373, width: 3 });
-            this.grabberLines
-                .moveTo(tip.x - nx * 7 - ny * 6, tip.y - ny * 7 + nx * 6)
-                .lineTo(tip.x + nx * 3 - ny * 5, tip.y + ny * 3 + nx * 5)
-                .moveTo(tip.x - nx * 7 + ny * 6, tip.y - ny * 7 - nx * 6)
-                .lineTo(tip.x + nx * 3 + ny * 5, tip.y + ny * 3 - nx * 5)
-                .stroke({ color: 0xc3c3c3, width: 2 });
-            if (arm.held) this.grabberLines.circle(tip.x, tip.y, 6).fill(RESOURCES[arm.held].color);
+        const collectors = [
+            {
+                system: s.grippers,
+                position: { x: this.shipView.x, y: this.shipView.y },
+                angle: this.shipView.rotation,
+                size: s.hullConfig.size,
+            },
+        ];
+        if (s.miningEscort && s.area === 'surface' && s.miningEscort.state !== 'destroyed') {
+            const escort = s.miningEscort;
+            collectors.push({
+                system: escort.grippers,
+                position: {
+                    x: interpolate(escort.previous.x, escort.position.x, alpha),
+                    y: interpolate(escort.previous.y, escort.position.y, alpha),
+                },
+                angle:
+                    escort.previousAngle +
+                    angleDifference(escort.body.rotation(), escort.previousAngle) * alpha,
+                size: HULLS.mule.size,
+            });
         }
+        for (const collector of collectors)
+            for (const arm of collector.system.arms) {
+                if (arm.phase === 'idle') continue;
+                const origin = collector.system.origin(
+                    arm,
+                    collector.position,
+                    collector.angle,
+                    collector.size,
+                );
+                const tip = {
+                    x: interpolate(arm.previous.x, arm.tip.x, alpha),
+                    y: interpolate(arm.previous.y, arm.tip.y, alpha),
+                };
+                const dx = tip.x - origin.x,
+                    dy = tip.y - origin.y,
+                    length = Math.max(1, Math.hypot(dx, dy));
+                const nx = dx / length,
+                    ny = dy / length;
+                this.grabberLines
+                    .moveTo(origin.x, origin.y)
+                    .lineTo(tip.x, tip.y)
+                    .stroke({ color: 0x737373, width: 3 });
+                this.grabberLines
+                    .moveTo(tip.x - nx * 7 - ny * 6, tip.y - ny * 7 + nx * 6)
+                    .lineTo(tip.x + nx * 3 - ny * 5, tip.y + ny * 3 + nx * 5)
+                    .moveTo(tip.x - nx * 7 + ny * 6, tip.y - ny * 7 - nx * 6)
+                    .lineTo(tip.x + nx * 3 + ny * 5, tip.y + ny * 3 - nx * 5)
+                    .stroke({ color: 0xc3c3c3, width: 2 });
+                if (arm.held)
+                    this.grabberLines.circle(tip.x, tip.y, 6).fill(RESOURCES[arm.held].color);
+            }
         for (const [id, view] of this.sentryViews)
             if (!s.sentries.drones.has(id)) {
                 destroyDisplayTree(view);
@@ -1301,22 +1346,29 @@ export class MissionWorld extends Container {
                 this.camera.addChild(view);
             }
             const item = s.salvage.items.get(-signal.id);
-            const p = item ? salvagePosition(item) : signal;
+            const p = item ? towPoint(salvagePosition(item), item.id) : signal;
             view.visible = this.inView(p);
             view.position.copyFrom(p);
+            view.scale.set(item && s.salvage.towing.has(item.id) ? transferScale : 1);
             view.rotation = item ? item.body.rotation() : 0.6;
             if (item && s.salvage.towing.has(item.id)) {
                 const offset = rotateVector(s.salvage.towAnchor(item), this.shipView.rotation);
                 this.recoveryRing
-                    .moveTo(this.shipView.x + offset.x, this.shipView.y + offset.y)
+                    .beginPath()
+                    .moveTo(
+                        this.shipView.x + offset.x * transferScale,
+                        this.shipView.y + offset.y * transferScale,
+                    )
                     .lineTo(p.x, p.y)
-                    .stroke({ color: C.mint, width: 2, alpha: 0.6 });
+                    .stroke({ color: C.mint, width: 2 * transferScale, alpha: 0.6 });
             } else {
                 this.recoveryRing
+                    .beginPath()
                     .circle(p.x, p.y, RECOVERY.radius)
                     .stroke({ color: C.gold, width: 1, alpha: 0.2 });
                 if (signal.id === s.recoverySignal?.id && s.recoveryProgress > 0)
                     this.recoveryRing
+                        .beginPath()
                         .arc(
                             p.x,
                             p.y,
@@ -1336,15 +1388,20 @@ export class MissionWorld extends Container {
         if (s.rescueOperation && this.rescueShip) {
             const r = s.rescueOperation;
             const alive = !['destroyed', 'delivered'].includes(r.state);
-            this.rescueShip.visible = alive && this.inView(r.position);
+            this.rescueShip.visible = alive && this.inView(towPoint(r.position, r.item.id));
+            this.rescueShip.scale.set(s.salvage.towing.has(r.item.id) ? transferScale : 1);
             this.rescueStatus.clear();
             if (alive) {
-                const p = r.position,
+                const raw = r.position,
                     item = r.item;
-                this.rescueShip.position.set(
-                    interpolate(item.previous.x, p.x, alpha),
-                    interpolate(item.previous.y, p.y, alpha),
+                const p = towPoint(
+                    {
+                        x: interpolate(item.previous.x, raw.x, alpha),
+                        y: interpolate(item.previous.y, raw.y, alpha),
+                    },
+                    item.id,
                 );
+                this.rescueShip.position.copyFrom(p);
                 this.rescueShip.rotation =
                     item.previousAngle +
                     angleDifference(item.body.rotation(), item.previousAngle) * alpha;
@@ -1352,12 +1409,18 @@ export class MissionWorld extends Container {
                 this.holHealthBar(this.rescueStatus, p, item.health, item.maxHealth, C.gold);
                 if (r.state === 'towing') {
                     const offset = rotateVector(s.salvage.towAnchor(item), this.shipView.rotation);
-                    const x = this.shipView.x + offset.x,
-                        y = this.shipView.y + offset.y;
+                    const x = this.shipView.x + offset.x * transferScale,
+                        y = this.shipView.y + offset.y * transferScale;
                     this.rescueStatus
+                        .beginPath()
                         .moveTo(x, y)
-                        .quadraticCurveTo((x + p.x) / 2, (y + p.y) / 2 + 20, p.x, p.y)
-                        .stroke({ color: C.mint, width: 2, alpha: 0.65 });
+                        .quadraticCurveTo(
+                            (x + p.x) / 2,
+                            (y + p.y) / 2 + 20 * transferScale,
+                            p.x,
+                            p.y,
+                        )
+                        .stroke({ color: C.mint, width: 2 * transferScale, alpha: 0.65 });
                 }
                 if (r.state !== 'towing')
                     this.rescueStatus
@@ -1398,9 +1461,6 @@ export class MissionWorld extends Container {
                     s.miningEscort ? HULLS.mule.health : 140,
                     C.mint,
                 );
-            if (this.researchView.visible && s.miningEscort)
-                for (const beam of s.miningEscort.beams)
-                    this.drawSupportLaser(this.researchStatus, beam);
             if (e.state === 'research' && !s.miningEscort)
                 this.researchStatus
                     .beginPath()
@@ -1438,13 +1498,18 @@ export class MissionWorld extends Container {
                 this.effectLayer.addChild(view);
                 this.salvageViews.set(item.id, view);
             }
-            const p = salvagePosition(item);
+            const raw = salvagePosition(item);
+            const p = towPoint(
+                {
+                    x: interpolate(item.previous.x, raw.x, alpha),
+                    y: interpolate(item.previous.y, raw.y, alpha),
+                },
+                item.id,
+            );
             view.visible = this.inView(p);
             if (!view.visible) continue;
-            view.position.set(
-                interpolate(item.previous.x, p.x, alpha),
-                interpolate(item.previous.y, p.y, alpha),
-            );
+            view.position.copyFrom(p);
+            view.scale.set(s.salvage.towing.has(item.id) ? transferScale : 1);
             view.rotation =
                 item.previousAngle +
                 angleDifference(item.body.rotation(), item.previousAngle) * alpha;
@@ -1453,12 +1518,13 @@ export class MissionWorld extends Container {
                 const anchor = this.shipView.position,
                     a = this.shipView.rotation;
                 const offset = rotateVector(s.salvage.towAnchor(item), a);
-                const x = anchor.x + offset.x,
-                    y = anchor.y + offset.y;
+                const x = anchor.x + offset.x * transferScale,
+                    y = anchor.y + offset.y * transferScale;
                 const dx = p.x - x,
                     dy = p.y - y,
                     d = Math.max(1, Math.hypot(dx, dy)),
-                    slack = Math.min(45, Math.max(4, (230 - d) * 0.25));
+                    slack =
+                        Math.min(45, Math.max(4, (230 - d / transferScale) * 0.25)) * transferScale;
                 this.salvageStatus
                     .beginPath()
                     .moveTo(x, y)
@@ -1468,7 +1534,7 @@ export class MissionWorld extends Container {
                         p.x,
                         p.y,
                     )
-                    .stroke({ color: C.mint, width: 1, alpha: 0.6 });
+                    .stroke({ color: C.mint, width: transferScale, alpha: 0.6 });
             } else {
                 this.salvageStatus
                     .beginPath()

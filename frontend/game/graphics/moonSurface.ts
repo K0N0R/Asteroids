@@ -13,6 +13,7 @@ export class MoonSurfaceView extends Container {
     private horizon = new Graphics();
     private site = new Graphics();
     private orbitGate = new Container();
+    private passageProgress = new Graphics({ label: 'lunar-passage-progress' });
     private status: ReturnType<typeof label> | null = null;
     private titles: { view: ReturnType<typeof label>; anchor: Point; offset: Point }[] = [];
     private stage = -1;
@@ -72,6 +73,7 @@ export class MoonSurfaceView extends Container {
                 new Graphics()
                     .circle(0, 0, 145)
                     .fill({ color: C.cyan, alpha: 0.04 })
+                    .beginPath()
                     .poly([-40, 15, 0, -25, 40, 15])
                     .stroke({ color: C.mint, width: 5 }),
             );
@@ -124,7 +126,7 @@ export class MoonSurfaceView extends Container {
             16,
             C.muted,
         );
-        this.addChild(this.ground, this.orbitGate);
+        this.addChild(this.ground, this.orbitGate, this.passageProgress);
     }
     private addTitle(
         host: Container,
@@ -147,8 +149,22 @@ export class MoonSurfaceView extends Container {
         this.titles.push({ view, anchor, offset });
         return view;
     }
-    update(surface: boolean, stage: number, cameraAngle: number, detail = 1) {
+    update(surface: boolean, stage: number, cameraAngle: number, detail = 1, progress = 0) {
         if (!this.visible) return;
+        this.passageProgress.clear();
+        if (progress > 0) {
+            const anchor = surface ? MOON.exit : MOON.entrance;
+            this.passageProgress
+                .beginPath()
+                .arc(
+                    anchor.x,
+                    anchor.y,
+                    155,
+                    -Math.PI / 2,
+                    -Math.PI / 2 + Math.min(1, progress / MOON.transferSeconds) * Math.PI * 2,
+                )
+                .stroke({ color: C.mint, width: 4 });
+        }
         this.details.alpha = detail;
         this.horizon.alpha = (1 - detail) * 0.24;
         for (const title of this.titles) {

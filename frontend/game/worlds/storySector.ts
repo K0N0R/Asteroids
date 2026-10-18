@@ -166,13 +166,14 @@ export function generateStorySector(progress: StoryProgress) {
             return Math.hypot(r.x - t * end.x, r.y - t * end.y) > r.radius + 150;
         });
         const outcrops: { x: number; y: number; radius: number }[] = [];
+        const scatter = random(150015);
         for (let i = 0; i < 24; i++) {
             const radius = 24 + rng() * 12;
             let x = 0,
                 y = 0;
             for (let attempt = 0; attempt < 256; attempt++) {
-                const angle = rng() * Math.PI * 2,
-                    distance = Math.sqrt(rng()) * 390;
+                const angle = scatter() * Math.PI * 2,
+                    distance = Math.sqrt(scatter()) * 390;
                 x = MOON.quarry.x + Math.cos(angle) * distance;
                 y = MOON.quarry.y + Math.sin(angle) * distance * 0.85;
                 if (

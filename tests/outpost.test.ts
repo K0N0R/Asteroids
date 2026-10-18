@@ -354,10 +354,10 @@ test('an overlapping rescue takes priority over the terminal and data can be tak
         step(sim, 3, { ...idle, sabotage: true });
         assert.equal(sim.terminalPuzzle, null);
         assert.equal(sim.cargo.parts, 1);
-        step(sim, 3, { ...idle, interact: true });
+        step(sim, 3, { ...idle, tow: true });
         assert.ok(sim.recoveryProgress > 0);
         assert.equal(sim.terminalPuzzle, null);
-        step(sim, 1.1, { ...idle, interact: true });
+        step(sim, 1.1, { ...idle, tow: true });
         assert.ok(sim.recoverySecured);
         assert.equal(sim.outpost.secured, false);
         solveTerminal(sim, 'breach');

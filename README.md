@@ -209,13 +209,12 @@ Buduje i uruchamia wersję produkcyjną, bez automatycznego odświeżania. Sam b
 | C                                      | Kamuflaż starszych kadłubów; Widmo korzysta zamiast niego z PPM                                                                    |
 | E                                      | Przeszukanie pobliskiego wraku                                                                                                     |
 | Przytrzymany E                         | Dokowanie w strefie bazy przy prędkości poniżej 65 m/s                                                                             |
-| Przytrzymany E przy sygnale ratunkowym | Podjęcie kapsuły/wraku: 4 s poniżej 80 m/s, bez ciągu, strzelania i naprawy                                                        |
+| Przytrzymany H                         | Podłączenie holu przy wraku lub celu ratunkowym; bez ciągu, strzelania i naprawy                                                   |
 | Przytrzymany E przy miejscu badawczym  | Skanowanie danych: 3 s w promieniu 180, przy prędkości do 60 m/s, bez ciągu, ognia i naprawy                                       |
 | Przytrzymany E przy skrytce            | Otwarcie po 2,5 s w promieniu 150, poniżej 60 m/s, bez ciągu, ognia i naprawy; wybór prototypu lub pominięcie                      |
 | Przytrzymany R                         | Naprawa napędu i 25 punktów kadłuba: 5 s lotu poniżej 80 m/s, bez ciągu, strzelania i interakcji; zużywa zestaw                    |
-| 1–9                                    | Cel nawigacji: baza, pole rudy, pas, wrak, bogata żyła, sygnał ratunkowy, przekaźnik, obserwatorium, najbliższa nieotwarta skrytka |
-| 0                                      | Terminal wrogiej placówki Cerber                                                                                                   |
-| F                                      | Wskaż najbliższego drona; śledź go do zniszczenia                                                                                  |
+| , / .                                  | Poprzedni / następny dostępny cel nawigacji, z zawijaniem listy                                                                     |
+| J                                      | Zwolnienie holu                                                                                                                  |
 | Przytrzymany G przy terminalu Cerbera  | Sabotaż: 3 s spokojnego lotu do 60 m/s; 1 komponent z ładowni; skaner nieaktywny przez 20 s, raz na wyprawę                        |
 | Przytrzymany E przy terminalu Cerbera  | Przechwyt danych: 4 s, do 60 m/s, bez ciągu, ognia, lasera, naprawy i aktywnego alarmu                                             |
 | Esc                                    | Pauza, sterowanie i głośność efektów                                                                                               |

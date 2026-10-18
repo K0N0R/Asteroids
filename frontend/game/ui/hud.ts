@@ -11,6 +11,7 @@ import { navigationWaypoint } from '../worlds/sector';
 import { EnemyNavigation } from '../systems/enemyNavigation';
 import { enemyPosition } from '../systems/enemies';
 import { MOON } from '../worlds/moon';
+import { STORY_TASKS } from '../state/story';
 import { flightHint, missionObjectives } from './missionReadout';
 import { hudLabel as label, keyHint, mouseHint, objectiveMark } from './hudIcons';
 
@@ -25,6 +26,8 @@ export class MissionHud extends Container {
     private context: Typography;
     private direction: Typography;
     private goals: Typography[] = [];
+    private selectedGoal: Typography;
+    private selection = new Graphics();
     private goalStep = 28;
     private checks = new Graphics();
     private recoveryWasSecured = false;
@@ -63,8 +66,8 @@ export class MissionHud extends Container {
         if (sim.miningEscort) this.target = 15;
         if (sim.factoryMission) this.target = 4;
         if (sim.rescueOperation) this.target = 16;
-        this.addChild(this.meters, this.map, this.checks, this.arrow);
-        for (const graphic of [this.meters, this.map, this.checks, this.arrow])
+        this.addChild(this.selection, this.meters, this.map, this.checks, this.arrow);
+        for (const graphic of [this.selection, this.meters, this.map, this.checks, this.arrow])
             graphic.eventMode = 'none';
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
@@ -97,6 +100,9 @@ export class MissionHud extends Container {
             C.text,
             250,
         );
+        this.selectedGoal = label(this, '', 1343, 320, 15, C.cyan, 228);
+        this.selectedGoal.label = 'selected-navigation-goal';
+        this.selectedGoal.visible = false;
         if (sim.missionStatus) this.orderStatus = label(this, '', 40, 235, 15, C.mint, 700);
         this.context = label(this, '', 40, 797, 18, C.mint, 670);
         keyHint(this, 'WASD', 'lot', 40, 845, 54);
@@ -142,11 +148,11 @@ export class MissionHud extends Container {
             453,
             845,
         );
-        keyHint(this, 'F/Z/N', 'cel', 552, 845, 52);
-        keyHint(this, '0–9/T/H', 'cel', 644, 845, 66);
+        keyHint(this, ', / .', 'cel', 552, 845, 52);
+        keyHint(this, 'H', 'hol', 654, 845, 30);
         keyHint(this, sim.stationLogistics ? 'E/C' : 'E', 'akcja', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
-        keyHint(this, 'SPACE/K', 'hiper/śluza', 970, 845, 76);
+        keyHint(this, 'SPACE', 'hiper/śluza', 970, 845, 65);
 
         const details = keyHint(this, 'TAB', 'pokład', 1170, 845, 40);
         details.eventMode = 'static';
@@ -158,6 +164,77 @@ export class MissionHud extends Container {
     trackEnemy() {
         this.enemyNavigation.select(this.sim.enemies, this.sim.position);
         this.target = 10;
+    }
+    get availableTargets() {
+        const s = this.sim;
+        const targets = new Set(s.landmarks.map((site) => site.key - 1));
+        targets.add(0);
+        if (s.area === 'orbit') {
+            targets.add(-1);
+            if (s.nextCache) targets.add(8);
+        }
+        if (s.recoverySignal && !s.recoverySecured && !s.recoveryDestroyed) targets.add(5);
+        if (s.enemies.enemies.size) targets.add(10);
+        if (
+            [...s.salvage.items.values()].some(
+                (item) => item.source !== 'recovery' && !s.salvage.towing.has(item.id),
+            )
+        )
+            targets.add(14);
+        if (s.escort && !['destroyed', 'complete', 'failed'].includes(s.escort.state))
+            targets.add(15);
+        if (
+            s.area === 'orbit' &&
+            s.rescueOperation &&
+            !['delivered', 'destroyed'].includes(s.rescueOperation.state)
+        )
+            targets.add(16);
+        if (s.nearestHypergate) targets.add(17);
+        if (s.guide && s.guide.state !== 'destroyed') targets.add(18);
+        return [...targets].sort((a, b) => a - b);
+    }
+    cycleTarget(direction: -1 | 1) {
+        const targets = this.availableTargets;
+        const index = targets.indexOf(this.target);
+        const next =
+            index < 0
+                ? direction === 1
+                    ? 0
+                    : targets.length - 1
+                : (index + direction + targets.length) % targets.length;
+        this.target = targets[next];
+        if (this.target === 10) this.trackEnemy();
+        if (this.target === 14) this.trackWreck();
+        this.refresh();
+    }
+    private matchesObjective(goal: ReturnType<typeof missionObjectives>[number]) {
+        const s = this.sim;
+        const task = STORY_TASKS.find((entry) => entry.id === goal.id);
+        const site = s.landmarks.find((entry) => entry.key === this.target + 1);
+        if (site?.siteId && (goal.id === site.siteId || task?.site === site.siteId)) return true;
+        if (this.target === 0)
+            return (
+                goal.id === 'return' ||
+                (!!task &&
+                    ['ore', 'parts', 'workshop', 'briefing', 'kineticShield'].includes(task.kind))
+            );
+        if (this.target === 5 || this.target === 16)
+            return goal.id === 'rescue' || task?.kind === 'rescue';
+        if (this.target === 10)
+            return goal.id === 'kills' || (!!task && ['patrol', 'boss'].includes(task.kind));
+        if (this.target === 15) return goal.id === 'escort' || task?.kind === 'delivery';
+        if (this.target === -1) return goal.id === 'outpost' || task?.site === 'outpost';
+        if (site?.kind === 'field' || site?.kind === 'belt')
+            return (
+                ['ore', 'parts'].includes(goal.id) ||
+                (!!task && ['ore', 'parts', 'gather'].includes(task.kind))
+            );
+        if (site?.kind === 'construction')
+            return !!task && ['delivery', 'construction', 'defense', 'assault'].includes(task.kind);
+        if (site?.kind === 'passage' && s.surfaceUnlocked) return task?.kind === 'delivery';
+        if (site?.kind === 'factory') return task?.kind === 'factory';
+        if (task?.kind === 'clearance') return task.id === `belt-clear-${this.target - 2}`;
+        return false;
     }
     trackWreck() {
         const p = this.sim.position;
@@ -173,6 +250,10 @@ export class MissionHud extends Container {
     }
     get waypoint() {
         const s = this.sim;
+        if (this.target === 17)
+            return s.nearestHypergate
+                ? { ...s.nearestHypergate.from, name: `Śluza: ${s.nearestHypergate.name}` }
+                : { x: 0, y: 0, name: 'Brak śluz · skok swobodny spacją' };
         if (this.target === 18)
             return s.guide && s.guide.state !== 'destroyed'
                 ? { ...s.guide.position, name: 'Prospector / instruktor' }
@@ -182,14 +263,7 @@ export class MissionHud extends Container {
                 ? { ...MOON.entrance, name: 'Muł · podejście do Księżyca' }
                 : { ...s.miningEscort.position, name: 'Muł · budowa stacji' };
         }
-        if (s.area === 'surface') {
-            if (this.target === 17)
-                return this.sim.nearestHypergate
-                    ? {
-                          ...this.sim.nearestHypergate.from,
-                          name: `Śluza: ${this.sim.nearestHypergate.name}`,
-                      }
-                    : { x: 0, y: 0, name: 'Brak śluz · skok swobodny spacją' };
+        if (s.area === 'surface' && this.target !== 14) {
             if (this.target === 10)
                 return s.enemies.enemies.size
                     ? this.enemyNavigation.waypoint(s.enemies, s.position)
@@ -239,7 +313,7 @@ export class MissionHud extends Container {
         )
             return {
                 ...this.sim.landmarks.find((l) => l.key === 7)!,
-                name: 'Najpierw zwiad podejścia · 7',
+                name: 'Najpierw zwiad podejścia',
             };
         if (this.target === -1)
             return { ...this.sim.sector.outpost.terminal, name: this.sim.sector.outpost.name };
@@ -279,7 +353,7 @@ export class MissionHud extends Container {
         );
         this.anomalyStatus?.setText(
             this.sim.anomalyExposure.status ||
-                '3 / 4 / 5: bezpieczna trasa · N: sonda · fioletowe pasma zadają obrażenia',
+                'Sonda · bezpieczna trasa przez punkty nawigacji · fioletowe pasma zadają obrażenia',
         );
         this.anomalyStatus?.setColor(this.sim.anomalyExposure.contaminated ? C.red : 0xda8cf1);
         this.convoyStatus?.setText(
@@ -392,7 +466,7 @@ export class MissionHud extends Container {
         this.hyperStatus.setText(
             !s.hyperUnlocked
                 ? 'HIPER: brak modułu · montaż w stacji'
-                : `HIPER ${s.hyperFuel}/${s.hyperCapacity} · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA skok / K śluza · kolizja = utrata'}`,
+                : `HIPER ${s.hyperFuel}/${s.hyperCapacity} · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA skok / śluza · kolizja = utrata'}`,
         );
         this.context.setText(flightHint(s));
         this.cargoControls.setText(
@@ -441,7 +515,19 @@ export class MissionHud extends Container {
             this.goals.push(label(this, '', 1343, 320 + i * this.goalStep, 15, C.muted, 228));
         }
         this.checks.clear();
+        this.selection.clear();
+        let matches = false;
         objectives.forEach((goal, i) => {
+            const selected = this.matchesObjective(goal);
+            matches ||= selected;
+            if (selected)
+                this.selection
+                    .beginPath()
+                    .rect(1313, 315 + i * this.goalStep, 280, this.goalStep)
+                    .fill({ color: C.cyan, alpha: 0.12 })
+                    .beginPath()
+                    .rect(1313, 315 + i * this.goalStep, 3, this.goalStep)
+                    .fill(C.cyan);
             const text =
                 goal.id === 'rescue' && s.recoveryDestroyed
                     ? 'Cel ratunkowy utracony'
@@ -467,14 +553,19 @@ export class MissionHud extends Container {
                 (goal.id === 'rescue' && s.recoveryDestroyed) ||
                     (goal.id === 'escort' && s.escort?.state === 'destroyed')
                     ? C.red
-                    : goal.complete
-                      ? C.mint
-                      : C.muted,
+                    : selected
+                      ? C.cyan
+                      : goal.complete
+                        ? C.mint
+                        : C.muted,
             );
             objectiveMark(this.checks, 1325, 328 + i * this.goalStep, goal.complete);
         });
         const waypoint = this.waypoint,
             distance = Math.hypot(waypoint.x - p.x, waypoint.y - p.y);
+        this.selectedGoal.visible = !matches;
+        this.selectedGoal.y = 320 + objectives.length * this.goalStep;
+        this.selectedGoal.setText(matches ? '' : `Wybrany cel: ${waypoint.name}`);
         this.direction.setText(`${waypoint.name} · ${(distance / 1000).toFixed(1)} km`);
         if (s.area === 'surface') {
             this.surfaceRadar(waypoint);

@@ -155,7 +155,10 @@ test('stock Prospector fights, secures the prom through wiring, physically tows 
                 input.target = enemyPosition(enemy);
                 input.fire = true;
             } else if (delivered) input.interact = true;
-            else if (!held) input.interact = r.stabilized || f % 2 === 0;
+            else if (!held) {
+                input.interact = !r.stabilized && f % 2 === 0;
+                input.tow = r.stabilized;
+            }
             s.step(input);
             if (r.repair) solve(s);
             sawTow ||= r.state === 'towing';
@@ -201,13 +204,16 @@ test('J releases a secured mission tow and reattachment uses the existing stabil
         solve(s);
         s.step(idle);
         for (let i = 0; i < 185; i++) s.step({ ...idle, interact: true });
+        assert.equal(s.rescueOperation!.state, 'ready');
+        assert.equal(s.rescueOperation!.attachProgress, 0);
+        for (let i = 0; i < 185; i++) s.step({ ...idle, tow: true });
         assert.equal(s.rescueOperation!.state, 'towing');
         s.releaseWreck();
         assert.equal(s.rescueOperation!.state, 'ready');
         assert.equal(s.rescueOperation!.stabilized, true);
         assert.equal(s.surveyData.has('rescue'), false);
         s.step(idle);
-        for (let i = 0; i < 185; i++) s.step({ ...idle, interact: true });
+        for (let i = 0; i < 185; i++) s.step({ ...idle, tow: true });
         assert.equal(s.rescueOperation!.state, 'towing');
     } finally {
         s.dispose();

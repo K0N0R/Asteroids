@@ -93,7 +93,10 @@ test('real guidance reaches the mining field without granting tasks, cargo or re
         assert.deepEqual(c.bank, bank);
         assert.equal(s.cargo.ore, 0);
         assert.equal(new Set(s.guideMessages).size, s.guideMessages.length);
-        assert.equal(s.guideMessages.filter((text) => text.includes('2 wskazuje')).length, 1);
+        assert.equal(
+            s.guideMessages.filter((text) => text.includes('Celuj myszą w skały')).length,
+            1,
+        );
     } finally {
         s.dispose();
     }

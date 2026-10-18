@@ -55,9 +55,9 @@ export class RescueOperation {
                 case 'destroyed':
                     return 'Sonda utracona · TAB: odwrót i ponowienie wyprawy';
                 case 'towing':
-                    return 'Sonda na holu · wróć korytarzem 5/4/3 do Satuk 15 · J: odłącz';
+                    return 'Sonda na holu · wróć bezpiecznym korytarzem do Satuk 15 · J: odłącz';
                 default:
-                    return 'N: sonda · 3/4/5: bezpieczny objazd · E przez 3 s: hol';
+                    return 'Sonda · bezpieczny objazd · H przez 3 s: hol';
             }
         }
         switch (this.state) {
@@ -70,7 +70,7 @@ export class RescueOperation {
             case 'repair':
                 return 'Zabezpieczanie obwodów promu · świat nadal działa';
             case 'ready':
-                return 'Prom zabezpieczony · podejdź i przytrzymaj E przez 3 s, aby podłączyć hol';
+                return 'Prom zabezpieczony · podejdź i przytrzymaj H przez 3 s, aby podłączyć hol';
             default:
                 return 'Sygnał SOS · N: prom · E przy promie: zabezpiecz obwody';
         }
