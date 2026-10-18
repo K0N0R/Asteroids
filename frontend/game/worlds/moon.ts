@@ -10,9 +10,15 @@ export const MOON = {
     quarry: { x: 23900, y: 24650 },
     copperRidge: { x: 25450, y: 22600 },
     transferSeconds: 2,
-    arrivalSeconds: 1.2,
+    arrivalSeconds: 3.2,
     deliverySeconds: 2,
 } as const;
 export function moonDistance(p: Point) {
     return Math.hypot(p.x - MOON.center.x, p.y - MOON.center.y);
+}
+export function moonOrbitPoint(p: Point): Point {
+    return {
+        x: MOON.entrance.x + p.x - MOON.exit.x,
+        y: MOON.entrance.y + p.y - MOON.exit.y,
+    };
 }

@@ -791,10 +791,12 @@ export class GameSession {
     update(deltaMS: number) {
         this.background.setFlight(!!this.mission);
         if (this.mission) {
-            this.background.camera = this.mission.simulation.position;
+            this.background.camera = this.mission.backgroundCamera;
             this.background.cameraAngle = this.mission.camera.rotation;
-            this.background.cameraZoom = this.mission.camera.scale.x;
-            this.background.surface = this.mission.simulation.area === 'surface';
+            this.background.cameraZoom = this.mission.backgroundZoom;
+            this.background.surface =
+                this.mission.simulation.area === 'surface' ||
+                this.mission.simulation.transferActive;
         }
         if (!this.mission) {
             this.syncInteractionPanel();
@@ -843,10 +845,11 @@ export class GameSession {
             repair: !tuning && InputHandler.isKeyPressed('REPAIR'),
             sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });
-        this.background.camera = this.mission.simulation.position;
+        this.background.camera = this.mission.backgroundCamera;
         this.background.cameraAngle = this.mission.camera.rotation;
-        this.background.cameraZoom = this.mission.camera.scale.x;
-        this.background.surface = this.mission.simulation.area === 'surface';
+        this.background.cameraZoom = this.mission.backgroundZoom;
+        this.background.surface =
+            this.mission.simulation.area === 'surface' || this.mission.simulation.transferActive;
         this.syncInteractionPanel();
         if (this.hud)
             this.hud.visible =

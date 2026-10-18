@@ -165,13 +165,28 @@ export function generateStorySector(progress: StoryProgress) {
             );
             return Math.hypot(r.x - t * end.x, r.y - t * end.y) > r.radius + 150;
         });
+        const outcrops: { x: number; y: number; radius: number }[] = [];
         for (let i = 0; i < 24; i++) {
-            const angle = i * 2.4,
-                distance = 140 + (i % 4) * 60;
+            const radius = 24 + rng() * 12;
+            let x = 0,
+                y = 0;
+            for (let attempt = 0; attempt < 256; attempt++) {
+                const angle = rng() * Math.PI * 2,
+                    distance = Math.sqrt(rng()) * 390;
+                x = MOON.quarry.x + Math.cos(angle) * distance;
+                y = MOON.quarry.y + Math.sin(angle) * distance * 0.85;
+                if (
+                    outcrops.every(
+                        (rock) => Math.hypot(rock.x - x, rock.y - y) > rock.radius + radius + 16,
+                    )
+                )
+                    break;
+            }
+            outcrops.push({ x, y, radius });
             sector.rocks.push({
-                x: MOON.quarry.x + Math.cos(angle) * distance,
-                y: MOON.quarry.y + Math.sin(angle) * distance,
-                radius: 24 + rng() * 12,
+                x,
+                y,
+                radius,
                 rich: i % 2 === 0,
                 variant: Math.floor(rng() * 128),
                 vx: 0,

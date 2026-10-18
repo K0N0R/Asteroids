@@ -94,6 +94,27 @@ test('construction Mule appears only after lunar survey, waits on the surface, a
     try {
         const e = s.miningEscort!;
         assert.ok(e);
+        const field = [...s.rocks.values()].filter(
+            (rock) =>
+                rock.anchored &&
+                !rock.copper &&
+                Math.abs(rock.previous.x - MINING_CONVOY.site.x) <= 680 &&
+                Math.abs(rock.previous.y - MINING_CONVOY.site.y) <= 680,
+        );
+        assert.equal(field.length, 64);
+        assert.ok(new Set(field.map((rock) => Math.round(rock.previous.x))).size > 50);
+        assert.ok(new Set(field.map((rock) => Math.round(rock.previous.y))).size > 50);
+        for (const [index, rock] of field.entries()) {
+            assert.ok(Math.abs(rock.previous.x - MINING_CONVOY.site.x) > rock.radius + 100);
+            assert.ok(Math.abs(rock.previous.y - MINING_CONVOY.site.y) > rock.radius + 100);
+            for (const other of field.slice(index + 1))
+                assert.ok(
+                    Math.hypot(
+                        rock.previous.x - other.previous.x,
+                        rock.previous.y - other.previous.y,
+                    ) > rock.radius + other.radius + 11,
+                );
+        }
         const p = e.position;
         for (let i = 0; i < 300; i++) s.step({ ...idle, interact: true });
         assert.equal(e.state, 'idle');

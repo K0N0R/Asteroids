@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { StorySectorId } from '../state/story';
 import { C } from './theme';
 import { random } from '../worlds/sector';
+import { drawLunarTerrain } from './lunarTerrain';
 
 const PLANETS = {
     earth: { radius: 144, body: 0x3b87cb, light: 0x75cde8 },
@@ -120,6 +121,8 @@ export function planetView(region: StorySectorId | null) {
             );
         }
         if (id === 'neptune') ink.ellipse(-45, 32, 27, 13).fill(0x344da1);
+    } else if (id === 'lunar') {
+        drawLunarTerrain(ink, r);
     } else {
         const rng = random(id === 'mars' ? 277 : 731);
         for (let i = 0; i < 12; i++) {

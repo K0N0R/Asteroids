@@ -1416,21 +1416,34 @@ export class MissionSimulation {
             (r) => Math.hypot(r.x - site.x, r.y - site.y) > r.radius + 390,
         );
         const fieldStart = this.sector.rocks.length;
-        for (let row = -4; row <= 4; row++) {
-            for (let col = -4; col <= 4; col++) {
-                if (!row || !col) continue; // Cross-shaped corridors for both ships.
-                this.sector.rocks.push({
-                    anchored: true,
-                    x: site.x + col * 140,
-                    y: site.y + row * 140,
-                    radius: 40,
-                    rich: (row + col) % 3 === 0,
-                    copper: false,
-                    variant: (row + 4) * 9 + col + 4,
-                    vx: 0,
-                    vy: 0,
-                });
+        const rng = random(150081);
+        for (let index = 0; index < 64; index++) {
+            const radius = 30 + rng() * 18;
+            let x = 0,
+                y = 0;
+            for (let attempt = 0; attempt < 2048; attempt++) {
+                x = site.x + (rng() - 0.5) * 1360;
+                y = site.y + (rng() - 0.5) * 1360;
+                if (
+                    Math.abs(x - site.x) > radius + 100 &&
+                    Math.abs(y - site.y) > radius + 100 &&
+                    this.sector.rocks.every(
+                        (rock) => Math.hypot(rock.x - x, rock.y - y) > rock.radius + radius + 12,
+                    )
+                )
+                    break;
             }
+            this.sector.rocks.push({
+                anchored: true,
+                x,
+                y,
+                radius,
+                rich: index % 3 === 0,
+                copper: false,
+                variant: Math.floor(rng() * 128),
+                vx: 0,
+                vy: 0,
+            });
         }
         if (live) {
             const site = MINING_CONVOY.site;

@@ -527,6 +527,48 @@ export function surveySiteView(site: ScanSiteId) {
 
 export class ShapeLibrary {
     private rocks = new Map<string, GraphicsContext>();
+    lunarRock(variant: number, rich: boolean, copper = false) {
+        const key = `lunar:${variant}:${rich}:${copper}`;
+        let context = this.rocks.get(key);
+        if (!context) {
+            const rng = random(variant * 163 + 71);
+            const peakX = (rng() - 0.5) * 0.5,
+                peakY = -0.48 - rng() * 0.3,
+                left = -0.7 - rng() * 0.25,
+                right = 0.7 + rng() * 0.25;
+            context = new GraphicsContext()
+                .ellipse(0.25, 0.35, 1.03, 0.46)
+                .fill({ color: 0x505573, alpha: 0.38 })
+                .poly([
+                    left,
+                    0.28,
+                    left * 0.82,
+                    -0.18,
+                    peakX,
+                    peakY,
+                    right * 0.8,
+                    -0.1,
+                    right,
+                    0.3,
+                    0.1,
+                    0.7,
+                ])
+                .fill(copper ? 0xa98c92 : 0x737994)
+                .poly([left, 0.28, left * 0.82, -0.18, peakX, peakY, -0.08, 0.12, 0.1, 0.7])
+                .fill(copper ? 0xd4ad9b : 0xbfc1d2)
+                .poly([peakX, peakY, right * 0.8, -0.1, right, 0.3, -0.08, 0.12])
+                .fill(copper ? 0xbe9690 : 0x989eb6);
+            if (rich)
+                context
+                    .beginPath()
+                    .moveTo(left * 0.55, 0.18)
+                    .lineTo(-0.2, -0.08)
+                    .lineTo(peakX + 0.1, peakY * 0.45)
+                    .stroke({ color: copper ? 0xf2ba87 : 0xe0d9cd, width: 0.07 });
+            this.rocks.set(key, context);
+        }
+        return new Graphics(context);
+    }
     rock(variant: number, rich: boolean, crystal = false) {
         const key = `${variant}:${rich}:${crystal}`;
         let context = this.rocks.get(key);

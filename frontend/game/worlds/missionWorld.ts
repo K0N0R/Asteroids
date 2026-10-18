@@ -52,8 +52,8 @@ import { outpostView } from '../graphics/outpostView';
 import { impactParticleCount } from '../systems/impact';
 import { CACHE } from '../systems/prototypes';
 import { OrbitalOutpostView } from '../graphics/venusOutpost';
-import { LunarTransferView } from '../graphics/lunarTransfer';
-import { MOON } from './moon';
+import { LunarTransferView, lunarTransferPose } from '../graphics/lunarTransfer';
+import { MOON, moonOrbitPoint } from './moon';
 import { MoonSurfaceView } from '../graphics/moonSurface';
 
 const interpolate = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -79,6 +79,14 @@ export class MissionWorld extends Container {
         return this.deathElapsed >= 1.8;
     }
     private transferZoom = 1;
+    get backgroundCamera() {
+        return this.simulation.area === 'surface'
+            ? moonOrbitPoint(this.simulation.position)
+            : this.simulation.position;
+    }
+    get backgroundZoom() {
+        return this.camera.scale.x / this.transferZoom;
+    }
     private factoryView: EnemyFactoryView | null = null;
     private venusOutpost = new OrbitalOutpostView();
     readonly audio = createMissionAudio();
@@ -612,7 +620,14 @@ export class MissionWorld extends Container {
             this.camera.addChildAt(this.moon, 0);
             this.moonPrepared = true;
         }
-        this.moon.update(s.area === 'surface', s.buildStage, this.camera.rotation);
+        this.moon.update(
+            s.area === 'surface' || s.transferActive,
+            s.buildStage,
+            this.camera.rotation,
+            s.transferActive
+                ? lunarTransferPose(s.transferFraction, s.area === 'surface', 1).detail
+                : 1,
+        );
         this.moon.updateDefense(
             s.lunarDefense,
             [...s.lunarDefense.threats.keys()].flatMap((id) => {
@@ -716,6 +731,10 @@ export class MissionWorld extends Container {
             interpolate(s.previous.x, p.x, alpha),
             interpolate(s.previous.y, p.y, alpha),
         );
+        if (s.transferActive && s.area === 'orbit') {
+            this.shipView.x += MOON.exit.x - MOON.entrance.x;
+            this.shipView.y += MOON.exit.y - MOON.entrance.y;
+        }
         const deltaAngle = Math.atan2(
             Math.sin(s.ship.rotation() - s.previousAngle),
             Math.cos(s.ship.rotation() - s.previousAngle),
@@ -824,17 +843,13 @@ export class MissionWorld extends Container {
         this.camera.rotation = followCameraAngle(this.camera.rotation, this.shipView.rotation, dt);
         const normalZoom = followCameraZoom(this.camera.scale.x / this.transferZoom, s.speed, dt);
         const t = s.transferFraction;
-        this.transferZoom = s.transferActive
-            ? 1 + (s.area === 'surface' ? 0.45 : -0.25) * (1 - t) * (1 - t)
-            : 1;
+        const approach = s.transferActive
+            ? lunarTransferPose(t, s.area === 'surface', normalZoom)
+            : null;
+        this.transferZoom = approach ? approach.zoom / normalZoom : 1;
         this.camera.scale.set(normalZoom * this.transferZoom);
-        this.transfer.update(
-            s.transferActive,
-            t,
-            s.area === 'surface',
-            Math.max(0, (s.passageProgress / MOON.transferSeconds - 0.8) / 0.2),
-        );
-        this.camera.pivot.copyFrom(this.shipView.position);
+        this.transfer.update(s.transferActive, t, s.area === 'surface');
+        this.camera.pivot.copyFrom(approach?.pivot ?? this.shipView.position);
         this.camera.position.set(800, 450);
         this.homeTitle.rotation = -this.camera.rotation;
         this.homeTitle.position.copyFrom(rotateVector({ x: 0, y: 165 }, -this.camera.rotation));
@@ -1496,6 +1511,11 @@ export class MissionWorld extends Container {
                         .moveTo(0, -0.2)
                         .lineTo(0, 0.2)
                         .stroke({ color: 0x3b6679, width: 0.06 });
+                } else if (
+                    Math.hypot(rock.previous.x - MOON.center.x, rock.previous.y - MOON.center.y) <
+                    MOON.radius
+                ) {
+                    view = this.shapes.lunarRock(rock.variant, rock.rich, rock.copper);
                 } else {
                     view = this.shapes.rock(rock.variant, rock.rich, rock.crystal);
                     if (rock.copper) view.tint = 0xe0aa82;

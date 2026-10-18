@@ -17,9 +17,11 @@ import {
     deliverLunarCargo,
 } from '../frontend/game/state/story';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
-import { MOON, moonDistance } from '../frontend/game/worlds/moon';
+import { MOON, moonDistance, moonOrbitPoint } from '../frontend/game/worlds/moon';
 import { salvagePosition } from '../frontend/game/systems/salvage';
 import { angleDifference } from '../frontend/game/systems/flight';
+import { lunarTransferPose } from '../frontend/game/graphics/lunarTransfer';
+import { ShapeLibrary } from '../frontend/game/graphics/shapes';
 
 before(async () => RAPIER.init());
 const idle: FlightInput = {
@@ -137,7 +139,7 @@ test('passages preserve damage, supplies, cargo, data and a physical tow; held E
                 salvagePosition(tow).y - s.position.y,
             ) < 240,
         );
-        hold(s, 150);
+        hold(s, Math.ceil(MOON.arrivalSeconds * 60) + 150);
         assert.equal(s.area, 'surface');
         s.step(idle);
         hold(s);
@@ -449,7 +451,8 @@ test('lunar cinematic locks actions and world time in both directions, preservin
         for (let i = 0; i < 50; i++) s.step(hostile);
         assert.ok(s.transferActive);
         assert.deepEqual(snapshot(), before);
-        for (let i = 0; i < 100 && s.transferActive; i++) s.step(hostile);
+        for (let i = 0; i < Math.ceil(MOON.arrivalSeconds * 60) && s.transferActive; i++)
+            s.step(hostile);
         assert.equal(s.transferActive, false);
         assert.deepEqual(snapshot(), before);
         hold(s, 130);
@@ -468,7 +471,7 @@ test('lunar cinematic locks actions and world time in both directions, preservin
     }
 });
 
-test('releasing E during approach cancels the fade without transferring or locking controls', () => {
+test('releasing E during approach cancels the passage without transferring or locking controls', () => {
     const c = lunarReady();
     beginRun(c, 1);
     const s = new MissionSimulation(c, 1);
@@ -487,4 +490,48 @@ test('releasing E during approach cancels the fade without transferring or locki
     } finally {
         s.dispose();
     }
+});
+
+test('lunar approach grows the actual map continuously from globe LOD to the landing camera', () => {
+    assert.deepEqual(moonOrbitPoint(MOON.exit), MOON.entrance);
+    assert.deepEqual(moonOrbitPoint({ x: MOON.exit.x + 90, y: MOON.exit.y - 40 }), {
+        x: MOON.entrance.x + 90,
+        y: MOON.entrance.y - 40,
+    });
+    const zoom = 1.15;
+    const start = lunarTransferPose(0, true, zoom);
+    const end = lunarTransferPose(1, true, zoom);
+    assert.equal(start.zoom * MOON.radius, 126 * 0.95);
+    assert.deepEqual(start.pivot, MOON.center);
+    assert.equal(start.detail, 0);
+    assert.ok(Math.abs(end.zoom - zoom) < 1e-12);
+    assert.deepEqual(end.pivot, MOON.exit);
+    assert.equal(end.detail, 1);
+    let previousZoom = start.zoom;
+    for (let frame = 1; frame <= 100; frame++) {
+        const pose = lunarTransferPose(frame / 100, true, zoom);
+        const departure = lunarTransferPose(1 - frame / 100, false, zoom);
+        assert.ok(pose.zoom > previousZoom);
+        assert.ok(Math.abs(pose.zoom - departure.zoom) < 1e-12);
+        assert.ok(Math.abs(pose.pivot.x - departure.pivot.x) < 1e-9);
+        previousZoom = pose.zoom;
+    }
+    assert.equal(lunarTransferPose(0.4, true, zoom).detail, 1);
+    assert.deepEqual(lunarTransferPose(-1, true, zoom), start);
+    assert.deepEqual(lunarTransferPose(2, true, zoom), end);
+});
+
+test('lunar outcrops use their own cached faceted shapes rather than orbital asteroid silhouettes', () => {
+    const shapes = new ShapeLibrary();
+    const first = shapes.lunarRock(17, true);
+    const second = shapes.lunarRock(17, true);
+    const orbital = shapes.rock(17, true);
+    const copper = shapes.lunarRock(17, true, true);
+    assert.equal(first.context, second.context);
+    assert.notEqual(first.context, orbital.context);
+    assert.notEqual(first.context, copper.context);
+    first.destroy();
+    second.destroy();
+    orbital.destroy();
+    copper.destroy();
 });

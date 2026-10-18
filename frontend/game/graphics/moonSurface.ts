@@ -5,9 +5,12 @@ import { worldLabel as label } from '../ui/primitives';
 import { rotateVector } from '../systems/flight';
 import type { Point } from '../worlds/sector';
 import { C } from './shapes';
+import { drawLunarTerrain } from './lunarTerrain';
 
 export class MoonSurfaceView extends Container {
     private ground = new Container();
+    private details = new Graphics();
+    private horizon = new Graphics();
     private site = new Graphics();
     private orbitGate = new Container();
     private status: ReturnType<typeof label> | null = null;
@@ -19,8 +22,14 @@ export class MoonSurfaceView extends Container {
         this.visible = enabled;
         this.eventMode = 'none';
         if (!enabled) return;
+        this.label = 'moon-surface';
         this.ground.position.copyFrom(MOON.center);
-        const terrain = new Graphics().rect(-6000, -6000, 12000, 12000).fill(0x3c4267);
+        const overview = new Graphics();
+        drawLunarTerrain(overview, MOON.radius);
+        const terrain = this.details;
+        const terrainMask = new Graphics().circle(0, 0, MOON.radius).fill(0xffffff);
+        this.ground.addChild(terrainMask);
+        this.ground.mask = terrainMask;
         const rng = random(150015);
         for (let i = 0; i < 170; i++) {
             const x = (rng() - 0.5) * (MOON.radius * 2.3),
@@ -28,11 +37,11 @@ export class MoonSurfaceView extends Container {
                 r = 24 + rng() * 140;
             terrain
                 .ellipse(x + 4, y + 9, r, r * 0.82)
-                .fill(0x686e95)
+                .fill(0xd9d8e7)
                 .ellipse(x, y, r, r * 0.82)
-                .fill(0x303655)
+                .fill(0x8588aa)
                 .ellipse(x - r * 0.13, y - r * 0.13, r * 0.65, r * 0.52)
-                .fill(0x454d73);
+                .fill(0x999dbb);
         }
         for (let i = 0; i < 220; i++)
             terrain
@@ -49,7 +58,13 @@ export class MoonSurfaceView extends Container {
             terrain
                 .ellipse(ridgeX + i * 65 - 130, ridgeY + i * 45 - 90, 230, 115)
                 .fill({ color: 0x2b3051, alpha: 0.65 });
-        this.ground.addChild(terrain);
+        this.horizon
+            .moveTo(0, -MOON.radius)
+            .arc(0, 0, MOON.radius, -Math.PI / 2, Math.PI / 2)
+            .lineTo(0, -MOON.radius)
+            .closePath()
+            .fill(0x202b61);
+        this.ground.addChild(overview, terrain, this.horizon);
         const gate = (host: Container, x: number, y: number, title: string) => {
             const g = new Container();
             g.position.set(x, y);
@@ -132,9 +147,12 @@ export class MoonSurfaceView extends Container {
         this.titles.push({ view, anchor, offset });
         return view;
     }
-    update(surface: boolean, stage: number, cameraAngle: number) {
+    update(surface: boolean, stage: number, cameraAngle: number, detail = 1) {
         if (!this.visible) return;
+        this.details.alpha = detail;
+        this.horizon.alpha = (1 - detail) * 0.24;
         for (const title of this.titles) {
+            title.view.visible = detail > 0.35;
             title.view.rotation = -cameraAngle;
             const offset = rotateVector(title.offset, -cameraAngle);
             title.view.position.set(title.anchor.x + offset.x, title.anchor.y + offset.y);

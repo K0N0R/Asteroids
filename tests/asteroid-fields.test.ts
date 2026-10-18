@@ -35,6 +35,22 @@ test('all campaign sectors have irregular moving orbital deposits and stationary
     );
     assert.ok(surface.length > 0);
     assert.ok(surface.every((r) => r.vx === 0 && r.vy === 0));
+    const quarry = surface.filter(
+        (rock) => Math.hypot(rock.x - MOON.quarry.x, rock.y - MOON.quarry.y) < 450,
+    );
+    assert.equal(quarry.length, 24);
+    assert.ok(
+        new Set(
+            quarry.map((rock) =>
+                Math.round(Math.hypot(rock.x - MOON.quarry.x, rock.y - MOON.quarry.y)),
+            ),
+        ).size > 18,
+    );
+    for (const [index, rock] of quarry.entries())
+        for (const other of quarry.slice(index + 1))
+            assert.ok(
+                Math.hypot(rock.x - other.x, rock.y - other.y) > rock.radius + other.radius + 15,
+            );
 });
 test('edge recycling places asteroids outside the opposite edge on a course intersecting the sector', () => {
     const rng = random(815);
