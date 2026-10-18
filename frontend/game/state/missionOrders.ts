@@ -13,14 +13,14 @@ export interface MissionReport {
     finalBossWon?: boolean;
 }
 /** Initial sortie orders cover repeatable flight reports, not station projects or deliveries. */
-export function selectableMission(c: Campaign, id: string) {
+export function selectableMission(c: Campaign, id: string, allowReported = false) {
     const p = c.story,
         task = STORY_TASKS.find((t) => t.id === id);
     return p &&
         task &&
         task.sector === p.sector &&
         ['scan', 'patrol', 'boss', 'rescue', 'factory'].includes(task.kind) &&
-        !p.claimed.includes(task.id) &&
+        (!p.claimed.includes(task.id) || allowReported) &&
         storyTaskAvailable(p, task)
         ? task
         : null;
@@ -28,6 +28,7 @@ export function selectableMission(c: Campaign, id: string) {
 export function missionObjectiveMet(c: Campaign, report: MissionReport) {
     const order = c.activeRun?.mission;
     if (!order || order.aborted) return false;
+    if (c.story && c.story.claimed.includes(order.task)) return true;
     const task = selectableMission(c, order.task);
     if (!task) return false;
     if (task.kind === 'scan' || task.kind === 'rescue' || task.kind === 'factory')
@@ -35,7 +36,8 @@ export function missionObjectiveMet(c: Campaign, report: MissionReport) {
     if (task.kind === 'patrol')
         return (
             Number.isInteger(report.patrolKills) &&
-            (report.patrolKills ?? 0) >= task.target - c.story!.progress[task.id]
+            (report.patrolKills ?? 0) - (c.activeRun?.reportedPatrolKills ?? 0) >=
+                task.target - c.story!.progress[task.id]
         );
     return task.sector === 'pluto'
         ? !!report.finalBossWon
@@ -46,7 +48,9 @@ export function missionOrderStatus(c: Campaign, report: MissionReport) {
     if (!order) return '';
     const name = STORY_TASKS.find((t) => t.id === order.task)?.title ?? 'Misja';
     if (order.aborted) return `Odwrót: ${name} · wróć do Satuk 15 · bez ładunku i raportu`;
+    if (c.story && c.story.claimed.includes(order.task))
+        return `Raport przyjęty: ${name} · możesz kontynuować lub wrócić`;
     return missionObjectiveMet(c, report)
-        ? `Cel wykonany: ${name} · wróć z raportem do Satuk 15`
+        ? `Cel wykonany: ${name} · trwa potwierdzanie raportu`
         : `Misja: ${name} · cel przed dokowaniem · TAB: odwrót`;
 }

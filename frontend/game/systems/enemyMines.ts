@@ -128,6 +128,11 @@ export class EnemyMines {
         this.mines.delete(id);
     }
 
+    removeOwners(owners: ReadonlySet<number>) {
+        for (const mine of [...this.mines.values()])
+            if (owners.has(mine.owner)) this.remove(mine.id);
+        for (const owner of owners) this.cooldowns.delete(owner);
+    }
     clear() {
         for (const id of this.mines.keys()) this.remove(id);
         this.cooldowns.clear();

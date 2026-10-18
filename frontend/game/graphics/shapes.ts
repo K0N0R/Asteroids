@@ -29,17 +29,8 @@ import {
     laserUpgradeLevel,
 } from './shipEquipment';
 
-export const C = {
-    ink: 0x07121e,
-    panel: 0x0b1d2b,
-    line: 0x244758,
-    text: 0xe4f0f4,
-    muted: 0x7d9cac,
-    mint: 0x78e1bc,
-    cyan: 0x69cbe9,
-    gold: 0xf2bd75,
-    red: 0xf07879,
-} as const;
+import { C } from './theme';
+export { C } from './theme';
 
 export { SHIP_COLORS } from './shipHull';
 export class ShipView extends Container {
@@ -85,10 +76,8 @@ export class ShipView extends Container {
                 .fill(S.engine)
                 .roundRect(-8, -8, 19, 16, 3)
                 .fill(HULL_PALETTES[hull].panel)
-                .stroke({ color: HULL_PALETTES[hull].edge, width: 0.9 })
                 .roundRect(3, -6, mount.length - 3, 12, 2)
-                .fill(0x596b70)
-                .stroke({ color: 0xa7b5b2, width: 0.8 });
+                .fill(0x596b70);
             for (const side of [-1, 1]) {
                 launcher.roundRect(8, side * 3 - 1.5, mount.length - 8, 3, 1).fill(0x263942);
                 launcher.roundRect(mount.length - 5, side * 3 - 1, 3, 2, 0.5).fill(0xc1ab7c);
@@ -117,7 +106,6 @@ export class ShipView extends Container {
                     : new Graphics()
                           .circle(0, 0, 7)
                           .fill(S.engine)
-                          .stroke({ color: S.gunInset, width: 1 })
                           .roundRect(-7, -4, weapon.length + 7, 8, 2)
                           .fill(S.gun)
                           .rect(6, -2, 23, 4)
@@ -157,7 +145,6 @@ export class ShipView extends Container {
                     ? new Graphics()
                           .roundRect(-8, -5, laserBarrelLength(laserLevel) + 3, 10, 2)
                           .fill(S.engine)
-                          .stroke({ color: 0xc5d2d7, width: 1 })
                           .roundRect(3, -3, laserBarrelLength(laserLevel) - 5, 6, 1)
                           .fill(0x7b4242)
                           .rect(7, -1, 16, 2)
@@ -183,21 +170,11 @@ export class ShipView extends Container {
                   : HULL_PALETTES[hull].panel;
         for (const emitter of [...this.guns, ...this.lasers]) {
             if (hull === 'mule') continue;
-            emitter.addChild(
-                new Graphics()
-                    .roundRect(-4, -5, 7, 10, 2)
-                    .fill(tint)
-                    .stroke({ color: HULL_PALETTES[hull].edge, width: 0.6 }),
-            );
+            emitter.addChild(new Graphics().roundRect(-4, -5, 7, 10, 2).fill(tint));
         }
         if (hull === 'widmo') {
             for (const side of [-1, 1])
-                this.addChild(
-                    new Graphics()
-                        .roundRect(-9, side * 9 - 2, 19, 4, 2)
-                        .fill(tint)
-                        .stroke({ color: 0x94bccb, width: 0.6 }),
-                );
+                this.addChild(new Graphics().roundRect(-9, side * 9 - 2, 19, 4, 2).fill(tint));
         }
         for (const engine of config.engines)
             this.addChild(engineHousing(engine.x, engine.y, modules.engine));
@@ -337,8 +314,7 @@ export class DroneView extends Container {
                             y = side * 19;
                         body.beginPath()
                             .poly([x - 4, y, x, y - 4, x + 4, y, x, y + 4])
-                            .fill(0x373c43)
-                            .stroke({ color: accent, width: 1 });
+                            .fill(0x373c43);
                     }
             if (kind !== 'support') visor(body, kind === 'heavy' ? 13 : 7, 0, 6, 5);
             this.addChild(body);
@@ -386,7 +362,7 @@ export class DroneView extends Container {
             g.roundRect(1, side * 16 - 1.5, 10, 3, 1).fill(0xb7887e);
             g.circle(-9, side * 18, 1.2).fill(0xc6c6c3);
         }
-        g.roundRect(-18, -9, 26, 18, 5).fill(0x414b55).stroke({ color: edge, width: 0.7 });
+        g.roundRect(-18, -9, 26, 18, 5).fill(0x414b55);
         visor(g, -6, 0, 9, 7);
         g.roundRect(12, -4, 7, 8, 2).fill(0x423e43);
         g.circle(15, 0, 2).fill(0xd39b87);
@@ -398,45 +374,45 @@ export class DroneView extends Container {
 
 export function stationView(level = 0) {
     const view = new Container(),
-        g = new Graphics();
-    // Heavy segmented habitat ring, docking arms and a glazed command hub.
-    g.circle(0, 0, 150).stroke({ color: 0x293944, width: 29 });
-    g.circle(0, 0, 151).stroke({ color: 0x8dabb9, width: 1.5 });
-    g.circle(0, 0, 133).stroke({ color: 0x4a626f, width: 4 });
+        ring = new Graphics();
+    ring.circle(0, 0, 156)
+        .stroke({ color: 0x273458, width: 32 })
+        .circle(0, 0, 149)
+        .stroke({ color: 0xd1d9e7, width: 18 })
+        .circle(0, 0, 132)
+        .stroke({ color: 0x748fb9, width: 5 });
+    view.addChild(ring);
     for (let i = 0; i < 8; i++) {
-        const a = (i * Math.PI) / 4,
-            arm = new Graphics();
-        arm.roundRect(42, -8, 119, 16, 4).fill(0x435765).stroke({ color: 0x8096a1, width: 1 });
-        arm.roundRect(117, -27, 59, 54, 8)
-            .fill(i < 3 + level ? 0x677975 : 0x5e7280)
-            .stroke({ color: 0x9db1b7, width: 1.2 });
-        arm.roundRect(121, -23, 50, 12, 3).fill(0x81969d);
-        arm.roundRect(130, -9, 34, 18, 4).fill(0x293944);
-        arm.rect(135, -5, 23, 2).rect(135, 3, 23, 2).fill(C.cyan);
-        for (const y of [-20, 20]) arm.roundRect(126, y - 2, 36, 4, 1).fill(0xa09176);
-        arm.circle(121, -18, 1.6).circle(171, 18, 1.6).fill(0xd4d9d8);
+        const arm = new Graphics(),
+            a = (i * Math.PI) / 4;
+        arm.roundRect(38, -8, 113, 16, 5)
+            .fill(0x9eafc9)
+            .roundRect(120, -26, 53, 52, 12)
+            .fill(i < 3 + level ? 0xeac297 : 0xa5c3da)
+            .roundRect(129, -15, 34, 30, 7)
+            .fill(0x35456d)
+            .roundRect(134, -10, 8, 20, 3)
+            .fill(C.cyan)
+            .roundRect(149, -10, 8, 20, 3)
+            .fill(C.cyan);
         arm.rotation = a;
         view.addChild(arm);
-        g.beginPath()
-            .arc(0, 0, 150, a + 0.09, a + 0.65)
-            .stroke({ color: 0x758b99, width: 17 });
-        g.beginPath()
-            .arc(0, 0, 151, a + 0.16, a + 0.59)
-            .stroke({ color: C.cyan, width: 2, alpha: 0.7 });
+        ring.beginPath()
+            .arc(0, 0, 149, a + 0.15, a + 0.55)
+            .stroke({ color: i % 2 ? C.coral : C.gold, width: 18 });
     }
-    roundedPanel(g, [0, -65, 56, -32, 56, 32, 0, 65, -56, 32, -56, -32], 8, 0x617784, 0xa2b9c3);
-    g.circle(0, 0, 43).fill(0x364d5a).stroke({ color: 0x96adb5, width: 2 });
-    visor(g, 0, 0, 31, 28);
-    g.circle(0, 0, 12).fill({ color: 0xe1f4ff, alpha: 0.15 });
-    for (const x of [-46, 46])
-        for (const y of [-18, 18]) g.roundRect(x - 3, y - 6, 6, 12, 2).fill(C.mint);
-    g.beginPath()
-        .moveTo(179, -47)
-        .lineTo(256, -47)
-        .moveTo(179, 47)
-        .lineTo(256, 47)
-        .stroke({ color: C.cyan, width: 2, alpha: 0.5 });
-    view.addChild(g);
+    const hub = new Graphics()
+        .circle(0, 0, 62)
+        .fill(0xd2dbe8)
+        .circle(0, 0, 47)
+        .fill(0x536c99)
+        .circle(0, 0, 34)
+        .fill(0x78d4e6)
+        .ellipse(-8, -10, 13, 8)
+        .fill(0xe1f5ed);
+    for (const side of [-1, 1]) hub.roundRect(180, side * 44 - 5, 66, 10, 5).fill(C.cyan);
+    hub.roundRect(194, -33, 36, 66, 9).fill({ color: C.mint, alpha: 0.12 });
+    view.addChild(hub);
     return view;
 }
 
@@ -450,9 +426,9 @@ export function cacheView() {
         0x546873,
         0x9baeb5,
     );
-    g.roundRect(-34, -24, 68, 48, 5).fill(0x7e8e94).stroke({ color: 0x354650, width: 3 });
+    g.roundRect(-34, -24, 68, 48, 5).fill(0x7e8e94);
     for (const x of [-27, 17]) g.roundRect(x, -24, 10, 48, 2).fill(0x3e505b);
-    g.roundRect(-14, -19, 28, 38, 4).fill(0xa69576).stroke({ color: 0xd0c2a3, width: 1 });
+    g.roundRect(-14, -19, 28, 38, 4).fill(0xa69576);
     g.roundRect(-8, -11, 16, 22, 3).fill(0x263e4b);
     g.roundRect(-5, -7, 10, 5, 1).fill(SHIP_COLORS.visor);
     g.circle(0, 7, 2).fill(C.mint);
@@ -464,13 +440,8 @@ export function cacheView() {
 
 export function wreckView() {
     const view = new Container();
-    const g = new Graphics()
-        .poly([-75, -28, -15, -35, 12, -12, -10, 20, -65, 32])
-        .fill(0x51616b)
-        .stroke({ color: C.muted, width: 2 });
-    g.poly([30, -15, 73, -28, 92, 4, 56, 24, 18, 17])
-        .fill(0x667079)
-        .stroke({ color: 0x9a9e9d, width: 1 });
+    const g = new Graphics().poly([-75, -28, -15, -35, 12, -12, -10, 20, -65, 32]).fill(0x51616b);
+    g.poly([30, -15, 73, -28, 92, 4, 56, 24, 18, 17]).fill(0x667079);
     g.rect(-60, -18, 25, 5).rect(-53, 12, 20, 4).fill(C.gold);
     g.circle(0, 0, 135).stroke({ color: 0x9a9e9d, width: 1, alpha: 0.17 });
     for (const y of [-16, 16]) {
@@ -487,16 +458,15 @@ export function surveySiteView(site: ScanSiteId) {
     const view = new Container(),
         g = new Graphics();
     if (site === 'relay') {
-        g.roundRect(-35, -30, 70, 60, 8).fill(0x596f7d).stroke({ color: 0x9eafb7, width: 1.5 });
+        g.roundRect(-35, -30, 70, 60, 14).fill(0x9cacc7);
+        g.roundRect(-53, -4, 106, 8, 4).fill(C.cyan);
         for (const x of [-110, 50]) {
-            g.rect(x, -35, 60, 70).fill(0x314d64).stroke({ color: C.cyan, width: 1 });
-            for (let i = 1; i < 4; i++)
-                g.moveTo(x + i * 15, -35)
-                    .lineTo(x + i * 15, 35)
-                    .stroke({ color: C.line, width: 2 });
+            g.roundRect(x, -35, 60, 70, 12).fill(0x426b96);
+            for (let col = 0; col < 3; col++)
+                for (let row = 0; row < 4; row++)
+                    g.roundRect(x + 6 + col * 17, -29 + row * 15, 14, 12, 4).fill(0x729fc3);
         }
-        g.moveTo(-50, 0).lineTo(50, 0).stroke({ color: C.cyan, width: 3 });
-        g.circle(0, 0, 19).fill(C.ink).stroke({ color: C.mint, width: 2 });
+        g.circle(0, 0, 19).fill(C.ink);
         g.circle(0, 0, 7).fill(C.mint);
         g.moveTo(0, -30).lineTo(0, -65).stroke({ color: C.cyan, width: 3 });
         g.beginPath()
@@ -520,10 +490,8 @@ export function surveySiteView(site: ScanSiteId) {
                 .arc(0, 0, 67, a + 0.1, a + 0.7)
                 .stroke({ color: 0xa89e88, width: 1.5 });
         }
-        g.poly([0, -40, 38, -10, 24, 34, -25, 34, -38, -10])
-            .fill(0x687681)
-            .stroke({ color: 0xa89e88, width: 1.5 });
-        g.circle(0, 0, 24).fill(C.ink).stroke({ color: 0x9eafb7, width: 1.5 });
+        g.poly([0, -40, 38, -10, 24, 34, -25, 34, -38, -10]).fill(0x687681);
+        g.circle(0, 0, 24).fill(C.ink);
         g.poly([0, -16, 16, 0, 0, 16, -16, 0]).fill({ color: C.cyan, alpha: 0.3 });
         g.rect(-4, -6, 8, 12).fill(C.gold);
     }
@@ -531,9 +499,6 @@ export function surveySiteView(site: ScanSiteId) {
     if (site === 'relay') {
         visor(g, 0, 0, 16, 12);
         for (const y of [-21, 21]) g.roundRect(-27, y - 2, 18, 4, 1).fill(0xa1afb4);
-        for (const x of [-103, 57])
-            for (const y of [-27, -9, 9, 27])
-                g.roundRect(x, y - 3, 45, 6, 1).fill({ color: 0x6f96b6, alpha: 0.35 });
     } else {
         visor(g, 0, 0, 20, 20);
         for (let i = 0; i < 6; i++) {
@@ -556,55 +521,42 @@ export class ShapeLibrary {
             const n = 10 + Math.floor(rng() * 7),
                 aspect = 0.74 + rng() * 0.3;
             const palettes = rich
-                ? [0x52483c, 0x5b4d42, 0x484943, 0x645749]
-                : [0x45535d, 0x55555a, 0x4c5954, 0x5c514c, 0x3e505c];
+                ? [0x947c92, 0x997d83, 0x8c829e, 0xa58c91]
+                : [0x737d9d, 0x8087a5, 0x6c8195, 0x8a839d, 0x7085a6];
             const base = palettes[Math.floor(rng() * palettes.length)];
             for (let i = 0; i < n; i++) {
                 const a = (i / n) * Math.PI * 2,
                     r = 0.69 + rng() * 0.29;
                 points.push(Math.cos(a) * r, Math.sin(a) * r * aspect);
             }
-            context = new GraphicsContext()
-                .poly(points)
-                .fill(base)
-                .stroke({ color: rich ? 0x9d8b71 : 0x829097, width: 0.018 });
-            // Facets fan into a displaced centre; no repeated painted-on polygon.
-            const cx = (rng() - 0.5) * 0.3,
-                cy = (rng() - 0.5) * 0.25;
+            context = new GraphicsContext();
             for (let i = 0; i < n; i++) {
-                const next = (i + 1) % n;
-                context
-                    .poly([
-                        cx,
-                        cy,
-                        points[i * 2],
-                        points[i * 2 + 1],
-                        points[next * 2],
-                        points[next * 2 + 1],
-                    ])
-                    .fill({ color: i < n / 2 ? 0xc7c3b8 : 0x16212a, alpha: 0.05 + rng() * 0.14 });
+                const before = (i + n - 1) % n,
+                    after = (i + 1) % n;
+                const x = points[i * 2],
+                    y = points[i * 2 + 1];
+                const startX = x + (points[before * 2] - x) * 0.25;
+                const startY = y + (points[before * 2 + 1] - y) * 0.25;
+                if (i === 0) context.moveTo(startX, startY);
+                else context.lineTo(startX, startY);
+                context.quadraticCurveTo(
+                    x,
+                    y,
+                    x + (points[after * 2] - x) * 0.25,
+                    y + (points[after * 2 + 1] - y) * 0.25,
+                );
             }
-            for (let i = 0; i < 3 + Math.floor(rng() * 5); i++) {
-                const angle = rng() * Math.PI * 2,
-                    reach = rng() * 0.42,
-                    x = Math.cos(angle) * reach,
-                    y = Math.sin(angle) * reach * aspect,
-                    r = 0.035 + rng() * 0.13;
-                context.ellipse(x, y, r, r * 0.7).fill({ color: 0x18242c, alpha: 0.38 });
-                context
-                    .beginPath()
-                    .arc(x, y, r, 0.1, 2.7)
-                    .stroke({ color: 0xb4b8b1, width: 0.012, alpha: 0.23 });
-            }
-            for (let i = 0; i < 2; i++) {
+            context.closePath().fill(base);
+            // Broad flat craters keep small rocks legible without a fan of fine facets.
+            for (let i = 0; i < 3; i++) {
                 const x = (rng() - 0.5) * 0.8,
-                    y = (rng() - 0.5) * 0.8;
+                    y = (rng() - 0.5) * 0.7;
+                const r = 0.07 + rng() * 0.1;
                 context
-                    .beginPath()
-                    .moveTo(x, y)
-                    .lineTo(x + 0.13, y - 0.13)
-                    .lineTo(x + 0.22, y - 0.1)
-                    .stroke({ color: 0x1e2a31, width: 0.018, alpha: 0.75 });
+                    .ellipse(x + 0.02, y + 0.025, r, r * 0.75)
+                    .fill({ color: 0xc2c7d9, alpha: 0.4 })
+                    .ellipse(x, y, r, r * 0.75)
+                    .fill({ color: 0x414d74, alpha: 0.65 });
             }
             if (rich)
                 for (let i = 0; i < 3; i++) {
@@ -612,8 +564,7 @@ export class ShapeLibrary {
                         y = (rng() - 0.5) * 0.75;
                     context
                         .poly([x, y - 0.08, x + 0.13, y, x + 0.06, y + 0.1, x - 0.06, y + 0.03])
-                        .fill(0xb9a17c)
-                        .stroke({ color: 0xe0c398, width: 0.01 });
+                        .fill(C.gold);
                 }
             if (crystal)
                 for (const [x, y] of [
@@ -623,8 +574,7 @@ export class ShapeLibrary {
                 ])
                     context
                         .poly([x, y - 0.16, x + 0.08, y, x, y + 0.1, x - 0.07, y])
-                        .fill(0xb69ade)
-                        .stroke({ color: 0xe5d6ff, width: 0.014 });
+                        .fill(0xb9a5ef);
             this.rocks.set(key, context);
         }
         return new Graphics(context);

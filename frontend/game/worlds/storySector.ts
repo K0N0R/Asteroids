@@ -1,3 +1,6 @@
+import { segmentDistance } from '../systems/hyperdrive';
+import { driftingField } from './asteroidFields';
+import { MERCURY_VEINS } from './mercuryVeins';
 import { generateSector, random, type RockSpec, type EnemySpec } from './sector';
 import {
     storyRadius,
@@ -43,7 +46,8 @@ export function generateStorySector(progress: StoryProgress) {
         sector = generateSector(def.seed);
     const earth = progress.sector === 'earth',
         radius = storyRadius(progress),
-        rng = random(def.seed ^ 0x5815);
+        rng = random(def.seed ^ 0x5815),
+        fieldRng = random(def.seed ^ 0x7010);
     sector.enemies = [];
     sector.caches = [];
     sector.researchSite = { x: 20000, y: 0, name: 'Poza obszarem wyprawy' };
@@ -137,8 +141,14 @@ export function generateStorySector(progress: StoryProgress) {
         const angle = rng() * Math.PI * 2,
             distance = 880 + rng() * (radius - 1050);
         return {
-            x: i < 9 ? 1040 + (i % 3) * 100 : Math.cos(angle) * distance,
-            y: i < 9 ? (Math.floor(i / 3) - 1) * 140 : Math.sin(angle) * distance,
+            x:
+                i < 9
+                    ? 1040 + (i % 3) * 100 + (earth ? (fieldRng() - 0.5) * 45 : 0)
+                    : Math.cos(angle) * distance,
+            y:
+                i < 9
+                    ? (Math.floor(i / 3) - 1) * 140 + (earth ? (fieldRng() - 0.5) * 50 : 0)
+                    : Math.sin(angle) * distance,
             radius: i < 9 ? 28 : 25 + rng() * 25,
             rich: i % 3 === 0,
             crystal: i > 12 && i % 11 === 0,
@@ -370,6 +380,18 @@ export function generateStorySector(progress: StoryProgress) {
                       },
                   ]
                 : []),
+            ...(expanded
+                ? [
+                      {
+                          x: MERCURY_VEINS.x,
+                          y: MERCURY_VEINS.y,
+                          name: 'Spiek merkuriański · tylko Harpun',
+                          key: 6,
+                          kind: 'field' as const,
+                          radius: MERCURY_VEINS.radius,
+                      },
+                  ]
+                : []),
             ...(progress.claimed.includes('mercury-patrol')
                 ? [
                       {
@@ -398,7 +420,7 @@ export function generateStorySector(progress: StoryProgress) {
               }))
             : [];
         sector.rocks = sector.rocks.filter((r) =>
-            [...MERCURY_SHELTERS, ...contacts].every(
+            [...MERCURY_SHELTERS, ...contacts, MERCURY_VEINS].every(
                 (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 420,
             ),
         );
@@ -412,6 +434,30 @@ export function generateStorySector(progress: StoryProgress) {
                 vx: 0,
                 vy: 0,
             });
+        if (expanded)
+            sector.rocks.push({
+                x: MERCURY_VEINS.x + 250,
+                y: MERCURY_VEINS.y,
+                radius: 110,
+                anchored: true,
+                rich: false,
+                variant: 45,
+                vx: 0,
+                vy: 0,
+            });
+        if (expanded)
+            MERCURY_VEINS.nodes.forEach((point, index) =>
+                sector.rocks.push({
+                    ...point,
+                    radius: 26,
+                    anchored: true,
+                    mercuryVein: true,
+                    rich: false,
+                    variant: 90 + index,
+                    vx: 0,
+                    vy: 0,
+                }),
+            );
     }
     if (progress.sector === 'belt') {
         const surveyed = progress.claimed.includes('belt-survey');
@@ -861,6 +907,31 @@ export function generateStorySector(progress: StoryProgress) {
         );
         const field = sector.landmarks.find((l) => l.key === 2);
         if (field) field.name = 'Złoże Fe / Cu';
+    }
+    if (earth && progress.claimed.includes('earth-workshop')) {
+        sector.hyperlanes = [
+            { name: 'Zewnętrzne złoża', a: { x: 0, y: -500 }, b: { x: 0, y: -4100 } },
+            { name: 'Węzeł dalszej orbity', a: { x: -400, y: 0 }, b: { x: -1450, y: 550 } },
+        ];
+        sector.regions = [
+            { x: 0, y: 0, name: 'Satuk 15 / bliska orbita', radius: 1400 },
+            { x: -1750, y: 700, name: 'Węzeł łączności', radius: 600 },
+            { x: 0, y: -4500, name: 'Zewnętrzne złoża', radius: 600 },
+        ];
+        sector.rocks = sector.rocks.filter((r) =>
+            sector.hyperlanes.every((l) => segmentDistance(r, l.a, l.b) > r.radius + 150),
+        );
+        sector.landmarks.push({
+            x: 0,
+            y: -4500,
+            name: 'Dryfujące złoża Fe / Cu',
+            key: 5,
+            kind: 'field',
+            radius: 450,
+        });
+        sector.rocks.push(
+            ...driftingField(def.seed ^ 0x7070, { x: 0, y: -4500 }, sector.hyperlanes),
+        );
     }
     return sector;
 }

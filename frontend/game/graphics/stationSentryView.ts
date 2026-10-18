@@ -10,7 +10,6 @@ export class StationSentryView extends Container {
             new Graphics()
                 .poly([-17, -8, -8, -18, 6, -13, 18, -5, 18, 5, 6, 13, -8, 18, -17, 8])
                 .fill(0x526568)
-                .stroke({ color: 0xb3c7c4, width: 2 })
                 .beginPath()
                 .poly([-10, -9, 5, -7, 13, 0, 5, 7, -10, 9])
                 .fill(0x8ca39b)
@@ -23,8 +22,7 @@ export class StationSentryView extends Container {
                 .fill(0xc6f5e2)
                 .beginPath()
                 .rect(13, -3, 14, 6)
-                .fill(0xd5dddd)
-                .stroke({ color: 0x526568, width: 1 }),
+                .fill(0xd5dddd),
         );
     }
 }

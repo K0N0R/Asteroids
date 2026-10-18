@@ -1,3 +1,4 @@
+import { kineticInstallationLock, REINFORCED_BAY_COST } from '../state/kineticIndustry';
 import type { Container } from 'pixi.js';
 import { JOBS, CREW, type JobKind } from '../config';
 import { storageCapacity, storageUsed, type Campaign } from '../state/campaign';
@@ -15,34 +16,103 @@ export function industryOverview(
         cancelJob: (id: number) => void;
         hireMechanic: () => void;
         installCargoBay?: () => void;
+        installReinforcedBay?: () => void;
+        toggleIndustry?: () => void;
+        openNavigation?: () => void;
+        refuelHyperdrive?: () => void;
     },
+    page: 'basic' | 'kinetic' | 'navigation' = 'basic',
 ) {
+    const advanced = page === 'kinetic',
+        navigation = page === 'navigation';
     button(ui, '← MODUŁY STACJI', 280, 218, 225, actions.back, false, true, 34, 14);
-    RESOURCE_IDS.forEach((id, i) => {
-        const x = 280 + (i % 2) * 370,
-            y = 280 + Math.floor(i / 2) * 54;
+    button(
+        ui,
+        'PALIWO',
+        520,
+        218,
+        120,
+        () => actions.openNavigation?.(),
+        navigation,
+        !!actions.openNavigation,
+        34,
+        14,
+    );
+    const advancedIds = ['mercuryOre', 'kineticPlates', 'kineticModules'];
+    const visible = RESOURCE_IDS.filter((id) =>
+        navigation
+            ? ['hyperFuel', 'ore', 'parts'].includes(id)
+            : advanced
+              ? advancedIds.includes(id) ||
+                ['powerModules', 'storageFrames', 'ore', 'parts'].includes(id)
+              : !advancedIds.includes(id) && id !== 'hyperFuel',
+    );
+    visible.forEach((id, i) => {
+        const x = 280 + (i % 3) * 245,
+            y = 280 + Math.floor(i / 3) * 54;
         label(ui, RESOURCES[id].category, x, y, 10, C.muted);
         label(
             ui,
             `${RESOURCES[id].name}: ${c.bank[id] ?? 0}`,
             x,
             y + 16,
-            17,
+            15,
             RESOURCES[id].color,
-            350,
+            230,
         );
     });
-    (['smeltCopper', 'powerModule', 'storageFrame'] as const).forEach((kind, i) => {
+    button(
+        ui,
+        navigation
+            ? '← PRODUKCJA PODSTAWOWA'
+            : advanced
+              ? 'NAWIGACJA I PALIWO →'
+              : 'PRZEMYSŁ KINETYCZNY →',
+        280,
+        468,
+        380,
+        () => actions.toggleIndustry?.(),
+        advanced,
+        !!actions.toggleIndustry,
+        34,
+        14,
+    );
+    label(
+        ui,
+        navigation
+            ? 'Ogniwa → tankowanie wybranego statku'
+            : advanced
+              ? 'Warsztat II · wymagany zwiad Merkurego'
+              : 'Miedź, zasilanie i konstrukcje magazynowe',
+        680,
+        476,
+        13,
+        C.muted,
+        330,
+    );
+    const recipes: JobKind[] = navigation
+        ? ['hyperFuel']
+        : advanced
+          ? ['kineticPlate', 'kineticModule']
+          : ['smeltCopper', 'powerModule', 'storageFrame'];
+    recipes.forEach((kind, i) => {
         const x = 280 + i * 240,
             y = 520,
             recipe = JOBS[kind];
         panel(ui, x, y, 225, 215);
-        label(ui, RESOURCES[recipe.output].category, x + 15, y + 14, 11, C.mint);
+        label(
+            ui,
+            recipe.output === 'kit' ? 'ZESTAWY' : RESOURCES[recipe.output].category,
+            x + 15,
+            y + 14,
+            11,
+            C.mint,
+        );
         label(ui, recipe.title, x + 15, y + 38, 20, C.text, 195);
         label(ui, `Wejście: ${resourceSummary(jobInputs(kind))}`, x + 15, y + 96, 14, C.muted, 195);
         label(
             ui,
-            `Wyjście: ${recipe.amount} ${RESOURCES[recipe.output].short} · ${recipe.seconds} s`,
+            `Wyjście: ${recipe.amount} ${recipe.output === 'kit' ? 'ZN' : RESOURCES[recipe.output].short} · ${recipe.seconds} s`,
             x + 15,
             y + 139,
             14,
@@ -72,11 +142,24 @@ export function industryOverview(
         720,
     );
     label(ui, 'LOGISTYKA / SATUK 15', 1072, 244, 13, C.mint);
-    label(ui, 'Magazyn i produkcja', 1072, 276, 27, C.text);
-    label(ui, `Zajęte: ${storageUsed(c)} / ${storageCapacity(c)}`, 1072, 325, 19, C.cyan);
+    label(ui, navigation ? 'Paliwo hipernapędu' : 'Magazyn i produkcja', 1072, 276, 27, C.text);
     label(
         ui,
-        `Segmenty: ${c.station.cargoBays ?? 0} / 3 · każdy +200 miejsca`,
+        navigation
+            ? `Zbiornik: ${c.ship?.hyperFuel ?? 0}/3 · zapas ${c.bank.hyperFuel ?? 0} OH`
+            : `Zajęte: ${storageUsed(c)} / ${storageCapacity(c)}`,
+        1072,
+        325,
+        19,
+        C.cyan,
+    );
+    label(
+        ui,
+        navigation
+            ? 'Jedno ogniwo na skok · zwykły lot nie wymaga paliwa.'
+            : advanced
+              ? `Wzmocnione segmenty: ${c.station.reinforcedBays} / 2 · +400`
+              : `Segmenty: ${c.station.cargoBays ?? 0} / 3 · każdy +200 miejsca`,
         1072,
         362,
         17,
@@ -84,7 +167,11 @@ export function industryOverview(
     );
     label(
         ui,
-        'Montaż: 1 SM + 20 Fe + 2 K. Wymaga warsztatu I i mechanika. Segment zużywany jest przy instalacji.',
+        navigation
+            ? 'Spacja ładuje skok; ponowna spacja anuluje ładowanie. K wskazuje śluzę. Kolizja podczas przelotu niszczy statek.'
+            : advanced
+              ? `Montaż: ${resourceSummary(REINFORCED_BAY_COST)}. Warsztat II, mechanik i zwiad Merkurego.`
+              : 'Montaż: 1 SM + 20 Fe + 2 K. Wymaga warsztatu I i mechanika. Segment zużywany jest przy instalacji.',
         1072,
         399,
         15,
@@ -93,20 +180,37 @@ export function industryOverview(
     );
     button(
         ui,
-        'ZAMONTUJ SEGMENT MAGAZYNOWY',
+        navigation
+            ? 'ZATANKUJ WYBRANY STATEK'
+            : advanced
+              ? 'ZAMONTUJ WZMOCNIONY SEGMENT'
+              : 'ZAMONTUJ SEGMENT MAGAZYNOWY',
         1072,
         465,
         456,
-        () => actions.installCargoBay?.(),
+        () =>
+            navigation
+                ? actions.refuelHyperdrive?.()
+                : advanced
+                  ? actions.installReinforcedBay?.()
+                  : actions.installCargoBay?.(),
         true,
-        !!actions.installCargoBay &&
-            !c.activeRun &&
-            c.station.workshop >= 1 &&
-            c.crew.mechanic &&
-            (c.station.cargoBays ?? 0) < 3 &&
-            (c.bank.storageFrames ?? 0) >= 1 &&
-            c.bank.ore >= 20 &&
-            c.bank.parts >= 2,
+        navigation
+            ? !!actions.refuelHyperdrive &&
+                  !c.activeRun &&
+                  !!c.ship &&
+                  c.ship.hyperFuel < 3 &&
+                  (c.bank.hyperFuel ?? 0) > 0
+            : advanced
+              ? !!actions.installReinforcedBay && !kineticInstallationLock(c, 'storage')
+              : !!actions.installCargoBay &&
+                !c.activeRun &&
+                c.station.workshop >= 1 &&
+                c.crew.mechanic &&
+                (c.station.cargoBays ?? 0) < 3 &&
+                (c.bank.storageFrames ?? 0) >= 1 &&
+                c.bank.ore >= 20 &&
+                c.bank.parts >= 2,
         42,
         14,
     );
@@ -141,7 +245,12 @@ export function industryOverview(
     });
     label(
         ui,
-        'Cu: miedziane żyły w bogatych asteroidach. Rudy trafiają do magazynu dopiero po bezpiecznym powrocie.',
+        navigation
+            ? 'Tankowanie nie odbywa się automatycznie. Produkcja ogniw korzysta z kolejki mechanika.'
+            : advanced
+              ? (kineticInstallationLock(c, 'storage') ??
+                'Spiek: Merkury, cel 6. Wyrwij Harpunem i dowieź do Satuk 15.')
+              : 'Cu: miedziane żyły w bogatych asteroidach. Rudy trafiają do magazynu dopiero po bezpiecznym powrocie.',
         1072,
         760,
         13,

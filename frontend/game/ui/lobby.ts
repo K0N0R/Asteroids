@@ -2,7 +2,6 @@ import { stationShieldOverview, stationDronesOverview } from './stationShield';
 import { industryOverview } from './industry';
 import { resourceTotal, resourceSummary } from '../state/resources';
 import { hullUnlockReason } from '../state/fleetUnlocks';
-import { selectableMission } from '../state/missionOrders';
 import { latestDialogue } from '../state/dialogues';
 import { storyOverview } from './storyOverview';
 import {
@@ -104,7 +103,10 @@ export interface LobbyActions {
     scrapShip: (id: number) => void;
     rescue: () => void;
     installCargoBay?: () => void;
+    refuelHyperdrive?: () => void;
     installStationShield?: () => void;
+    installKineticShield?: () => void;
+    installReinforcedBay?: () => void;
     installStationDrones?: () => void;
     hireMechanic: () => void;
     hireQuartermaster: () => void;
@@ -123,7 +125,6 @@ const NAV: { tab: LobbyTab; title: string; icon: Parameters<typeof lobbyIcon>[0]
 export class LobbyView extends Container {
     private content = new Container();
     private visual = new Container();
-    private missionTask: string | null = null;
     private tab: LobbyTab = 'overview';
     private time = 0;
     private message = '';
@@ -141,6 +142,7 @@ export class LobbyView extends Container {
     private chosenPilotId: number | null = null;
     private recruit = 0;
     private stationPart: 'workshop' | 'storage' = 'workshop';
+    private industryPage: 'basic' | 'kinetic' | 'navigation' = 'basic';
     private recipe: JobKind = 'refine';
     private crewRole: CrewRole = 'mechanic';
     private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield' = 'engine';
@@ -157,7 +159,6 @@ export class LobbyView extends Container {
         this.refresh();
     }
     resetProfile() {
-        this.missionTask = null;
         this.tab = 'overview';
         this.storyPage = 0;
         this.storyPageSector = null;
@@ -183,8 +184,6 @@ export class LobbyView extends Container {
             this.message = message;
             this.messageUntil = this.time + 6;
         }
-        if (this.missionTask && !selectableMission(this.campaign, this.missionTask))
-            this.missionTask = null;
         clear(this.content);
         clear(this.visual);
         this.visual.y = 0;
@@ -199,7 +198,7 @@ export class LobbyView extends Container {
         ui.addChild(
             new Graphics()
                 .rect(0, 0, 235, 900)
-                .fill({ color: C.ink, alpha: 0.9 })
+                .fill({ color: C.ink, alpha: 0.98 })
                 .moveTo(235, 30)
                 .lineTo(235, 870)
                 .stroke({ color: C.line, width: 1 }),
@@ -208,6 +207,13 @@ export class LobbyView extends Container {
         logo.position.set(50, 56);
         ui.addChild(logo);
         label(ui, c.story ? 'SATUK 15' : 'AURORA', 75, 43, 23, C.text);
+        ui.addChild(
+            new Graphics()
+                .roundRect(31, 128, 64, 5, 2.5)
+                .fill(C.mint)
+                .roundRect(105, 128, 27, 5, 2.5)
+                .fill(C.coral),
+        );
         label(ui, 'DOM POŚRÓD GWIAZD', 31, 91, 11, C.muted);
         NAV.forEach(({ tab, title, icon }, i) => {
             const card = choiceCard(ui, 25, 184 + i * 65, 185, 51, this.tab === tab, () =>
@@ -255,7 +261,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.65', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.79', 30, 851, 11, C.muted);
         const industrial = resourceSummary({
             copperOre: c.bank.copperOre,
             conductors: c.bank.conductors,
@@ -274,7 +280,28 @@ export class LobbyView extends Container {
         if (this.tab === 'station') this.station(ui);
         if (this.tab === 'industry') {
             this.section('Przemysł Satuk 15', 'Rudy → komponenty → moduły → konstrukcje.');
-            industryOverview(ui, c, { ...this.actions, back: () => this.go('station') });
+            industryOverview(
+                ui,
+                c,
+                {
+                    ...this.actions,
+                    back: () => this.go('station'),
+                    openNavigation: () => {
+                        this.industryPage = 'navigation';
+                        this.refresh();
+                    },
+                    toggleIndustry: () => {
+                        this.industryPage =
+                            this.industryPage === 'basic'
+                                ? 'kinetic'
+                                : this.industryPage === 'kinetic'
+                                  ? 'navigation'
+                                  : 'basic';
+                        this.refresh();
+                    },
+                },
+                this.industryPage,
+            );
             button(
                 ui,
                 'OCHRONA SATUK 15 →',
@@ -296,6 +323,7 @@ export class LobbyView extends Container {
                 () => this.go('industry'),
                 this.actions.installStationShield,
                 () => this.go('stationDrones'),
+                this.actions.installKineticShield,
             );
         }
         if (this.tab === 'stationDrones') {
@@ -321,42 +349,21 @@ export class LobbyView extends Container {
         );
         if (this.scrapCandidate !== null) this.scrapConfirmation(ui);
     }
-    private departure(ui: Container, recoveryId: number | null = null) {
+    private departure(ui: Container) {
         const c = this.campaign,
-            ready = !!c.ship && !!selectedPilot(c),
-            wrongSector = !!(
-                c.story &&
-                recoveryId !== null &&
-                c.recoverySignals.find((s) => s.id === recoveryId)?.seed !==
-                    STORY_SECTORS[c.story.sector].seed
-            );
+            ready = !!c.ship && !!selectedPilot(c);
         button(
             ui,
-            wrongSector
-                ? 'WRÓĆ DO SEKTORA SYGNAŁU'
-                : ready
-                  ? recoveryId === null
-                      ? this.missionTask
-                          ? 'WYRUSZ NA MISJĘ →'
-                          : 'SWOBODNY LOT →'
-                      : 'WYRUSZ NA RATUNEK →'
-                  : !c.ship
-                    ? 'PRZYGOTUJ STATEK →'
-                    : 'ZATRUDNIJ PILOTA →',
+            ready ? 'WYLOT DO SEKTORA →' : !c.ship ? 'PRZYGOTUJ STATEK →' : 'ZATRUDNIJ PILOTA →',
             1072,
             719,
             456,
             () => {
-                if (ready)
-                    this.actions.launch(
-                        recoveryId,
-                        false,
-                        recoveryId === null ? this.missionTask : null,
-                    );
+                if (ready) this.actions.launch(null, false, null);
                 else this.go(!c.ship ? 'hangar' : 'pilots');
             },
             true,
-            !c.activeRun && !wrongSector,
+            !c.activeRun,
             52,
         );
         if (
@@ -376,7 +383,7 @@ export class LobbyView extends Container {
                 27,
             );
         const manifest = constructionManifest(c);
-        if (ready && recoveryId === null && !this.missionTask && manifest.ore + manifest.parts > 0)
+        if (ready && manifest.ore + manifest.parts > 0)
             button(
                 ui,
                 `WYLOT Z DOSTAWĄ · ${manifest.ore} R / ${manifest.parts} K`,
@@ -445,11 +452,6 @@ export class LobbyView extends Container {
                                           : 'Akt I · Pierwsze sygnały. Wybierz sektor i przygotuj wyprawę.',
             );
             storyOverview(ui, this.campaign, {
-                missionTask: this.missionTask,
-                selectMission: (id) => {
-                    this.missionTask = id;
-                    this.refresh();
-                },
                 contribute: this.actions.contribute,
                 briefing: this.actions.briefing,
                 travel: this.actions.travel,
@@ -806,6 +808,7 @@ export class LobbyView extends Container {
                 {
                     ...modules,
                     id: ship?.id ?? 0,
+                    hyperFuel: ship?.hyperFuel ?? 3,
                     weapon: modules.weapon ?? 'standard',
                     weapons: ship?.weapons ?? ['standard'],
                 },
@@ -1627,7 +1630,7 @@ export class LobbyView extends Container {
             signal = c.recoverySignals.find((entry) => entry.id === this.recoveryId);
         this.section(
             'Sygnał wciąż dociera.',
-            'Wybierz kapsułę lub wrak i zaplanuj akcję ratunkową.',
+            'Położenie wraków i kapsuł. Możesz je odzyskać podczas zwykłego lotu.',
         );
         this.art(
             signalScene(c.recoverySignals, this.recoveryId, (id) => {
@@ -1695,7 +1698,7 @@ export class LobbyView extends Container {
             );
             return;
         }
-        label(ui, 'AKCJA RATUNKOWA', 1072, 244, 13, C.muted);
+        label(ui, 'POŁOŻENIE SYGNAŁU', 1072, 244, 13, C.muted);
         label(ui, `Sygnał #${signal.id}`, 1072, 276, 31);
         label(
             ui,
@@ -1739,10 +1742,18 @@ export class LobbyView extends Container {
             signal.ship ? C.text : C.muted,
         );
         label(ui, '6 · cel    E · podjęcie    1 · powrót', 1072, 616, 16, C.muted);
-        label(ui, 'Nieudana akcja traci ten cel.', 1072, 656, 15, C.gold);
+        label(
+            ui,
+            `Pozycja: ${Math.round(signal.x)}, ${Math.round(signal.y)} · sygnał pozostaje w sektorze`,
+            1072,
+            656,
+            15,
+            C.muted,
+            456,
+        );
         if (signal.ship && ownedShips(c).length >= FLEET_LIMIT)
             label(ui, 'Pełny hangar: wrak da materiały.', 1072, 684, 14, C.muted);
-        this.departure(ui, signal.id);
+        button(ui, 'WRÓĆ DO DOWODZENIA', 1072, 719, 456, () => this.go('overview'), true, true, 52);
     }
     private scrapConfirmation(ui: Container) {
         const ship = this.campaign.reserveShips.find((entry) => entry.id === this.scrapCandidate);

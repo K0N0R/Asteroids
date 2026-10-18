@@ -69,17 +69,22 @@ test('Stinger renders two forward-facing guns beneath each wing, with no nose gu
         view.destroy({ children: true });
     }
 });
-test('Widmo wings have segmented shaded panels with restrained accents', () => {
+test('Widmo wings keep filled segmented panels without decorative panel outlines', () => {
     const hull = shipHull('widmo', newCampaign().ship!);
     try {
         const strokes = hull.context.instructions.filter(
             (instruction) => instruction.action === 'stroke',
         );
-        assert.ok(strokes.length > 0);
+        const fills = hull.context.instructions.filter(
+            (instruction) => instruction.action === 'fill',
+        );
+        assert.ok(
+            fills.filter((fill) => fill.data.style.color === HULL_PALETTES.widmo.panel).length >= 2,
+        );
         assert.equal(
             strokes.filter((stroke) => stroke.data.style.color === HULL_PALETTES.widmo.panel)
                 .length,
-            2,
+            0,
         );
         for (const instruction of hull.context.instructions)
             if (instruction.action === 'fill' || instruction.action === 'stroke')

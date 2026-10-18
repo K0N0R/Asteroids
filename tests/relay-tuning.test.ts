@@ -42,7 +42,7 @@ test('phase tuning has deterministic unsolved channels, cyclic adjustment, faile
     assert.equal(t.act({ confirm: true }), true);
 });
 
-test('holding E cannot complete relay; correct tuning supplies data only for the flight until safe return', () => {
+test('holding E cannot complete relay; correct tuning supplies data for automatic radio confirmation', () => {
     const { c, s } = atRelay();
     try {
         for (let i = 0; i < 240; i++) s.step({ ...idle, interact: true });

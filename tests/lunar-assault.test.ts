@@ -64,7 +64,14 @@ function steer(s: MissionSimulation, target: { x: number; y: number }, radius: n
 }
 function win(s: MissionSimulation) {
     for (let f = 0; f < 60 * 240 && s.lunarAssault.active && !s.ended; f++) {
-        const enemy = [...s.enemies.enemies.values()][0];
+        const enemy = [...s.enemies.enemies.values()].sort((a, b) => {
+            const ap = enemyPosition(a),
+                bp = enemyPosition(b);
+            return (
+                Math.hypot(ap.x - MOON.construction.x, ap.y - MOON.construction.y) -
+                Math.hypot(bp.x - MOON.construction.x, bp.y - MOON.construction.y)
+            );
+        })[0];
         if (enemy) s.step({ ...steer(s, enemyPosition(enemy), 240), fire: true, mine: true });
         else if (s.hull < s.maxHull && s.repairKits) s.step({ ...idle, repair: true });
         else s.step(steer(s, MOON.construction, 200));
@@ -78,7 +85,7 @@ function win(s: MissionSimulation) {
     );
 }
 
-test('the starter ship can repel real AI waves; only docking with the report completes Act I and rewards once', () => {
+test('the starter ship can repel real AI waves; radio confirmation completes Act I and rewards once', () => {
     const c = ready();
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -86,15 +93,11 @@ test('the starter ship can repel real AI waves; only docking with the report com
         enter(s);
         start(s);
         win(s);
-        assert.equal(s.enemyKills, 3);
+        assert.equal(s.enemyKills, s.lunarAssault.totalEnemies);
         assert.ok(s.lunarAssault.health > 0);
-        assert.equal(c.story!.progress['lunar-attack'], 0);
-        assert.equal(actOneComplete(c.story!), false);
-        assert.ok(
-            storyObjectives(c, [], true)
-                .find((t) => t.id === 'lunar-attack')!
-                .progress.includes('raportem'),
-        );
+        assert.equal(c.story!.progress['lunar-attack'], 1);
+        assert.equal(actOneComplete(c.story!), true);
+        assert.ok(storyObjectives(c, [], true).find((t) => t.id === 'lunar-attack')!.complete);
         assert.equal(s.loot.size, 0);
         assert.equal(s.salvage.items.size, 0);
         // Normal flight from the surface, through its exit, to the Satuk 15 dock.
@@ -180,7 +183,7 @@ test('leaving the surface interrupts the attack and clears its projectiles and a
     }
 });
 
-test('refresh after winning but before docking loses the report and cannot close the act', () => {
+test('refresh after radio confirmation preserves Act I and its reward before docking', () => {
     const c = ready();
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -190,8 +193,8 @@ test('refresh after winning but before docking loses the report and cannot close
         win(s);
         const restored = parseCampaign(JSON.stringify(c))!;
         finishRun(restored, false, { ore: 0, parts: 0 }, 10, 'refresh', 0, { assaultWon: true });
-        assert.equal(actOneComplete(restored.story!), false);
-        assert.deepEqual(restored.bank, { ore: 0, parts: 0 });
+        assert.equal(actOneComplete(restored.story!), true);
+        assert.deepEqual(restored.bank, { ore: 40, parts: 8 });
     } finally {
         s.dispose();
     }

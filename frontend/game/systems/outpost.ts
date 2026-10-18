@@ -1,14 +1,13 @@
 import { OUTPOST } from '../config';
 import type { OutpostSpec, Point } from '../worlds/sector';
 
-/** Security and download timers use simulation time, including the existing pause rules. */
+/** Scanner and alarm timers use simulation time, including the existing pause rules. */
 export class OutpostSecurity {
-    sabotageProgress = 0;
+    trace = 0;
     disabledTime = 0;
     sabotaged = false;
     detection = 0;
     alarm = 0;
-    download = 0;
     secured = false;
     equipmentProgress = 0;
     equipmentSecured = false;
@@ -16,14 +15,18 @@ export class OutpostSecurity {
     reinforcementsCalled = false;
     constructor(readonly spec: OutpostSpec) {}
 
+    raiseAlarm() {
+        this.alarm = OUTPOST.alarmSeconds;
+        const callGuards = !this.reinforcementsCalled;
+        this.reinforcementsCalled = true;
+        return callGuards;
+    }
     disable() {
         if (this.sabotaged) return false;
         this.sabotaged = true;
-        this.sabotageProgress = 0;
         this.disabledTime = OUTPOST.disabledSeconds;
         this.detection = 0;
         this.alarm = 0;
-        this.download = 0;
         return true;
     }
     scannerAngle(elapsed: number) {
@@ -41,11 +44,10 @@ export class OutpostSecurity {
             Math.abs(error) < OUTPOST.scanHalfAngle
         );
     }
-    update(dt: number, exposed: boolean, canDownload: boolean) {
+    update(dt: number, exposed: boolean) {
         this.disabledTime = Math.max(0, this.disabledTime - dt);
         if (this.disabledTime > 0) {
             exposed = false;
-            this.alarm = 0;
             this.detection = 0;
         }
         this.alarm = Math.max(0, this.alarm - dt);
@@ -54,21 +56,8 @@ export class OutpostSecurity {
             : Math.max(0, this.detection - dt * 2);
         let callGuards = false;
         if (this.detection + 1e-8 >= OUTPOST.detectSeconds) {
-            this.alarm = OUTPOST.alarmSeconds;
-            if (!this.reinforcementsCalled) {
-                this.reinforcementsCalled = true;
-                callGuards = true;
-            }
+            callGuards = this.raiseAlarm();
         }
-        // A scan is a warning first. A completed alarm locks the terminal until it expires.
-        if (!canDownload || this.alarm > 0 || this.secured) this.download = 0;
-        else this.download += dt;
-        let completed = false;
-        if (!this.secured && this.download + 1e-8 >= OUTPOST.downloadSeconds) {
-            this.secured = true;
-            this.download = 0;
-            completed = true;
-        }
-        return { callGuards, completed };
+        return { callGuards };
     }
 }

@@ -1,3 +1,4 @@
+import { solveTerminal } from './terminal-test-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -288,7 +289,7 @@ test('final encounter has a telegraphed five-shot third phase and failure resets
         s.dispose();
     }
 });
-test('final victory needs docking, survives as a persistent completion only after return, and pays boss XP once', () => {
+test('final victory is radio-confirmed before docking and survives loss, and pays boss XP once', () => {
     const c = ready(true);
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -299,19 +300,19 @@ test('final victory needs docking, survives as a persistent completion only afte
         assert.equal(s.storyPatrolKills, 0);
         assert.equal(s.loot.size, 0);
         assert.equal(s.salvage.items.size, 0);
-        assert.match(
+        assert.equal(
             storyObjectives(c, [], false, 0, false, false, [], 0, false, true).find(
                 (t) => t.id === 'pluto-boss',
-            )!.progress,
-            /raport/,
+            )!.complete,
+            true,
         );
-        assert.equal(c.story!.progress['pluto-boss'], 0);
+        assert.equal(c.story!.progress['pluto-boss'], 1);
         const lost = parseCampaign(JSON.stringify(c))!;
         finishRun(lost, false, empty, 0, 'reload');
-        assert.equal(lost.story!.progress['pluto-boss'], 0);
+        assert.equal(lost.story!.progress['pluto-boss'], 1);
         const r = dock(c, s);
         assert.ok(r.pilotProgress!.gainedXp >= 18);
-        assert.deepEqual(r.reward, { ore: 60, parts: 20 });
+        assert.deepEqual(r.reward, { ore: 0, parts: 0 });
         assert.ok(storySectorComplete(c.story!, 'pluto'));
         beginRun(c, 1);
         const next = new MissionSimulation(c, c.activeRun!.seed);
@@ -338,8 +339,10 @@ test('ordinary stock Prospector sorties survey Pluto, hack with mined supplies, 
                 acquireComponent(s);
                 fly(s, OUTER_BASES.pluto.terminal, 45);
                 hold(s, { ...idle, sabotage: true }, 200);
+                solveTerminal(s, 'power');
                 assert.ok(s.outpost.sabotaged);
                 hold(s, { ...idle, interact: true }, 270);
+                solveTerminal(s, 'breach');
                 assert.ok(s.outpost.secured);
             } else if (goal === 'patrol') {
                 for (let f = 0; f < 60 * 180 && s.storyPatrolKills < 1 && !s.ended; f++) {

@@ -1,3 +1,14 @@
+import { ANOMALY, AnomalyExposure } from './anomalyField';
+import { EarthGuide } from './earthGuide';
+import { Hyperdrive, HYPERDRIVE, nearestGate, segmentDistance } from './hyperdrive';
+import { driftVelocity } from '../worlds/asteroidFields';
+import { receiveStationCargo } from '../state/earthLogistics';
+import { recordStoryReturn } from '../state/story';
+import { resourceSummary } from '../state/resources';
+import { MERCURY_VEINS } from '../worlds/mercuryVeins';
+import { TerminalPuzzle, type TerminalAction } from './terminalPuzzle';
+import { ENEMY_PROFILES } from '../config';
+import { assaultEntry, type CombatView } from './assaultEntry';
 import { EnemyFactory, ENEMY_FACTORY } from './enemyFactory';
 import { EnemyMines, type EnemyMine } from './enemyMines';
 import { RescueOperation, RESCUE_OPERATION } from './rescueOperation';
@@ -13,6 +24,7 @@ import { generateStorySector, marsCorridorFleet } from '../worlds/storySector';
 import {
     storyRadius,
     STORY_TASKS,
+    storyTaskAvailable,
     NEPTUNE_ARENA,
     PLUTO_ARENA,
     plutoFinaleReady,
@@ -69,6 +81,8 @@ import { shieldEntry } from './impact';
 import { CACHE, PROTOTYPES, PrototypeId, prototypeOffers } from './prototypes';
 
 export interface FlightInput {
+    unload?: boolean;
+    hyperdrive?: boolean;
     target: Point;
     thrust: boolean;
     brake: boolean;
@@ -81,6 +95,8 @@ export interface FlightInput {
     mine?: boolean;
 }
 export interface Rock {
+    drift?: RockSpec['drift'];
+    mercuryVein?: boolean;
     anchored?: boolean;
     beltBarrier?: number;
     defense?: boolean;
@@ -116,7 +132,7 @@ export interface Projectile extends Point {
 export interface Loot extends Point {
     source?: 'asteroid';
     id: number;
-    kind: 'ore' | 'parts' | 'crystals' | 'copperOre';
+    kind: 'ore' | 'parts' | 'crystals' | 'copperOre' | 'mercuryOre';
     amount: number;
 }
 export interface MissionEvent extends Point {
@@ -143,14 +159,181 @@ export class MissionSimulation {
         progress: 0,
         locked: null as number | null,
     };
-    readonly escort: ResearchEscort | null;
-    readonly rescueOperation: RescueOperation | null;
+    escort: ResearchEscort | null;
+    rescueOperation: RescueOperation | null;
+    readonly anomalyExposure = new AnomalyExposure();
+    get anomalyMission() {
+        return this.rescueOperation?.probe ?? false;
+    }
     readonly salvage: SalvageFleet;
     salvageProgress = 0;
     salvageTarget: number | null = null;
     recoveryDestroyed = false;
     recoveryDelivered = false;
     deliveryRevision = 0;
+    readonly radioMessages: string[] = [];
+    readonly guideMessages: string[] = [];
+    readonly guide: EarthGuide | null;
+    cargoTransferRemaining = 0;
+    private unloadHeld = false;
+    get earthLogistics() {
+        return (
+            this.campaign.story?.sector === 'earth' && this.campaign.activeRun?.sector === 'earth'
+        );
+    }
+    get stationLogistics() {
+        const p = this.campaign.story;
+        return (
+            !!p &&
+            ['earth', 'lunar'].includes(p.sector) &&
+            this.campaign.activeRun?.sector === p.sector
+        );
+    }
+    get cargoDestination(): Point {
+        return this.area === 'surface' ? MOON.construction : { x: 0, y: 0 };
+    }
+    private get cargoRecipientAvailable() {
+        return this.area === 'orbit'
+            ? this.distanceHome < 650
+            : this.surfaceUnlocked &&
+                  this.buildStage < 2 &&
+                  Math.hypot(
+                      this.position.x - MOON.construction.x,
+                      this.position.y - MOON.construction.y,
+                  ) < 300;
+    }
+    get canTransferCargo() {
+        return (
+            this.stationLogistics &&
+            !this.ended &&
+            this.hull > 0 &&
+            this.cargoRecipientAvailable &&
+            this.speed < 35 &&
+            this.damageCooldown <= 0 &&
+            !this.hyperdrive.active &&
+            !this.terminalPuzzle &&
+            !this.relayTuning &&
+            !this.pendingChoice &&
+            !this.transferActive &&
+            !this.campaign.activeRun?.mission?.aborted &&
+            !this.grippers.arms.some((a) => a.held || a.phase !== 'idle') &&
+            Object.values(this.cargo).some((n) => n > 0)
+        );
+    }
+    private updateStationLogistics(input: FlightInput, dt: number) {
+        const press = !!input.unload && !this.unloadHeld;
+        this.unloadHeld = !!input.unload;
+        if (!this.stationLogistics || this.campaign.activeRun?.mission?.aborted || this.ended) {
+            this.cargoTransferRemaining = 0;
+            return;
+        }
+        if (press && this.cargoTransferRemaining === 0) {
+            if (this.canTransferCargo) this.cargoTransferRemaining = 2.4;
+            else
+                this.setNotice(
+                    'Transfer: poniżej 35 m/s, do 650 m od Satuk 15 albo do 300 m od budowy na powierzchni.',
+                );
+        }
+        if (this.cargoTransferRemaining > 0) {
+            if (
+                !this.canTransferCargo ||
+                input.thrust ||
+                input.brake ||
+                input.turn ||
+                input.fire ||
+                input.mine ||
+                input.interact ||
+                input.repair ||
+                input.sabotage
+            ) {
+                this.cargoTransferRemaining = 0;
+                this.setNotice(
+                    'Transfer przerwany · cały nieprzekazany ładunek pozostaje na statku.',
+                );
+            } else {
+                this.cargoTransferRemaining = Math.max(0, this.cargoTransferRemaining - dt);
+                if (this.cargoTransferRemaining === 0) {
+                    const construction =
+                        this.area === 'surface'
+                            ? deliverLunarCargo(this.campaign, this.cargo)
+                            : null;
+                    const delivery =
+                        this.area === 'surface'
+                            ? construction && {
+                                  accepted: {
+                                      ore: 0,
+                                      parts: 0,
+                                      [construction.resource]: construction.amount,
+                                  },
+                                  ...construction.change,
+                              }
+                            : receiveStationCargo(this.campaign, this.cargo);
+                    if (delivery) {
+                        this.deliveryRevision++;
+                        this.radioMessages.push(
+                            `Ładunek przyjęty: ${resourceSummary(delivery.accepted)}. ${delivery.titles.length ? `Ukończono: ${delivery.titles.join(', ')}. ` : ''}${delivery.overflow ? `Nagrody ponad pojemność magazynu: ${delivery.overflow}. ` : ''}Możesz kontynuować lot.`,
+                        );
+                        this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
+                    } else
+                        this.setNotice(
+                            this.area === 'surface'
+                                ? 'Brak wymaganych materiałów · ładunek pozostaje na statku.'
+                                : 'Magazyn pełny · ładunek pozostaje na statku.',
+                        );
+                }
+            }
+        }
+        this.updateRadioReports();
+    }
+    private updateRadioReports() {
+        const run = this.campaign.activeRun,
+            story = this.campaign.story;
+        if (!run || !story || run.sector !== story.sector || run.mission?.aborted || this.ended)
+            return;
+        const previousKills = run.reportedPatrolKills ?? 0;
+        const change = recordStoryReturn(
+            this.campaign,
+            this.campaign.story!.sector,
+            [...this.surveyData],
+            this.wreckVisited,
+            this.lunarAssault.state === 'complete',
+            this.storyPatrolKills,
+            this.venusAssault.state === 'complete',
+            this.marsAssault.state === 'complete',
+            [...this.clearedBeltRocks],
+            0, // Physical supplies are credited only on delivery, never over radio.
+            this.firstBoss.complete && !this.firstBoss.finale,
+            this.firstBoss.complete && this.firstBoss.finale,
+        );
+        if ((run.reportedPatrolKills ?? 0) !== previousKills) this.deliveryRevision++;
+        this.unlockLunarSurface();
+        if (change?.titles.length) {
+            this.deliveryRevision++;
+            const confirmation =
+                story.sector === 'pluto' && story.claimed.includes('pluto-boss')
+                    ? 'Cele operacyjne kampanii ukończone. Raport finałowego starcia zabezpieczony.'
+                    : story.sector === 'lunar' && story.claimed.includes('lunar-attack')
+                      ? 'Stacja księżycowa obroniona. Akt I ukończony. Następny kierunek: Mars.'
+                      : 'Potwierdzamy odbiór raportu.';
+            this.radioMessages.push(
+                `${confirmation} Ukończono: ${change.titles.join(', ')}. Raport został zapisany w dzienniku. ${!['earth', 'lunar'].includes(story.sector) ? 'Nowo otwarte miejsca przygotujemy na następny wylot z Satuk 15. ' : ''}${change.overflow ? `Magazyn pełny: nadwyżka nagród ${change.overflow}.` : ''}`,
+            );
+        }
+        if (
+            this.earthLogistics &&
+            storyRadius(this.campaign.story!) > 1450 &&
+            !this.sector.landmarks.some((l) => l.siteId === 'archive')
+        )
+            this.sector.landmarks.push({
+                x: -1750,
+                y: 700,
+                name: 'Węzeł dalszej orbity',
+                key: 8,
+                kind: 'archive',
+                siteId: 'archive',
+                radius: 180,
+            });
+    }
     readonly queue = new RAPIER.EventQueue(true);
     readonly ship: RAPIER.RigidBody;
     readonly shipCollider: RAPIER.Collider;
@@ -184,10 +367,13 @@ export class MissionSimulation {
     private readonly baseMaxHull: number;
     readonly hullConfig;
     readonly grippers: GripperSystem;
-    readonly recoverySignal: RecoverySignal | null;
+    recoverySignal: RecoverySignal | null;
     recoveryProgress = 0;
     recoverySecured = false;
     readonly surveyData = new Set<ScanSiteId>();
+    terminalPuzzle: TerminalPuzzle | null = null;
+    private terminalInteractHeld = false;
+    private terminalSabotageHeld = false;
     relayTuning: RelayTuning | null = null;
     private relayInteractHeld = false;
     scanProgress = 0;
@@ -237,12 +423,26 @@ export class MissionSimulation {
     constructionProgress = 0;
     readonly lunarDefense = new LunarDefense();
     readonly lunarAssault = new LunarAssault();
-    readonly venusAssault = new LunarAssault();
-    readonly marsAssault = new LunarAssault();
+    readonly venusAssault = new LunarAssault('venus');
+    readonly marsAssault = new LunarAssault('mars');
     readonly solar = new SolarExposure();
+    readonly hyperdrive = new Hyperdrive();
+    private hyperHeld = false;
     private orbitalBuildProgress = 0;
     private stationCollider: RAPIER.Collider | null = null;
     private assaultSequence = 100000;
+    private combatCamera: { angle: number; zoom: number } | null = null;
+    setCombatCamera(angle: number, zoom: number) {
+        if (Number.isFinite(angle) && Number.isFinite(zoom) && zoom > 0)
+            this.combatCamera = { angle, zoom };
+    }
+    get combatView(): CombatView {
+        return {
+            center: this.position,
+            angle: this.combatCamera?.angle ?? -Math.PI / 2 - this.ship.rotation(),
+            zoom: this.combatCamera?.zoom ?? 0.64,
+        };
+    }
     defenseStartProgress = 0;
     private defenseArmed = true;
     private passageArmed = false;
@@ -271,6 +471,7 @@ export class MissionSimulation {
     ) {
         this.sector =
             sector ?? (campaign.story ? generateStorySector(campaign.story) : generateSector(seed));
+        this.storyPatrolKills = campaign.activeRun?.reportedPatrolKills ?? 0;
         this.wreckVisited = !!campaign.story?.searchedWrecks.includes(campaign.story.sector);
         this.outpost = new OutpostSecurity(this.sector.outpost);
         this.outpostCollider = this.world.createCollider(
@@ -304,17 +505,40 @@ export class MissionSimulation {
         this.fortressColliders.add(core.handle);
         this.recoverySignal =
             campaign.recoverySignals.find(
-                (signal) => signal.id === campaign.activeRun?.recoveryId,
+                (signal) => signal.seed === campaign.activeRun?.seed && signal.area !== 'surface',
             ) ?? null;
         this.rng = random(seed ^ 0xa12d9b);
         this.modules = { ...campaign.ship! };
         this.hullConfig = HULLS[this.modules.hull];
         this.salvage = new SalvageFleet(this.world, this.modules.hull === 'tug' ? 2 : 1);
         this.rescueOperation =
-            campaign.activeRun?.mission?.task === 'lunar-rescue' &&
-            campaign.story?.sector === 'lunar'
+            campaign.story?.sector === 'lunar' &&
+            storyTaskAvailable(campaign.story, STORY_TASKS.find((t) => t.id === 'lunar-rescue')!)
                 ? new RescueOperation(this.salvage)
-                : null;
+                : campaign.story?.sector === 'jupiter' &&
+                    storyTaskAvailable(
+                        campaign.story,
+                        STORY_TASKS.find((t) => t.id === 'jupiter-recovery')!,
+                    )
+                  ? new RescueOperation(this.salvage, true)
+                  : null;
+        if (this.rescueOperation) {
+            const saved =
+                campaign.rescueSites[
+                    this.rescueOperation.probe ? 'jupiter-recovery' : 'lunar-rescue'
+                ];
+            if (saved) {
+                this.rescueOperation.item.body.setTranslation(
+                    { x: saved.x / P, y: saved.y / P },
+                    true,
+                );
+                this.rescueOperation.stabilized = saved.stabilized;
+            }
+        }
+        for (const item of campaign.worldSalvage.filter(
+            (entry) => entry.seed === campaign.activeRun?.seed,
+        ))
+            this.salvage.add(item.id, item.source, item, { x: 0, y: 0 });
         this.harpoonArms =
             this.modules.hull === 'harpoon'
                 ? new HarpoonArms(this.modules.handling, this.modules.drill)
@@ -358,32 +582,26 @@ export class MissionSimulation {
         if (
             campaign.story?.sector === 'lunar' &&
             campaign.story.claimed.includes('lunar-survey') &&
-            !campaign.story.claimed.includes('lunar-foundation') &&
-            !this.rescueOperation
+            !campaign.story.claimed.includes('lunar-foundation')
         ) {
-            const site = MINING_CONVOY.site;
-            this.sector.researchSite = { ...site, name: 'Złoże wydobywcze Muła' };
-            this.sector.rocks = this.sector.rocks.filter(
-                (r) => Math.hypot(r.x - site.x, r.y - site.y) > r.radius + 390,
-            );
-            for (let row = -4; row <= 4; row++) {
-                for (let col = -4; col <= 4; col++) {
-                    if (!row || !col) continue; // Cross-shaped corridors for both ships.
-                    this.sector.rocks.push({
-                        anchored: true,
-                        x: site.x + col * 140,
-                        y: site.y + row * 140,
-                        radius: 40,
-                        rich: (row + col) % 3 === 0,
-                        copper: false,
-                        variant: (row + 4) * 9 + col + 4,
-                        vx: 0,
-                        vy: 0,
-                    });
-                }
-            }
+            this.prepareMiningField(false);
         }
-        if (this.rescueOperation) {
+        if (this.anomalyMission) {
+            this.sector.landmarks = this.sector.landmarks.filter((l) => ![3, 4, 5].includes(l.key));
+            for (const [i, point] of ANOMALY.waypoints.entries())
+                this.sector.landmarks.push({
+                    ...point,
+                    key: 3 + i,
+                    kind: 'field',
+                    name: `Korytarz anomalii ${i + 1}`,
+                    radius: 90,
+                });
+            // Keep the entire corridor free of random rocks, including the towing clearance.
+            this.sector.rocks = this.sector.rocks.filter(
+                (r) => Math.hypot(r.x - ANOMALY.center.x, r.y - ANOMALY.center.y) > 1700 + r.radius,
+            );
+        }
+        if (this.rescueOperation && !this.anomalyMission) {
             const p = RESCUE_OPERATION.site;
             this.sector.rocks = this.sector.rocks.filter(
                 (r) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 270,
@@ -428,17 +646,33 @@ export class MissionSimulation {
         this.escort =
             campaign.story?.sector === 'lunar' &&
             campaign.story.claimed.includes('lunar-survey') &&
-            !campaign.story.claimed.includes('lunar-foundation') &&
-            !this.rescueOperation
+            !campaign.story.claimed.includes('lunar-foundation')
                 ? new MiningEscort(this.world)
                 : campaign.activeRun?.contract === 7
                   ? new ResearchEscort(this.world, this.sector.researchSite)
                   : null;
+        this.guide =
+            campaign.story?.sector === 'earth' &&
+            campaign.activeRun?.sector === 'earth' &&
+            !campaign.story.claimed.includes('earth-route')
+                ? new EarthGuide(this.world, campaign, this.cargo)
+                : null;
         this.firstBoss = new FirstBossEncounter(this.campaign.story?.sector === 'pluto');
+        if (this.anomalyMission)
+            this.radioMessages.push(
+                'Sonda pomiarowa utknęła w anomalii. 3, 4 i 5 wskazują bezpieczny objazd, N wskazuje sondę. Fioletowe pasma zadają 10 obrażeń na sekundę po krótkim ostrzeżeniu; jasne korytarze są bezpieczne. Sonda ma własną osłonę pomiarową przed skażeniem. Podejdź, przytrzymaj E przez 3 sekundy i odholuj ją do Satuk 15.',
+            );
         this.previous = this.position;
     }
     get factoryMission() {
-        return this.campaign.activeRun?.mission?.task === 'mars-factory';
+        return (
+            !!this.campaign.story &&
+            this.campaign.story.sector === 'mars' &&
+            storyTaskAvailable(
+                this.campaign.story,
+                STORY_TASKS.find((t) => t.id === 'mars-factory')!,
+            )
+        );
     }
     get miningEscort() {
         return this.escort instanceof MiningEscort ? this.escort : null;
@@ -559,7 +793,7 @@ export class MissionSimulation {
         if (this.outpost.alarm > 0)
             return `Węzeł · alarm ${Math.ceil(this.outpost.alarm)} s · terminal zablokowany`;
         if (this.outpost.disabledTime > 0)
-            return `Węzeł · skaner wyłączony ${Math.ceil(this.outpost.disabledTime)} s · E pobieranie`;
+            return `Węzeł · skaner wyłączony ${Math.ceil(this.outpost.disabledTime)} s · E otwórz obwód`;
         return '0 terminal · E dane bez alarmu · G wyłącza skaner: 1 komponent / 20 s · F patrole';
     }
     get beltSector() {
@@ -599,6 +833,7 @@ export class MissionSimulation {
         this.deathReason = 'Przegrzanie w promieniowaniu słonecznym zniszczyło kadłub.';
         this.damageCooldown = 0.5;
         this.relayTuning = null;
+        this.terminalPuzzle = null;
         this.scanProgress = 0;
         this.repairProgress = 0;
     }
@@ -635,7 +870,7 @@ export class MissionSimulation {
         if (!this.marsBaseSector || !p) return '';
         if (beltPassageReady(p)) return 'Akt V ukończony · baza i korytarz zabezpieczone';
         if (p.claimed.includes('mars-base-defense'))
-            return 'Baza obroniona · F wskaż kontakt w dalszym korytarzu · wróć z raportem';
+            return 'Baza obroniona · F wskaż kontakt w dalszym korytarzu · raport przez radio';
         if (this.marsAssault.state !== 'idle') return this.marsAssault.summary;
         if (p.claimed.includes('mars-base-build'))
             return 'Baza gotowa · G przy obiekcie rozpoczyna obronę · F kontakty w korytarzu';
@@ -777,12 +1012,6 @@ export class MissionSimulation {
         return this.area === 'surface' ? MOON.center : { x: 0, y: 0 };
     }
     get nearbyPassage() {
-        if (
-            this.rescueOperation &&
-            !this.rescueOperation.delivered &&
-            !this.campaign.activeRun?.mission?.aborted
-        )
-            return null;
         return this.landmarks.find(
             (l) =>
                 l.kind === 'passage' &&
@@ -828,7 +1057,7 @@ export class MissionSimulation {
             const key = this.buildStage === 0 ? 'lunar-foundation' : 'lunar-installations';
             const n = this.campaign.story!.progress[key],
                 target = STORY_TASKS.find((t) => t.id === key)!.target;
-            return `Budowa · ${this.buildStage === 0 ? 'ruda' : 'komponenty'} ${n}/${target} · E 2 s przekazuje ładunek · dostawa pozostaje na budowie`;
+            return `Budowa · ${this.buildStage === 0 ? 'ruda' : 'komponenty'} ${n}/${target} · C transfer lub E 2 s · dostawa pozostaje na budowie`;
         }
         return this.nearbyConstruction && this.defenseAvailable ? this.lunarDefense.summary : '';
     }
@@ -945,11 +1174,10 @@ export class MissionSimulation {
         return item && item.source !== 'recovery' && item.health > 0 ? item.source : undefined;
     }
     releaseWreck() {
-        const wrecks = [...this.salvage.towing.values()].filter(
-            (item) => item.source !== 'recovery' || item.id === this.rescueOperation?.item.id,
-        );
+        const wrecks = [...this.salvage.towing.values()].filter(() => true);
         if (!wrecks.length) return;
         for (const item of wrecks) this.salvage.detach(item);
+        this.recoverySecured = false;
         this.syncTow();
         this.salvageProgress = 0;
         this.setNotice('Hol zwolniony · wrak pozostaje w kosmosie.');
@@ -1073,6 +1301,20 @@ export class MissionSimulation {
         );
     }
     get context() {
+        if (this.cargoTransferRemaining > 0)
+            return `Transfer ładunku · ${Math.floor((1 - this.cargoTransferRemaining / 2.4) * 100)}% · ruch lub ogień przerywa`;
+        if (this.stationLogistics && this.canTransferCargo)
+            return this.area === 'surface'
+                ? 'C · transfer do budowy · E dostawa / odbiór techniczny'
+                : 'C · przekaż ładunek do Satuk 15 bez dokowania · E dokowanie przy pierścieniu';
+        if (this.terminalPuzzle)
+            return this.terminalPuzzle.mode === 'breach'
+                ? 'Włamanie · połącz obwód terminala'
+                : 'Sabotaż · przekieruj zasilanie skanera';
+        if (this.nearbyOutpost && !this.outpost.secured)
+            return this.outpost.alarm > 0
+                ? 'Alarm · G przekieruj zasilanie (1 komponent)'
+                : 'E włamanie · G przekieruj zasilanie (1 komponent)';
         if (this.relayTuning) return 'Strojenie przekaźnika · dopasuj fazy sygnału';
         if (this.relayRequired && !this.surveyData.has('relay'))
             return 'E · otwórz strojenie łączności · poniżej 60 m/s';
@@ -1157,6 +1399,68 @@ export class MissionSimulation {
                         ? 'LPM · działka    /    PPM · granaty'
                         : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
     }
+    private prepareMiningField(live: boolean) {
+        const site = MINING_CONVOY.site;
+        this.sector.researchSite = { ...site, name: 'Złoże wydobywcze Muła' };
+        this.sector.rocks = this.sector.rocks.filter(
+            (r) => Math.hypot(r.x - site.x, r.y - site.y) > r.radius + 390,
+        );
+        const fieldStart = this.sector.rocks.length;
+        for (let row = -4; row <= 4; row++) {
+            for (let col = -4; col <= 4; col++) {
+                if (!row || !col) continue; // Cross-shaped corridors for both ships.
+                this.sector.rocks.push({
+                    anchored: true,
+                    x: site.x + col * 140,
+                    y: site.y + row * 140,
+                    radius: 40,
+                    rich: (row + col) % 3 === 0,
+                    copper: false,
+                    variant: (row + 4) * 9 + col + 4,
+                    vx: 0,
+                    vy: 0,
+                });
+            }
+        }
+        if (live) {
+            const site = MINING_CONVOY.site;
+            for (const rock of [...this.rocks.values()]) {
+                const p = rock.body.translation();
+                if (Math.hypot(p.x * P - site.x, p.y * P - site.y) < rock.radius + 390) {
+                    this.world.removeRigidBody(rock.body);
+                    this.asteroidColliders.delete(rock.collider.handle);
+                    this.rocks.delete(rock.id);
+                }
+            }
+            for (const spec of this.sector.rocks.slice(fieldStart)) this.addRock(spec);
+        }
+    }
+    private unlockLunarSurface() {
+        if (!this.surfaceUnlocked || this.sector.landmarks.some((l) => l.area === 'surface'))
+            return;
+        const generated = generateStorySector(this.campaign.story!);
+        this.sector.landmarks.push(
+            ...generated.landmarks.filter((l) => l.area === 'surface' || l.kind === 'passage'),
+        );
+        for (const spec of generated.rocks.filter((r) => Math.hypot(r.x, r.y) > 10000)) {
+            this.sector.rocks.push(spec);
+            this.addRock(spec);
+        }
+        for (const rock of [...this.rocks.values()]) {
+            const p = rock.body.translation(),
+                point = { x: p.x * P, y: p.y * P };
+            if (segmentDistance(point, { x: 0, y: 0 }, MOON.entrance) <= rock.radius + 150) {
+                this.world.removeRigidBody(rock.body);
+                this.asteroidColliders.delete(rock.collider.handle);
+                this.rocks.delete(rock.id);
+            }
+        }
+        if (!this.campaign.story!.claimed.includes('lunar-foundation')) {
+            this.prepareMiningField(true);
+            this.escort = new MiningEscort(this.world);
+        }
+        this.areaRevision++;
+    }
     private addRock(spec: RockSpec) {
         if (this.rocks.size >= 600) return;
         const distance = Math.hypot(spec.x, spec.y),
@@ -1185,7 +1489,9 @@ export class MissionSimulation {
             id: ++this.ids,
             body,
             collider,
-            health: spec.radius * (spec.crystal ? 1.8 : 1.35),
+            health: spec.mercuryVein
+                ? MERCURY_VEINS.health
+                : spec.radius * (spec.crystal ? 1.8 : 1.35),
             previous: { x: spec.x, y: spec.y },
             previousAngle: 0,
             previousVelocity: { x: spec.vx, y: spec.vy },
@@ -1198,13 +1504,197 @@ export class MissionSimulation {
         this.notice = text;
         this.noticeTime = 3;
     }
+    get hyperFuel() {
+        return this.campaign.ship?.hyperFuel ?? 0;
+    }
+    get hyperUnlocked() {
+        return !this.campaign.story || this.campaign.story.claimed.includes('earth-workshop');
+    }
+    get nearestHypergate() {
+        return this.area === 'orbit' ? nearestGate(this.sector.hyperlanes, this.position) : null;
+    }
+    get hyperdriveLock(): string | null {
+        if (!this.hyperUnlocked) return 'Hipernapęd po uruchomieniu warsztatu na Ziemi.';
+        if (this.area !== 'orbit') return 'Hipernapęd działa tylko na orbicie.';
+        if (this.hyperFuel <= 0) return 'Brak paliwa · tankowanie w Przemysł → Nawigacja.';
+        if (this.engineFault || this.hull <= 0 || this.ended) return 'Napęd lub statek niesprawny.';
+        if (this.speed > 60 || this.damageCooldown > 0)
+            return 'Wyhamuj poniżej 60 m/s i zerwij ostrzał.';
+        if (
+            this.salvage.towing.size ||
+            this.grippers.arms.some((a) => a.held || a.phase !== 'idle')
+        )
+            return 'Odłącz hol i zakończ pracę chwytaków.';
+        if (this.activeAssault.active || this.firstBoss.active)
+            return 'Hipernapęd zablokowany podczas obrony lub starcia.';
+        if (
+            this.terminalPuzzle ||
+            this.relayTuning ||
+            this.rescueOperation?.repair ||
+            this.transferActive ||
+            this.cargoTransferRemaining > 0 ||
+            this.pendingChoice
+        )
+            return 'Zakończ bieżącą interakcję.';
+        return null;
+    }
+    private hyperInput(input: FlightInput) {
+        const pressed = !!input.hyperdrive && !this.hyperHeld;
+        this.hyperHeld = !!input.hyperdrive;
+        if (pressed && this.hyperdrive.state === 'charging') {
+            this.hyperdrive.cancel();
+            this.setNotice('Ładowanie hipernapędu przerwane · paliwo zachowane.');
+            return;
+        }
+        if (!pressed || this.hyperdrive.active) return;
+        const lock = this.hyperdriveLock;
+        if (
+            lock ||
+            input.thrust ||
+            input.fire ||
+            input.mine ||
+            input.repair ||
+            input.sabotage ||
+            input.interact
+        ) {
+            this.setNotice(lock ?? 'Zwolnij sterowanie i narzędzia przed skokiem.');
+            return;
+        }
+        const from = this.position,
+            gate = this.nearestHypergate;
+        let target: Point;
+        let guided = false;
+        if (
+            gate &&
+            Math.hypot(from.x - gate.from.x, from.y - gate.from.y) < HYPERDRIVE.gateRadius
+        ) {
+            target = { ...gate.to };
+            guided = true;
+        } else {
+            const dx = input.target.x - from.x,
+                dy = input.target.y - from.y,
+                length = Math.hypot(dx, dy);
+            if (length < 10) {
+                this.setNotice('Wskaż kurs myszą. K prowadzi do najbliższej śluzy.');
+                return;
+            }
+            let distance = HYPERDRIVE.range as number;
+            while (
+                distance >= HYPERDRIVE.minimum &&
+                Math.hypot(
+                    from.x + (dx / length) * distance - this.mapCenter.x,
+                    from.y + (dy / length) * distance - this.mapCenter.y,
+                ) >
+                    this.sectorRadius - 130
+            )
+                distance -= 100;
+            target = { x: from.x + (dx / length) * distance, y: from.y + (dy / length) * distance };
+        }
+        if (
+            Math.hypot(target.x - from.x, target.y - from.y) < HYPERDRIVE.minimum ||
+            Math.hypot(target.x - this.mapCenter.x, target.y - this.mapCenter.y) >
+                this.sectorRadius - 100
+        ) {
+            this.setNotice('Za mało miejsca na skok wewnątrz sektora.');
+            return;
+        }
+        if (guided && this.hyperPathHit(from, target)) {
+            this.setNotice('Śluza zablokowana · poczekaj na wolny korytarz.');
+            return;
+        }
+        if (this.hyperdrive.start(from, target, guided))
+            this.setNotice(
+                'Ładowanie · ponowna spacja anuluje · kolizja w przelocie niszczy statek.',
+            );
+    }
+    private hyperPathHit(from: Point, to: Point) {
+        const radius = (Math.hypot(...this.hullConfig.hitbox) + 4) * this.hullConfig.size;
+        return this.world.castShape(
+            { x: from.x / P, y: from.y / P },
+            0,
+            { x: (to.x - from.x) / P, y: (to.y - from.y) / P },
+            new RAPIER.Ball(radius / P),
+            0,
+            1,
+            true,
+            undefined,
+            undefined,
+            this.shipCollider,
+            this.ship,
+            (c) => !c.isSensor(),
+        );
+    }
+    private advanceHyperdrive(dt: number) {
+        const drive = this.hyperdrive;
+        if (!drive.active) return;
+        if (this.hull <= 0 || this.damageCooldown > 0 || this.area !== 'orbit') {
+            drive.cancel();
+            return;
+        }
+        this.ship.setLinvel({ x: 0, y: 0 }, true);
+        this.ship.setAngvel(0, true);
+        if (drive.state === 'charging') {
+            if (!drive.charge(dt)) return;
+            if (drive.guided && this.hyperPathHit(this.position, drive.target)) {
+                drive.cancel();
+                this.setNotice('Śluza zablokowana podczas ładowania · paliwo zachowane.');
+                return;
+            }
+            if (!this.campaign.ship || this.hyperFuel <= 0) {
+                drive.cancel();
+                return;
+            }
+            this.campaign.ship.hyperFuel--;
+            this.deliveryRevision++;
+        }
+        const from = this.position,
+            next = drive.next(from, dt),
+            dx = next.point.x - from.x,
+            dy = next.point.y - from.y;
+        this.ship.setRotation(Math.atan2(dy, dx), true);
+        const hit = this.hyperPathHit(from, next.point);
+        const fraction = hit ? Math.max(0, hit.time_of_impact) : 1;
+        this.ship.setTranslation(
+            { x: (from.x + dx * fraction) / P, y: (from.y + dy * fraction) / P },
+            true,
+        );
+        if (hit) {
+            this.statistics.hullDamage += this.hull;
+            this.hull = 0;
+            this.ended = 'destroyed';
+            this.deathReason = 'Zderzenie podczas hiperskoku zniszczyło statek.';
+            drive.cancel();
+            return;
+        }
+        if (next.complete) {
+            drive.cancel();
+            this.setNotice('Hiperskok zakończony · odzyskano sterowanie.');
+        }
+    }
     step(input: FlightInput) {
         if (this.ended || this.disposed || this.choice) return;
         const dt = GAME.step;
+        this.selectWorldRecovery();
         if (this.transferActive) {
             this.transferRemaining = Math.max(0, this.transferRemaining - dt);
             return;
         }
+        this.hyperInput(input);
+        const hyperFrame = this.hyperdrive.active;
+        if (hyperFrame)
+            input = {
+                ...input,
+                target: this.position,
+                thrust: false,
+                brake: false,
+                turn: 0,
+                boost: false,
+                fire: false,
+                mine: false,
+                repair: false,
+                sabotage: false,
+                interact: false,
+            };
         this.elapsed += dt;
         if (this.mineAreaRevision !== this.areaRevision) {
             this.mines.clear();
@@ -1255,12 +1745,36 @@ export class MissionSimulation {
         this.noticeTime -= dt;
         this.previous = this.position;
         this.previousAngle = this.ship.rotation();
+        if (hyperFrame) {
+            this.thrusting = false;
+            this.boosting = false;
+            this.braking = false;
+            this.reversing = false;
+            this.advanceHyperdrive(dt);
+            if (this.ended) return;
+        }
         for (const rock of this.rocks.values()) {
             const p = rock.body.translation();
             rock.previous = { x: p.x * P, y: p.y * P };
             rock.previousAngle = rock.body.rotation();
             const v = rock.body.linvel();
             rock.previousVelocity = { x: v.x * P, y: v.y * P };
+            if (rock.drift && !rock.anchored) {
+                const next = driftVelocity(
+                    rock.previous,
+                    rock.previousVelocity,
+                    rock.drift,
+                    this.elapsed,
+                    dt,
+                );
+                rock.body.applyImpulse(
+                    {
+                        x: (next.x / P - v.x) * rock.body.mass(),
+                        y: (next.y / P - v.y) * rock.body.mass(),
+                    },
+                    true,
+                );
+            }
             if (rock.orbit) {
                 const flow = rock.orbit,
                     dx = rock.previous.x - flow.x,
@@ -1283,64 +1797,71 @@ export class MissionSimulation {
                 );
             }
         }
-        const maxTurn = this.turnSpeed;
-        const desiredAngularVelocity = clamp(input.turn ?? 0, -1, 1) * maxTurn;
-        const response =
-            1 -
-            Math.exp(
-                -GAME.turnResponse *
-                    (1 + 0.2 * this.modules.handling) *
-                    this.handlingMultiplier *
-                    dt,
-            );
-        const angularError = desiredAngularVelocity - this.ship.angvel();
-        this.ship.applyTorqueImpulse(
-            angularError * response * this.ship.effectiveAngularInertia(),
-            true,
-        );
-        const mass = this.ship.mass(),
-            velocity = this.ship.linvel();
-        const a = this.ship.rotation() + this.ship.angvel() * dt;
-        const forward = (velocity.x * Math.cos(a) + velocity.y * Math.sin(a)) * P;
-        const sideways = Math.abs(-velocity.x * Math.sin(a) + velocity.y * Math.cos(a)) * P;
-        this.reversing = input.brake && forward <= GAME.stopSpeed && sideways < 20;
-        this.thrusting = (input.thrust && !input.brake) || this.reversing;
-        this.boosting = !!input.boost && this.thrusting && !this.reversing;
-        this.braking =
-            (input.brake && !this.reversing) || (!this.thrusting && this.speed > GAME.stopSpeed);
-        if (this.thrusting) {
-            // Arcade assistance follows the hull, independently of mouse aim.
-            const power = this.engineFault ? GAME.damagedThrust : 1;
-            const multiplier = this.reversing
-                ? -GAME.reverseSpeed
-                : this.boosting
-                  ? this.hullConfig.boost
-                  : 1;
-            const targetSpeed =
-                (this.hullConfig.maxSpeed * this.driveMultiplier * power * multiplier) / P;
-            const dx = Math.cos(a) * targetSpeed - velocity.x;
-            const dy = Math.sin(a) * targetSpeed - velocity.y;
-            const difference = Math.hypot(dx, dy);
-            const change =
-                ((this.hullConfig.thrust *
-                    (1 + 0.15 * this.modules.engine) *
-                    this.driveMultiplier *
-                    power *
-                    (this.reversing ? 0.5 : this.boosting ? GAME.boostThrust : 1)) /
-                    P) *
-                dt;
-            const ratio = difference > 0 ? Math.min(1, change / difference) : 0;
-            this.ship.applyImpulse({ x: dx * ratio * mass, y: dy * ratio * mass }, true);
-        } else {
-            const speed = Math.hypot(velocity.x, velocity.y);
-            const nextSpeed = input.brake
-                ? Math.max(0, speed - ((this.hullConfig.brake * this.pilot.brake) / P) * dt)
-                : speed * Math.exp(-GAME.releaseDrag * this.pilot.brake * dt);
-            const retained = speed > 0 && nextSpeed * P >= GAME.stopSpeed ? nextSpeed / speed : 0;
-            this.ship.applyImpulse(
-                { x: velocity.x * (retained - 1) * mass, y: velocity.y * (retained - 1) * mass },
+        if (!hyperFrame) {
+            const maxTurn = this.turnSpeed;
+            const desiredAngularVelocity = clamp(input.turn ?? 0, -1, 1) * maxTurn;
+            const response =
+                1 -
+                Math.exp(
+                    -GAME.turnResponse *
+                        (1 + 0.2 * this.modules.handling) *
+                        this.handlingMultiplier *
+                        dt,
+                );
+            const angularError = desiredAngularVelocity - this.ship.angvel();
+            this.ship.applyTorqueImpulse(
+                angularError * response * this.ship.effectiveAngularInertia(),
                 true,
             );
+            const mass = this.ship.mass(),
+                velocity = this.ship.linvel();
+            const a = this.ship.rotation() + this.ship.angvel() * dt;
+            const forward = (velocity.x * Math.cos(a) + velocity.y * Math.sin(a)) * P;
+            const sideways = Math.abs(-velocity.x * Math.sin(a) + velocity.y * Math.cos(a)) * P;
+            this.reversing = input.brake && forward <= GAME.stopSpeed && sideways < 20;
+            this.thrusting = (input.thrust && !input.brake) || this.reversing;
+            this.boosting = !!input.boost && this.thrusting && !this.reversing;
+            this.braking =
+                (input.brake && !this.reversing) ||
+                (!this.thrusting && this.speed > GAME.stopSpeed);
+            if (this.thrusting) {
+                // Arcade assistance follows the hull, independently of mouse aim.
+                const power = this.engineFault ? GAME.damagedThrust : 1;
+                const multiplier = this.reversing
+                    ? -GAME.reverseSpeed
+                    : this.boosting
+                      ? this.hullConfig.boost
+                      : 1;
+                const targetSpeed =
+                    (this.hullConfig.maxSpeed * this.driveMultiplier * power * multiplier) / P;
+                const dx = Math.cos(a) * targetSpeed - velocity.x;
+                const dy = Math.sin(a) * targetSpeed - velocity.y;
+                const difference = Math.hypot(dx, dy);
+                const change =
+                    ((this.hullConfig.thrust *
+                        (1 + 0.15 * this.modules.engine) *
+                        this.driveMultiplier *
+                        power *
+                        (this.reversing ? 0.5 : this.boosting ? GAME.boostThrust : 1)) /
+                        P) *
+                    dt;
+                const ratio = difference > 0 ? Math.min(1, change / difference) : 0;
+                this.ship.applyImpulse({ x: dx * ratio * mass, y: dy * ratio * mass }, true);
+            } else {
+                const speed = Math.hypot(velocity.x, velocity.y);
+                const nextSpeed = input.brake
+                    ? Math.max(0, speed - ((this.hullConfig.brake * this.pilot.brake) / P) * dt)
+                    : speed * Math.exp(-GAME.releaseDrag * this.pilot.brake * dt);
+                const retained =
+                    speed > 0 && nextSpeed * P >= GAME.stopSpeed ? nextSpeed / speed : 0;
+                this.ship.applyImpulse(
+                    {
+                        x: velocity.x * (retained - 1) * mass,
+                        y: velocity.y * (retained - 1) * mass,
+                    },
+                    true,
+                );
+            }
         }
         const anchor = this.position,
             shipAngle = this.ship.rotation();
@@ -1376,6 +1897,10 @@ export class MissionSimulation {
                 const e = this.miningEscort;
                 const cargo = { ore: e.cargoOre, parts: e.cargoParts };
                 const result = deliverLunarCargo(this.campaign, cargo, false);
+                if (result?.change.titles.length)
+                    this.radioMessages.push(
+                        `Budowa potwierdza dostawę Muła. Ukończono: ${result.change.titles.join(', ')}.`,
+                    );
                 e.deliveredOre += e.cargoOre - cargo.ore;
                 e.cargoOre = cargo.ore;
                 e.cargoParts = cargo.parts;
@@ -1404,6 +1929,18 @@ export class MissionSimulation {
             this.miningEscort.body.setAngvel(0, true);
             this.miningEscort.previous = this.miningEscort.position;
         }
+        this.guide?.guide(
+            dt,
+            this.campaign,
+            this.cargo,
+            this.position,
+            [...this.rocks.values()].map((r) => {
+                const p = r.body.translation();
+                return { x: p.x * P, y: p.y * P, radius: r.radius };
+            }),
+            (text) => this.guideMessages.push(text),
+        );
+        this.updateGuideMining(dt);
         const beforeImpact = this.velocity;
         this.sentries.update(
             dt,
@@ -1463,6 +2000,15 @@ export class MissionSimulation {
         this.updateDash(input, dt);
         const dashFrom = { ...this.position };
         this.world.step(this.queue);
+        if (this.anomalyMission && this.area === 'orbit') {
+            const damage = this.anomalyExposure.step(
+                dashFrom,
+                this.position,
+                dt,
+                Math.max(...this.hullConfig.hitbox) * this.hullConfig.size,
+            );
+            if (damage) this.takeDamage(damage, 'Statek zniszczony przez skażenie anomalii.');
+        }
         this.statistics.distance += Math.hypot(
             this.position.x - dashFrom.x,
             this.position.y - dashFrom.y,
@@ -1511,6 +2057,8 @@ export class MissionSimulation {
                 }
                 if (this.escort?.collider.handle === handle && this.escort.cooldown <= 0)
                     this.damageEscort(damage, point);
+                if (this.guide?.collider.handle === handle && this.guide.cooldown <= 0)
+                    this.damageGuide(damage, point);
                 const sentryId = this.sentries.colliders.get(handle);
                 const sentry =
                     sentryId === undefined ? undefined : this.sentries.drones.get(sentryId);
@@ -1643,6 +2191,8 @@ export class MissionSimulation {
         if (!this.ended) {
             this.updateOutpost(input, dt);
             this.updateCache(input, dt);
+            this.updateStationLogistics(input, dt);
+            if (!this.ended && !this.stationLogistics) this.updateRadioReports();
         }
     }
     get nearbyEscort() {
@@ -1653,6 +2203,19 @@ export class MissionSimulation {
                 this.escort.position.y - this.position.y,
             ) < ESCORT.startRange
         );
+    }
+    private damageGuide(damage: number, point: Point) {
+        const g = this.guide;
+        if (!g?.vulnerable) return;
+        const before = g.health;
+        const destroyed = g.damage(damage, this.stationSafeRadius);
+        if (g.health !== before) this.events.push({ ...point, kind: 'hit', strength: damage });
+        if (destroyed) {
+            this.events.push({ ...g.position, kind: 'explosion', sound: 'destroy', strength: 65 });
+            this.guideMessages.push(
+                'Sygnał instruktora zanikł. Kontynuuj zadania samodzielnie: 2 złoże, 7 przekaźnik, C dostawa przy stacji. Satuk 15 wyśle zastępcę przy następnym wylocie, jeśli szkolenie nadal trwa.',
+            );
+        }
     }
     private damageEscort(damage: number, point: Point) {
         if (
@@ -1739,15 +2302,74 @@ export class MissionSimulation {
         );
         e.body.setAngvel(Math.max(-1.5, Math.min(1.5, error * 4)), true);
         if (Math.abs(error) > 0.25) return;
-        e.beam = {
-            from: {
-                x: p.x + Math.cos(e.body.rotation()) * 35,
-                y: p.y + Math.sin(e.body.rotation()) * 35,
-            },
-            to: { x: q.x * P, y: q.y * P },
-        };
-        rock.health -= MINING_CONVOY.damagePerSecond * dt;
+        e.beams.push(...this.supportMiningBeams('mule', p, e.body.rotation(), rock));
+        e.beam = e.beams[0] ?? null;
+        this.damageRock(rock, MINING_CONVOY.damagePerSecond * dt);
         if (rock.health <= 0) this.breakRock(rock);
+    }
+    private supportMiningBeams(hull: 'mule' | 'prospector', p: Point, angle: number, rock: Rock) {
+        const q = rock.body.translation();
+        return HULLS[hull].lasers.map((mount) => {
+            const from = mountPosition(p, angle, HULLS[hull].size, mount);
+            const dx = q.x * P - from.x,
+                dy = q.y * P - from.y;
+            const distance = Math.hypot(dx, dy) || 1;
+            const reach = Math.max(0, distance - rock.radius * 0.8);
+            return {
+                from,
+                to: { x: from.x + (dx / distance) * reach, y: from.y + (dy / distance) * reach },
+            };
+        });
+    }
+    private updateGuideMining(dt: number) {
+        const guide = this.guide;
+        if (
+            !guide ||
+            guide.goal.id !== 'mining' ||
+            guide.minedOre >= 2 ||
+            guide.state !== 'research' ||
+            guide.cooldown > 0
+        )
+            return;
+        const p = guide.position;
+        const rock = [...this.rocks.values()]
+            .filter(
+                (r) =>
+                    !r.defense &&
+                    !r.crystal &&
+                    !r.anchored &&
+                    Math.hypot(r.previous.x - guide.goal.x, r.previous.y - guide.goal.y) < 900,
+            )
+            .sort(
+                (a, b) =>
+                    Math.hypot(a.previous.x - p.x, a.previous.y - p.y) -
+                    Math.hypot(b.previous.x - p.x, b.previous.y - p.y),
+            )[0];
+        if (!rock) return;
+        const q = rock.body.translation();
+        const distance = Math.hypot(q.x * P - p.x, q.y * P - p.y);
+        if (distance - rock.radius > HULLS.prospector.laserRange) {
+            const standOff = rock.radius + HULLS.prospector.laserRange * 0.7;
+            guide.approachMining({
+                x: q.x * P + ((p.x - q.x * P) / distance) * standOff,
+                y: q.y * P + ((p.y - q.y * P) / distance) * standOff,
+            });
+            return;
+        }
+        const angle = Math.atan2(q.y * P - p.y, q.x * P - p.x);
+        const error = Math.atan2(
+            Math.sin(angle - guide.body.rotation()),
+            Math.cos(angle - guide.body.rotation()),
+        );
+        guide.body.setAngvel(Math.max(-1.5, Math.min(1.5, error * 4)), true);
+        if (Math.abs(error) > 0.25) return;
+        guide.beams.push(...this.supportMiningBeams('prospector', p, guide.body.rotation(), rock));
+        this.damageRock(rock, GAME.laserDamage * 0.5 * dt);
+        if (rock.health <= 0) {
+            const units = Math.min(2 - guide.minedOre, Math.ceil(rock.radius / 17));
+            this.breakRock(rock, units);
+            guide.minedOre += units;
+        }
     }
     private updateEscort(input: FlightInput, dt: number) {
         const e = this.escort;
@@ -1834,33 +2456,46 @@ export class MissionSimulation {
             !this.recoverySecured &&
             !this.recoveryDestroyed &&
             Math.hypot(this.position.x - signal.x, this.position.y - signal.y) < RECOVERY.radius;
-        const canSabotage =
-            input.sabotage &&
-            !input.interact &&
-            !input.repair &&
-            !input.fire &&
-            !input.mine &&
-            !this.thrusting &&
-            this.speed <= OUTPOST.interactSpeed &&
-            this.damageCooldown <= 0 &&
-            this.nearbyOutpost &&
+        const pressed = !!input.interact && !this.terminalInteractHeld;
+        const sabotagePressed = !!input.sabotage && !this.terminalSabotageHeld;
+        this.terminalInteractHeld = !!input.interact;
+        this.terminalSabotageHeld = !!input.sabotage;
+        const busy =
+            this.thrusting ||
+            input.fire ||
+            input.mine ||
+            input.repair ||
+            (input.interact && input.sabotage);
+        if (
+            this.terminalPuzzle &&
+            (busy || !this.terminalConnectionValid(this.terminalPuzzle.mode))
+        ) {
+            this.terminalAction({ cancel: true });
+        }
+        if (
+            !this.terminalPuzzle &&
+            !busy &&
             !recovering &&
             !this.nearbyCache &&
-            !this.outpost.sabotaged &&
-            this.cargo.parts >= 1;
-        if (canSabotage) this.outpost.sabotageProgress += dt;
-        else this.outpost.sabotageProgress = 0;
-        if (this.outpost.sabotageProgress + 1e-8 >= OUTPOST.sabotageSeconds) {
-            if (this.outpost.disable()) {
-                this.cargo.parts--;
-                this.setNotice('Skaner wyłączony na 20 s · drony nadal mogą ścigać statek.');
-                this.events.push({
-                    ...spec.terminal,
-                    kind: 'collect',
-                    rich: true,
-                    sound: 'complete',
-                });
+            !this.relayTuning &&
+            !this.rescueOperation?.repair
+        ) {
+            const mode = sabotagePressed ? 'power' : pressed ? 'breach' : null;
+            if (mode && this.terminalConnectionValid(mode)) {
+                this.terminalPuzzle = new TerminalPuzzle(
+                    mode,
+                    this.hullId,
+                    this.seed ^ 0x713,
+                    this.outpost.trace,
+                );
+                this.setNotice('Terminal połączony · świat nadal działa.');
             }
+        }
+        if (this.terminalPuzzle?.tick(dt)) {
+            this.outpost.trace = 100;
+            this.terminalPuzzle = null;
+            this.triggerTerminalAlarm();
+            this.setNotice('Upłynął czas połączenia · alarm · możesz ponowić po wyciszeniu.');
         }
         const exposed = this.outpost.sees(
             this.position,
@@ -1879,19 +2514,11 @@ export class MissionSimulation {
             !input.sabotage &&
             this.speed <= OUTPOST.interactSpeed &&
             this.damageCooldown <= 0;
-        const outcome = this.outpost.update(
-            dt,
-            exposed,
-            !!(this.nearbyOutpost && calm && !recovering && !this.nearbyCache),
-        );
-        if (outcome.callGuards) {
-            this.enemies.add(spec.guards);
-            this.enemies.alert(
-                spec.guards.map((guard) => guard.id),
-                this.position,
-            );
-            this.setNotice(`Alarm: ${spec.name} · terminal zablokowany, drony ruszyły w pościg.`);
-        }
+        const outcome = this.outpost.update(dt, exposed);
+        if (outcome.callGuards) this.deployOutpostGuards();
+        if (this.outpost.alarm > 0 && this.terminalPuzzle?.mode === 'breach')
+            this.terminalAction({ cancel: true });
+        if (!this.terminalPuzzle) this.outpost.trace = Math.max(0, this.outpost.trace - dt * 2);
         if (this.outpost.secured && !input.interact) this.outpost.equipmentArmed = true;
         const canSteal =
             !this.campaign.story &&
@@ -1914,15 +2541,75 @@ export class MissionSimulation {
             );
             this.events.push({ ...spec.terminal, kind: 'collect', rich: true, sound: 'complete' });
         }
-        if (outcome.completed) {
+    }
+    private terminalConnectionValid(mode: 'breach' | 'power') {
+        const signal = this.recoverySignal;
+        const recovering =
+            signal &&
+            !this.recoverySecured &&
+            !this.recoveryDestroyed &&
+            Math.hypot(this.position.x - signal.x, this.position.y - signal.y) < RECOVERY.radius;
+        return (
+            !this.ended &&
+            !this.pendingChoice &&
+            !this.transferActive &&
+            this.area === 'orbit' &&
+            this.hull > 0 &&
+            !this.thrusting &&
+            this.speed <= OUTPOST.interactSpeed &&
+            this.damageCooldown <= 0 &&
+            this.nearbyOutpost &&
+            !recovering &&
+            !this.nearbyCache &&
+            (mode === 'breach'
+                ? !this.outpost.secured && this.outpost.alarm <= 0
+                : !this.outpost.sabotaged && this.cargo.parts >= 1)
+        );
+    }
+    private deployOutpostGuards() {
+        const spec = this.sector.outpost;
+        this.enemies.add(spec.guards);
+        this.enemies.alert(
+            spec.guards.map((guard) => guard.id),
+            this.position,
+        );
+        this.setNotice(`Alarm: ${spec.name} · drony ruszyły w pościg.`);
+    }
+    private triggerTerminalAlarm() {
+        if (this.outpost.raiseAlarm()) this.deployOutpostGuards();
+    }
+    terminalAction(action: TerminalAction) {
+        const puzzle = this.terminalPuzzle;
+        if (!puzzle) return false;
+        if ('cancel' in action || !this.terminalConnectionValid(puzzle.mode)) {
+            this.terminalPuzzle = null;
+            this.setNotice('Połączenie przerwane · E włamanie / G zasilanie, aby ponowić.');
+            return false;
+        }
+        const outcome = puzzle.act(action);
+        this.outpost.trace = puzzle.trace;
+        if (outcome === 'alarm') {
+            this.terminalPuzzle = null;
+            this.triggerTerminalAlarm();
+            return false;
+        }
+        if (outcome !== 'success') return false;
+        this.terminalPuzzle = null;
+        const spec = this.sector.outpost;
+        if (puzzle.mode === 'power') {
+            if (!this.outpost.disable()) return false;
+            this.cargo.parts--;
+            this.setNotice('Zasilanie przekierowane · skaner wyłączony na 20 s.');
+        } else {
+            this.outpost.secured = true;
             this.surveyData.add('outpost');
             this.addLoot(spec.terminal.x + 18, spec.terminal.y, 'parts', 6);
             this.addLoot(spec.terminal.x - 18, spec.terminal.y, 'ore', 4);
-            this.setNotice(
-                `Dane wykradzione · chwytaki mogą zabrać skrzynie. Wróć do ${this.stationDestination}.`,
-            );
-            this.events.push({ ...spec.terminal, kind: 'collect', rich: true, sound: 'complete' });
+            this.setNotice(`Dane wykradzione · wróć do ${this.stationDestination}.`);
         }
+        this.events.push({ ...spec.terminal, kind: 'collect', rich: true, sound: 'complete' });
+        if (puzzle.trace >= 100) this.triggerTerminalAlarm();
+        return true;
     }
     private updateCache(input: FlightInput, dt: number) {
         const cache = this.nearbyCache;
@@ -1967,15 +2654,14 @@ export class MissionSimulation {
         this.deathReason = reason;
         this.damageCooldown = 0.5;
         this.relayTuning = null;
+        this.terminalPuzzle = null;
         if (this.rescueOperation) this.rescueOperation.repair = null;
         this.repairProgress = 0;
         this.recoveryProgress = 0;
         this.scanProgress = 0;
         this.cacheProgress = 0;
         this.cacheTarget = null;
-        this.outpost.download = 0;
         this.outpost.equipmentProgress = 0;
-        this.outpost.sabotageProgress = 0;
         this.revealTime = 3;
         if (hit.hull) this.events.push({ ...point, kind: 'hit', strength: hit.hull });
         return hit.hull;
@@ -2016,13 +2702,23 @@ export class MissionSimulation {
         if (
             leavesWreck(this.sector.seed, enemy.id) &&
             this.salvage.add(
-                enemy.id,
+                this.campaign.nextSalvageId,
                 enemy.kind === 'lancer' || enemy.kind === 'heavy' ? 'lancer' : 'patrol',
                 wreck,
                 { x: velocity.x * P * 0.35, y: velocity.y * P * 0.35 },
                 wreckAngle,
             )
         ) {
+            const id = this.campaign.nextSalvageId++;
+            const item = this.salvage.items.get(id)!;
+            this.campaign.worldSalvage.push({
+                id,
+                seed: this.campaign.activeRun?.seed ?? this.seed,
+                ...salvagePosition(item),
+                source: enemy.kind === 'lancer' || enemy.kind === 'heavy' ? 'lancer' : 'patrol',
+                ...(this.area === 'surface' ? { area: 'surface' as const } : {}),
+            });
+
             this.setNotice('Wrak drona · Z wskaż · E holuj · recykling po powrocie.');
             return;
         }
@@ -2060,15 +2756,37 @@ export class MissionSimulation {
             this.rescueOperation.attachProgress = 0;
             item.cooldown = 0.5;
         }
+        if (damage >= item.health) {
+            this.salvage.detach(item);
+            item.health = 1;
+            item.cooldown = 1;
+            if (item.id === this.rescueOperation?.item.id) {
+                this.rescueOperation.stabilized = this.rescueOperation.probe;
+                this.rescueOperation.repair = null;
+            } else {
+                this.recoverySecured = false;
+                const signal = this.campaign.recoverySignals.find((entry) => entry.id === -item.id);
+                if (signal) Object.assign(signal, salvagePosition(item));
+            }
+            this.syncTow();
+            this.setNotice(
+                'Uszkodzony cel pozostał na planszy. Możesz ponownie zabezpieczyć go i podjąć hol.',
+            );
+            return;
+        }
         const destroyed = this.salvage.damage(item, damage);
         if (!destroyed) return;
         if (item.id === this.rescueOperation?.item.id) {
             this.rescueOperation.repair = null;
             this.setNotice(this.rescueOperation.status);
         } else if (item.source === 'recovery') {
-            this.recoveryDestroyed = true;
+            const signal = this.campaign.recoverySignals.find((entry) => entry.id === -item.id);
+            if (signal) Object.assign(signal, point);
+            this.recoveryDestroyed = false;
             this.recoverySecured = false;
-            this.setNotice('Cel ratunkowy zniszczony · wrak i kapsuła zostały utracone.');
+            this.setNotice(
+                'Hol zerwany. Wrak i kapsuła pozostają w sektorze do ponownego podjęcia.',
+            );
         } else this.setNotice('Wrak zniszczony · recykling niemożliwy.');
         this.syncTow();
         this.events.push({ ...point, kind: 'break', sound: 'destroy', strength: item.radius });
@@ -2095,7 +2813,7 @@ export class MissionSimulation {
             if (item.id === this.rescueOperation?.item.id) {
                 this.rescueOperation.delivered = true;
                 this.rescueOperation.repair = null;
-                this.surveyData.add('rescue');
+                this.surveyData.add(this.rescueOperation.siteId);
                 const p = salvagePosition(item);
                 this.salvage.remove(item);
                 this.deliveryRevision++;
@@ -2420,6 +3138,67 @@ export class MissionSimulation {
             r.attachProgress = 0;
         }
     }
+    get worldRecoverySignals() {
+        return this.campaign.recoverySignals.filter(
+            (signal) =>
+                signal.seed === this.campaign.activeRun?.seed &&
+                (signal.area === 'surface') === (this.area === 'surface'),
+        );
+    }
+    private selectWorldRecovery() {
+        if (
+            !this.rescueOperation &&
+            this.campaign.story?.sector === 'lunar' &&
+            storyTaskAvailable(
+                this.campaign.story,
+                STORY_TASKS.find((t) => t.id === 'lunar-rescue')!,
+            )
+        ) {
+            this.rescueOperation = new RescueOperation(this.salvage);
+            const saved = this.campaign.rescueSites['lunar-rescue'];
+            if (saved) {
+                this.rescueOperation.item.body.setTranslation(
+                    { x: saved.x / P, y: saved.y / P },
+                    true,
+                );
+                this.rescueOperation.stabilized = saved.stabilized;
+            }
+        }
+
+        for (const item of this.salvage.items.values()) {
+            const signal =
+                item.source === 'recovery'
+                    ? this.campaign.recoverySignals.find((entry) => entry.id === -item.id)
+                    : this.campaign.worldSalvage.find((entry) => entry.id === item.id);
+            if (signal) Object.assign(signal, salvagePosition(item));
+        }
+        const rescue = this.rescueOperation;
+        if (rescue && !rescue.delivered)
+            this.campaign.rescueSites[rescue.probe ? 'jupiter-recovery' : 'lunar-rescue'] = {
+                ...rescue.position,
+                stabilized: rescue.stabilized,
+            };
+
+        if (this.recoverySecured) {
+            const item = this.salvage.items.get(-(this.recoverySignal?.id ?? 0));
+            if (item && this.recoverySignal)
+                Object.assign(this.recoverySignal, salvagePosition(item));
+            if (item) return;
+            this.recoverySecured = false;
+        }
+        const next =
+            [...this.worldRecoverySignals].sort(
+                (a, b) =>
+                    Math.hypot(a.x - this.position.x, a.y - this.position.y) -
+                    Math.hypot(b.x - this.position.x, b.y - this.position.y),
+            )[0] ?? null;
+        if (next?.id !== this.recoverySignal?.id) {
+            this.recoverySignal = next;
+            this.recoveryProgress = 0;
+            this.recoveryDestroyed = false;
+            this.recoveryDelivered = false;
+        }
+    }
     private updateRecovery(input: FlightInput, dt: number) {
         const signal = this.recoverySignal;
         if (
@@ -2445,14 +3224,16 @@ export class MissionSimulation {
         if (this.recoveryProgress + 1e-8 >= this.recoverySeconds) {
             this.recoverySecured = true;
             this.tow = this.attachTow();
-            const item = this.salvage.add(
-                -signal.id,
-                'recovery',
-                this.tow.position,
-                this.tow.velocity,
-                this.ship.rotation(),
-                !signal.ship,
-            );
+            const item =
+                this.salvage.items.get(-signal.id) ??
+                this.salvage.add(
+                    -signal.id,
+                    'recovery',
+                    this.tow.position,
+                    this.tow.velocity,
+                    this.ship.rotation(),
+                    !signal.ship,
+                );
             if (!item || !this.salvage.attach(item, this.ship)) {
                 this.recoverySecured = false;
                 this.tow = null;
@@ -2693,7 +3474,7 @@ export class MissionSimulation {
             if (obstruction) continue;
             if (rock && this.rocks.has(rock.id)) {
                 const damage = bullet.damage * this.pilot.mining;
-                rock.health -= damage;
+                this.damageRock(rock, damage);
                 this.events.push({
                     x: center.x * P,
                     y: center.y * P,
@@ -2719,6 +3500,7 @@ export class MissionSimulation {
         const targets: Point[] = this.dashTime > 0 ? [] : [this.position];
         for (const drone of this.sentries.drones.values()) targets.push(sentryPosition(drone));
         if (this.aegis?.dronePosition) targets.push(this.aegis.dronePosition);
+        if (this.guide?.vulnerable) targets.push(this.guide.position);
         if (this.escort?.vulnerable && (!this.miningEscort || this.area === 'surface'))
             targets.push(this.escort.position);
         for (const item of this.salvage.items.values()) targets.push(salvagePosition(item));
@@ -2751,6 +3533,8 @@ export class MissionSimulation {
                 this.damageSentry(drone.id, ENEMY_MINES.damage, sentryPosition(drone));
         if (this.aegis?.dronePosition && exposed(this.aegis.dronePosition))
             this.damageSupportDrone(ENEMY_MINES.damage, this.aegis.dronePosition);
+        if (this.guide?.vulnerable && exposed(this.guide.position))
+            this.damageGuide(ENEMY_MINES.damage, this.guide.position);
         if (
             this.escort?.vulnerable &&
             (!this.miningEscort || this.area === 'surface') &&
@@ -3087,7 +3871,7 @@ export class MissionSimulation {
             if (!touches(point, rock.radius)) continue;
             this.dashHits.add(rock.collider.handle);
             const damage = this.dashDamage * 0.12;
-            rock.health -= damage;
+            this.damageRock(rock, damage);
             this.events.push({ ...point, kind: 'hit', strength: damage, rich: rock.rich });
             if (rock.health <= 0) this.breakRock(rock);
         }
@@ -3197,6 +3981,8 @@ export class MissionSimulation {
                             collider.handle === this.stationCollider?.handle ||
                             collider.handle === this.aegis?.drone?.collider.handle ||
                             this.sentries.colliders.has(collider.handle) ||
+                            (this.guide?.vulnerable &&
+                                collider.handle === this.guide.collider.handle) ||
                             (this.escort?.vulnerable &&
                                 collider.handle === this.escort.collider.handle))) ||
                     (bullet.team === 'player'
@@ -3253,6 +4039,8 @@ export class MissionSimulation {
                 }
                 if (bullet.team === 'enemy' && this.escort?.collider.handle === hit.collider.handle)
                     this.damageEscort(bullet.damage, contact);
+                if (bullet.team === 'enemy' && this.guide?.collider.handle === hit.collider.handle)
+                    this.damageGuide(bullet.damage, contact);
                 const sentryId = this.sentries.colliders.get(hit.collider.handle);
                 if (bullet.team === 'enemy' && sentryId !== undefined)
                     this.damageSentry(sentryId, bullet.damage, contact);
@@ -3282,7 +4070,7 @@ export class MissionSimulation {
                     const damage = bullet.energy
                         ? AEGIS.rockDamage * (1 + this.modules.drill * 0.25) * this.pilot.mining
                         : GAME.shotRockDamage;
-                    rock.health -= damage;
+                    this.damageRock(rock, damage);
                     this.events.push({
                         ...contact,
                         kind: 'hit',
@@ -3440,7 +4228,7 @@ export class MissionSimulation {
                     this.armament.power *
                     this.pilot.mining *
                     this.laserPowerMultiplier;
-                rock.health -= damage;
+                this.damageRock(rock, damage, true);
                 this.events.push({ ...point, kind: 'hit', strength: damage, rich: rock.rich });
                 if (rock.health <= 0) this.breakRock(rock);
             } else {
@@ -3550,21 +4338,32 @@ export class MissionSimulation {
         }
         const rock = this.rocks.get(this.asteroidColliders.get(hit.collider.handle)!);
         if (!rock) return;
-        rock.health -=
+        this.damageRock(
+            rock,
             (this.modules.hull === 'phoenix' ? PHOENIX.rockDamage : GAME.laserDamage) *
-            this.armament.power *
-            this.laserPowerMultiplier *
-            dt *
-            this.hullConfig.miningPower *
-            this.pilot.mining *
-            (1 + 0.25 * this.modules.drill);
+                this.armament.power *
+                this.laserPowerMultiplier *
+                dt *
+                this.hullConfig.miningPower *
+                this.pilot.mining *
+                (1 + 0.25 * this.modules.drill),
+        );
         if (this.laserEffectCooldown <= 0) {
             this.events.push({ ...to, kind: 'hit', rich: rock.rich, strength: 4 });
             this.laserEffectCooldown = 0.12;
         }
         if (rock.health <= 0) this.breakRock(rock);
     }
-    private breakRock(rock: Rock) {
+    private damageRock(rock: Rock, amount: number, harpoon = false) {
+        if (rock.mercuryVein && !harpoon) {
+            this.setNotice(
+                'Spiek odporny na ostrzał · Harpun: PPM wysuń ramiona, LPM wyrwij złoże.',
+            );
+            return;
+        }
+        rock.health -= amount;
+    }
+    private breakRock(rock: Rock, oreLimit?: number) {
         this.statistics.rocksDestroyed++;
         if (this.beltSector && rock.beltBarrier !== undefined) {
             this.clearedBeltRocks.add(rock.beltBarrier);
@@ -3587,6 +4386,15 @@ export class MissionSimulation {
             strength: rock.radius,
             velocity: { x: v.x * P, y: v.y * P },
         });
+        if (rock.mercuryVein) {
+            this.addLoot(x, y, 'mercuryOre', MERCURY_VEINS.yield, true);
+            this.setNotice('Spiek wyrwany · zbierz chwytakami i dostarcz do Satuk 15.');
+            return;
+        }
+        if (oreLimit !== undefined) {
+            for (let i = 0; i < oreLimit; i++) this.addLoot(x + i * 12, y, 'ore', 1, true);
+            return;
+        }
         if (rock.defense) return; // Retry attempts cannot generate an infinite supply of loot.
         if (rock.radius > 44) {
             for (const side of [-1, 1])
@@ -3772,16 +4580,38 @@ export class MissionSimulation {
         }
     }
     private assaultHost: AssaultHost = {
-        spawn: (kind, wave) => {
-            const id = ++this.assaultSequence,
-                angle = [Math.PI, -Math.PI / 2, 0][wave - 1];
+        spawn: (kind, wave, slot) => {
+            const radius = ENEMY_PROFILES[kind].radius;
+            const point = assaultEntry(
+                this.assaultSite,
+                radius,
+                this.combatView,
+                this.mapCenter,
+                this.sectorRadius,
+                this.sector.seed * 0.001 + wave * 2.4 + slot * 1.2,
+                (p) => {
+                    let blocked = Math.hypot(p.x, p.y) < this.stationSafeRadius + radius + 40;
+                    this.world.intersectionsWithShape(
+                        { x: p.x / P, y: p.y / P },
+                        0,
+                        new RAPIER.Ball((radius + 30) / P),
+                        (c) => {
+                            if (!c.isSensor()) blocked = true;
+                            return !blocked;
+                        },
+                    );
+                    return blocked;
+                },
+            );
+            if (!point) return undefined;
+            const id = ++this.assaultSequence;
+            const angle = Math.atan2(point.y - this.assaultSite.y, point.x - this.assaultSite.x);
             this.enemies.add([
                 {
                     id,
                     kind,
                     assault: true,
-                    x: this.assaultSite.x + Math.cos(angle) * 750,
-                    y: this.assaultSite.y + Math.sin(angle) * 750,
+                    ...point,
                     home: { ...this.assaultSite },
                     phase: angle + Math.PI,
                 },
@@ -3793,6 +4623,7 @@ export class MissionSimulation {
         remove: (id) => this.enemies.remove(id),
     };
     private clearAssault() {
+        this.mines.removeOwners(this.activeAssault.spawned);
         if (this.stationCollider) {
             this.world.removeCollider(this.stationCollider, true);
             this.stationCollider = null;
@@ -3906,6 +4737,10 @@ export class MissionSimulation {
         d.step(dt, this.defenseHost);
         if (d.state === 'complete') {
             const change = recordLunarDefense(this.campaign);
+            if (change?.titles.length)
+                this.radioMessages.push(
+                    'Osłona budowy potwierdzona. Konstrukcja jest bezpieczna; postęp i nagroda zapisane.',
+                );
             if (change) {
                 this.deliveryRevision++;
                 this.setNotice(
@@ -4022,6 +4857,9 @@ export class MissionSimulation {
                 const result = deliverLunarCargo(this.campaign, this.cargo);
                 this.constructionProgress = 0;
                 if (result) {
+                    this.radioMessages.push(
+                        `Budowa przyjęła ${result.amount} ${result.resource === 'ore' ? 'Fe' : 'komponentów'}. ${result.change.titles.length ? `Ukończono: ${result.change.titles.join(', ')}.` : 'Dostawa częściowa zapisana.'}`,
+                    );
                     this.deliveryRevision++;
                     this.setNotice(
                         `Dostarczono ${result.amount} ${result.resource === 'ore' ? 'rudy' : 'komponentów'} · postęp budowy zapisany`,
@@ -4067,6 +4905,7 @@ export class MissionSimulation {
         this.mines.clear();
         this.sentries.clear();
         this.escort?.dispose();
+        this.guide?.dispose();
         this.salvage.dispose();
         this.enemies.dispose();
         this.queue.free();

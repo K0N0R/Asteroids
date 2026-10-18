@@ -171,7 +171,7 @@ test('stock Prospector fights, secures the prom through wiring, physically tows 
         assert.ok(sawTow && sawDelivery);
         assert.ok(s.enemyKills >= 2);
         assert.equal(s.repairKits, kits);
-        assert.equal(c.story!.progress['lunar-rescue'], 0);
+        assert.equal(c.story!.progress['lunar-rescue'], 1);
         assert.ok(s.surveyData.has('rescue'));
         assert.equal(s.salvage.items.has(r.item.id), false);
         const result = finishRun(
@@ -183,7 +183,7 @@ test('stock Prospector fights, secures the prom through wiring, physically tows 
             s.repairKits,
             s.missionReport,
         )!;
-        assert.deepEqual(result.reward, { ore: 12, parts: 5 });
+        assert.deepEqual(result.reward, { ore: 0, parts: 0 });
         assert.ok(c.story!.claimed.includes('lunar-rescue'));
         assert.ok(parseCampaign(JSON.stringify(c)));
         assert.equal(selectableMission(c, 'lunar-rescue'), null);

@@ -34,7 +34,14 @@ test('every hull can be bought, fully upgraded, saved and scrapped without creat
         (id) => !('salvageOnly' in HULLS[id]),
     )) {
         const c = newCampaign();
-        c.station = { storage: 3, workshop: 2, shield: true, sentries: null };
+        c.station = {
+            storage: 3,
+            workshop: 2,
+            shield: true,
+            shieldLevel: 0,
+            reinforcedBays: 0,
+            sentries: null,
+        };
         c.bank = { ore: 250, parts: 100, crystals: 50 };
         const original = c.ship!.id;
         assert.ok(buyShip(c, hull), hull);

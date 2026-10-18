@@ -171,7 +171,12 @@ test('overflow accounts for every resource and reserves valuable products ahead 
     assert.equal(c.bank.powerModules, 1);
     assert.equal(c.bank.copperOre, 1);
     assert.equal(c.bank.ore, 148);
-    assert.equal(r.overflow, 5);
+    assert.equal(r.overflow, 1);
+    assert.equal(
+        c.story!.progress['earth-supply'],
+        4,
+        'the delivery first funds its active supply task',
+    );
     assert.equal(storageUsed(c), 150);
 });
 

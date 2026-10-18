@@ -27,8 +27,8 @@ export function keyHint(
     view.position.set(x, y);
     view.addChild(
         new Graphics()
-            .roundRect(0, 0, width, 27, 5)
-            .fill({ color: C.ink, alpha: 0.55 })
+            .roundRect(0, 0, width, 27, 8)
+            .fill({ color: C.ink, alpha: 0.94 })
             .stroke({ color: C.muted, width: 1, alpha: 0.45 }),
     );
     hudLabel(view, key, 7, 6, 13, C.text);
@@ -48,7 +48,7 @@ export function mouseHint(
         g = new Graphics();
     view.position.set(x, y);
     g.roundRect(0, 0, 18, 26, 8)
-        .fill({ color: C.ink, alpha: 0.55 })
+        .fill({ color: C.ink, alpha: 0.94 })
         .stroke({ color: C.muted, width: 1 });
     if (button) g.roundRect(button === 'left' ? 2 : 10, 3, 6, 9, 2).fill(C.mint);
     g.moveTo(9, 2).lineTo(9, 13).stroke({ color: C.muted, width: 1 });

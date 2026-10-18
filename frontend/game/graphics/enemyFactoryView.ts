@@ -1,14 +1,14 @@
 import { Container, Graphics } from 'pixi.js';
 import { ENEMY_FACTORY, type EnemyFactory } from '../systems/enemyFactory';
-import { label } from '../ui/primitives';
+import { worldLabel as label } from '../ui/primitives';
 import { C } from './shapes';
 
 export class EnemyFactoryView extends Container {
     private hull = new Graphics();
     private state = new Graphics();
     private readout = new Container();
-    private title = label(this.readout, '5 · STOCZNIA POLOWA', -145, -155, 20, C.red, 350);
-    private status = label(this.readout, '', -150, 140, 17, C.muted, 360);
+    private title = label(this.readout, '5 · STOCZNIA POLOWA', 0, -155, 20, C.red, 350);
+    private status = label(this.readout, '', 0, 140, 17, C.muted, 360);
     private ruinState: boolean | null = null;
     constructor() {
         super();
@@ -30,18 +30,15 @@ export class EnemyFactoryView extends Container {
                     .poly([10, -65, 70, -45, 78, 5, 20, -15])
                     .fill(0x414b51)
                     .poly([-65, 25, -5, 5, 58, 42, 35, 65, -50, 60])
-                    .fill(0x303d47)
-                    .stroke({ color: 0x65717a, width: 3 });
+                    .fill(0x303d47);
                 this.title.setText('5 · RUINY STOCZNI');
             } else {
                 h.circle(0, 0, 135)
                     .stroke({ color: C.red, width: 2, alpha: 0.18 })
                     .poly([-85, -40, -58, -65, 58, -65, 85, -40, 85, 40, 58, 65, -58, 65, -85, 40])
                     .fill(0x253744)
-                    .stroke({ color: 0x8e9da2, width: 5 })
                     .roundRect(-60, -42, 120, 84, 10)
-                    .fill(0x142632)
-                    .stroke({ color: 0xb9826c, width: 4 });
+                    .fill(0x142632);
                 for (const side of [-1, 1]) {
                     h.rect(side * 70 - 7, -30, 14, 60)
                         .fill(0xa36b52)

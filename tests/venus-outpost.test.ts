@@ -208,12 +208,10 @@ test('stock Prospector builds through normal flight, prepares the shield and rep
         hold(s, { ...idle, sabotage: true });
         assert.ok(s.venusAssault.active);
         win(s);
-        assert.equal(s.enemyKills, 3);
-        assert.equal(c.story!.progress['venus-defense'], 0);
+        assert.equal(s.enemyKills, s.venusAssault.totalEnemies);
+        assert.equal(c.story!.progress['venus-defense'], 1);
         assert.ok(
-            storyObjectives(c, [], false, 0, true)
-                .find((t) => t.id === 'venus-defense')!
-                .progress.includes('raportem'),
+            storyObjectives(c, [], false, 0, true).find((t) => t.id === 'venus-defense')!.complete,
         );
         for (let f = 0; f < 60 * 120 && !s.ended; f++)
             s.step({ ...steer(s, { x: 0, y: 0 }, 85), interact: true });
@@ -222,8 +220,8 @@ test('stock Prospector builds through normal flight, prepares the shield and rep
             venusDefenseWon: true,
             kills: s.enemyKills,
         })!;
-        assert.equal(result.reward.ore, 30);
-        assert.equal(result.reward.parts, 8);
+        assert.equal(result.reward.ore, 0);
+        assert.equal(result.reward.parts, 0);
         assert.ok(result.reason.includes('Akt III ukończony'));
         assert.ok(storySectorComplete(c.story!, 'venus'));
         assert.ok(parseCampaign(JSON.stringify(c)));
@@ -284,7 +282,7 @@ test('leaving the defense aborts only the current attempt; unrelated enemies and
     }
 });
 
-test('an unreturned victory is lost on refresh and lunar reports cannot complete Venus defense', () => {
+test('a radio-confirmed victory survives refresh and lunar reports cannot complete Venus defense', () => {
     const c = ready(true);
     contributeStory(c, 'venus-shield');
     beginRun(c, 1);
@@ -294,11 +292,11 @@ test('an unreturned victory is lost on refresh and lunar reports cannot complete
         win(s);
         const restored = parseCampaign(JSON.stringify(c))!;
         finishRun(restored, false, empty, 1, 'refresh');
-        assert.equal(restored.story!.progress['venus-defense'], 0);
+        assert.equal(restored.story!.progress['venus-defense'], 1);
         assert.equal(restored.story!.progress['venus-build'], 1);
         assert.ok(solarShieldReady(restored.story!));
         finishRun(c, true, empty, 1, 'wrong report', s.repairKits, { assaultWon: true });
-        assert.equal(c.story!.progress['venus-defense'], 0);
+        assert.equal(c.story!.progress['venus-defense'], 1);
     } finally {
         s.dispose();
     }

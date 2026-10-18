@@ -275,7 +275,7 @@ test('real AI damages the base; failure clears only attackers and held G cannot 
     }
 });
 
-test('leaving or refreshing loses a pending base report without losing the structure or confusing Venus reports', () => {
+test('leaving aborts an attempt but refresh preserves a radio-confirmed base report without losing the structure or confusing Venus reports', () => {
     const c = ready(true);
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -290,19 +290,18 @@ test('leaving or refreshing loses a pending base report without losing the struc
         start(s);
         win(s);
         assert.ok(
-            storyObjectives(c, [], false, 0, false, true)
-                .find((t) => t.id === 'mars-base-defense')!
-                .progress.includes('raportem'),
+            storyObjectives(c, [], false, 0, false, true).find((t) => t.id === 'mars-base-defense')!
+                .complete,
         );
         const restored = parseCampaign(JSON.stringify(c))!;
         finishRun(restored, false, empty, 1, 'refresh');
-        assert.equal(restored.story!.progress['mars-base-defense'], 0);
+        assert.equal(restored.story!.progress['mars-base-defense'], 1);
         assert.equal(restored.story!.progress['mars-base-build'], 1);
         finishRun(c, true, empty, 1, 'wrong report', s.repairKits, {
             venusDefenseWon: true,
             assaultWon: true,
         });
-        assert.equal(c.story!.progress['mars-base-defense'], 0);
+        assert.equal(c.story!.progress['mars-base-defense'], 1);
     } finally {
         s.dispose();
     }

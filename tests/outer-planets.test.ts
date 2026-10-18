@@ -1,3 +1,4 @@
+import { solveTerminal } from './terminal-test-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -321,7 +322,7 @@ test('leaving, timeout or loss aborts the attempt, cleans only encounter bodies 
     }
 });
 
-test('real first-encounter combat retreats without kill loot, protects its pending report until docking, and rejects wrong-sector or lost reports', () => {
+test('real first-encounter combat retreats without kill loot, confirms its report over radio, and rejects wrong-sector or lost reports', () => {
     const c = ready(true, true);
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -332,16 +333,16 @@ test('real first-encounter combat retreats without kill loot, protects its pendi
         assert.equal(s.storyPatrolKills, 0);
         assert.equal(s.loot.size, 0);
         assert.equal(s.salvage.items.size, 0);
-        assert.equal(c.story!.progress['neptune-boss'], 0);
-        assert.match(
+        assert.equal(c.story!.progress['neptune-boss'], 1);
+        assert.equal(
             storyObjectives(c, [], false, 0, false, false, [], 0, true).find(
                 (g) => g.id === 'neptune-boss',
-            )!.progress,
-            /raport/,
+            )!.complete,
+            true,
         );
         const restored = parseCampaign(JSON.stringify(c))!;
         finishRun(restored, false, empty, 0, 'reload');
-        assert.equal(restored.story!.progress['neptune-boss'], 0);
+        assert.equal(restored.story!.progress['neptune-boss'], 1);
         const result = dock(c, s);
         assert.ok(result.pilotProgress!.gainedXp >= 12);
         assert.equal(c.story!.progress['neptune-boss'], 1);
@@ -387,8 +388,10 @@ test('stock Prospector traverses both sectors, mines hacking supplies, defeats b
                     s.step({ ...idle, sabotage: true });
                     s.events.length = 0;
                 }
+                solveTerminal(s, 'power');
                 assert.ok(s.outpost.sabotaged, `sabotage ${goal}, hull ${s.hull}`);
                 hold(s, { ...idle, interact: true }, 250);
+                solveTerminal(s, 'breach');
                 assert.ok(s.surveyData.has('outpost'));
             } else if (goal === 'patrol') {
                 for (let f = 0; f < 60 * 230 && !s.ended && s.storyPatrolKills < 1; f++) {

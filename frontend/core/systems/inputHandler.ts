@@ -8,6 +8,8 @@ const defaultKeysConfiguration = {
     RIGHT: 'd',
     BRAKE: 's',
     BOOST: 'shift',
+    HYPERDRIVE: 'space',
+    UNLOAD: 'c',
     INTERACT: 'e',
     REPAIR: 'r',
     SABOTAGE: 'g',
@@ -49,6 +51,7 @@ export class InputHandlerBase {
             const key = evt.code === 'Space' ? 'space' : evt.key.toLowerCase();
             if (['w', 'a', 's', 'd', 'shift', 'e', 'r', 'c', 'g'].includes(key))
                 evt.preventDefault();
+            if (key === 'space' && GameState.state === 'gameplay') evt.preventDefault();
             if (['tab', 'f6', 'f7'].includes(key) && GameState.state === 'gameplay')
                 evt.preventDefault();
             this.pressedKeys.add(key);

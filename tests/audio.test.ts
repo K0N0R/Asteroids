@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import {
     CUES,
     cuePath,
     eventVolume,
     MissionAudio,
+    voiceAdmission,
     type SoundCue,
 } from '../frontend/game/systems/audioPolicy';
 
@@ -16,6 +18,45 @@ test('every selected cue has a real Ogg asset with a bounded volume', () => {
         assert.equal(readFileSync(path).subarray(0, 4).toString(), 'OggS');
         assert.ok(CUES[key].volume > 0 && CUES[key].volume <= 0.6);
     }
+});
+
+test('production imports match the source manifest, encoded files, loop boundaries and preload budget', () => {
+    const recipe = JSON.parse(readFileSync('scripts/audio-assets.json', 'utf8'));
+    const report = JSON.parse(readFileSync('docs/audio-assets.json', 'utf8'));
+    assert.equal(recipe.sampleRate, 48000);
+    assert.deepEqual(
+        recipe.assets.map((a: { cue: string }) => a.cue).sort(),
+        Object.keys(CUES).sort(),
+    );
+    let bytes = 0;
+    for (const asset of report.assets) {
+        const data = readFileSync(`frontend/assets/${cuePath(asset.cue)}`);
+        assert.equal(createHash('sha256').update(data).digest('hex'), asset.outputSha256);
+        assert.equal(data.length, asset.bytes);
+        assert.ok(asset.peak > 0 && asset.peak <= 0.9);
+        assert.ok(asset.rms > 0 && asset.rms < 0.18);
+        assert.ok(asset.seconds > 0 && asset.seconds < 6);
+        assert.equal(asset.loop ?? false, CUES[asset.cue as SoundCue].loop);
+        if (asset.loop) assert.ok(asset.seam < 0.03, asset.cue);
+        bytes += data.length;
+    }
+    assert.equal(report.assets.length, Object.keys(CUES).length);
+    assert.ok(bytes < 300000);
+});
+
+test('voice budget reserves room for important signals and can evict the oldest ordinary effect without cutting a loop', () => {
+    const normal = ['engine', 'mining', 'repair', ...Array(11).fill(null)] as (SoundCue | null)[];
+    assert.equal(voiceAdmission('standard', normal).allow, false);
+    assert.equal(voiceAdmission('complete', normal).allow, true);
+    assert.equal(voiceAdmission('alarm', normal).allow, true);
+    const full = [...normal, 'destroy', 'launch', 'hyperJump', 'hyperCharge'] as SoundCue[];
+    const admission = voiceAdmission('alarm', full);
+    assert.equal(admission.allow, true);
+    assert.equal(admission.replace, 3);
+    assert.deepEqual(voiceAdmission('engine', ['engine']), { allow: false });
+    assert.deepEqual(voiceAdmission('complete', Array(18).fill('alarm')), { allow: false });
+    assert.equal(voiceAdmission('click', Array(6).fill(null), true).allow, false);
+    assert.equal(voiceAdmission('error', Array(6).fill(null), true).allow, true);
 });
 function rig() {
     const played: { cue: SoundCue; volume: number; loop: boolean; id: number }[] = [],
@@ -124,4 +165,75 @@ test('distant events are quiet or culled and harder hits sound stronger within t
     assert.equal(r.played.length, 0);
     r.audio.event(event, { x: 0, y: 0 }, 0);
     assert.equal(r.played.length, 1);
+});
+
+test('anomaly alarm owns one loop, ducks machinery and stops on exit, pause, mute or death', () => {
+    const r = rig();
+    const unsafe = {
+        ...state,
+        thrusting: true,
+        anomalyMission: true,
+        anomalyExposure: { contaminated: true },
+    };
+    r.audio.update(unsafe);
+    for (let i = 0; i < 100; i++) r.audio.update(unsafe);
+    assert.deepEqual(
+        r.played.map((p) => p.cue),
+        ['engine', 'alarm'],
+    );
+    assert.ok(r.played[0].volume < CUES.engine.volume);
+    r.audio.update({ ...unsafe, anomalyExposure: { contaminated: false } });
+    assert.deepEqual(r.stopped, [2]);
+    assert.ok(r.volumes.some((v) => v.id === 1 && v.volume === CUES.engine.volume));
+    r.audio.update(unsafe);
+    r.audio.pause();
+    assert.ok(r.stopped.includes(3));
+    r.audio.update(unsafe);
+    r.mute();
+    r.audio.update(unsafe);
+    assert.equal(r.stopped.length, r.played.length);
+    r.unmute();
+    r.audio.update(unsafe);
+    r.audio.update({ ...unsafe, ended: 'destroyed' });
+    assert.equal(r.stopped.length, r.played.length);
+});
+
+test('hyperdrive charge stops on cancellation or entry and transition cues never repeat per frame or after pause', () => {
+    const r = rig();
+    const charge = { ...state, thrusting: true, hyperdrive: { state: 'charging' } };
+    r.audio.update(charge);
+    for (let i = 0; i < 60; i++) r.audio.update(charge);
+    assert.deepEqual(
+        r.played.map((p) => p.cue),
+        ['hyperCharge'],
+    );
+    r.audio.update({ ...charge, hyperdrive: { state: 'idle' } });
+    assert.deepEqual(r.stopped, [1]);
+    r.audio.update(charge);
+    r.audio.update({ ...charge, hyperdrive: { state: 'transit' } });
+    assert.equal(r.played.filter((p) => p.cue === 'hyperJump').length, 1);
+    for (let i = 0; i < 60; i++) r.audio.update({ ...charge, hyperdrive: { state: 'transit' } });
+    assert.equal(r.played.filter((p) => p.cue === 'hyperJump').length, 1);
+    r.audio.pause();
+    r.audio.update({ ...charge, hyperdrive: { state: 'transit' } });
+    assert.equal(r.played.filter((p) => p.cue === 'hyperJump').length, 1);
+});
+
+test('muted hyperdrive changes do not play a late jump when sound is enabled', () => {
+    const r = rig();
+    r.mute();
+    r.audio.update({ ...state, hyperdrive: { state: 'transit' } });
+    r.unmute();
+    r.audio.update({ ...state, hyperdrive: { state: 'transit' } });
+    assert.equal(r.played.length, 0);
+});
+
+test('near combat ducks continuous machinery briefly and then restores its normal level', () => {
+    const r = rig();
+    r.audio.update({ ...state, thrusting: true, elapsed: 1 });
+    r.audio.event({ kind: 'shot', sound: 'enemy', x: 10, y: 0 }, { x: 0, y: 0 }, 1);
+    r.audio.update({ ...state, thrusting: true, elapsed: 1.1 });
+    assert.ok(r.volumes.at(-1)!.volume < CUES.engine.volume);
+    r.audio.update({ ...state, thrusting: true, elapsed: 1.3 });
+    assert.equal(r.volumes.at(-1)!.volume, CUES.engine.volume);
 });

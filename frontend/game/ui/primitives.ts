@@ -19,10 +19,11 @@ export function label(
         text,
         size,
         color,
-        fontFamily: 'Segoe UI',
+        fontFamily: 'Trebuchet MS',
         horizontalAlign: 'left',
         verticalAlign: 'top',
         styleProps: {
+            fontWeight: size >= 23 ? '600' : '400',
             ...(wrapWidth ? { wordWrap: true, wordWrapWidth: wrapWidth * 2 } : {}),
             ...styleProps,
         },
@@ -32,11 +33,17 @@ export function label(
     parent.addChild(view);
     return view;
 }
+export function worldLabel(...args: Parameters<typeof label>) {
+    const view = label(...args);
+    view.setHorizontalAlign('center');
+    return view;
+}
 export function panel(parent: Container, x: number, y: number, width: number, height: number) {
     const g = new Graphics()
-        .roundRect(x, y, width, height, 12)
-        .fill({ color: C.panel, alpha: 0.94 })
-        .stroke({ color: C.line, width: 1 });
+        .roundRect(x, y + 5, width, height, 18)
+        .fill({ color: C.ink, alpha: 0.3 })
+        .roundRect(x, y, width, height, 18)
+        .fill({ color: C.panel, alpha: 0.97 });
     parent.addChild(g);
     return g;
 }
@@ -56,17 +63,18 @@ export function button(
         text,
         size: textSize,
         color: active ? C.ink : C.text,
-        fontFamily: 'Segoe UI',
+        fontFamily: 'Trebuchet MS',
+        weight: 'bold',
     });
     const view = new Button({
         x: x + width / 2,
         y: y + height / 2,
         width,
         height,
-        tint: active ? C.mint : 0x173244,
+        tint: active ? C.mint : C.raised,
         outlineTint: active ? C.mint : C.line,
-        outlineWidth: 1,
-        roundness: 7,
+        outlineWidth: 0,
+        roundness: Math.min(14, height / 2),
         children: [textView],
         onClick: () => {
             if (enabled) {

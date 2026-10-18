@@ -163,7 +163,7 @@ test('stock Prospector prioritizes repair support at the factory, fights real la
         assert.ok(f.launched >= 2);
         assert.ok(s.enemyKills >= 2);
         assert.ok(s.surveyData.has('factory'));
-        assert.equal(c.story!.progress['mars-factory'], 0);
+        assert.equal(c.story!.progress['mars-factory'], 1);
         assert.equal(s.missionReturnBlocked, false);
         const launches = f.launched;
         for (let frame = 0; frame < 60 * 100 && !s.ended; frame++) {
@@ -195,7 +195,7 @@ test('stock Prospector prioritizes repair support at the factory, fights real la
             s.repairKits,
             s.missionReport,
         )!;
-        assert.deepEqual(result.reward, { ore: 28, parts: 8 });
+        assert.deepEqual(result.reward, { ore: 0, parts: 0 });
         assert.ok(c.story!.claimed.includes('mars-factory'));
         assert.ok(parseCampaign(JSON.stringify(c)));
         assert.equal(selectableMission(c, 'mars-factory'), null);
@@ -213,7 +213,7 @@ test('stock Prospector prioritizes repair support at the factory, fights real la
     }
 });
 
-test('a factory cannot be scanned or destroyed by friendly fire, and retreat discards its unconfirmed destruction', () => {
+test('a factory cannot be scanned or destroyed by friendly fire, and retreat preserves radio-confirmed destruction', () => {
     const c = ready();
     beginRun(c, 1, null, false, 'mars-factory');
     const s = new MissionSimulation(c, 1);
@@ -229,12 +229,12 @@ test('a factory cannot be scanned or destroyed by friendly fire, and retreat dis
         assert.ok(s.surveyData.has('factory'));
         assert.ok(s.abortMission());
         finishRun(c, true, s.cargo, s.elapsed, 'retreat', s.repairKits, s.missionReport);
-        assert.equal(c.story!.progress['mars-factory'], 0);
-        assert.ok(selectableMission(c, 'mars-factory'));
+        assert.equal(c.story!.progress['mars-factory'], 1);
+        assert.equal(selectableMission(c, 'mars-factory'), null);
         beginRun(c, 2, null, false, 'mars-factory');
         const retry = new MissionSimulation(c, 2);
         try {
-            assert.equal(retry.enemyFactory!.health, F.health);
+            assert.ok(retry.enemyFactory!.destroyed);
         } finally {
             retry.dispose();
         }

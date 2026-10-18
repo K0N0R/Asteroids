@@ -1,4 +1,5 @@
-import { RESOURCE_IDS, resourceTotal, type ResourceStore } from './resources';
+import { RESOURCE_IDS, STORAGE_PRIORITY, resourceTotal, type ResourceStore } from './resources';
+import { receiveStationCargo } from './earthLogistics';
 import { STATION_DRONES, type StationDroneState } from './stationDrones';
 import { hullUnlocked } from './fleetUnlocks';
 import { selectableMission, missionObjectiveMet, type MissionOrder } from './missionOrders';
@@ -67,6 +68,7 @@ export type ShipModules = Record<
     number
 >;
 export interface Ship extends ShipModules {
+    hyperFuel: number;
     id: number;
     hull: HullId;
     weapon: WeaponId;
@@ -81,18 +83,32 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 41;
+    version: 48;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
     reserveShips: Ship[];
     nextShipId: number;
     recoverySignals: RecoverySignal[];
+    nextSalvageId: number;
+    worldSalvage: {
+        id: number;
+        seed: number;
+        x: number;
+        y: number;
+        source: 'patrol' | 'lancer';
+        area?: 'surface';
+    }[];
+    rescueSites: Partial<
+        Record<'lunar-rescue' | 'jupiter-recovery', Point & { stabilized: boolean }>
+    >;
     station: {
         workshop: number;
         storage: number;
         cargoBays?: number;
         shield: boolean;
+        shieldLevel: number;
+        reinforcedBays: number;
         sentries: StationDroneState[] | null;
     };
     pilots: Pilot[];
@@ -110,6 +126,12 @@ export interface Campaign {
         area?: 'surface';
         /** Supplies loaded at departure that have not yet been delivered. */
         freight?: Cargo;
+        /** Mined cargo already delivered during this sortie; XP only, never deposit twice. */
+        unloaded?: Cargo;
+        /** Cumulative patrol kills acknowledged during this sortie. */
+        reportedPatrolKills?: number;
+        /** Boss bonus earned by an acknowledged victory, paid with pilot XP on return. */
+        reportedBossXp?: 12 | 18;
         deliveries?: SalvageDelivery[];
     } | null;
     crew: CrewState;
@@ -142,6 +164,7 @@ export const SAVE_KEY = 'asteroids.campaign.v1';
 export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
     id,
     hull,
+    hyperFuel: 3,
     weapon: 'standard',
     weapons: ['standard'],
     engine: 0,
@@ -153,14 +176,24 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 41,
+        version: 48,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
         reserveShips: [],
         nextShipId: 2,
         recoverySignals: [],
-        station: { workshop: 0, storage: 0, shield: false, sentries: null },
+        nextSalvageId: 100000,
+        worldSalvage: [],
+        rescueSites: {},
+        station: {
+            workshop: 0,
+            storage: 0,
+            shield: false,
+            shieldLevel: 0,
+            reinforcedBays: 0,
+            sentries: null,
+        },
         pilots: [newPilot()],
         selectedPilot: 1,
         nextPilotId: 2,
@@ -189,12 +222,15 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 41 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 48 || !cargo(p.bank) || !object(p.station)) return null;
         if (
             !integer(p.station.workshop, 2) ||
             !integer(p.station.storage, 3) ||
             (p.station.cargoBays !== undefined && !integer(p.station.cargoBays, 3)) ||
-            typeof p.station.shield !== 'boolean'
+            typeof p.station.shield !== 'boolean' ||
+            !integer(p.station.shieldLevel, 2) ||
+            !integer(p.station.reinforcedBays, 2) ||
+            ((p.station.shieldLevel as number) > 0 && !p.station.shield)
         )
             return null;
         if (
@@ -287,6 +323,24 @@ export function parseCampaign(json: string | null): Campaign | null {
             if (new Set(deliveries.map((d) => d.id)).size !== deliveries.length) return null;
         }
         if (
+            object(p.activeRun) &&
+            p.activeRun.unloaded !== undefined &&
+            (!['earth', 'lunar'].includes(p.activeRun.sector as string) ||
+                !cargo(p.activeRun.unloaded))
+        )
+            return null;
+        if (
+            object(p.activeRun) &&
+            ((p.activeRun.reportedPatrolKills !== undefined &&
+                (!p.story || !integer(p.activeRun.reportedPatrolKills))) ||
+                (p.activeRun.reportedBossXp !== undefined &&
+                    !(
+                        (p.activeRun.sector === 'neptune' && p.activeRun.reportedBossXp === 12) ||
+                        (p.activeRun.sector === 'pluto' && p.activeRun.reportedBossXp === 18)
+                    )))
+        )
+            return null;
+        if (
             !object(p.crew) ||
             typeof p.crew.mechanic !== 'boolean' ||
             typeof p.crew.mechanicAboard !== 'boolean' ||
@@ -356,6 +410,7 @@ export function parseCampaign(json: string | null): Campaign | null {
             Object.hasOwn(HULLS, ship.hull) &&
             ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
             integer(ship.shield, 3) &&
+            integer(ship.hyperFuel, 3) &&
             integer(ship.handling, 3) &&
             typeof ship.weapon === 'string' &&
             Object.hasOwn(WEAPONS, ship.weapon) &&
@@ -388,6 +443,32 @@ export function parseCampaign(json: string | null): Campaign | null {
                     Number.isFinite(point[key]) &&
                     Math.abs(point[key] as number) <= 1000000,
             );
+        if (
+            !integer(p.nextSalvageId) ||
+            (p.nextSalvageId as number) < 100000 ||
+            !Array.isArray(p.worldSalvage) ||
+            !object(p.rescueSites) ||
+            !p.worldSalvage.every(
+                (item) =>
+                    object(item) &&
+                    integer(item.id) &&
+                    item.id >= 100000 &&
+                    item.id < (p.nextSalvageId as number) &&
+                    integer(item.seed, 0xffffffff) &&
+                    validPoint(item) &&
+                    ['patrol', 'lancer'].includes(item.source as string) &&
+                    (item.area === undefined || item.area === 'surface'),
+            ) ||
+            new Set(p.worldSalvage.map((item) => item.id)).size !== p.worldSalvage.length ||
+            !Object.entries(p.rescueSites).every(
+                ([key, item]) =>
+                    ['lunar-rescue', 'jupiter-recovery'].includes(key) &&
+                    object(item) &&
+                    validPoint(item) &&
+                    typeof item.stabilized === 'boolean',
+            )
+        )
+            return null;
         if (!Array.isArray(p.recoverySignals) || p.recoverySignals.length > RECOVERY.signalLimit)
             return null;
         const allShipIds = ships.map((ship) => ship.id);
@@ -404,8 +485,7 @@ export function parseCampaign(json: string | null): Campaign | null {
                 (signal.area === 'surface'
                     ? signal.seed !== STORY_SECTORS.lunar.seed ||
                       moonDistance(signal) > MOON.radius - 200
-                    : Math.hypot(signal.x, signal.y) < 649 ||
-                      Math.hypot(signal.x, signal.y) > GAME.sectorRadius - 299) ||
+                    : Math.hypot(signal.x, signal.y) > GAME.sectorRadius - 299) ||
                 (signal.ship === null && signal.pilot === null) ||
                 (signal.ship !== null && (!validShip(signal.ship) || signal.ship.id !== signal.id))
             )
@@ -487,7 +567,7 @@ export function parseCampaign(json: string | null): Campaign | null {
                 typeof order.aborted !== 'boolean' ||
                 p.activeRun.recoveryId !== null ||
                 p.activeRun.freight !== undefined ||
-                !selectableMission(p as unknown as Campaign, order.task)
+                !selectableMission(p as unknown as Campaign, order.task, true)
             )
                 return null;
         }
@@ -578,7 +658,12 @@ export function selectShip(c: Campaign, id: number): boolean {
     return true;
 }
 export function storageCapacity(c: Campaign) {
-    return 150 + c.station.storage * 100 + (c.station.cargoBays ?? 0) * 200;
+    return (
+        150 +
+        c.station.storage * 100 +
+        (c.station.cargoBays ?? 0) * 200 +
+        c.station.reinforcedBays * 400
+    );
 }
 export function storageUsed(c: Campaign) {
     return resourceTotal(c.bank) + reservedResources(c);
@@ -719,7 +804,7 @@ export function deliverSalvage(
         description = '',
         rescueXp = 0;
     if (source === 'recovery') {
-        const signal = c.recoverySignals.find((s) => s.id === active.recoveryId && -s.id === id);
+        const signal = c.recoverySignals.find((s) => -s.id === id && s.seed === active.seed);
         if (!signal) return null;
         description = `Odzysk: ${recoveryDescription(signal)}`;
         if (signal.pilot) {
@@ -735,6 +820,7 @@ export function deliverSalvage(
         active.recoveryId = null;
     } else {
         if ((source !== 'patrol' && source !== 'lancer') || !integer(id) || id < 1) return null;
+        c.worldSalvage = c.worldSalvage.filter((item) => item.id !== id);
         const recipe = SALVAGE[source];
         refund = {
             ore: recipe.ore,
@@ -809,16 +895,24 @@ export function finishRun(
     if (!active) return null;
     if (success && active.mission && !active.mission.aborted && !missionObjectiveMet(c, recovery))
         return null;
+    collected = { ...collected };
     const aborted = success && !!active.mission?.aborted;
     if (aborted) {
         collected = { ore: 0, parts: 0 };
         recovery = {};
     }
+    if (success && !aborted) receiveStationCargo(c, collected);
     const pilot = c.pilots.find((p) => p.id === active.pilotId)!;
+    const securedCargo = { ...collected };
+    if (success && !aborted)
+        for (const id of RESOURCE_IDS) {
+            const delivered = active.unloaded?.[id] ?? 0;
+            if (delivered) securedCargo[id] = (securedCargo[id] ?? 0) + delivered;
+        }
     const result: RunResult = {
         ...(aborted ? { aborted: true } : {}),
         success,
-        cargo: { ...collected },
+        cargo: securedCargo,
         pilotName: pilotName(pilot),
         shipName: HULLS[c.ship!.hull].name,
         duration,
@@ -830,21 +924,15 @@ export function finishRun(
         contractText: c.story
             ? success
                 ? 'Postęp sektora zachowany.'
-                : 'Dane i ładunek wyprawy przepadły. Wcześniejszy postęp zadań pozostaje.'
+                : active.sector
+                  ? 'Nieprzekazany ładunek przepadł. Potwierdzone raporty i dostawy pozostają w stacji.'
+                  : 'Dane i ładunek wyprawy przepadły. Wcześniejszy postęp zadań pozostaje.'
             : success
               ? 'Cel kontraktu nie został wykonany.'
               : 'Kontrakt nie został rozliczony. Dane wyprawy przepadły.',
         pilotProgress: null,
         deliveries: (active.deliveries ?? []).map((d) => ({ ...d, materials: { ...d.materials } })),
     };
-    const destroyed = c.recoverySignals.find(
-        (signal) => signal.id === active.recoveryId && signal.id === recovery.destroyedRecoveryId,
-    );
-    if (destroyed) {
-        if (destroyed.pilot) c.lostPilots++;
-        c.recoverySignals = c.recoverySignals.filter((signal) => signal.id !== destroyed.id);
-        result.recoveryText = 'Holowany cel ratunkowy został zniszczony. ';
-    }
     if (success) {
         const signal = c.recoverySignals.find((signal) => signal.id === active.recoveryId);
         if (signal && recovery.securedId === signal.id) {
@@ -923,18 +1011,32 @@ export function finishRun(
                 expeditionXp(
                     active.freight
                         ? {
-                              ore: Math.max(0, collected.ore - active.freight.ore),
-                              parts: Math.max(0, collected.parts - active.freight.parts),
-                              crystals: collected.crystals,
+                              ore:
+                                  Math.max(0, collected.ore - active.freight.ore) +
+                                  (active.unloaded?.ore ?? 0),
+                              parts:
+                                  Math.max(0, collected.parts - active.freight.parts) +
+                                  (active.unloaded?.parts ?? 0),
+                              crystals:
+                                  (collected.crystals ?? 0) + (active.unloaded?.crystals ?? 0),
+                              copperOre:
+                                  (collected.copperOre ?? 0) + (active.unloaded?.copperOre ?? 0),
                           }
-                        : collected,
+                        : {
+                              ...collected,
+                              ore: collected.ore + (active.unloaded?.ore ?? 0),
+                              parts: collected.parts + (active.unloaded?.parts ?? 0),
+                              copperOre:
+                                  (collected.copperOre ?? 0) + (active.unloaded?.copperOre ?? 0),
+                              crystals:
+                                  (collected.crystals ?? 0) + (active.unloaded?.crystals ?? 0),
+                          },
                     data,
                     !c.story && contractReady(active.contract, collected, data, kills),
                     signal && recovery.securedId === signal.id ? signal : null,
                     kills,
                 ) +
-                    firstBossXp +
-                    finalBossXp +
+                    Math.max(firstBossXp + finalBossXp, active.reportedBossXp ?? 0) +
                     (active.deliveries ?? []).reduce((sum, d) => sum + d.rescueXp, 0),
             ),
         );
@@ -942,15 +1044,7 @@ export function finishRun(
         c.repairKits += Math.max(0, Math.min(active.repairKits, Math.floor(unusedRepairKits)));
         let available = free,
             accepted = 0;
-        for (const id of [
-            'storageFrames',
-            'powerModules',
-            'conductors',
-            'crystals',
-            'parts',
-            'copperOre',
-            'ore',
-        ] as const) {
+        for (const id of STORAGE_PRIORITY) {
             const amount = Math.min(available, (collected[id] ?? 0) + (result.reward[id] ?? 0));
             if (amount) c.bank[id] = (c.bank[id] ?? 0) + amount;
             available -= amount;
@@ -973,7 +1067,8 @@ export function finishRun(
             const closingAct = !c.story.claimed.includes('lunar-attack');
             const closingBelt = active.sector === 'mars' && !c.story.claimed.includes('mars-belt');
             const closingVenus =
-                active.sector === 'venus' && !storySectorComplete(c.story, 'venus');
+                active.sector === 'venus' &&
+                (!storySectorComplete(c.story, 'venus') || !!recovery.venusDefenseWon);
             const change = recordStoryReturn(
                 c,
                 active.sector,
@@ -992,7 +1087,10 @@ export function finishRun(
                 result.reward.ore += change.reward.ore;
                 result.reward.parts += change.reward.parts;
                 result.overflow += change.overflow;
-                if (closingAct && actOneComplete(c.story))
+                if (
+                    (closingAct || (active.sector === 'lunar' && recovery.assaultWon)) &&
+                    actOneComplete(c.story)
+                )
                     result.reason =
                         'Akt I ukończony. Stacja księżycowa obroniona. Następny kierunek: Mars.';
                 if (closingBelt && c.story.claimed.includes('mars-belt'))
@@ -1028,12 +1126,6 @@ export function finishRun(
             }
         }
     } else {
-        const target = c.recoverySignals.find((signal) => signal.id === active.recoveryId);
-        if (target) {
-            if (target.pilot) c.lostPilots++;
-            c.recoverySignals = c.recoverySignals.filter((signal) => signal.id !== target.id);
-            result.recoveryText = 'Cel poprzedniej akcji ratunkowej został utracony. ';
-        }
         const loss = recovery.lossPosition ?? active.lastPosition;
         const signal = createRecoverySignal(
             c.ship!,
@@ -1059,11 +1151,6 @@ export function finishRun(
             c.recoverySignals.push(signal);
             result.recoveryText +=
                 'Nowy sygnał ratunkowy w bazie: ' + recoveryDescription(signal) + '.';
-            if (c.recoverySignals.length > RECOVERY.signalLimit) {
-                const expired = c.recoverySignals.shift()!;
-                if (expired.pilot) c.lostPilots++;
-                result.recoveryText += ' Najstarszy sygnał wygasł (limit 3).';
-            }
         } else result.recoveryText += 'Brak sygnału kapsuły lub wraku. Strata jest trwała.';
         c.pilots = c.pilots.filter((p) => p.id !== active.pilotId);
         c.selectedPilot = c.pilots[0]?.id ?? 0;

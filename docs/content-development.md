@@ -1,12 +1,12 @@
 # Rozbudowa zawartości po 0.52
 
-Stan: 2026-10-16. Podstawa: lista autora przekazana po ukończeniu szkieletu kampanii. To backlog i propozycja kolejności prac, nie opis wdrożonych funkcji. Nie zmienia zapisu ani działania wersji 0.52.
+Stan: 2026-10-17. Podstawa: lista autora przekazana po ukończeniu szkieletu kampanii. To backlog i propozycja kolejności prac, nie opis wdrożonych funkcji. Nie zmienia zapisu ani działania wersji 0.52.
 
 ## Bieżąca polityka zapisu
 
-Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.65 przyjmuje wyłącznie format kampanii 41 i dziennika 19, bez zmiany względem 0.64; wcześniejsze formaty są odrzucane.
+Uzupełnienie autora podczas prac nad 0.54: nie utrzymujemy zgodności ze starszymi zapisami. Nie mogą być otwierane. Dalsze pakiety mogą wprowadzać breaking changes; niezgodność oznacza komunikat i nową kampanię. To zastępuje wcześniejsze wymagania migracji w planach. Wersja 0.78 przyjmuje wyłącznie format kampanii 47 i dziennika 21; wcześniejsze formaty są odrzucane.
 
-Aktualna kolejność pakietów jest zapisana w [bieżącym planie](plan-current.md#uzgodniona-kolejność-dalszej-rozbudowy). Drony strażnicze wdrożono w 0.64, role przeciwników w 0.65; następne są większe obrony baz. Scenariusz aktu I rozwijamy równolegle, bez przesądzania zwrotów, motywacji i finału.
+Aktualna kolejność pakietów jest zapisana w [bieżącym planie](plan-current.md#uzgodniona-kolejność-dalszej-rozbudowy). Drony strażnicze wdrożono w 0.64, role przeciwników w 0.65, większe obrony placówek w 0.66, a obwody włamania, przekierowanie zasilania i premie hakowania statków w 0.67; 0.68 dodaje wydobycie Harpunem na Merkurym i przemysł kinetyczny. 0.69 wdraża pierwszy pakiet nawigacji: większą orbitę Ziemi, śluzy, hipernapęd z paliwem oraz animację śmierci. 0.70 dodaje nieregularne skupiska przy Ziemi i fizyczny dryf dalszego złoża. 0.71 wdraża ziemskie potwierdzenia radiowe i transfer ładunku C poza dokiem. 0.72 przenosi potwierdzenia i transfer na Księżyc, z odblokowaniem powierzchni i Muła w tej samej wyprawie. 0.73 dodaje instruktora AI w drugim Prospectorze przy Ziemi. Kolejne pakiety obejmują rozwój pozostałych sektorów i ich raportowania. Scenariusz aktu I rozwijamy równolegle, bez przesądzania zwrotów, motywacji i finału.
 
 ## Ustalenia autora
 
@@ -39,6 +39,20 @@ Początkowo dostępne konstrukcje: Prospector i Swift. Pozostałe statki mają b
 | Postacie         | Większa różnorodność twarzy, sylwetek portretów i włosów pilotów; portrety również w dialogach.                                                                                                                                                  |
 | Oprawa           | Kierunek inspirowany załączonymi ilustracjami: wyraziste płaskie kolory, proste geometryczne bryły, zaokrąglone detale, warstwy cienia, czytelne planety i kosmiczne tła. Planety mają zachować rozpoznawalne cechy rzeczywistych odpowiedników. |
 
+## Uzupełnienie autora — 2026-10-17
+
+Poniższe funkcje są zatwierdzonym backlogiem. Stan na 0.69: hipernapęd, paliwo, ziemskie śluzy i animacja śmierci są wdrożone; pozostałe elementy oraz rozszerzenie nawigacji na kolejne sektory pozostają do wykonania. [Zakres 0.69](implementation-v0.69.md).
+
+- **Towarzysz AI w pierwszym sektorze**: drugi Prospector prowadzony przez AI, który prowadzi gracza krok po kroku przez początek gry. Połączyć jego działania z aktualnym zadaniem i dialogami; zaprojektować zachowanie po utracie kontaktu lub zniszczeniu towarzysza tak, aby nie blokować kampanii.
+- **Hipernapęd pod spacją**: szybkie pokonywanie dużych odległości, osobne paliwo hipernapędu i dedykowana animacja przelotu. Zderzenie z przeszkodą podczas działania hipernapędu oznacza natychmiastową śmierć. Sektor dzielimy na kilka obszarów rozdzielonych znacznymi odległościami; bezpieczne „śluzy” służą do korzystania z hipernapędu. Przed wdrożeniem rozstrzygnąć ładowanie paliwa, sytuację jego wyczerpania oraz konflikt spacji z obecnym sterowaniem. Wykrywanie zderzeń musi obejmować całą przebytą trasę, także przy niskim FPS; bezpieczna śluza nie może dawać fałszywej gwarancji wolnej trasy.
+- **Animacja śmierci**: zniszczenie statku ma własną sekwencję przed przejściem do bazy i rozliczeniem straty. Jednorazowe rozliczenie porażki, zablokowane sterowanie martwym statkiem i brak dalszego zaliczania zadań podczas animacji.
+- **Automatyczne zdawanie zadań przez łączność**: spełnienie warunków uruchamia rozmowę z bazą i rozliczenie celu; skany oraz raporty nie wymagają ręcznego oddawania ani dokowania. Surowce przekazujemy przez specjalną animację poza dokiem. Oddzielić raportowanie od fizycznego transferu ładunku, obsłużyć częściowe dostawy oraz jednorazowe nagrody. Zmiana obejmuje dotychczasową zasadę raportu dopiero po bezpiecznym powrocie i warunki blokady powrotu — trzeba zmienić je razem.
+- **Anomalie jako teren**: skażone obszary zadające obrażenia statkom, nieregularne labirynty oraz misje odzyskania obiektu z ich wnętrza. Zapewnić czytelne granice zagrożenia, przejezdną trasę wejścia i wyjścia oraz możliwość ponowienia po stracie obiektu lub statku. Nie przesądza to mechanizmu fabularnego anomalii.
+
+- **Nowe udźwiękowienie**: przegląd paczek w folderze `asteroids-sounds` i zastąpienie starych efektów nowymi. Przygotować przypisanie plików do zdarzeń gry, sprawdzić licencje i wymagane uznanie autorstwa, wyrównać głośność oraz ocenić miks w rzeczywistej walce. Uwzględnić zapętlenia, liczbę jednoczesnych efektów i rozmiar zasobów; dobrać też efekty do planowanych animacji i hipernapędu.
+
+Zależności: najpierw rozliczanie przez łączność i transfer ładunku, następnie towarzysz prowadzący przez docelowy cykl misji. Animacja śmierci powinna poprzedzić wdrożenie śmiertelnych kolizji hipernapędu. Większe obszary, paliwo, śluzy i hipernapęd tworzą jeden pakiet nawigacji; samo zwiększenie odległości przed jego ukończeniem wydłużałoby tylko zwykły lot. Anomalie otrzymują najpierw jedną kompletną misję odzysku z testowaną trasą przez labirynt. Uzupełnienie planu nie rozszerza zakresu pakietu obron baz 0.66.
+
 ## Proponowana kolejność
 
 Numery oznaczają pakiety robocze, nie obiecane numery wydań. Każdy pakiet musi zachować ukończalność kampanii od nowego zapisu i jasno odrzucać niezgodne formaty.
@@ -61,7 +75,7 @@ Prace artystyczne mogą rozpocząć się wcześniej od małej próbki: Ziemia, f
 
 Dłuższe misje powinny zawierać kilka różnych działań i zmieniającą się sytuację: dolot → odczyt → awaria lub kontakt → reakcja → ewakuacja. Samo zwiększenie HP skał, przeciwników i odległości wydłuży czas bez dodania decyzji. Najpierw należy sprawdzić jedną taką misję i ustalić docelowy czas wyprawy.
 
-Nowe role przeciwników: lekki przechwytujący, osłonięta jednostka nacisku, wsparcie naprawiające i stawiacz min. To propozycje, nie zatwierdzony zestaw. Ich kombinacje powinny zmieniać priorytety, wymuszać ruch i korzystanie z osłon. Większa wytrzymałość ma pozostawiać czytelną reakcję na trafienia.
+Nowe role przeciwników: lekki przechwytujący, osłonięta jednostka nacisku, wsparcie naprawiające i stawiacz min. Te cztery role wdrożono w 0.65. Ich kombinacje powinny zmieniać priorytety, wymuszać ruch i korzystanie z osłon. Większa wytrzymałość ma pozostawiać czytelną reakcję na trafienia.
 
 Pojawienie się poza ekranem trzeba liczyć względem aktualnej kamery i rozmiaru widoku. Brak strzałki kierunku nie oznacza pojawiania się pocisku na graczu: kontakt powinien fizycznie dolecieć i dopiero wejść w zasięg broni. Bazy produkujące jednostki potrzebują limitu aktywnych kontaktów i czytelnego tempa uzupełnień, aby długi lot nie tworzył nieskończonego nagromadzenia obiektów.
 
@@ -73,15 +87,15 @@ Proponuję oznaczać wyprawy jako swobodne albo zobowiązujące do ukończenia c
 
 Docelowy interfejs może śledzić jedną bieżącą misję, zachowując listę ukończonych i tylko już odkrytych zadań dodatkowych. Jeżeli nadal mają istnieć równoległe cele główne, trzeba rozróżnić aktualny etap od aktualnie śledzonego celu. To decyzja do podjęcia przy pakiecie 1; nie należy niejawnie usuwać wcześniejszej swobody kolejności.
 
-Wymagane statki muszą dać się zdobyć przed daną misją i odbudować po stracie. Starszy zapis z posiadanymi kadłubami nie powinien tracić statków przy dodaniu odblokowań. Sandbox powinien zachować pełny wybór do testów.
+Wymagane statki muszą dać się zdobyć przed daną misją i odbudować po stracie. Starsze formaty zapisów są odrzucane zgodnie z decyzją autora; nie utrzymujemy migracji floty. Sandbox powinien zachować pełny wybór do testów.
 
 ### Specjalizacja i interakcje
 
-Sokół mógłby dłużej utrzymywać otwarte okno włamania i łagodniej podnosić alarm po błędzie. Feniks mógłby szybciej przełamywać zabezpieczenia kosztem silnego alarmu. To dwa odmienne sposoby wykonania tej samej minigry, zamiast dwóch premii do szybkości przytrzymania E.
+Wdrożone w 0.67: Sokół utrzymuje połączenie 45 s zamiast 30 s i zostawia 15 zamiast 30 punktów śladu po błędnym zatwierdzeniu. Feniks może natychmiast przełamać terminal kosztem pełnego alarmu i rzeczywistego pościgu. Zwykłe rozwiązanie pozostaje dostępne wszystkim kadłubom.
 
 Przykłady minigier: dopasowanie faz sygnału w łączności, przeprowadzenie obwodu przy włamaniu, wyrównanie ciśnienia lub zasilania przy naprawie. Powtarzanie ma być krótkie, a kolejne warianty zmieniać układ. Rozwój sprzętu może upraszczać opanowane czynności. Należy jawnie rozstrzygnąć, czy czas świata biegnie podczas interakcji; w misjach bojowych start interfejsu nie powinien ukrycie zamrażać ataku.
 
-Surowiec merkuriański może być stabilnym złożem przeznaczonym do chwytania i wyrywania Harpunem, z czytelną reakcją na nieskuteczny ostrzał. Nazwa nie powinna sugerować, że znany pierwiastek jest w rzeczywistości odporny na wszystkie wymienione bronie. Można zachować rzeczywiste nazwy rud, a specjalną odporność wyjaśnić osobno strukturą materiału lub fikcyjnym pochodzeniem. Szczegóły fabularne wymagają decyzji autora.
+Wdrożone w 0.68: spiek merkuriański to zakotwiczone złoże wyrywane szczękami Harpuna, odporne na zwykły ostrzał. Po zwiadzie cel 6 prowadzi do osobnej odnogi ze skałą osłonową; nowy łańcuch przemysłowy kończy się rozbudową tarczy i magazynu. Nazwa nie powinna sugerować, że znany pierwiastek jest w rzeczywistości odporny na wszystkie wymienione bronie. Można zachować rzeczywiste nazwy rud, a specjalną odporność wyjaśnić osobno strukturą materiału lub fikcyjnym pochodzeniem. Szczegóły fabularne wymagają decyzji autora.
 
 ### Produkcja, bezpieczeństwo i styl
 
@@ -93,7 +107,7 @@ Z referencji warto przenieść czytelność sylwetek, rytm kształtów, ogranicz
 
 ## Pierwszy zakres — wdrożony w 0.53
 
-[Implementacja i wyniki sprawdzeń](implementation-v0.53.md): trzy odprawy ziemskie i stopniowe odkrywanie zadań. Poniższy opis zachowuje założenia tego pakietu. Wersja 0.54 dodaje cykl wybranej wyprawy dla zwiadu i walki, odwrót oraz odblokowania floty. Wersja 0.55 rozpoczyna pakiet gospodarki i stacji: ruda miedzi, przewodniki, moduły zasilania i wytwarzane segmenty magazynowe. Wersja 0.56 dodaje generator tarczy stacji wykorzystujący moduły zasilania. Wersja 0.57 dodaje minigrę ziemskiej łączności. Wersja 0.58 dodaje eskortę wydobywczą Muła. Wersja 0.59 dodaje misję ratunkową z minigrą obwodów i fizycznym holowaniem promu. Wersja 0.60 rozbudowuje powierzchnię Księżyca o odległy grzbiet miedziowy i przytwierdzone formacje skalne. Wersja 0.61 przenosi eskortę Muła do budowy na Księżycu: wspólne dostawy 160 Fe, wielokrotne kursy, naprawy za własne zasoby i odblokowanie kadłuba po fundamentach. Wersja 0.62 dodaje animowane przejścia między orbitą a powierzchnią. Wersja 0.63 wdraża pierwszą bazę produkującą jednostki: opcjonalną stocznię polową przy Marsie. Kolejne pakiety obejmują drony strażnicze Satuk 15, role przeciwników i dalszą rozbudowę sektorów.
+[Implementacja i wyniki sprawdzeń](implementation-v0.53.md): trzy odprawy ziemskie i stopniowe odkrywanie zadań. Poniższy opis zachowuje założenia tego pakietu. Wersja 0.54 dodaje cykl wybranej wyprawy dla zwiadu i walki, odwrót oraz odblokowania floty. Wersja 0.55 rozpoczyna pakiet gospodarki i stacji: ruda miedzi, przewodniki, moduły zasilania i wytwarzane segmenty magazynowe. Wersja 0.56 dodaje generator tarczy stacji wykorzystujący moduły zasilania. Wersja 0.57 dodaje minigrę ziemskiej łączności. Wersja 0.58 dodaje eskortę wydobywczą Muła. Wersja 0.59 dodaje misję ratunkową z minigrą obwodów i fizycznym holowaniem promu. Wersja 0.60 rozbudowuje powierzchnię Księżyca o odległy grzbiet miedziowy i przytwierdzone formacje skalne. Wersja 0.61 przenosi eskortę Muła do budowy na Księżycu: wspólne dostawy 160 Fe, wielokrotne kursy, naprawy za własne zasoby i odblokowanie kadłuba po fundamentach. Wersja 0.62 dodaje animowane przejścia między orbitą a powierzchnią. Wersja 0.63 wdraża pierwszą bazę produkującą jednostki: opcjonalną stocznię polową przy Marsie. Wersja 0.64 dodaje drony strażnicze Satuk 15, 0.65 cztery role przeciwników, 0.66 mieszane fale obrony placówek, a 0.67 minigry terminali i specjalizacje hakowania. Kolejne pakiety określa bieżący plan.
 
 ### Założenia pierwszego pakietu
 
@@ -104,3 +118,9 @@ Pierwsza sekwencja ma przedstawiać objęcie dowodzenia i znane zadanie, bez uja
 ## Warunek ukończenia każdego pakietu
 
 Grywalny fragment w docelowym sektorze, poprawne bieżące zapisy i odrzucanie niezgodnych, bezpieczne ponowienie po porażce, brak blokady postępu i regresja sandboxa. Testy z przygotowanym wejściem uzupełniać ciągłym przejściem od nowego zapisu. Gotowy system powinien mieć co najmniej jedną pełną misję pokazującą jego sens przed dodawaniem kolejnych wariantów.
+
+## Oprawa 0.77
+
+Na prośbę autora lifting wspólnej oprawy otrzymał priorytet przed animacjami dokowania. Wdrożono paletę, panele, HUD, planety wszystkich sektorów, Satuk 15, kolory floty i asteroidy. Osobne projekty przeciwników, instalacji, portretów i efektów pozostają kolejnym pakietem. [Zakres i dalsze kroki](implementation-v0.77.md).
+
+Korekta autora w 0.78: usunięte podkłady HUD; ilustracje mają opierać się na zaokrągleniach i wypełnieniach bez dekoracyjnych obrysów. Tło nie obraca się ze statkiem. Instruktor pomaga laserem przy skałach, a Muł pokazuje obie wiązki wydobycia. [Zakres](implementation-v0.78.md).

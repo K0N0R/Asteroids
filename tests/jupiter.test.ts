@@ -1,3 +1,4 @@
+import { solveTerminal } from './terminal-test-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -249,21 +250,21 @@ test('sabotage consumes one carried component only on completion, clears the ala
         hold(s, { ...idle, sabotage: true }, 90);
         assert.equal(s.cargo.parts, 1);
         hold(s, idle, 1);
-        assert.equal(s.outpost.sabotageProgress, 0);
-        hold(s, { ...idle, sabotage: true }, 185);
+        assert.equal(s.terminalPuzzle?.mode, 'power');
+        solveTerminal(s, 'power');
         assert.equal(s.cargo.parts, 0);
         assert.ok(s.outpost.disabledTime > 19);
         assert.equal(s.outpost.alarm, 0);
-        hold(s, { ...idle, interact: true }, 245);
+        solveTerminal(s, 'breach');
         assert.ok(s.surveyData.has('outpost'));
         assert.equal(c.story!.progress['jupiter-uplink'], 0);
         assert.match(flightHint(s), /Satuk 15/);
         hold(s, idle, 1);
         hold(s, { ...idle, interact: true }, 350);
         assert.equal(s.outpost.equipmentSecured, false);
-        assert.match(
-            storyObjectives(c, [...s.surveyData]).find((g) => g.id === 'jupiter-uplink')!.progress,
-            /danymi/,
+        assert.equal(
+            storyObjectives(c, [...s.surveyData]).find((g) => g.id === 'jupiter-uplink')!.complete,
+            true,
         );
     } finally {
         s.dispose();
@@ -318,8 +319,10 @@ test('stock Prospector surveys, fights both patrols, mines sabotage supplies, ha
                     s.step({ ...idle, sabotage: true });
                     s.events.length = 0;
                 }
+                solveTerminal(s, 'power');
                 assert.ok(s.outpost.sabotaged, `sabotage: hull ${s.hull}`);
                 hold(s, { ...idle, interact: true }, 250);
+                solveTerminal(s, 'breach');
                 assert.ok(s.surveyData.has('outpost'), `download: ${s.jupiterStatus}`);
             } else {
                 const site = s.landmarks.find((l) => l.key === (goal === 'survey' ? 7 : 8))!;

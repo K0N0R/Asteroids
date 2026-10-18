@@ -94,7 +94,7 @@ test('required goals gate travel, optional work never blocks it, and backtrackin
     assert.ok(beginRun(ready, 4));
 });
 
-test('data is not persistent until a real dock return and is lost on death', () => {
+test('Earth radio secures data before docking while unsent reports are lost on death', () => {
     const c = newStoryCampaign();
     assert.ok(beginRun(c, 42));
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -108,7 +108,9 @@ test('data is not persistent until a real dock return and is lost on death', () 
         for (let i = 0; i < 190; i++) s.step({ ...idle, interact: true });
         solveRelay(s);
         assert.ok(s.surveyData.has('relay'));
-        assert.equal(c.story!.progress['earth-relay'], 0);
+        s.step(idle);
+        assert.equal(c.story!.progress['earth-relay'], 1);
+        assert.ok(s.radioMessages.length);
         s.ship.setTranslation({ x: 1, y: 0 }, true);
         s.ship.setLinvel({ x: 0, y: 0 }, true);
         for (let i = 0; i < 90; i++) s.step({ ...idle, interact: true });
@@ -117,7 +119,7 @@ test('data is not persistent until a real dock return and is lost on death', () 
             data: [...s.surveyData],
         })!;
         assert.equal(c.story!.progress['earth-relay'], 1);
-        assert.equal(result.reward.ore, 12);
+        assert.equal(result.reward.ore, 0, 'radio reward must not be paid again at docking');
         assert.equal(finishRun(c, true, s.cargo, 20, 'again'), null);
     } finally {
         s.dispose();

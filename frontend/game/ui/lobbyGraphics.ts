@@ -113,12 +113,9 @@ export function choiceCard(
     const bg = new Graphics();
     const draw = (hover: boolean) => {
         bg.clear()
-            .roundRect(0, 0, width, height, 10)
-            .fill({ color: selected ? 0x102b37 : C.ink, alpha: hover ? 0.98 : 0.8 })
-            .stroke({
-                color: selected ? C.mint : hover ? C.muted : C.line,
-                width: selected ? 2 : 1,
-            });
+            .roundRect(0, 0, width, height, 14)
+            .fill({ color: selected || hover ? C.raised : C.panel, alpha: 0.97 });
+        if (selected) bg.roundRect(0, 12, 5, height - 24, 2.5).fill(C.mint);
     };
     draw(false);
     root.addChild(bg);

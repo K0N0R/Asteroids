@@ -134,7 +134,7 @@ test('mission orders reject future, completed, station, foreign and rescue/deliv
     assert.equal(parseCampaign(JSON.stringify(invalid)), null);
 });
 
-test('stock Prospector cannot dock before a selected scan, flies the real relay, and only the safe report commits progress', () => {
+test('stock Prospector cannot dock before a selected scan, flies the real relay, and radio confirmation commits progress', () => {
     const c = newStoryCampaign();
     assert.ok(beginRun(c, 1, null, false, 'earth-relay'));
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -152,15 +152,16 @@ test('stock Prospector cannot dock before a selected scan, flies the real relay,
         solveRelay(s);
         assert.ok(s.surveyData.has('relay'));
         assert.equal(s.missionReturnBlocked, false);
-        assert.match(s.missionStatus, /Cel wykonany/);
-        assert.equal(c.story!.progress['earth-relay'], 0);
+        s.step(idle);
+        assert.match(s.missionStatus, /Raport przyjęty/);
+        assert.equal(c.story!.progress['earth-relay'], 1);
         assert.match(
             storyObjectives(c, [...s.surveyData]).find((t) => t.id === 'earth-relay')!.title,
             /▶/,
         );
         const refreshed = parseCampaign(JSON.stringify(c))!;
         finishRun(refreshed, false, empty, 0, 'reload');
-        assert.equal(refreshed.story!.progress['earth-relay'], 0);
+        assert.equal(refreshed.story!.progress['earth-relay'], 1);
         fly(s, { x: 0, y: 0 });
         hold(s, { ...idle, interact: true });
         assert.equal(s.ended, 'returned');

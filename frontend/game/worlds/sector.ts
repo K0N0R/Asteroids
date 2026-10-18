@@ -1,3 +1,5 @@
+import type { Hyperlane, SectorRegion } from '../systems/hyperdrive';
+import type { AsteroidDrift } from './asteroidFields';
 import { DRONES, EnemyKind, GAME, OUTPOST, SCAN_SITES, ScanSiteId } from '../config';
 
 export interface Point {
@@ -5,6 +7,8 @@ export interface Point {
     y: number;
 }
 export interface RockSpec extends Point {
+    drift?: AsteroidDrift;
+    mercuryVein?: boolean;
     anchored?: boolean;
     beltBarrier?: number;
     defense?: boolean;
@@ -423,7 +427,18 @@ export function generateSector(seed: number) {
         if (space >= 0) break;
     }
     const researchSite = { ...research, name: 'Anomalia Keplera' };
-    return { seed, landmarks, rocks, enemies, caches, outpost, fortress, researchSite };
+    return {
+        seed,
+        landmarks,
+        rocks,
+        enemies,
+        caches,
+        outpost,
+        fortress,
+        researchSite,
+        hyperlanes: [] as Hyperlane[],
+        regions: [] as SectorRegion[],
+    };
 }
 
 export function navigationWaypoint(

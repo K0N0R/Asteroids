@@ -61,6 +61,10 @@ export class Typography extends PIXI.Container {
     setText(text: string | number) {
         this.text.text = text;
     }
+    setHorizontalAlign(align: TTypographyHorizontalAlign) {
+        this.text.anchor.x = this.getHorizontalAnchor(align);
+        this.text.style.align = align;
+    }
 
     setColor(color: number) {
         this.text.style.stroke = color;

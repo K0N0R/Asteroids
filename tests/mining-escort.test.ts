@@ -118,6 +118,7 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
             s.step(input);
         }
         assert.notEqual(e.state, 'idle');
+        let sawLasers = false;
         let sawMining = false,
             sawReturn = false;
         for (let f = 0; f < 60 * 900 && !s.ended && e.state !== 'complete'; f++) {
@@ -149,6 +150,16 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
             s.events.length = 0;
             assert.ok(e.cargoUsed <= MINING_CONVOY.target);
             sawMining ||= e.extracting;
+            if (e.beams.length) {
+                assert.equal(e.beams.length, 2);
+                assert.ok(
+                    Math.hypot(
+                        e.beams[0].from.x - e.beams[1].from.x,
+                        e.beams[0].from.y - e.beams[1].from.y,
+                    ) > 60,
+                );
+                sawLasers = true;
+            }
             sawReturn ||= e.returning;
             if (e.failed || e.state === 'destroyed') break;
         }
@@ -158,6 +169,7 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
             `${e.status} ${JSON.stringify(e.position)} player ${JSON.stringify(s.position)} ore ${e.cargoOre} parts ${e.cargoParts} progress ${c.story!.progress['lunar-foundation']}`,
         );
         assert.ok(sawMining && sawReturn);
+        assert.ok(sawLasers, 'real deliveries must include both visible mining lasers');
         assert.ok(e.trips >= 2);
         assert.ok(e.ambushed);
         assert.ok(s.enemyKills >= 2);

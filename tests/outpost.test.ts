@@ -1,3 +1,4 @@
+import { solveTerminal, terminalMoves } from './terminal-test-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -94,17 +95,16 @@ test('rotating scanner respects angle wrap, range, asteroid cover and each hull 
 
 test('detection gives a warning, decays behind cover and calls reinforcements only once', () => {
     const security = new OutpostSecurity(generateSector(7).outpost);
-    security.update(1, true, false);
+    security.update(1, true);
     assert.equal(security.alarm, 0);
-    security.update(0.5, false, false);
+    security.update(0.5, false);
     assert.equal(security.detection, 0);
-    assert.ok(security.update(2, true, true).callGuards);
+    assert.ok(security.update(2, true).callGuards);
     assert.equal(security.alarm, OUTPOST.alarmSeconds);
-    assert.equal(security.download, 0);
-    assert.equal(security.update(1, true, true).callGuards, false);
-    security.update(8, false, false);
+    assert.equal(security.update(1, true).callGuards, false);
+    security.update(8, false);
     assert.equal(security.alarm, 0);
-    assert.equal(security.update(2, true, true).callGuards, false);
+    assert.equal(security.update(2, true).callGuards, false);
 });
 
 test('a quiet approach can steal data without camouflage, loot uses arms and theft cannot repeat', () => {
@@ -113,7 +113,7 @@ test('a quiet approach can steal data without camouflage, loot uses arms and the
     try {
         isolate(sim);
         atTerminal(sim);
-        step(sim, 4, { ...idle, interact: true });
+        solveTerminal(sim, 'breach');
         assert.ok(sim.outpost.secured);
         assert.ok(sim.surveyData.has('outpost'));
         assert.equal(sim.enemies.enemies.size, 0);
@@ -134,33 +134,36 @@ test('a quiet approach can steal data without camouflage, loot uses arms and the
     }
 });
 
-test('thrust, reverse, tools, repair, speed, release and leaving the terminal reset the download', () => {
+test('terminal remains open after releasing E but tools, acceleration, speed and range invalidate it', () => {
     const sim = new MissionSimulation(campaign(), 71);
     try {
         isolate(sim);
-        atTerminal(sim);
-        for (const input of [
-            idle,
-            { ...idle, interact: true, thrust: true },
-            { ...idle, interact: true, brake: true },
-            { ...idle, interact: true, fire: true },
-            { ...idle, interact: true, mine: true },
-            { ...idle, interact: true, repair: true },
+        for (const interruption of [
+            { ...idle, thrust: true },
+            { ...idle, brake: true },
+            { ...idle, fire: true },
+            { ...idle, mine: true },
+            { ...idle, repair: true },
         ]) {
-            sim.outpost.download = 1;
-            sim.step(input);
-            assert.equal(sim.outpost.download, 0);
             atTerminal(sim);
+            sim.step(idle);
+            sim.step({ ...idle, interact: true });
+            assert.ok(sim.terminalPuzzle);
+            sim.step(idle);
+            assert.ok(sim.terminalPuzzle, 'release is normal during a mouse-controlled minigame');
+            sim.step(interruption);
+            assert.equal(sim.terminalPuzzle, null);
+            assert.equal(sim.outpost.secured, false);
         }
-        sim.outpost.download = 1;
-        sim.ship.setLinvel({ x: 2, y: 0 }, true);
-        sim.step({ ...idle, interact: true });
-        assert.equal(sim.outpost.download, 0);
-        sim.outpost.download = 1;
-        sim.ship.setTranslation({ x: 2.4, y: 0 }, true);
-        sim.step({ ...idle, interact: true });
-        assert.equal(sim.outpost.download, 0);
-        assert.equal(sim.outpost.secured, false);
+        for (const leave of [false, true]) {
+            atTerminal(sim);
+            sim.step(idle);
+            sim.step({ ...idle, interact: true });
+            if (leave) sim.ship.setTranslation({ x: 0, y: 0 }, true);
+            else sim.ship.setLinvel({ x: 2, y: 0 }, true);
+            assert.equal(sim.terminalAction({ confirm: true }), false);
+            assert.equal(sim.terminalPuzzle, null);
+        }
     } finally {
         sim.dispose();
     }
@@ -174,7 +177,7 @@ test('real scanner alarm spawns two pursuing drones once and locks a download', 
         sim.elapsed = (Math.PI - OUTPOST.scanHalfAngle) / OUTPOST.scanSpeed;
         step(sim, 2.05, { ...idle, interact: true });
         assert.ok(sim.outpost.alarm > 0);
-        assert.equal(sim.outpost.download, 0);
+        assert.equal(sim.terminalPuzzle, null);
         assert.equal(sim.enemies.enemies.size, 2);
         assert.ok([...sim.enemies.enemies.values()].every((e) => e.state === 'chase'));
         assert.equal(sim.surveyData.has('outpost'), false);
@@ -199,7 +202,8 @@ test('Widmo optical camouflage hides from the scanner for three seconds even whi
         sim.step({ ...idle, mine: true });
         step(sim, 2.5, { ...idle, interact: true });
         assert.ok(sim.cloaked);
-        assert.ok(sim.outpost.download > 2.4);
+        assert.ok(sim.terminalPuzzle);
+        solveTerminal(sim);
         assert.equal(sim.outpost.detection, 0);
         step(sim, 1.5, { ...idle, interact: true });
         assert.ok(sim.outpost.secured);
@@ -238,7 +242,9 @@ test('incoming shots reset a download and lethal damage on its final frame canno
         isolate(sim);
         atTerminal(sim);
         const p = sim.position;
-        sim.outpost.download = OUTPOST.downloadSeconds - GAME.step;
+        sim.step({ ...idle, interact: true });
+        assert.ok(sim.terminalPuzzle);
+        for (const action of terminalMoves(sim.terminalPuzzle)) sim.terminalAction(action);
         sim.kineticShield.charge = 0;
         sim.kineticShield.cooldown = 1000;
         sim.hull = 1;
@@ -254,7 +260,7 @@ test('incoming shots reset a download and lethal damage on its final frame canno
         });
         sim.step({ ...idle, interact: true });
         assert.equal(sim.ended, 'destroyed');
-        assert.equal(sim.outpost.download, 0);
+        assert.equal(sim.terminalPuzzle, null);
         assert.equal(sim.outpost.secured, false);
         assert.equal(sim.surveyData.size, 0);
         assert.equal(sim.loot.size, 0);
@@ -296,7 +302,7 @@ test('infiltration contract requires stolen data and safe return, pays once, and
     try {
         isolate(sim);
         atTerminal(sim);
-        step(sim, 4, { ...idle, interact: true });
+        solveTerminal(sim, 'breach');
         sim.ship.setTranslation({ x: 0, y: 0 }, true);
         step(sim, 1.4, { ...idle, interact: true });
         assert.equal(sim.ended, 'returned');
@@ -346,15 +352,15 @@ test('an overlapping rescue takes priority over the terminal and data can be tak
         atTerminal(sim);
         sim.cargo.parts = 1;
         step(sim, 3, { ...idle, sabotage: true });
-        assert.equal(sim.outpost.sabotageProgress, 0);
+        assert.equal(sim.terminalPuzzle, null);
         assert.equal(sim.cargo.parts, 1);
         step(sim, 3, { ...idle, interact: true });
         assert.ok(sim.recoveryProgress > 0);
-        assert.equal(sim.outpost.download, 0);
+        assert.equal(sim.terminalPuzzle, null);
         step(sim, 1.1, { ...idle, interact: true });
         assert.ok(sim.recoverySecured);
         assert.equal(sim.outpost.secured, false);
-        step(sim, 4, { ...idle, interact: true });
+        solveTerminal(sim, 'breach');
         assert.ok(sim.outpost.secured);
     } finally {
         sim.dispose();
@@ -407,7 +413,7 @@ test('sabotage spends mission cargo once, clears alarm, enables theft but leaves
         step(sim, 2, { ...idle, sabotage: true });
         assert.equal(sim.cargo.parts, 2);
         assert.equal(sim.outpost.sabotaged, false);
-        step(sim, 1, { ...idle, sabotage: true });
+        solveTerminal(sim, 'power');
         assert.equal(sim.cargo.parts, 1);
         assert.equal(c.bank.parts, 8);
         assert.ok(sim.outpost.sabotaged);
@@ -416,7 +422,8 @@ test('sabotage spends mission cargo once, clears alarm, enables theft but leaves
         assert.equal(sim.outpost.detection, 0);
         assert.equal(sim.enemies.enemies.size, 2);
         assert.equal(sim.surveyData.size, 0);
-        step(sim, 4, { ...idle, interact: true });
+        solveTerminal(sim, 'breach');
+        step(sim, 4, idle);
         assert.ok(sim.surveyData.has('outpost'));
         step(sim, 3); // Finish collecting the freshly spawned data crates first.
         const parts = sim.cargo.parts;
@@ -428,38 +435,35 @@ test('sabotage spends mission cargo once, clears alarm, enables theft but leaves
     }
 });
 
-test('sabotage requires a component on board, calm flight and uninterrupted G', () => {
+test('power rerouting requires mission cargo, calm flight and a live terminal connection', () => {
     const sim = new MissionSimulation(campaign(), 71);
     try {
         isolate(sim);
         atTerminal(sim);
-        step(sim, 3, { ...idle, sabotage: true });
-        assert.equal(sim.outpost.sabotageProgress, 0);
+        sim.step({ ...idle, sabotage: true });
+        assert.equal(sim.terminalPuzzle, null);
         sim.cargo.parts = 1;
         for (const interruption of [
-            idle,
             { ...idle, fire: true },
             { ...idle, mine: true },
             { ...idle, thrust: true },
             { ...idle, repair: true },
-            { ...idle, interact: true },
+            { ...idle, interact: true, sabotage: true },
         ]) {
             atTerminal(sim);
-            step(sim, 1, { ...idle, sabotage: true });
-            assert.ok(sim.outpost.sabotageProgress > 0);
-            sim.step({ ...interruption, sabotage: interruption === idle ? false : true });
-            assert.equal(sim.outpost.sabotageProgress, 0);
+            sim.step(idle);
+            sim.step({ ...idle, sabotage: true });
+            assert.equal(sim.terminalPuzzle?.mode, 'power');
+            sim.step(interruption);
+            assert.equal(sim.terminalPuzzle, null);
             assert.equal(sim.cargo.parts, 1);
         }
         atTerminal(sim);
-        step(sim, 1, { ...idle, sabotage: true });
+        sim.step(idle);
+        sim.step({ ...idle, sabotage: true });
         sim.ship.setTranslation({ x: 0, y: 0 }, true);
-        sim.step({ ...idle, sabotage: true });
-        assert.equal(sim.outpost.sabotageProgress, 0);
-        atTerminal(sim);
-        sim.ship.setLinvel({ x: 5, y: 0 }, true);
-        sim.step({ ...idle, sabotage: true });
-        assert.equal(sim.outpost.sabotageProgress, 0);
+        sim.step(idle);
+        assert.equal(sim.terminalPuzzle, null);
         assert.equal(sim.outpost.sabotaged, false);
     } finally {
         sim.dispose();
@@ -476,7 +480,9 @@ test('damage interrupts sabotage; lethal final-frame damage cannot spend its com
             sim.kineticShield.charge = 0;
             sim.kineticShield.cooldown = 1000;
             sim.hull = hp;
-            sim.outpost.sabotageProgress = OUTPOST.sabotageSeconds - GAME.step;
+            sim.step({ ...idle, sabotage: true });
+            assert.ok(sim.terminalPuzzle);
+            for (const action of terminalMoves(sim.terminalPuzzle)) sim.terminalAction(action);
             const p = sim.position;
             sim.bullets.set(9999, {
                 id: 9999,
@@ -489,7 +495,7 @@ test('damage interrupts sabotage; lethal final-frame damage cannot spend its com
                 damage: 12,
             });
             sim.step({ ...idle, sabotage: true });
-            assert.equal(sim.outpost.sabotageProgress, 0);
+            assert.equal(sim.terminalPuzzle, null);
             assert.equal(sim.outpost.sabotaged, false);
             assert.equal(sim.cargo.parts, 1);
             assert.equal(sim.ended, hp === 1 ? 'destroyed' : null);
@@ -507,13 +513,13 @@ test('scanner resumes detection after the timed shutdown and cannot be sabotaged
         y: security.spec.y + 200 * Math.sin(security.spec.phase),
     };
     assert.equal(security.sees(p, 0, 1, true), false);
-    security.update(19, true, false);
+    security.update(19, true);
     assert.equal(security.detection, 0);
-    security.update(1, true, false);
+    security.update(1, true);
     assert.equal(security.disabledTime, 0);
     assert.ok(security.sees(p, 0, 1, true));
     assert.equal(security.disable(), false);
-    security.update(2, true, false);
+    security.update(2, true);
     assert.equal(security.alarm, OUTPOST.alarmSeconds);
     assert.ok(security.reinforcementsCalled);
 });
@@ -553,7 +559,7 @@ test('Cerber equipment requires a separate hold after data, reserves cargo and c
         isolate(sim);
         atTerminal(sim);
         sim.outpost.disable();
-        step(sim, 10, { ...idle, interact: true });
+        solveTerminal(sim, 'breach');
         assert.ok(sim.outpost.secured);
         assert.equal(sim.stolenEquipment, undefined);
         sim.step(idle);

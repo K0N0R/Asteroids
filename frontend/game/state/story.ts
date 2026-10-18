@@ -1,3 +1,4 @@
+import { recordCargoDelivery } from './earthLogistics';
 import { validDialogueHistory } from './dialogues';
 import { capacity, storageCapacity, storageUsed, type Campaign, type Cargo } from './campaign';
 import type { ScanSiteId } from '../config';
@@ -116,7 +117,8 @@ export interface StoryTask {
         | 'gather'
         | 'boss'
         | 'rescue'
-        | 'factory';
+        | 'factory'
+        | 'kineticShield';
     resource?: 'ore' | 'parts';
     target: number;
     site?: ScanSiteId;
@@ -134,7 +136,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Pierwsze zaopatrzenie',
-        detail: 'Wydobądź i przekaż stacji 24 rudy. Możesz dostarczać ją przez kilka wypraw.',
+        detail: 'Wydobądź 24 rudy. Do 650 m od Satuk 15 zwolnij poniżej 35 m/s i naciśnij C: transfer bez dokowania. Dostawy mogą być częściowe.',
         required: true,
         kind: 'ore',
         target: 24,
@@ -146,7 +148,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Łączność orbitalna',
-        detail: '7 wskazuje przekaźnik. Zatrzymaj statek, naciśnij E, dostrój trzy kanały i wróć z odczytem do Satuk 15.',
+        detail: '7 wskazuje przekaźnik. Zatrzymaj statek, naciśnij E i dostrój trzy kanały. Satuk 15 automatycznie potwierdzi dane przez radio.',
         required: true,
         kind: 'scan',
         site: 'relay',
@@ -171,7 +173,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Sygnał na dalszej orbicie',
-        detail: 'Po otwarciu dalszego obszaru: 8 wskazuje węzeł. Przytrzymaj E i wróć z danymi trasy.',
+        detail: 'Po otwarciu dalszego obszaru: 8 wskazuje węzeł. Przytrzymaj E; dane trasy zostaną potwierdzone przez radio.',
         required: true,
         kind: 'scan',
         site: 'archive',
@@ -184,7 +186,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Rezerwa materiałowa',
-        detail: 'Dodatkowy przydział: przekaż 16 rudy na zapasy. Nie jest wymagany do podróży dalej.',
+        detail: 'Dodatkowy przydział: dostarcz 16 rudy po pierwszym zaopatrzeniu. Transfer C przy Satuk 15. Nie blokuje podróży dalej.',
         required: false,
         kind: 'ore',
         target: 16,
@@ -196,7 +198,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Zwiad trasy księżycowej',
-        detail: '7 wskazuje punkt rozpoznania. Zbierz odczyt przez E i wróć, aby otworzyć podejście do Księżyca.',
+        detail: '7 wskazuje punkt rozpoznania. Zbierz odczyt przez E. Radio potwierdzi zwiad i otworzy podejście do Księżyca podczas lotu.',
         required: true,
         kind: 'scan',
         site: 'relay',
@@ -222,7 +224,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Instalacje stacji paliw',
-        detail: 'Dostarcz na budowę 12 komponentów. Możesz dzielić dostawy na kilka wypraw.',
+        detail: 'Dostarcz na budowę 12 komponentów. E przy budowie albo transfer C do 300 m; dostawy mogą być częściowe.',
         required: true,
         kind: 'delivery',
         resource: 'parts',
@@ -235,7 +237,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Odbiór techniczny',
-        detail: 'Po dostawach zeskanuj instalacje przez E i wróć z raportem do Satuk 15.',
+        detail: 'Po dostawach zeskanuj instalacje przez E. Satuk 15 potwierdzi odbiór techniczny przez radio.',
         required: true,
         kind: 'scan',
         site: 'archive',
@@ -260,7 +262,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Obrona stacji księżycowej',
-        detail: 'Po odbiorze i osłonie budowy: G przy stacji rozpoczyna atak AI. Odeprzyj trzy kontakty i wróć do Satuk 15.',
+        detail: 'Po odbiorze i osłonie budowy: G przy stacji rozpoczyna atak AI. Odeprzyj trzy fale; potwierdzenie radiowe kończy akt I.',
         required: true,
         kind: 'assault',
         target: 1,
@@ -272,7 +274,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Sygnał ratunkowy',
-        detail: 'N: prom · E: zabezpiecz obwody, potem podłącz hol. Odprowadź prom do Satuk 15 i wróć z raportem.',
+        detail: 'N: prom · E: zabezpiecz obwody, potem podłącz hol. Odprowadź prom do Satuk 15; radio potwierdzi ratunek po fizycznym przekazaniu.',
         required: false,
         kind: 'rescue',
         site: 'rescue',
@@ -286,7 +288,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 2,
         title: 'Ślad pościgu',
         required: true,
-        detail: '7 wskazuje przekaźnik na trasie pościgu. Zbierz odczyt przez E i wróć do Satuk 15.',
+        detail: '7 wskazuje przekaźnik na trasie pościgu. Zbierz odczyt przez E i poczekaj na potwierdzenie radiowe Satuk 15.',
         kind: 'scan',
         site: 'relay',
         target: 1,
@@ -299,7 +301,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 2,
         title: 'Zabezpieczenie podejścia',
         required: true,
-        detail: 'Odeprzyj dwa patrole na podejściu. F wskazuje przeciwnika. Wyniki walki zatwierdzasz po powrocie; możesz rozdzielić je na wyprawy.',
+        detail: 'Odeprzyj dwa patrole na podejściu. F wskazuje przeciwnika. Wyniki walki potwierdza radio; możesz rozdzielić je na wyprawy.',
         kind: 'patrol',
         target: 2,
         dependencies: [],
@@ -311,7 +313,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 2,
         title: 'Granica pościgu',
         required: true,
-        detail: '8 wskazuje podejście do pasa asteroid. Zbierz odczyt przez E i wróć. Dalszy przelot wymaga brakującej technologii.',
+        detail: '8 wskazuje podejście do pasa asteroid. Zbierz odczyt przez E i poczekaj na potwierdzenie radiowe. Dalszy przelot wymaga brakującej technologii.',
         kind: 'scan',
         site: 'archive',
         target: 1,
@@ -323,7 +325,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'mars',
         act: 2,
         title: 'Zatrzymaj produkcję',
-        detail: '5 wskazuje stocznię polową. Zniszcz jej rdzeń, aby zatrzymać posiłki, i wróć z raportem. Wypuszczone jednostki pozostaną w walce.',
+        detail: '5 wskazuje stocznię polową. Zniszcz jej rdzeń, aby zatrzymać posiłki, i poczekaj na potwierdzenie radiowe. Wypuszczone jednostki pozostaną w walce.',
         required: false,
         kind: 'factory',
         site: 'factory',
@@ -361,7 +363,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 3,
         title: 'Rozpoznanie orbity',
         required: true,
-        detail: '7 wskazuje przekaźnik przy Wenus. Zbierz odczyt przez E i wróć do Satuk 15.',
+        detail: '7 wskazuje przekaźnik przy Wenus. Zbierz odczyt przez E i poczekaj na potwierdzenie radiowe Satuk 15.',
         kind: 'scan',
         site: 'relay',
         target: 1,
@@ -435,7 +437,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 3,
         title: 'Obrona przygotowań',
         required: true,
-        detail: 'Po budowie: G przez 2 s przy placówce rozpoczyna atak AI. Odeprzyj trzy kontakty i wróć z raportem. Osłonę możesz przygotować równolegle.',
+        detail: 'Po budowie: G przez 2 s przy placówce rozpoczyna atak AI. Odeprzyj trzy kontakty i poczekaj na potwierdzenie radiowe. Osłonę możesz przygotować równolegle.',
         kind: 'assault',
         target: 1,
         dependencies: ['venus-build'],
@@ -447,7 +449,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 4,
         title: 'Podejście do Słońca',
         required: true,
-        detail: '7 wskazuje punkt pomiarowy w cieniu dużej skały. Zbierz odczyt przez E i wróć. Podczas rozbłysków chłodź statek za asteroidami.',
+        detail: '7 wskazuje punkt pomiarowy w cieniu dużej skały. Zbierz odczyt przez E i poczekaj na potwierdzenie radiowe. Podczas rozbłysków chłodź statek za asteroidami.',
         kind: 'scan',
         site: 'relay',
         target: 1,
@@ -478,6 +480,18 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['mercury-survey', 'mercury-patrol'],
         reward: { ore: 35, parts: 10 },
+    },
+    {
+        id: 'mercury-shield',
+        sector: 'mercury',
+        act: 4,
+        title: 'Osłona kinetyczna Satuk 15',
+        required: false,
+        kind: 'kineticShield',
+        target: 1,
+        dependencies: ['mercury-survey'],
+        detail: '6 wskazuje spiek za skałą osłonową. Harpunem wyrwij złoża; ostrzał ich nie uszkadza. Wróć z ładunkiem, w warsztacie II wytwórz płyty i moduł osłonowy, następnie rozbuduj tarczę Satuk 15.',
+        reward: { ore: 20, parts: 4 },
     },
     {
         id: 'mercury-reserve',
@@ -533,7 +547,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 5,
         title: 'Obrona bazy marsjańskiej',
         required: true,
-        detail: 'Po montażu: G przez 2 s przy bazie rozpoczyna trzy kontakty AI. Obroń obiekt i wróć z raportem do Satuk 15.',
+        detail: 'Po montażu: G przez 2 s przy bazie rozpoczyna trzy kontakty AI. Obroń obiekt i poczekaj na potwierdzenie radiowe Satuk 15.',
         kind: 'assault',
         target: 1,
         dependencies: ['mars-base-build'],
@@ -586,7 +600,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
             required: true,
             kind: 'clearance',
             target: 1,
-            detail: `${point.key} wskazuje skałę blokującą trasę. Usuń ją laserem lub uzbrojeniem i wróć z raportem. Przeszkody można usuwać w dowolnej kolejności.`,
+            detail: `${point.key} wskazuje skałę blokującą trasę. Usuń ją laserem lub uzbrojeniem i poczekaj na potwierdzenie radiowe. Przeszkody można usuwać w dowolnej kolejności.`,
             dependencies: ['belt-survey'],
             reward: { ore: 10, parts: 2 },
         }),
@@ -600,7 +614,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         kind: 'scan',
         site: 'archive',
         target: 1,
-        detail: 'Po zatwierdzeniu usunięcia trzech przeszkód: 8 wskazuje zewnętrzną granicę pasa. Dotrzyj tam, zbierz odczyt przez E i wróć do Satuk 15.',
+        detail: 'Po zatwierdzeniu usunięcia trzech przeszkód: 8 wskazuje zewnętrzną granicę pasa. Dotrzyj tam, zbierz odczyt przez E i poczekaj na potwierdzenie radiowe Satuk 15.',
         dependencies: ['belt-clear-0', 'belt-clear-1', 'belt-clear-2'],
         reward: { ore: 30, parts: 8 },
     },
@@ -665,7 +679,20 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['jupiter-patrol', 'jupiter-uplink'],
         reward: { ore: 36, parts: 10 },
-        detail: 'Po raportach z walk i węzła: 8 wskazuje dalszy punkt obserwacyjny. Zbierz pakiet przez E i wróć do Satuk 15.',
+        detail: 'Po raportach z walk i węzła: 8 wskazuje dalszy punkt obserwacyjny. Zbierz pakiet przez E i poczekaj na potwierdzenie radiowe Satuk 15.',
+    },
+    {
+        id: 'jupiter-recovery',
+        sector: 'jupiter',
+        act: 7,
+        title: 'Sonda w skażonej anomalii',
+        required: false,
+        kind: 'rescue',
+        site: 'anomaly',
+        target: 1,
+        dependencies: ['jupiter-survey'],
+        reward: { ore: 32, parts: 10 },
+        detail: '3/4/5: bezpieczna trasa, N: sonda. E: hol. Dostarcz sondę do Satuk 15, omijając skażone pasma.',
     },
     {
         id: 'jupiter-reserve',
@@ -715,7 +742,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['saturn-survey'],
         reward: { ore: 16, parts: 5 },
-        detail: 'Po zwiadzie F wskazuje odległy patrol. Odeprzyj go i wróć z raportem. Walkę i zaopatrzenie możesz wykonać w dowolnej kolejności.',
+        detail: 'Po zwiadzie F wskazuje odległy patrol. Odeprzyj go i poczekaj na potwierdzenie radiowe. Walkę i zaopatrzenie możesz wykonać w dowolnej kolejności.',
     },
     {
         id: 'saturn-route',
@@ -728,7 +755,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['saturn-supply', 'saturn-patrol'],
         reward: { ore: 28, parts: 8 },
-        detail: 'Po zaopatrzeniu i raporcie z walki 8 wskazuje dalszy punkt. Zbierz dane przez E i wróć do Satuk 15.',
+        detail: 'Po zaopatrzeniu i raporcie z walki 8 wskazuje dalszy punkt. Zbierz dane przez E i poczekaj na potwierdzenie radiowe Satuk 15.',
     },
     {
         id: 'saturn-reserve',
@@ -791,7 +818,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['uranus-base', 'uranus-patrol'],
         reward: { ore: 24, parts: 6 },
-        detail: 'Po raportach z bazy i walki 8 wskazuje dalszy węzeł. Odczyt przez E i powrót otwierają sektor Neptuna.',
+        detail: 'Po raportach z bazy i walki 8 wskazuje dalszy węzeł. Odczyt przez E i potwierdzenie radiowe otwierają sektor Neptuna.',
     },
     {
         id: 'uranus-reserve',
@@ -841,7 +868,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['neptune-base'],
         reward: { ore: 50, parts: 16 },
-        detail: 'Po raporcie z bazy 3 wskazuje rejon starcia. G przez 2 s rozpoczyna dwufazową walkę. Zmuś ciężką jednostkę do odwrotu i wróć z raportem.',
+        detail: 'Po raporcie z bazy 3 wskazuje rejon starcia. G przez 2 s rozpoczyna dwufazową walkę. Zmuś ciężką jednostkę do odwrotu i poczekaj na potwierdzenie radiowe.',
     },
     {
         id: 'neptune-route',
@@ -854,7 +881,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['neptune-boss'],
         reward: { ore: 30, parts: 10 },
-        detail: 'Po bezpiecznym raporcie ze starcia 8 wskazuje dalszy punkt. Zbierz odczyt i wróć do Satuk 15.',
+        detail: 'Po bezpiecznym raporcie ze starcia 8 wskazuje dalszy punkt. Zbierz odczyt i poczekaj na potwierdzenie radiowe Satuk 15.',
     },
     {
         id: 'neptune-patrol',
@@ -947,7 +974,7 @@ export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 19;
+    version: 21;
     dialogues: string[];
     sector: StorySectorId;
     progress: Record<string, number>;
@@ -955,7 +982,7 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 19,
+    version: 21,
     dialogues: [],
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
@@ -1061,7 +1088,7 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('pluto-survey'))
             return '7 wskazuje zwiad Plutona. Wróć z odczytem, aby otworzyć bazę i kontakty na podejściu.';
         return plutoFinaleReady(p)
-            ? '3 wskazuje finałowe starcie. Zatrzymaj się i przytrzymaj G przez 2 s. Pokonaj trzy fazy i wróć z raportem. 8 to opcjonalne pomiary.'
+            ? '3 wskazuje finałowe starcie. Zatrzymaj się i przytrzymaj G przez 2 s. Pokonaj trzy fazy i poczekaj na potwierdzenie radiowe. 8 to opcjonalne pomiary.'
             : '0 wskazuje bazę, F kontakty. Dane i osłonę wykonujesz równolegle. Oba raporty otwierają rejon finałowego starcia. 8 wskazuje dodatkowe pomiary.';
     }
 
@@ -1080,10 +1107,10 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('neptune-survey'))
             return '7 wskazuje zwiad podejścia. Zbierz dane i wróć, aby otworzyć obszar bazy.';
         if (!p.claimed.includes('neptune-base'))
-            return '0 wskazuje terminal bazy. Pobierz dane bez alarmu i wróć do Satuk 15.';
+            return '0 wskazuje terminal bazy. Pobierz dane bez alarmu i poczekaj na potwierdzenie radiowe Satuk 15.';
         return p.claimed.includes('neptune-boss')
             ? 'Starcie odparte. 8 wskazuje zewnętrzną trasę. Zbierz odczyt i wróć.'
-            : '3 wskazuje rejon starcia. Zatrzymaj się i przytrzymaj G przez 2 s. Zmuś jednostkę do odwrotu. Opuszczenie rejonu przerywa próbę; raport wymaga powrotu.';
+            : '3 wskazuje rejon starcia. Zatrzymaj się i przytrzymaj G przez 2 s. Zmuś jednostkę do odwrotu. Opuszczenie rejonu przerywa próbę; raport potwierdza radio.';
     }
     if (p.sector === 'saturn') {
         if (storySectorComplete(p, 'saturn'))
@@ -1091,7 +1118,7 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('saturn-survey'))
             return '7 wskazuje pomiary pierścieni. Zbierz odczyt i wróć, aby otworzyć dalszy rejon. 2 wskazuje bliskie złoże.';
         if (saturnRouteOpen(p))
-            return 'Zaopatrzenie i rejon zabezpieczone. 8 wskazuje dalszy punkt. Odczytaj trasę przez E i wróć do Satuk 15.';
+            return 'Zaopatrzenie i rejon zabezpieczone. 8 wskazuje dalszy punkt. Odczytaj trasę przez E i poczekaj na potwierdzenie radiowe Satuk 15.';
         return 'Przywoź rudę z wypraw: cel 36, transporty można dzielić. 2 wskazuje złoże, 5 kryształy, F odległy patrol. Zaopatrzenie i walkę wykonujesz równolegle.';
     }
     if (p.sector === 'jupiter') {
@@ -1100,7 +1127,7 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('jupiter-survey'))
             return '7 wskazuje pomiary podejścia. Zbierz odczyt przez E i wróć; raport otworzy rejon patroli oraz chroniony węzeł.';
         if (jupiterObservationsOpen(p))
-            return 'Raporty z walk i węzła zabezpieczone. 8 wskazuje dalszy punkt. Zbierz pakiet obserwacyjny przez E i wróć do Satuk 15.';
+            return 'Raporty z walk i węzła zabezpieczone. 8 wskazuje dalszy punkt. Zbierz pakiet obserwacyjny przez E i poczekaj na potwierdzenie radiowe Satuk 15.';
         return 'F wskazuje patrole, 0 terminal węzła. Możesz wykonać te cele w dowolnej kolejności. Wróć z raportami, aby otworzyć punkt obserwacyjny.';
     }
     if (storySectorComplete(p, 'belt'))
@@ -1109,8 +1136,8 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('belt-survey'))
             return '7 wskazuje wejście w pas. Zbierz pomiary i wróć; raport otworzy dalszą trasę. Technologia z Merkurego umożliwia tę wyprawę.';
         return beltRouteCleared(p)
-            ? 'Trasa oczyszczona. 8 wskazuje zewnętrzną granicę pasa. Dotrzyj do węzła, zbierz odczyt przez E i wróć z raportem.'
-            : '3 / 4 / 5 wskazują skały do usunięcia. Użyj lasera lub uzbrojenia i wróć z raportem; kolejność i liczba wypraw są dowolne. Uważaj na ruchome odłamki.';
+            ? 'Trasa oczyszczona. 8 wskazuje zewnętrzną granicę pasa. Dotrzyj do węzła, zbierz odczyt przez E i poczekaj na potwierdzenie radiowe.'
+            : '3 / 4 / 5 wskazują skały do usunięcia. Użyj lasera lub uzbrojenia i poczekaj na potwierdzenie radiowe; kolejność i liczba wypraw są dowolne. Uważaj na ruchome odłamki.';
     }
     if (beltPassageReady(p))
         return 'Akt V ukończony. Baza i korytarz zabezpieczone. Wybierz sektor Pas, aby rozpocząć przejście pasa asteroid.';
@@ -1120,16 +1147,16 @@ export function storyNextStep(p: StoryProgress) {
                 ? 'Materiały gotowe. Wyrusz do bazy wskazywanej przez 7 i przytrzymaj E przez 2 s, aby ją zamontować.'
                 : 'Przekaż 40 rudy i 10 komponentów na bazę. Projekty możesz realizować równolegle; wcześniejsze cele Marsa pozostają zapisane.';
         if (p.claimed.includes('mars-base-defense'))
-            return 'Baza obroniona. Zabezpiecz dalszy korytarz: F wskazuje kontakty. Wyniki walk zatwierdzasz po bezpiecznym powrocie.';
+            return 'Baza obroniona. Zabezpiecz dalszy korytarz: F wskazuje kontakty. Wyniki walk potwierdza radio.';
         if (p.claimed.includes('mars-corridor'))
-            return 'Korytarz zabezpieczony. Obroń bazę: 7 wskazuje obiekt, G przez 2 s rozpoczyna atak. Wróć z raportem.';
-        return 'Obroń bazę przez G przy obiekcie i zabezpiecz dalszy korytarz. Te cele możesz wykonywać równolegle; raporty wymagają powrotu.';
+            return 'Korytarz zabezpieczony. Obroń bazę: 7 wskazuje obiekt, G przez 2 s rozpoczyna atak. Raport potwierdzi radio.';
+        return 'Obroń bazę przez G przy obiekcie i zabezpiecz dalszy korytarz. Te cele możesz wykonywać równolegle; raporty potwierdza radio.';
     }
     if (beltTechnologyReady(p))
         return 'Akt IV ukończony. Technologia przejścia pasa zabezpieczona. Następny etap: powrót na Marsa i przygotowanie dalszej ekspedycji.';
     if (p.sector === 'mercury')
         return p.claimed.includes('mercury-patrol')
-            ? '8 wskazuje pakiet technologii. Zbierz dane i wróć do Satuk 15. Utrata statku przed powrotem oznacza utratę pakietu.'
+            ? '8 wskazuje pakiet technologii. Zbierz dane i poczekaj na potwierdzenie radiowe Satuk 15. Utrata statku przed powrotem oznacza utratę pakietu.'
             : p.claimed.includes('mercury-survey')
               ? 'Zabezpiecz podejście i wróć z raportami. W cieniu dużych asteroid statek chłodzi się; nie niszcz osłon bez potrzeby.'
               : '7 wskazuje pomiary podejścia. 3 i 4 wskazują schronienia; 5 pojawi się po zwiadzie. Chłodź statek w zaznaczonym cieniu dużych skał.';
@@ -1140,8 +1167,8 @@ export function storyNextStep(p: StoryProgress) {
             return p.claimed.includes('venus-defense')
                 ? 'Placówka obroniona. Przekaż brakujące komponenty na osłonę słoneczną w stacji, aby zakończyć przygotowania.'
                 : solarShieldReady(p)
-                  ? 'Osłona gotowa. Obroń placówkę: 8 wskazuje obiekt, G przez 2 s rozpoczyna atak. Wróć z raportem do Satuk 15.'
-                  : 'Przekaż komponenty na osłonę w stacji i obroń placówkę: 8 wskazuje obiekt, G przez 2 s rozpoczyna atak. Wróć z raportem.';
+                  ? 'Osłona gotowa. Obroń placówkę: 8 wskazuje obiekt, G przez 2 s rozpoczyna atak. Raport potwierdzi radio Satuk 15.'
+                  : 'Przekaż komponenty na osłonę w stacji i obroń placówkę: 8 wskazuje obiekt, G przez 2 s rozpoczyna atak. Raport potwierdzi radio.';
         if (venusPreparationComplete(p))
             return 'Miejsce i materiały przygotowane. Wyrusz do placówki wskazywanej przez 8 i przytrzymaj E przez 2 s, aby ją zbudować.';
         return p.claimed.includes('venus-survey')
@@ -1178,6 +1205,7 @@ export function plutoFinaleReady(p: StoryProgress) {
     return ['pluto-base', 'pluto-patrol'].every((id) => p.claimed.includes(id));
 }
 export function storyRadius(p: StoryProgress) {
+    if (p.sector === 'earth' && p.claimed.includes('earth-workshop')) return 5500;
     if (p.sector === 'pluto')
         return plutoFinaleReady(p) ? 6000 : p.claimed.includes('pluto-survey') ? 4800 : 2800;
     if (p.sector === 'uranus')
@@ -1217,7 +1245,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 19 ||
+        p.version !== 21 ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -1264,6 +1292,7 @@ function settle(c: Campaign): StoryChange {
     for (const task of STORY_TASKS) {
         if (!storyTaskAvailable(p, task) || p.claimed.includes(task.id)) continue;
         if (task.kind === 'workshop' && c.station.workshop >= 1) p.progress[task.id] = 1;
+        if (task.kind === 'kineticShield' && c.station.shieldLevel > 0) p.progress[task.id] = 1;
         if (p.progress[task.id] < task.target) continue;
         p.claimed.push(task.id);
         result.titles.push(task.title);
@@ -1357,7 +1386,8 @@ export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = tr
         !p ||
         p.sector !== 'lunar' ||
         c.activeRun?.sector !== 'lunar' ||
-        c.activeRun.area !== 'surface'
+        c.activeRun.area !== 'surface' ||
+        c.activeRun.mission?.aborted
     )
         return null;
     const task = STORY_TASKS.find(
@@ -1368,8 +1398,7 @@ export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = tr
     if (amount <= 0) return null;
     cargo[task.resource] -= amount;
     // Loaded supplies are delivered first; newly mined cargo still earns normal XP on return.
-    const freight = playerDelivery ? c.activeRun.freight : undefined;
-    if (freight) freight[task.resource] = Math.max(0, freight[task.resource] - amount);
+    if (playerDelivery) recordCargoDelivery(c, { ore: 0, parts: 0, [task.resource]: amount });
     p.progress[task.id] += amount;
     const change = settle(c);
     return { amount, resource: task.resource, change };
@@ -1409,6 +1438,7 @@ export function contributeStory(c: Campaign, id: string): StoryChange | null {
     p.progress[id] += amount;
     return settle(c);
 }
+/** Apply cumulative sortie telemetry, shared by live radio and the final docking report. */
 export function recordStoryReturn(
     c: Campaign,
     sector: StorySectorId,
@@ -1423,14 +1453,32 @@ export function recordStoryReturn(
     firstBossWon = false,
     finalBossWon = false,
 ) {
-    if (!c.story || c.story.sector !== sector || c.activeRun?.sector !== sector) return null;
+    if (
+        !c.story ||
+        c.story.sector !== sector ||
+        c.activeRun?.sector !== sector ||
+        c.activeRun.mission?.aborted
+    )
+        return null;
+    // Both live radio and docking supply cumulative sortie counts. Consume each kill once,
+    // including kills made before a patrol becomes available.
+    const run = c.activeRun;
+    const cumulative = Number.isInteger(patrolKills) && patrolKills > 0 ? patrolKills : 0;
+    patrolKills = Math.max(0, cumulative - (run.reportedPatrolKills ?? 0));
+    if (cumulative > (run.reportedPatrolKills ?? 0)) run.reportedPatrolKills = cumulative;
     if (sector === 'pluto' && finalBossWon) {
         const task = STORY_TASKS.find((t) => t.id === 'pluto-boss')!;
-        if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
+        if (storyTaskAvailable(c.story, task)) {
+            if (!c.story.claimed.includes(task.id)) run.reportedBossXp = 18;
+            c.story.progress[task.id] = 1;
+        }
     }
     if (sector === 'neptune' && firstBossWon) {
         const task = STORY_TASKS.find((t) => t.id === 'neptune-boss')!;
-        if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
+        if (storyTaskAvailable(c.story, task)) {
+            if (!c.story.claimed.includes(task.id)) run.reportedBossXp = 12;
+            c.story.progress[task.id] = 1;
+        }
     }
     if (sector === 'saturn' && Number.isInteger(returnedOre) && returnedOre > 0) {
         const task = STORY_TASKS.find((t) => t.id === 'saturn-supply')!;
@@ -1521,6 +1569,7 @@ export function storyObjectives(
     finalBossWon = false,
 ) {
     const p = c.story!;
+    patrolKills = Math.max(0, patrolKills - (c.activeRun?.reportedPatrolKills ?? 0));
     if (c.activeRun?.mission?.aborted) {
         data = [];
         assaultWon = false;
@@ -1542,27 +1591,27 @@ export function storyObjectives(
                 : !storyTaskAvailable(p, task)
                   ? '· później'
                   : task.kind === 'boss' && (task.sector === 'pluto' ? finalBossWon : firstBossWon)
-                    ? '· wróć z raportem'
+                    ? '· wysyłanie raportu'
                     : task.kind === 'gather'
                       ? `${Math.min(task.target, p.progress[task.id] + Math.max(0, Math.floor(returnedOre)))}/${task.target}${returnedOre > 0 ? ' · wróć z ładunkiem' : ''}`
                       : task.kind === 'clearance' &&
                           clearedBeltRocks.some((i) => task.id === `belt-clear-${i}`)
-                        ? '· wróć z raportem'
+                        ? '· wysyłanie raportu'
                         : task.kind === 'assault' &&
                             (task.sector === 'mars'
                                 ? marsDefenseWon
                                 : task.sector === 'venus'
                                   ? venusDefenseWon
                                   : assaultWon)
-                          ? '· wróć z raportem'
+                          ? '· wysyłanie raportu'
                           : task.kind === 'patrol'
-                            ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wróć z raportem' : ''}`
+                            ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wysyłanie raportu' : ''}`
                             : task.kind === 'ore' ||
                                 task.kind === 'parts' ||
                                 task.kind === 'delivery'
                               ? `${p.progress[task.id]}/${task.target}`
                               : task.site && data.includes(task.site)
-                                ? '· wróć z danymi'
+                                ? '· wysyłanie danych'
                                 : '',
             complete: p.claimed.includes(task.id),
         }));

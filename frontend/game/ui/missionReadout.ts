@@ -90,18 +90,19 @@ export function flightHint(s: MissionSimulation) {
 
     if (s.rescueOperation) {
         const r = s.rescueOperation;
-        if (r.delivered && s.dockable) return 'E · dokuj i przekaż raport ratunkowy';
+        if (r.delivered && s.dockable) return 'E · dokuj · dostawa potwierdzona przez radio';
         if (
             ['ready', 'distress'].includes(r.state) &&
             Math.hypot(s.position.x - r.position.x, s.position.y - r.position.y) < 170 &&
             s.speed >= 60
         )
-            return 'S · wyhamuj przy promie do prędkości poniżej 60 m/s';
+            return `S · wyhamuj przy ${r.probe ? 'sondzie' : 'promie'} do prędkości poniżej 60 m/s`;
         if (r.state === 'ready' && s.salvage.full) return 'Hol zajęty · J zwolnij inny wrak';
         if (r.attachProgress > 0)
             return `E · podłączanie holu ${Math.floor((r.attachProgress / 3) * 100)}%`;
         return r.status;
     }
+    if (s.cargoTransferRemaining > 0 || s.canTransferCargo) return s.context;
     if (s.relayTuning) return 'Strojenie łączności · dopasuj fazy i zatwierdź sygnał';
     if (s.dockable && s.missionStatus) return s.missionStatus;
     if (s.surfaceContext) return s.surfaceContext;
@@ -119,12 +120,10 @@ export function flightHint(s: MissionSimulation) {
             : 'Kepler szuka bezpiecznej drogi';
     if (s.escort?.state === 'research')
         return 'Osłaniaj Keplera · badania wymagają spokojnego otoczenia';
-    if (s.outpost.sabotageProgress > 0)
-        return `G  Sabotaż · ${percent(s.outpost.sabotageProgress, OUTPOST.sabotageSeconds)}`;
+    if (s.terminalPuzzle)
+        return `${s.terminalPuzzle.mode === 'power' ? 'Zasilanie' : 'Włamanie'} · ${Math.ceil(s.terminalPuzzle.remaining)} s · ślad ${Math.ceil(s.terminalPuzzle.trace)}/100`;
     if (s.outpost.equipmentProgress > 0)
         return `E  Magazyn · ${percent(s.outpost.equipmentProgress, OUTPOST.equipmentSeconds)}`;
-    if (s.outpost.download > 0)
-        return `E  Przechwyt · ${percent(s.outpost.download, OUTPOST.downloadSeconds)}`;
     if (s.repairProgress > 0) return `R  Naprawa · ${percent(s.repairProgress, s.repairSeconds)}`;
     if (s.salvageProgress > 0)
         return `E Holowanie wraku · ${percent(s.salvageProgress, s.salvageSeconds)}`;
@@ -166,11 +165,11 @@ export function flightHint(s: MissionSimulation) {
         const sabotage = s.outpost.sabotaged
             ? ''
             : s.cargo.parts >= 1
-              ? ' · G  Sabotaż: 3 s / 1 komponent'
+              ? ' · G  Zasilanie: minigra / 1 komponent'
               : ' · Sabotaż wymaga 1 komponentu w ładowni';
         const action =
             s.storyMode && s.outpost.secured
-                ? '1 Satuk 15 · wróć z danymi'
+                ? 'Dane zabezpieczone · raport przez radio · 1 Satuk 15'
                 : s.outpost.equipmentSecured
                   ? '1  Baza'
                   : s.outpost.secured
@@ -179,13 +178,13 @@ export function flightHint(s: MissionSimulation) {
                         : !s.outpost.equipmentArmed
                           ? 'Puść E · dostęp do magazynu'
                           : `E  Zabierz ${WEAPONS[s.outpostEquipment].name} · 5 s / 3 miejsca`
-                    : 'E  Wykradnij dane · 4 s';
+                    : 'E  Otwórz obwód terminala';
         if (s.outpost.disabledTime > 0)
             return `${action} · skaner wyłączony ${Math.ceil(s.outpost.disabledTime)} s`;
         if (s.outpost.alarm > 0)
             return `Alarm · terminal zablokowany ${Math.ceil(s.outpost.alarm)} s${sabotage}`;
         if (s.outpost.secured) return `${action}${sabotage}`;
-        return `E  Wykradnij dane · 4 s${sabotage}`;
+        return `E  Otwórz obwód terminala${sabotage}`;
     }
     if (s.outpost.detection > 0)
         return `Skaner wykrywa statek · ${percent(s.outpost.detection, OUTPOST.detectSeconds)}`;

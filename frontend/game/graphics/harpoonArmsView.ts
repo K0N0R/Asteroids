@@ -28,10 +28,7 @@ export function drawHarpoonArms(
                 .stroke({ color: 0xb4c6c7, width: 1 });
         }
         for (const joint of [pose.shoulder, pose.elbow, pose.tip]) {
-            graphics
-                .circle(joint.x, joint.y, 5 + handling * 0.7)
-                .fill(0x293840)
-                .stroke({ color: 0xa9b8b8, width: 1 });
+            graphics.circle(joint.x, joint.y, 5 + handling * 0.7).fill(0x293840);
             graphics.circle(joint.x, joint.y, 3.4).fill(0xb58e4b);
             graphics.circle(joint.x, joint.y, 1).fill(0xd6bc83);
         }

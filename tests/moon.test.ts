@@ -185,7 +185,7 @@ test('delivered cargo survives death or refresh, while undelivered freight is lo
     }
 });
 
-test('construction requires real surface deliveries and safe return of the final report; rewards settle once', () => {
+test('construction requires real surface deliveries and radio confirmation; rewards settle once', () => {
     const c = lunarReady();
     c.station.storage = 1;
     c.bank = { ore: 172, parts: 20 };
@@ -205,7 +205,7 @@ test('construction requires real surface deliveries and safe return of the final
             if (sortie === 4) {
                 hold(s, 190);
                 assert.ok(s.surveyData.has('archive'));
-                assert.equal(c.story!.progress['lunar-commission'], 0);
+                assert.equal(c.story!.progress['lunar-commission'], 1);
             }
             fly(s, MOON.exit, () => s.area === 'orbit');
             fly(s, { x: 0, y: 0 }, () => s.ended === 'returned');

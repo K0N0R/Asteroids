@@ -2,6 +2,12 @@ import type { Campaign } from './campaign';
 import type { StoryProgress } from './story';
 
 export const SPEAKERS = {
+    guide: {
+        name: 'Pilot instruktor',
+        role: 'PROSPECTOR / ESKADRA SZKOLENIOWA',
+        archetype: 0,
+        identity: 43,
+    },
     operations: {
         name: 'Oficer operacyjna',
         role: 'SATUK 15 / DOWODZENIE',
@@ -40,7 +46,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'operations',
-                text: 'Najpierw zabezpiecz zaopatrzenie i przywróć łączność. Te cele możesz realizować w dowolnej kolejności. Wróć z ładunkiem i odczytami do stacji.',
+                text: 'Najpierw zabezpiecz zaopatrzenie i przywróć łączność. Te cele możesz realizować w dowolnej kolejności. Odczyty potwierdzimy przez radio. Ładunek przekaż klawiszem C w pobliżu stacji, po wyhamowaniu poniżej 35 m/s.',
             },
         ],
     },
@@ -57,7 +63,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'operations',
-                text: 'Zapasy są zabezpieczone. Uruchom warsztat stacji i dostarcz odczyt dalszego węzła. Oba zadania są już dostępne; kolejność wybierasz samodzielnie.',
+                text: 'Zapasy są zabezpieczone. Uruchom warsztat stacji i wykonaj odczyt dalszego węzła. Oba zadania są już dostępne; kolejność wybierasz samodzielnie.',
             },
         ],
     },

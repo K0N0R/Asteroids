@@ -160,17 +160,15 @@ export const ENEMY_MINES = {
     limitPerLayer: 4,
     limit: 20,
 } as const;
-export const RECOVERY = { signalLimit: 3, radius: 160, speed: 80, seconds: 4 } as const;
+export const RECOVERY = { signalLimit: 10000, radius: 160, speed: 80, seconds: 4 } as const;
 export const SCAN = { radius: 180, speed: 60, seconds: 3 } as const;
 export const OUTPOST = {
     radius: 100,
     terminalDistance: 260,
     interactRadius: 100,
     interactSpeed: 60,
-    downloadSeconds: 4,
     equipmentSeconds: 5,
     equipmentSlots: 3,
-    sabotageSeconds: 3,
     disabledSeconds: 20,
     scanRange: 560,
     scanHalfAngle: 0.38,
@@ -186,6 +184,7 @@ export const SCAN_SITES = {
     escort: { name: 'Badania Keplera', key: 16 },
     rescue: { name: 'Dostawa promu ratunkowego', key: 17 },
     factory: { name: 'Zniszczenie stoczni polowej', key: 5 },
+    anomaly: { name: 'Odzysk sondy z anomalii', key: 17 },
 } as const;
 export type ScanSiteId = keyof typeof SCAN_SITES;
 export interface Mount {
@@ -384,7 +383,7 @@ export const HULLS = {
     falcon: {
         name: 'Sokół',
         role: 'Szybki transport',
-        detail: 'Okrągły kadłub z rozwidlonym dziobem i mocnym boostem.',
+        detail: 'Mocny boost i ciche włamanie: 45 s na terminal, połowa śladu po błędzie.',
         health: 125,
         shield: { capacity: 65, regen: 8, delay: 4.5 },
         cargo: 60,
@@ -482,7 +481,7 @@ export const HULLS = {
     harpoon: {
         name: 'Harpun',
         role: 'Specjalista odzysku',
-        detail: 'Przegubowe szczęki zamiast działek i lasera. LPM miażdży, PPM wysuwa ramiona ku celowi.',
+        detail: 'LPM: zacisk szczęk. PPM: wysuw ramion. Jedyny kadłub wyrywający spiek merkuriański.',
         health: 110,
         shield: { capacity: 70, regen: 8.5, delay: 4 },
         cargo: 75,
@@ -585,7 +584,7 @@ export const HULLS = {
     phoenix: {
         name: 'Feniks',
         role: 'Uniwersalny szturmowiec',
-        detail: 'LPM: czerwony laser bojowy, wydobycie i podpalenie. PPM: rakieta namierzana po 3 s.',
+        detail: 'Laser bojowy i rakieta. Terminal: natychmiastowe przełamanie kosztem alarmu i pościgu.',
         health: 95,
         shield: { capacity: 55, regen: 8, delay: 4.5 },
         cargo: 55,
@@ -718,6 +717,38 @@ export const PILOT_SKILLS = {
 } as const;
 export type PilotSkillId = keyof typeof PILOT_SKILLS;
 export const JOBS = {
+    hyperFuel: {
+        title: 'Ogniwa hipernapędu',
+        ore: 6,
+        parts: 1,
+        seconds: 45,
+        output: 'hyperFuel',
+        amount: 3,
+        worker: 'mechanic',
+        workshop: 1,
+    },
+    kineticPlate: {
+        title: 'Płyty kinetyczne',
+        ore: 0,
+        parts: 2,
+        materials: { mercuryOre: 4 },
+        seconds: 60,
+        output: 'kineticPlates',
+        amount: 2,
+        worker: 'mechanic',
+        workshop: 2,
+    },
+    kineticModule: {
+        title: 'Moduł osłonowy',
+        ore: 0,
+        parts: 4,
+        materials: { kineticPlates: 2, powerModules: 2 },
+        seconds: 90,
+        output: 'kineticModules',
+        amount: 1,
+        worker: 'mechanic',
+        workshop: 2,
+    },
     smeltCopper: {
         title: 'Przewodniki miedziane',
         ore: 0,

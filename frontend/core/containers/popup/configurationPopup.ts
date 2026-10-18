@@ -1,3 +1,4 @@
+import { C } from '../../../game/graphics/theme';
 import * as PIXI from 'pixi.js';
 import { BasePopup } from './basePopup';
 import { Button } from '@components/button';
@@ -12,7 +13,7 @@ export class ConfigurationPopup extends BasePopup<undefined> {
         super();
         const backdrop = new PIXI.Graphics()
             .rect(0, 0, 1600, 900)
-            .fill({ color: 0x020810, alpha: 0.82 });
+            .fill({ color: C.ink, alpha: 0.82 });
         backdrop.eventMode = 'static';
         this.addChild(backdrop);
         this.addChild(
@@ -21,28 +22,28 @@ export class ConfigurationPopup extends BasePopup<undefined> {
                 y: 450,
                 width: 760,
                 height: 640,
-                tint: 0x0b1d2b,
+                tint: C.panel,
                 outlineWidth: 1,
-                outlineTint: 0x244758,
+                outlineTint: C.line,
                 roundness: 14,
                 alpha: 1,
             }),
         );
-        const text = (value: string, x: number, y: number, size = 20, color = 0xe4f0f4) => {
+        const text = (value: string, x: number, y: number, size = 20, color: number = C.text) => {
             const view = new Typography({
                 text: value,
                 size,
                 color,
                 horizontalAlign: 'left',
                 verticalAlign: 'top',
-                fontFamily: 'Segoe UI',
+                fontFamily: 'Trebuchet MS',
             });
             view.position.set(x, y);
             this.addChild(view);
         };
-        text('AURORA / PRZERWA W LOCIE', 470, 171, 15, 0x78e1bc);
+        text('ORBIT / PRZERWA W LOCIE', 470, 171, 15, C.mint);
         text('Chwila oddechu.', 470, 210, 38);
-        text('Symulacja jest zatrzymana.', 470, 268, 18, 0x7d9cac);
+        text('Symulacja jest zatrzymana.', 470, 268, 18, C.muted);
         const controls = [
             ['W / A / D', 'Przyspieszanie / skręt w lewo / skręt w prawo'],
             ['S / SHIFT', 'Hamowanie i wsteczny / boost podczas lotu W'],
@@ -54,10 +55,10 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             ['TAB', 'Pokład · szczegóły statku, pilot, prototypy i załoga'],
         ];
         controls.forEach(([key, detail], i) => {
-            text(key, 470, 323 + i * 33, 17, 0x78e1bc);
+            text(key, 470, 323 + i * 33, 17, C.mint);
             text(detail, 590, 323 + i * 33, 17);
         });
-        text('Zamknięcie lub odświeżenie gry oznacza utratę wyprawy.', 470, 594, 17, 0xf2bd75);
+        text('Zamknięcie lub odświeżenie gry oznacza utratę wyprawy.', 470, 594, 17, C.gold);
         this.soundSlider = new SoundSliderOption(
             'Efekty',
             () => {
@@ -77,14 +78,14 @@ export class ConfigurationPopup extends BasePopup<undefined> {
                 y: 707,
                 width: 660,
                 height: 52,
-                tint: 0x78e1bc,
-                roundness: 7,
+                tint: C.mint,
+                roundness: 14,
                 children: [
                     new Typography({
                         text: 'WRÓĆ DO GRY  /  ESC',
                         size: 18,
-                        color: 0x07121e,
-                        fontFamily: 'Segoe UI',
+                        color: C.ink,
+                        fontFamily: 'Trebuchet MS',
                     }),
                 ],
                 onClick: () => this.promise.resolve(),

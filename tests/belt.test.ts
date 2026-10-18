@@ -241,12 +241,12 @@ test('stock Prospector flies the entry, mines all three obstacles in reverse ord
                     s.landmarks.some((l) => l.key === BELT_BARRIERS[goal].key),
                     false,
                 );
-                assert.equal(c.story!.progress[`belt-clear-${goal}`], 0);
-                assert.match(
+                assert.equal(c.story!.progress[`belt-clear-${goal}`], 1);
+                assert.equal(
                     storyObjectives(c, [], false, 0, false, false, [goal]).find(
                         (g) => g.id === `belt-clear-${goal}`,
-                    )!.progress,
-                    /raport/,
+                    )!.complete,
+                    true,
                 );
             }
             if (typeof goal === 'number') fly(s, { x: BELT_BARRIERS[goal].x, y: 0 });

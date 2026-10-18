@@ -65,13 +65,22 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                 .lineTo(1320, 737)
                 .stroke({ color: C.line, width: 1 }),
         );
+        label(
+            root,
+            `HIPER ${s.hyperFuel}/3 · SPACJA skok / anuluj ładowanie · K śluza · kolizja = utrata`,
+            280,
+            208,
+            13,
+            C.cyan,
+            650,
+        );
         label(root, 'STATEK / SYSTEMY', 280, 251, 13, C.muted);
         label(
             root,
             [
                 `Kadłub ${Math.ceil(s.hull)}/${s.maxHull} · ładunek ${s.cargoUsed}/${s.cargoCapacity}`,
                 `Tarcza ${Math.ceil(s.kineticShield.charge)}/${s.kineticShield.profile.capacity} · ${s.kineticShield.profile.regen.toFixed(1)}/s · przerwa ${Math.ceil(s.kineticShield.cooldown)} s`,
-                `Fe ${s.cargo.ore} · Cu ${s.cargo.copperOre ?? 0} · komponenty ${s.cargo.parts} · kryształy ${s.cargo.crystals ?? 0}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
+                `Fe ${s.cargo.ore} · Cu ${s.cargo.copperOre ?? 0} · komponenty ${s.cargo.parts} · Sp ${s.cargo.mercuryOre ?? 0} · kryształy ${s.cargo.crystals ?? 0}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
                 `Prędkość ${Math.round(s.speed)} / ${Math.round(s.hullConfig.maxSpeed * s.driveMultiplier * (s.engineFault ? GAME.damagedThrust : 1))} m/s`,
                 `Skręt ${s.turnSpeed.toFixed(2)} rad/s · ${s.harpoonArms ? `ramiona ${Math.round(s.harpoonArms.reach * s.hullConfig.size)} m` : s.isAtlas ? `rakieta ${ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life} m` : s.aegis ? `energia ${AEGIS.speed * AEGIS.life} m` : s.hullId === 'stinger' ? `LPM ${STINGER_AMMO.light.speed * STINGER_AMMO.light.life} / PPM ${STINGER_AMMO.armor.speed * STINGER_AMMO.armor.life} m` : s.hullConfig.lasers.length ? `laser ${Math.round(s.laserRange)} m` : `broń ${Math.round(s.weaponConfig.speed * s.weaponConfig.life)} m`}`,
                 s.harpoonArms

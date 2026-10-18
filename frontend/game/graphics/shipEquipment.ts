@@ -286,16 +286,14 @@ export function outerArmor(hull: HullId, level: number) {
 
 export function aegisCannon(level: number) {
     const g = new Graphics();
-    g.circle(0, 0, 7).fill(0x293d49).stroke({ color: 0x93aab6, width: 1 });
+    g.circle(0, 0, 7).fill(0x293d49);
     roundedPanel(g, [-5, -6, 10, -7, 17, -4, 17, 4, 10, 7, -5, 6], 2, 0x7d939f, 0xb5c9d0);
-    g.roundRect(10, -3, 20, 6, 1.5).fill(0x354e60).stroke({ color: 0x8daab9, width: 0.8 });
+    g.roundRect(10, -3, 20, 6, 1.5).fill(0x354e60);
     g.roundRect(12, -1, 16, 2, 0.6).fill(0xb1e2f1);
-    g.roundRect(27, -4, 5, 8, 1.2).fill(0x758d9b).stroke({ color: 0xb5c9d0, width: 0.7 });
+    g.roundRect(27, -4, 5, 8, 1.2).fill(0x758d9b);
     for (let i = 0; i < level; i++)
         for (const side of [-1, 1]) {
-            g.roundRect(1 + i * 5, side * 6 - 1.5, 3, 3, 0.7)
-                .fill(0x354e60)
-                .stroke({ color: 0xa8cad8, width: 0.6 });
+            g.roundRect(1 + i * 5, side * 6 - 1.5, 3, 3, 0.7).fill(0x354e60);
             g.rect(2 + i * 5, side * 6 - 0.6, 1, 1.2).fill(0xb5e8f4);
         }
     return g;

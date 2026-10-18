@@ -4,31 +4,31 @@ import type { HullId } from '../config';
 import type { ShipModules } from '../state/campaign';
 
 export const SHIP_COLORS = {
-    hull: 0x657782,
-    visor: 0x9ccfe3,
-    gun: 0xaebac1,
-    gunInset: 0x71838d,
-    cargo: 0xa28e6b,
-    engine: 0x293640,
-    flame: 0x91c7e7,
-    reinforcement: 0x8898a1,
-    laser: 0x728e97,
+    hull: 0x9cacc7,
+    visor: 0x8be2ed,
+    gun: 0xdce1ec,
+    gunInset: 0x657a9e,
+    cargo: 0xd8ae7a,
+    engine: 0x29324f,
+    flame: 0x8de4ed,
+    reinforcement: 0xb2bed4,
+    laser: 0x8eacd2,
 } as const;
 export const HULL_PALETTES = {
-    prospector: { hull: 0x727d83, panel: 0x89959a, edge: 0xa2afb3, cargo: 0xa08e73 },
-    widmo: { hull: 0x354a55, panel: 0x596b76, edge: 0x9bb5bd, cargo: 0x657b83 },
-    swift: { hull: 0x566f7c, panel: 0x829ca7, edge: 0xb1c9d1, cargo: 0x8c9385 },
-    raider: { hull: 0x655f62, panel: 0x8e8585, edge: 0xb6a5a2, cargo: 0x9a8671 },
-    lancer: { hull: 0x555c66, panel: 0x788392, edge: 0xa2b1c1, cargo: 0x8e8674 },
-    mule: { hull: 0x6d7568, panel: 0x8d9585, edge: 0xaab09e, cargo: 0xa28f67 },
-    fighter: { hull: 0x4e5d70, panel: 0x6c7c8e, edge: 0x91a0ad, cargo: 0x887c6b },
-    tug: { hull: 0x526f70, panel: 0x72918d, edge: 0x9ab2ac, cargo: 0x9e8970 },
-    falcon: { hull: 0x7e7a72, panel: 0x98978f, edge: 0xb8b7a9, cargo: 0x918169 },
-    atlas: { hull: 0x72766e, panel: 0x949c8d, edge: 0xb7c0ad, cargo: 0xad8f55 },
-    harpoon: { hull: 0x586e79, panel: 0x7d959b, edge: 0xacc4c5, cargo: 0xaf8b4e },
-    aegis: { hull: 0x788b98, panel: 0xa8b9c2, edge: 0xc8d8de, cargo: 0x749baf },
-    stinger: { hull: 0x596462, panel: 0x85918a, edge: 0xb7c4b6, cargo: 0xc7b955 },
-    phoenix: { hull: 0x707b80, panel: 0xa9b4b8, edge: 0xd0d7d6, cargo: 0xef963c },
+    prospector: { hull: 0xaebbd0, panel: 0xd8deeb, edge: 0x8293b1, cargo: 0xd4a773 },
+    widmo: { hull: 0x454c75, panel: 0x6f769a, edge: 0xa8abd0, cargo: 0x9c92af },
+    swift: { hull: 0x659faa, panel: 0x9cd3d4, edge: 0x4d7f9e, cargo: 0xdec28b },
+    raider: { hull: 0xa37088, panel: 0xc696a3, edge: 0x735d86, cargo: 0xd5a67c },
+    lancer: { hull: 0x787baa, panel: 0xa5a9ce, edge: 0x535e8c, cargo: 0xcdb48c },
+    mule: { hull: 0x83a89d, panel: 0xb6c7b1, edge: 0x5e817e, cargo: 0xe1bc7d },
+    fighter: { hull: 0x747da6, panel: 0xa7afd0, edge: 0x4d5b86, cargo: 0xd2b8a2 },
+    tug: { hull: 0x65a8af, panel: 0x9accc9, edge: 0x467d96, cargo: 0xdfb78b },
+    falcon: { hull: 0xb7a5b9, panel: 0xe1d4d7, edge: 0x9486a8, cargo: 0xe0b38c },
+    atlas: { hull: 0x8daba8, panel: 0xc6d6c4, edge: 0x6c8c94, cargo: 0xe3bb7b },
+    harpoon: { hull: 0x7da4b8, panel: 0xb0cbd5, edge: 0x5a7d9b, cargo: 0xe0b577 },
+    aegis: { hull: 0x93afcc, panel: 0xe0e6eb, edge: 0x6d87ad, cargo: 0x72bddb },
+    stinger: { hull: 0x92a6b8, panel: 0xc7d6d0, edge: 0x718ba5, cargo: 0xe8cf7d },
+    phoenix: { hull: 0x8a9dbd, panel: 0xd3dcec, edge: 0x677eaa, cargo: 0xffb16e },
 } as const satisfies Record<HullId, { hull: number; panel: number; edge: number; cargo: number }>;
 const S = SHIP_COLORS;
 
@@ -38,7 +38,7 @@ export function roundedPanel(
     points: number[],
     radius = 3,
     color: number = S.hull,
-    edge: number = S.reinforcement,
+    _edge: number = S.reinforcement,
 ) {
     const n = points.length / 2;
     g.beginPath();
@@ -53,39 +53,21 @@ export function roundedPanel(
             ey = points[after * 2 + 1] - y;
         const a = Math.hypot(dx, dy),
             b = Math.hypot(ex, ey);
-        const r = Math.min(radius, a * 0.4, b * 0.4);
+        const r = Math.min(Math.max(3, radius), a * 0.4, b * 0.4);
         const ix = x + (dx / a) * r,
             iy = y + (dy / a) * r;
         if (i === 0) g.moveTo(ix, iy);
         else g.lineTo(ix, iy);
         g.quadraticCurveTo(x, y, x + (ex / b) * r, y + (ey / b) * r);
     }
-    g.closePath().fill(color).stroke({ color: edge, width: 1.2 });
+    g.closePath().fill(color);
 }
 export function visor(g: Graphics, x: number, y: number, rx: number, ry: number) {
     g.ellipse(x - 1, y + 1, rx + 2.5, ry + 2.5).fill(S.engine);
     g.ellipse(x, y, rx + 1, ry + 1).fill(S.reinforcement);
-    g.ellipse(x, y, rx, ry).fill(0x639cbb).stroke({ color: 0xc3e0ee, width: 0.8 });
-    g.ellipse(x + rx * 0.12, y - ry * 0.05, rx * 0.83, ry * 0.85).fill({
-        color: S.visor,
-        alpha: 0.72,
-    });
-    g.ellipse(x + rx * 0.3, y - ry * 0.13, rx * 0.6, ry * 0.68).fill({
-        color: 0xd5edff,
-        alpha: 0.3,
-    });
-    g.circle(x + rx * 0.22, y - ry * 0.34, Math.min(rx, ry) * 0.22).fill({
-        color: 0xffffff,
-        alpha: 0.75,
-    });
-    g.circle(x - rx * 0.34, y + ry * 0.2, Math.min(rx, ry) * 0.13).fill({
-        color: 0xffffff,
-        alpha: 0.5,
-    });
-    g.circle(x + rx * 0.48, y + ry * 0.4, Math.min(rx, ry) * 0.09).fill({
-        color: 0xffffff,
-        alpha: 0.48,
-    });
+    g.ellipse(x, y, rx, ry).fill(0x639cbb);
+    g.ellipse(x + rx * 0.08, y - ry * 0.05, rx * 0.85, ry * 0.85).fill(S.visor);
+    g.ellipse(x + rx * 0.3, y - ry * 0.25, rx * 0.35, ry * 0.22).fill(0xe8f9ed);
 }
 function seam(g: Graphics, points: number[], width = 1.4) {
     g.beginPath().moveTo(points[0], points[1]);
@@ -114,7 +96,7 @@ export function drawTank(
 ) {
     const radius = Math.min(6, w * 0.4, h * 0.4);
     g.roundRect(x - 1, y + 1, w + 2, h + 2, radius + 1).fill(S.engine);
-    g.roundRect(x, y, w, h, radius).fill(color).stroke({ color: 0xb5ad98, width: 1 });
+    g.roundRect(x, y, w, h, radius).fill(color);
     const inset = Math.min(3, w * 0.16, h * 0.2);
     g.roundRect(x + inset, y + inset, w - inset * 2, h * 0.25, radius * 0.5).fill({
         color: 0xe3dbbf,
@@ -197,9 +179,11 @@ export function shipHull(hull: HullId, modules: ShipModules) {
     const tank = (target: Graphics, x: number, y: number, w: number, h: number) =>
         drawTank(target, x, y, w, h, palette.cargo);
     if (hull === 'prospector') {
-        prospectorOutline(g)
-            .fill(S.hull)
-            .stroke({ color: S.reinforcement, width: 1.4 + modules.armor * 1.25 });
+        g.context.save();
+        g.context.scale(1 + modules.armor * 0.035, 1 + modules.armor * 0.06);
+        prospectorOutline(g).fill(S.reinforcement);
+        g.context.restore();
+        prospectorOutline(g).fill(S.hull);
         g.context.save();
         g.context.translate(1, 0);
         g.context.scale(0.88, 0.84);
@@ -257,8 +241,7 @@ export function shipHull(hull: HullId, modules: ShipModules) {
                 .quadraticCurveTo(2, side * 33, 25, side * 34)
                 .quadraticCurveTo(34, side * 35, 42, side * 29)
                 .closePath()
-                .fill(palette.hull)
-                .stroke({ color: palette.edge, width: 1.3 });
+                .fill(palette.hull);
             roundedPanel(
                 g,
                 [
@@ -289,13 +272,9 @@ export function shipHull(hull: HullId, modules: ShipModules) {
                 .moveTo(-15, side * 38)
                 .lineTo(-20, side * 48)
                 .stroke({ color: 0x2b3d47, width: 1.6 });
-            g.roundRect(-8, side * 34 - 2, 17, 4, 1.5)
-                .fill(0x263e48)
-                .stroke({ color: 0x719ba8, width: 0.6 });
+            g.roundRect(-8, side * 34 - 2, 17, 4, 1.5).fill(0x263e48);
             g.roundRect(-5, side * 34 - 0.8, 11, 1.6, 0.5).fill(0x93c4d0);
-            g.circle(-18, side * 47, 1.5)
-                .fill(0x263e48)
-                .stroke({ color: palette.edge, width: 0.6 });
+            g.circle(-18, side * 47, 1.5).fill(0x263e48);
         }
         g.context.restore();
         roundedHull(
@@ -501,9 +480,7 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         roundedHull(g, [-43, -14, 25, -14, 43, -9, 43, 9, 25, 14, -43, 14], 4);
         g.roundRect(-35, -9, 57, 18, 3).fill(palette.panel);
         for (const side of [-1, 1]) {
-            g.roundRect(-5, side < 0 ? -37 : 15, 11, 22, 2)
-                .fill(S.hull)
-                .stroke({ color: palette.edge, width: 1 });
+            g.roundRect(-5, side < 0 ? -37 : 15, 11, 22, 2).fill(S.hull);
             for (const x of [-22, 21]) {
                 g.roundRect(x, side < 0 ? -41 : 35, 11, 5, 1).fill(S.engine);
                 g.roundRect(x + 2, side < 0 ? -40 : 36, 7, 2, 1).fill(S.reinforcement);
@@ -577,9 +554,7 @@ export function shipHull(hull: HullId, modules: ShipModules) {
                 0x98b5c4,
             );
             for (const x of [-30, 30]) g.circle(x, side * 24, 1.5).fill(S.engine);
-            g.circle(0, side * 30, 7)
-                .fill(S.engine)
-                .stroke({ color: palette.edge, width: 1.3 });
+            g.circle(0, side * 30, 7).fill(S.engine);
             visor(g, 0, side * 30, 4, 4);
             g.moveTo(-5, side * 36)
                 .lineTo(5, side * 36)
@@ -592,7 +567,7 @@ export function shipHull(hull: HullId, modules: ShipModules) {
             palette.panel,
         );
         roundedHull(g, [-32, -9, 26, -8, 35, 0, 26, 8, -32, 9], 3);
-        g.roundRect(-30, -6, 17, 12, 2).fill(palette.edge).stroke({ color: S.engine, width: 1 });
+        g.roundRect(-30, -6, 17, 12, 2).fill(palette.edge);
         for (const x of [-27, -23, -19]) g.rect(x, -4, 2, 8).fill(S.engine);
         visor(g, 12, 0, 13, 8);
         g.roundRect(29, -4, 11, 8, 2).fill(S.engine);
@@ -605,22 +580,18 @@ export function shipHull(hull: HullId, modules: ShipModules) {
         tank(g, -13, -18, 16, 36);
         g.roundRect(-31, -5, 18, 10, 2).fill(palette.panel);
         for (const side of [-1, 1]) {
-            g.roundRect(2, side * 18 - 5, 12, 10, 2)
-                .fill(palette.panel)
-                .stroke({ color: palette.edge, width: 1 });
-            g.circle(8, side * 18, 4)
-                .fill(S.engine)
-                .stroke({ color: S.cargo, width: 1.5 });
+            g.roundRect(2, side * 18 - 5, 12, 10, 2).fill(palette.panel);
+            g.circle(8, side * 18, 4).fill(S.engine);
         }
-        g.circle(22, 0, 17).fill(palette.panel).stroke({ color: S.engine, width: 2 });
+        g.circle(22, 0, 17).fill(palette.panel);
         visor(g, 22, 0, 13, 13);
     } else {
-        g.ellipse(-5, 0, 34, 34).fill(S.hull).stroke({ color: S.reinforcement, width: 1.8 });
+        g.ellipse(-5, 0, 34, 34).fill(S.hull);
         g.ellipse(-5, 0, 29, 29).fill(palette.panel);
         roundedHull(g, [10, -28, 44, -17, 44, -8, 17, -7, 17, 7, 44, 8, 44, 17, 10, 28], 3);
         tank(g, -32, -17, 17, 34);
         seam(g, [-25, -24, 7, 0, -25, 24], 3);
-        g.circle(2, 0, 9).fill(S.reinforcement).stroke({ color: S.engine, width: 1 });
+        g.circle(2, 0, 9).fill(S.reinforcement);
         visor(g, 10, -27, 10, 6);
     }
     return g;

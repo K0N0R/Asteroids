@@ -1,3 +1,5 @@
+import { kineticInstallationLock, KINETIC_SHIELD_COSTS } from '../state/kineticIndustry';
+import { resourceSummary } from '../state/resources';
 import { Container, Graphics } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { STATION_SHIELD, stationProtectionRadius, stationShieldLock } from '../state/stationShield';
@@ -12,17 +14,23 @@ export function stationShieldOverview(
     back: () => void,
     install?: () => void,
     openDrones?: () => void,
+    upgrade?: () => void,
 ) {
     button(ui, '← PRZEMYSŁ I MAGAZYN', 280, 218, 300, back, false, true, 36, 14);
     if (openDrones)
         button(ui, 'DRONY STRAŻNICZE →', 1072, 218, 456, openDrones, false, true, 36, 14);
     const active = !c.story || c.station.shield;
+    const upgradeMode = c.station.shield;
+    const level = c.station.shieldLevel;
+    const nextCost = KINETIC_SHIELD_COSTS[level];
     const g = new Graphics(),
         x = 625,
         y = 490;
     const radius = active ? 220 : 68;
     g.circle(x, y, 220).stroke({ color: C.line, width: 2, alpha: 0.6 });
     g.circle(x, y, radius).fill({ color: C.cyan, alpha: 0.07 }).stroke({ color: C.cyan, width: 3 });
+    for (let i = 0; i < level; i++)
+        g.circle(x, y, 230 + i * 10).stroke({ color: 0x91b8ef, width: 4, alpha: 0.6 });
     g.circle(x, y, 44).fill(C.ink).stroke({ color: C.mint, width: 3 });
     g.circle(x, y, 16).fill(C.cyan);
     for (let i = 0; i < 8; i++) {
@@ -36,10 +44,17 @@ export function stationShieldOverview(
     label(ui, `Obszar ochrony: ${stationProtectionRadius(c)} m`, 360, 755, 22, C.cyan, 580);
     label(ui, 'MODUŁ OBRONNY / STACJA', 1072, 244, 13, C.mint);
     label(ui, 'Generator tarczy', 1072, 278, 30, C.text);
-    label(ui, active ? 'AKTYWNY' : 'NIEZAMONTOWANY', 1072, 326, 17, active ? C.mint : C.gold);
     label(
         ui,
-        `Po montażu: bezpieczny obszar ${STATION_SHIELD.radius} m wokół stacji na orbicie. Odrzuca asteroidy i wrogów oraz zatrzymuje pociski na granicy.`,
+        active ? `AKTYWNY · KINETYCZNY ${level}/2` : 'NIEZAMONTOWANY',
+        1072,
+        326,
+        17,
+        active ? C.mint : C.gold,
+    );
+    label(
+        ui,
+        `Po montażu: bezpieczny obszar ${upgradeMode ? stationProtectionRadius(c) : STATION_SHIELD.radius} m wokół stacji na orbicie. Odrzuca asteroidy i wrogów oraz zatrzymuje pociski na granicy.`,
         1072,
         375,
         18,
@@ -55,15 +70,27 @@ export function stationShieldOverview(
         C.muted,
         456,
     );
-    label(ui, 'Montaż: 30 Fe · 6 K · 3 MZ', 1072, 597, 19, C.gold, 456);
-    const lock = stationShieldLock(c);
     label(
         ui,
-        active
-            ? !c.story
-                ? 'Tryb testowy korzysta z pełnej osłony od początku.'
-                : 'Stałe zasilanie z instalacji stacji. Brak kosztu za każdą wyprawę.'
-            : (lock ?? 'Zaplecze i składniki gotowe. Można rozpocząć montaż.'),
+        upgradeMode
+            ? nextCost
+                ? `Poziom ${level + 1}: ${resourceSummary(nextCost)} · +150 m`
+                : 'Poziom II · maksymalny zasięg 1150 m'
+            : 'Montaż: 30 Fe · 6 K · 3 MZ',
+        1072,
+        597,
+        19,
+        C.gold,
+        456,
+    );
+    const lock = upgradeMode ? kineticInstallationLock(c, 'shield') : stationShieldLock(c);
+    label(
+        ui,
+        upgradeMode
+            ? (lock ?? 'Moduł gotowy · montaż zwiększy rzeczywisty obszar osłony.')
+            : active
+              ? 'Tryb testowy korzysta z pełnej osłony od początku.'
+              : (lock ?? 'Zaplecze i składniki gotowe. Można rozpocząć montaż.'),
         1072,
         644,
         15,
@@ -72,13 +99,19 @@ export function stationShieldOverview(
     );
     button(
         ui,
-        active ? 'TARCZA ZAMONTOWANA' : 'ZAMONTUJ GENERATOR',
+        upgradeMode
+            ? level < 2
+                ? 'ROZBUDUJ TARCZĘ KINETYCZNĄ'
+                : 'TARCZA KINETYCZNA II'
+            : active
+              ? 'TARCZA ZAMONTOWANA'
+              : 'ZAMONTUJ GENERATOR',
         1072,
         731,
         456,
-        () => install?.(),
+        () => (upgradeMode ? upgrade?.() : install?.()),
         true,
-        !!install && !lock,
+        (upgradeMode ? !!upgrade : !!install) && !lock,
         44,
         16,
     );

@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { label } from '../ui/primitives';
+import { worldLabel as label } from '../ui/primitives';
 import { C } from './shapes';
 import { rotateVector } from '../systems/flight';
 import type { MissionSimulation } from '../systems/mission';
@@ -14,7 +14,7 @@ export class OrbitalOutpostView extends Container {
         this.eventMode = 'none';
 
         this.addChild(this.structure, this.markers);
-        this.title = label(this, '', -160, 155, 17, C.gold);
+        this.title = label(this, '', 0, 155, 17, C.gold);
     }
     update(s: MissionSimulation, angle: number) {
         const stage = s.orbitalBaseStage;
@@ -35,20 +35,13 @@ export class OrbitalOutpostView extends Container {
                     g.moveTo(x, -70).lineTo(x, 70).stroke({ color: C.muted, width: 5 });
             } else {
                 for (const x of [-120, 70]) {
-                    g.roundRect(x, -80, 50, 160, 5)
-                        .fill(0x23556b)
-                        .stroke({ color: C.cyan, width: 3 });
+                    g.roundRect(x, -80, 50, 160, 5).fill(0x23556b);
                     for (let y = -50; y <= 50; y += 25)
                         g.moveTo(x, y)
                             .lineTo(x + 50, y)
                             .stroke({ color: C.line, width: 2 });
                 }
-                g.roundRect(-75, -50, 150, 100, 12)
-                    .fill(0x5b6e74)
-                    .stroke({ color: 0xb0c7cb, width: 5 })
-                    .circle(0, 0, 34)
-                    .fill(0x285a71)
-                    .stroke({ color: C.cyan, width: 4 });
+                g.roundRect(-75, -50, 150, 100, 12).fill(0x5b6e74).circle(0, 0, 34).fill(0x285a71);
                 if (shielded)
                     g.circle(0, 0, 102).stroke({
                         color: s.marsBaseSector ? C.mint : C.gold,
@@ -73,13 +66,6 @@ export class OrbitalOutpostView extends Container {
                 .fill(C.line)
                 .rect(-90, 125, a.health, 8)
                 .fill(a.health < 60 ? C.red : C.mint);
-            if (a.state === 'warning') {
-                const x = Math.cos(a.angle),
-                    y = Math.sin(a.angle);
-                g.moveTo(x * 180, y * 180)
-                    .lineTo(x * 600, y * 600)
-                    .stroke({ color: C.red, width: 3, alpha: 0.6 });
-            }
         }
     }
 }

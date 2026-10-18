@@ -26,6 +26,7 @@ export class MiningEscort extends ResearchEscort {
     failed = '';
     underThreat = false;
     beam: { from: Point; to: Point } | null = null;
+    readonly beams: { from: Point; to: Point }[] = [];
     constructor(world: RAPIER.World) {
         super(world, { ...MINING_CONVOY.site });
         this.health = HULLS.mule.health;
@@ -78,6 +79,7 @@ export class MiningEscort extends ResearchEscort {
         this.state = 'failed';
         this.body.setLinvel({ x: 0, y: 0 }, true);
         this.beam = null;
+        this.beams.length = 0;
     }
     override update(
         dt: number,
@@ -86,6 +88,7 @@ export class MiningEscort extends ResearchEscort {
         hostileNear: boolean,
     ) {
         this.beam = null;
+        this.beams.length = 0;
         this.underThreat = hostileNear;
         if (this.failed || this.state === 'destroyed' || this.state === 'idle') return false;
         if (this.state === 'complete') {

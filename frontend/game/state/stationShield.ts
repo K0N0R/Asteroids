@@ -8,7 +8,9 @@ export const STATION_SHIELD = {
 } as const;
 
 export function stationProtectionRadius(c: Campaign) {
-    return !c.story || c.station.shield ? STATION_SHIELD.radius : STATION_SHIELD.dockProtection;
+    return !c.story || c.station.shield
+        ? STATION_SHIELD.radius + c.station.shieldLevel * 150
+        : STATION_SHIELD.dockProtection;
 }
 export function stationShieldLock(c: Campaign): string | null {
     if (!c.story) return 'Tryb testowy korzysta z pełnej osłony od początku.';

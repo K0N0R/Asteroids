@@ -1,4 +1,5 @@
 import { salvagePosition, type SalvageFleet, type SalvageBody } from './salvage';
+import { ANOMALY } from './anomalyField';
 import { RescueRepair } from './rescueRepair';
 import type { Point } from '../worlds/sector';
 
@@ -16,15 +17,25 @@ export class RescueOperation {
     attachProgress = 0;
     interactHeld = false;
     private lastPosition: Point = { ...RESCUE_OPERATION.site };
-    constructor(private fleet: SalvageFleet) {
+    constructor(
+        private fleet: SalvageFleet,
+        readonly probe = false,
+    ) {
         this.item = fleet.add(
             RESCUE_OPERATION.id,
             'recovery',
-            RESCUE_OPERATION.site,
+            probe ? ANOMALY.probe : RESCUE_OPERATION.site,
             { x: 0, y: 0 },
             -0.7,
         )!;
         this.item.health = 80;
+        this.stabilized = probe;
+    }
+    get name() {
+        return this.probe ? 'Sonda' : 'Prom';
+    }
+    get siteId() {
+        return this.probe ? ('anomaly' as const) : ('rescue' as const);
     }
     get state() {
         if (this.delivered) return 'delivered';
@@ -37,6 +48,18 @@ export class RescueOperation {
         return this.lastPosition;
     }
     get status() {
+        if (this.probe) {
+            switch (this.state) {
+                case 'delivered':
+                    return 'Sonda dostarczona do Satuk 15 · raport przez radio';
+                case 'destroyed':
+                    return 'Sonda utracona · TAB: odwrót i ponowienie wyprawy';
+                case 'towing':
+                    return 'Sonda na holu · wróć korytarzem 5/4/3 do Satuk 15 · J: odłącz';
+                default:
+                    return 'N: sonda · 3/4/5: bezpieczny objazd · E przez 3 s: hol';
+            }
+        }
         switch (this.state) {
             case 'delivered':
                 return 'Prom dostarczony do Satuk 15 · wróć z raportem';

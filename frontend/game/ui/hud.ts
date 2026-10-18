@@ -19,6 +19,7 @@ export class MissionHud extends Container {
     private health: Typography;
     private shieldValue: Typography;
     private cargo: Typography;
+    private hyperStatus: Typography;
     private context: Typography;
     private direction: Typography;
     private goals: Typography[] = [];
@@ -41,6 +42,8 @@ export class MissionHud extends Container {
     private defenseStatus: Typography | null = null;
     private convoyStatus: Typography | null = null;
     private rescueStatus: Typography | null = null;
+    private guideStatus: Typography | null = null;
+    private anomalyStatus: Typography | null = null;
     constructor(
         readonly sim: MissionSimulation,
         private contract: number,
@@ -64,6 +67,7 @@ export class MissionHud extends Container {
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
         this.cargo = label(this, '', 80, 93, 20);
+        this.hyperStatus = label(this, '', 560, 40, 14, C.cyan, 650);
         if (
             sim.surfaceUnlocked ||
             sim.orbitalBaseSector ||
@@ -76,8 +80,10 @@ export class MissionHud extends Container {
             this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
         if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
             this.supportStatus = label(this, '', 80, 140, 14, C.cyan, 600);
-        if (sim.rescueOperation) this.rescueStatus = label(this, '', 40, 185, 16, C.gold, 720);
+        if (sim.anomalyMission) this.anomalyStatus = label(this, '', 40, 215, 16, 0xda8cf1, 760);
+        if (sim.rescueOperation) this.rescueStatus = label(this, '', 40, 245, 16, C.gold, 720);
         if (sim.miningEscort) this.convoyStatus = label(this, '', 40, 215, 14, C.gold, 760);
+        if (sim.guide) this.guideStatus = label(this, '', 40, 185, 14, C.mint, 760);
         this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
         label(
             this,
@@ -135,8 +141,9 @@ export class MissionHud extends Container {
         );
         keyHint(this, 'F/Z/N', 'cel', 552, 845, 52);
         keyHint(this, '0–9/T/H', 'cel', 644, 845, 66);
-        keyHint(this, 'E', 'akcja', 752, 845);
+        keyHint(this, sim.stationLogistics ? 'E/C' : 'E', 'akcja', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
+        keyHint(this, 'SPACE/K', 'hiper/śluza', 970, 845, 76);
 
         const details = keyHint(this, 'TAB', 'pokład', 1170, 845, 40);
         details.eventMode = 'static';
@@ -163,12 +170,23 @@ export class MissionHud extends Container {
     }
     get waypoint() {
         const s = this.sim;
+        if (this.target === 18)
+            return s.guide && s.guide.state !== 'destroyed'
+                ? { ...s.guide.position, name: 'Prospector / instruktor' }
+                : { x: 0, y: 0, name: 'Instruktor utracony · kontynuuj samodzielnie' };
         if (this.target === 15 && s.miningEscort) {
             return s.area === 'orbit'
                 ? { ...MOON.entrance, name: 'Muł · podejście do Księżyca' }
                 : { ...s.miningEscort.position, name: 'Muł · budowa stacji' };
         }
         if (s.area === 'surface') {
+            if (this.target === 17)
+                return this.sim.nearestHypergate
+                    ? {
+                          ...this.sim.nearestHypergate.from,
+                          name: `Śluza: ${this.sim.nearestHypergate.name}`,
+                      }
+                    : { x: 0, y: 0, name: 'Brak śluz · skok swobodny spacją' };
             if (this.target === 10)
                 return s.enemies.enemies.size
                     ? this.enemyNavigation.waypoint(s.enemies, s.position)
@@ -193,7 +211,7 @@ export class MissionHud extends Container {
             const r = this.sim.rescueOperation;
             return ['delivered', 'destroyed'].includes(r.state)
                 ? { x: 0, y: 0, name: 'Satuk 15 / ratunek' }
-                : { ...r.position, name: 'Prom / sygnał SOS' };
+                : { ...r.position, name: r.probe ? 'Sonda / odzysk' : 'Prom / sygnał SOS' };
         }
         if (this.target === 15) {
             const e = this.sim.escort;
@@ -239,12 +257,28 @@ export class MissionHud extends Container {
         }
     }
     private refresh() {
+        if (this.sim.rescueOperation && !this.rescueStatus)
+            this.rescueStatus = label(this, '', 40, 245, 14, C.gold, 720);
+        this.guideStatus?.setText(
+            this.sim.guide
+                ? `${this.sim.guide.status} · HP ${Math.ceil(this.sim.guide.health)}`
+                : '',
+        );
+        if (this.sim.surfaceUnlocked && !this.defenseStatus)
+            this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
+        if (this.sim.miningEscort && !this.convoyStatus)
+            this.convoyStatus = label(this, '', 40, 215, 14, C.gold, 760);
         const rescue = this.sim.rescueOperation;
         this.rescueStatus?.setText(
             rescue
-                ? `Prom · ${rescue.state === 'destroyed' ? 'utracony' : rescue.delivered ? 'dostarczony' : `${Math.ceil(rescue.item.health)}/${rescue.item.maxHealth} HP`}`
+                ? `${rescue.name} · ${rescue.state === 'destroyed' ? 'utracony' : rescue.delivered ? 'dostarczony' : `${Math.ceil(rescue.item.health)}/${rescue.item.maxHealth} HP`}`
                 : '',
         );
+        this.anomalyStatus?.setText(
+            this.sim.anomalyExposure.status ||
+                '3 / 4 / 5: bezpieczna trasa · N: sonda · fioletowe pasma zadają obrażenia',
+        );
+        this.anomalyStatus?.setColor(this.sim.anomalyExposure.contaminated ? C.red : 0xda8cf1);
         this.convoyStatus?.setText(
             `${(this.sim.area === 'surface' ? this.sim.miningEscort?.status : 'Muł czeka przy budowie na Księżycu') ?? ''} · HP ${Math.ceil(this.sim.escort?.health ?? 0)}`,
         );
@@ -302,7 +336,7 @@ export class MissionHud extends Container {
                 `Zestawy ${s.repairKits} · produkcja ${s.repairKits ? 'zapas musi wynosić 0' : `${s.repairKitCost.ore} rudy / ${s.repairKitCost.parts} komponenty`}`,
             );
         this.cargo.setText(
-            `${s.cargoUsed} / ${s.cargoCapacity}${s.cargo.copperOre ? ` · Cu ${s.cargo.copperOre}` : ''}`,
+            `${s.cargoUsed} / ${s.cargoCapacity}${s.cargo.copperOre ? ` · Cu ${s.cargo.copperOre}` : ''}${s.cargo.mercuryOre ? ` · Sp ${s.cargo.mercuryOre}` : ''}`,
         );
         this.cargo.setColor(s.cargoUsed >= s.cargoCapacity ? C.gold : C.text);
         this.meters
@@ -336,6 +370,10 @@ export class MissionHud extends Container {
             this.meters
                 .rect(80, 124, 190 * Math.min(1, s.cargoUsed / s.cargoCapacity), 5)
                 .fill(C.gold);
+        this.hyperStatus.visible = s.hyperUnlocked;
+        this.hyperStatus.setText(
+            `HIPER ${s.hyperFuel}/3 · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA skok / K śluza · kolizja = utrata'}`,
+        );
         this.context.setText(flightHint(s));
         this.orderStatus?.setText(s.missionStatus);
         const towedIds = [...s.salvage.towing.keys()].join(',');
@@ -461,6 +499,12 @@ export class MissionHud extends Container {
                 .fill({ color: C.cyan, alpha: this.trail.opacity(s.elapsed, point) });
         }
         this.map.circle(x, y, 3).fill(C.mint);
+        if (s.area === 'orbit')
+            for (const lane of s.sector.hyperlanes)
+                for (const p of [lane.a, lane.b])
+                    this.map
+                        .circle(x + p.x * scale, y + p.y * scale, 4)
+                        .stroke({ color: 0xa3a9f2, width: 1.5 });
         for (const site of s.landmarks) {
             const mx = x + site.x * scale,
                 my = y + site.y * scale;
@@ -525,6 +569,10 @@ export class MissionHud extends Container {
                 .beginPath()
                 .poly([mx, my - 3, mx + 3, my, mx, my + 3, mx - 3, my])
                 .fill(C.mint);
+        }
+        if (s.guide && s.guide.state !== 'destroyed' && s.guide.state !== 'complete') {
+            const p = s.guide.position;
+            this.map.circle(x + p.x * scale, y + p.y * scale, 3.5).fill(C.mint);
         }
         if (s.escort) {
             const site = s.sector.researchSite,
@@ -654,7 +702,7 @@ export class MissionHud extends Container {
             const p = point(enemyPosition(enemy));
             map.circle(p.x, p.y, 4).fill(C.red);
         }
-        const warningWave = s.lunarAssault.active ? s.lunarAssault : d;
+        const warningWave = d;
         if (warningWave.state === 'warning') {
             const warning = point({
                 x: MOON.construction.x + Math.cos(warningWave.angle) * 850,

@@ -102,7 +102,7 @@ test('combat reports are provisional, only tagged patrols count, and losses reta
         assert.ok(
             storyObjectives(c, [], false, 1)
                 .find((t) => t.id === 'mars-patrol')!
-                .progress.includes('raportem'),
+                .progress.includes('wysyłanie raportu'),
         );
         finishRun(c, false, empty, 5, 'lost', 0, { patrolKills: 1, data: ['relay'] });
         assert.equal(c.story!.progress['mars-patrol'], 1);
@@ -183,7 +183,7 @@ test('stock Prospector flies the pursuit, defeats real patrol AI, returns report
             );
             if (siteId === 'relay') {
                 assert.equal(s.storyPatrolKills, 2);
-                assert.equal(c.story!.progress['mars-patrol'], 0);
+                assert.equal(c.story!.progress['mars-patrol'], 2);
             }
             finishRun(c, true, s.cargo, s.elapsed, 'dock', s.repairKits, {
                 patrolKills: s.storyPatrolKills,

@@ -1,6 +1,6 @@
 {
     "name": "orbit-asteroids",
-    "version": "0.65.0",
+    "version": "0.79.0",
     "scripts": {
         "start": "cross-env ENV=development node build.development.mjs",
         "start-silent": "cross-env ENV=development node build.development.mjs --no-watch",
@@ -10,6 +10,7 @@
         "lint-fix": "eslint . --ext .ts,.mjs,.tsx,.json --fix",
         "typecheck": "tsc --noEmit",
         "test": "node test.mjs",
+        "audio:prepare": "node scripts/prepare-audio.mjs",
         "audit:sandbox": "node scripts/audit-sandbox.mjs"
     },
     "dependencies": {

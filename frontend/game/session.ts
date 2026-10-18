@@ -1,3 +1,6 @@
+import { refuelHyperdrive } from './state/crew';
+import { installKineticUpgrade } from './state/kineticIndustry';
+import { terminalPuzzlePanel } from './ui/terminalPuzzle';
 import { rescueRepairPanel } from './ui/rescueRepair';
 import { relayTuningPanel } from './ui/relayTuning';
 import { installStationShield } from './state/stationShield';
@@ -194,6 +197,21 @@ export class GameSession {
                     () => scrapShip(this.campaign, id),
                     'Kadłub zezłomowany. Odzyskane materiały trafiły do magazynu.',
                 ),
+            refuelHyperdrive: () =>
+                this.change(
+                    () => refuelHyperdrive(this.campaign),
+                    'Ogniwa uzupełnione w zbiorniku aktywnego statku.',
+                ),
+            installKineticShield: () =>
+                this.change(
+                    () => installKineticUpgrade(this.campaign, 'shield'),
+                    'Tarcza kinetyczna rozbudowana · obszar ochrony wzrósł o 150 m.',
+                ),
+            installReinforcedBay: () =>
+                this.change(
+                    () => installKineticUpgrade(this.campaign, 'storage'),
+                    'Wzmocniony magazyn zamontowany · pojemność wzrosła o 400.',
+                ),
             installStationShield: () =>
                 this.change(
                     () => installStationShield(this.campaign),
@@ -253,7 +271,14 @@ export class GameSession {
                     return;
                 }
                 if (
-                    (this.mission?.simulation.relayTuning ||
+                    this.mission?.simulation.ended &&
+                    message.name === 'keydown' &&
+                    message.data !== 'escape'
+                )
+                    return;
+                if (
+                    (this.mission?.simulation.terminalPuzzle ||
+                        this.mission?.simulation.relayTuning ||
                         this.mission?.simulation.rescueOperation?.repair ||
                         this.mission?.simulation.transferActive) &&
                     message.name === 'keydown' &&
@@ -296,6 +321,23 @@ export class GameSession {
                               : Number(message.data) - 1;
                 if (
                     message.name === 'keydown' &&
+                    message.data === 'k' &&
+                    this.hud &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup()
+                )
+                    this.hud.target = 17;
+                if (
+                    message.name === 'keydown' &&
+                    message.data === 'v' &&
+                    this.hud &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup() &&
+                    this.mission?.simulation.guide
+                )
+                    this.hud.target = 18;
+                if (
+                    message.name === 'keydown' &&
                     message.data === 'f' &&
                     this.hud &&
                     !this.hasOverlay &&
@@ -309,7 +351,11 @@ export class GameSession {
                     !this.hasOverlay &&
                     !PopupContainer.hasActivePopup()
                 )
-                    this.hud.target = this.mission?.simulation.rescueOperation ? 16 : 15;
+                    this.hud.target = this.mission?.simulation.rescueOperation
+                        ? this.mission.simulation.miningEscort && this.hud.target === 16
+                            ? 15
+                            : 16
+                        : 15;
                 if (
                     message.name === 'keydown' &&
                     message.data === 'z' &&
@@ -345,8 +391,13 @@ export class GameSession {
             this,
         );
     }
-    private openDialogue(definition: DialogueDefinition) {
-        if (this.hasOverlay || this.mission || this.launching || PopupContainer.hasActivePopup())
+    private openDialogue(definition: DialogueDefinition, radio = false) {
+        if (
+            this.hasOverlay ||
+            (this.mission && !radio) ||
+            this.launching ||
+            PopupContainer.hasActivePopup()
+        )
             return;
         this.hasOverlay = true;
         InputHandler.clear();
@@ -358,11 +409,13 @@ export class GameSession {
         if (!playback) return;
         clear(this.overlay);
         if (playback.complete) {
-            completeDialogue(this.campaign, playback.definition.id);
+            if (playback.definition.id !== 'radio-report')
+                completeDialogue(this.campaign, playback.definition.id);
             this.saves.save(this.campaign);
             this.dialogue = null;
             this.hasOverlay = false;
             InputHandler.clear();
+            if (this.mission) return;
             this.lobby.refresh(
                 this.saves.warning || 'Odprawa zakończona. Cele dostępne w panelu wyprawy.',
             );
@@ -585,6 +638,7 @@ export class GameSession {
             if (this.mission) this.mission.dispose();
             else run?.simulation.dispose();
             this.mission = null;
+            this.syncInteractionPanel();
             if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
             this.sandboxRun = null;
@@ -609,13 +663,13 @@ export class GameSession {
         this.sandboxReports = this.sandboxReports.slice(-20);
         this.mission.dispose();
         this.mission = null;
+        this.syncInteractionPanel();
         if (this.hud) destroyDisplayTree(this.hud);
         this.hud = null;
         this.sandboxRun = null;
         this.background.setRegion(this.campaign.story?.sector ?? null);
         SoundManager.stopGroup('gameplay');
         this.background.camera = { x: 0, y: 0 };
-        this.background.cameraAngle = 0;
         this.lobby.visible = true;
         GameState.goToLobby();
         InputHandler.clear();
@@ -710,6 +764,7 @@ export class GameSession {
             this.saves.save(this.campaign);
             this.mission?.dispose();
             this.mission = null;
+            this.syncInteractionPanel();
             if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
             this.lobby.visible = true;
@@ -719,6 +774,13 @@ export class GameSession {
         this.launching = false;
     }
     update(deltaMS: number) {
+        this.background.setFlight(!!this.mission);
+        if (this.mission) {
+            this.background.camera = this.mission.simulation.position;
+            this.background.cameraAngle = this.mission.camera.rotation;
+            this.background.cameraZoom = this.mission.camera.scale.x;
+            this.background.surface = this.mission.simulation.area === 'surface';
+        }
         if (!this.mission) {
             this.syncInteractionPanel();
             this.lobby.update(deltaMS);
@@ -735,11 +797,23 @@ export class GameSession {
         }
         const simInput = this.mission.simulation;
         const tuning =
-            !!simInput.relayTuning || !!simInput.rescueOperation?.repair || simInput.transferActive;
+            !!simInput.terminalPuzzle ||
+            !!simInput.relayTuning ||
+            !!simInput.rescueOperation?.repair ||
+            simInput.transferActive ||
+            simInput.hyperdrive.active ||
+            !!simInput.ended;
         if (simInput.transferActive) InputHandler.clear();
         const local = this.mission.camera.toLocal(InputHandler.pointer);
         const elapsedBefore = simInput.elapsed;
         this.mission.update(deltaMS, {
+            unload: InputHandler.isKeyPressed('UNLOAD'),
+            hyperdrive:
+                !simInput.terminalPuzzle &&
+                !simInput.relayTuning &&
+                !simInput.rescueOperation?.repair &&
+                !simInput.transferActive &&
+                InputHandler.isKeyPressed('HYPERDRIVE'),
             target: tuning ? simInput.position : local,
             thrust: !tuning && InputHandler.isKeyPressed('THRUST'),
             brake: !tuning && InputHandler.isKeyPressed('BRAKE'),
@@ -755,15 +829,18 @@ export class GameSession {
             sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });
         this.syncInteractionPanel();
-        if (this.hud) this.hud.visible = !this.mission.simulation.transferActive;
+        if (this.hud)
+            this.hud.visible =
+                !this.mission.simulation.transferActive &&
+                this.mission.simulation.ended !== 'destroyed';
         if (this.sandboxRun) {
             const sim = this.mission.simulation;
             this.background.camera = sim.position;
-            this.background.cameraAngle = this.mission.camera.rotation;
             if (this.hud) this.hud.cameraAngle = this.mission.camera.rotation;
             this.hud?.update(deltaMS);
             if (sim.pendingChoice && !sim.ended) this.showPrototypeChoice();
-            if (sim.ended) this.finishSandbox(sim.ended);
+            if (sim.ended && (sim.ended !== 'destroyed' || this.mission.deathFinished))
+                this.finishSandbox(sim.ended);
             return;
         }
         const elapsed = this.mission.simulation.elapsed - elapsedBefore;
@@ -783,11 +860,40 @@ export class GameSession {
             this.saves.save(this.campaign);
         }
         this.background.camera = this.mission.simulation.position;
-        this.background.cameraAngle = this.mission.camera.rotation;
         if (this.hud) this.hud.cameraAngle = this.mission.camera.rotation;
         this.hud?.update(deltaMS);
         const sim = this.mission.simulation;
+        if (
+            !sim.ended &&
+            (sim.radioMessages.length || sim.guideMessages.length) &&
+            !sim.hyperdrive.active &&
+            !sim.transferActive &&
+            !sim.terminalPuzzle &&
+            !sim.relayTuning &&
+            !sim.pendingChoice
+        ) {
+            this.hud?.update(101);
+            this.openDialogue(
+                {
+                    id: 'radio-report',
+                    title: 'Potwierdzenie Satuk 15',
+                    sector: 'earth',
+                    after: [],
+                    tasks: [],
+                    lines: [
+                        ...sim.radioMessages
+                            .splice(0)
+                            .map((text) => ({ speaker: 'operations' as const, text })),
+                        ...sim.guideMessages
+                            .splice(0)
+                            .map((text) => ({ speaker: 'guide' as const, text })),
+                    ],
+                },
+                true,
+            );
+        }
         if (sim.pendingChoice && !sim.ended) this.showPrototypeChoice();
+        if (sim.ended === 'destroyed' && !this.mission.deathFinished) return;
         if (sim.ended) {
             const result = finishRun(
                 this.campaign,
@@ -820,10 +926,10 @@ export class GameSession {
             this.mission.dispose();
             SoundManager.stopGroup('gameplay');
             this.mission = null;
+            this.syncInteractionPanel();
             if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
             this.background.camera = { x: 0, y: 0 };
-            this.background.cameraAngle = 0;
             this.lobby.visible = true;
             this.lobby.refresh('');
             GameState.goToLobby();
@@ -833,7 +939,9 @@ export class GameSession {
     }
     private syncInteractionPanel() {
         const sim = this.mission?.simulation;
-        const tuning = !sim?.ended ? (sim?.relayTuning ?? sim?.rescueOperation?.repair) : null;
+        const tuning = !sim?.ended
+            ? (sim?.terminalPuzzle ?? sim?.relayTuning ?? sim?.rescueOperation?.repair)
+            : null;
         if (!tuning) {
             if (this.interactionPanel) destroyDisplayTree(this.interactionPanel);
             this.interactionPanel = null;
@@ -854,6 +962,14 @@ export class GameSession {
         } else clear(this.interactionPanel);
         this.interactionRevision = tuning.revision;
         this.interactionModel = tuning;
+        if (sim?.terminalPuzzle) {
+            terminalPuzzlePanel(this.interactionPanel, sim.terminalPuzzle, (action) => {
+                sim.terminalAction(action);
+                InputHandler.clear();
+                this.syncInteractionPanel();
+            });
+            return;
+        }
         if (sim?.rescueOperation?.repair) {
             rescueRepairPanel(this.interactionPanel, sim.rescueOperation.repair, (action) => {
                 sim.rescueRepairAction(action);

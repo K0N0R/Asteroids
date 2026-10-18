@@ -89,6 +89,12 @@ export function hireQuartermaster(c: Campaign) {
 export function canQueueJob(c: Campaign, kind: JobKind) {
     if (c.activeRun || !Object.hasOwn(JOBS, kind)) return false;
     const recipe = JOBS[kind];
+    if (
+        (kind === 'kineticPlate' || kind === 'kineticModule') &&
+        c.story &&
+        !c.story.claimed.includes('mercury-survey')
+    )
+        return false;
     if (crewAboard(c, recipe.worker)) return false;
     if ('workshop' in recipe && c.station.workshop < recipe.workshop) return false;
     if (!c.crew[recipe.worker] || workerJobs(c, recipe.worker).length >= CREW.queueLimit)
@@ -161,5 +167,14 @@ export function installCargoBay(c: Campaign) {
     c.bank.ore -= 20;
     c.bank.parts -= 2;
     c.station.cargoBays = (c.station.cargoBays ?? 0) + 1;
+    return true;
+}
+
+export function refuelHyperdrive(c: Campaign) {
+    if (c.activeRun || !c.ship || c.ship.hyperFuel >= 3 || (c.bank.hyperFuel ?? 0) <= 0)
+        return false;
+    const amount = Math.min(3 - c.ship.hyperFuel, c.bank.hyperFuel ?? 0);
+    c.bank.hyperFuel = (c.bank.hyperFuel ?? 0) - amount;
+    c.ship.hyperFuel += amount;
     return true;
 }

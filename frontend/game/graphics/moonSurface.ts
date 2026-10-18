@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { MOON } from '../worlds/moon';
 import { random } from '../worlds/sector';
-import { label } from '../ui/primitives';
+import { worldLabel as label } from '../ui/primitives';
 import { C } from './shapes';
 
 export class MoonSurfaceView extends Container {
@@ -18,7 +18,7 @@ export class MoonSurfaceView extends Container {
         this.eventMode = 'none';
         if (!enabled) return;
         this.ground.position.copyFrom(MOON.center);
-        const terrain = new Graphics().rect(-6000, -6000, 12000, 12000).fill(0x343f48);
+        const terrain = new Graphics().rect(-6000, -6000, 12000, 12000).fill(0x3c4267);
         const rng = random(150015);
         for (let i = 0; i < 170; i++) {
             const x = (rng() - 0.5) * (MOON.radius * 2.3),
@@ -26,27 +26,27 @@ export class MoonSurfaceView extends Container {
                 r = 24 + rng() * 140;
             terrain
                 .ellipse(x + 4, y + 9, r, r * 0.82)
-                .fill(0x46515a)
+                .fill(0x686e95)
                 .ellipse(x, y, r, r * 0.82)
-                .fill(0x29353f)
+                .fill(0x303655)
                 .ellipse(x - r * 0.13, y - r * 0.13, r * 0.65, r * 0.52)
-                .fill(0x303c45);
+                .fill(0x454d73);
         }
-        for (let i = 0; i < 750; i++)
+        for (let i = 0; i < 220; i++)
             terrain
                 .circle(
                     (rng() - 0.5) * (MOON.radius * 2.3),
                     (rng() - 0.5) * (MOON.radius * 2.3),
                     1 + rng() * 3,
                 )
-                .fill({ color: 0x8b9499, alpha: 0.2 });
+                .fill({ color: 0x9b9cba, alpha: 0.2 });
         // Broad dark shelves distinguish the distant extraction site from the base basin.
         const ridgeX = MOON.copperRidge.x - MOON.center.x;
         const ridgeY = MOON.copperRidge.y - MOON.center.y;
         for (let i = 0; i < 5; i++)
             terrain
                 .ellipse(ridgeX + i * 65 - 130, ridgeY + i * 45 - 90, 230, 115)
-                .fill({ color: 0x202e37, alpha: 0.65 });
+                .fill({ color: 0x2b3051, alpha: 0.65 });
         this.ground.addChild(terrain);
         const gate = (host: Container, x: number, y: number, title: string) => {
             const g = new Container();
@@ -55,12 +55,11 @@ export class MoonSurfaceView extends Container {
                 new Graphics()
                     .circle(0, 0, 145)
                     .fill({ color: C.cyan, alpha: 0.04 })
-                    .stroke({ color: C.cyan, width: 3, alpha: 0.65 })
                     .poly([-40, 15, 0, -25, 40, 15])
                     .stroke({ color: C.mint, width: 5 }),
             );
-            this.titles.push(label(g, title, -125, 170, 20, C.cyan, 260));
-            this.titles.push(label(g, 'E · 2 s', -40, 201, 16, C.muted));
+            this.titles.push(label(g, title, 0, 170, 20, C.cyan, 260));
+            this.titles.push(label(g, 'E · 2 s', 0, 201, 16, C.muted));
             host.addChild(g);
         };
         gate(this.orbitGate, MOON.entrance.x, MOON.entrance.y, 'Podejście do Księżyca');
@@ -75,19 +74,27 @@ export class MoonSurfaceView extends Container {
             MOON.construction.y - MOON.center.y,
         );
         this.ground.addChild(this.site, this.defenseMarkers);
-        this.status = label(this.ground, '', 140, 150, 20, C.mint, 340);
+        this.status = label(
+            this.ground,
+            '',
+            MOON.construction.x - MOON.center.x,
+            150,
+            20,
+            C.mint,
+            340,
+        );
         this.titles.push(
             this.status,
-            label(this.ground, 'Złoże powierzchniowe · 2', -280, 1060, 20, C.gold),
-            label(this.ground, 'Grzbiet miedziowy · 5', ridgeX - 150, ridgeY + 390, 20, C.gold),
             label(
                 this.ground,
-                'Cu · opcjonalne wydobycie',
-                ridgeX - 150,
-                ridgeY + 425,
-                16,
-                C.muted,
+                'Złoże powierzchniowe · 2',
+                MOON.quarry.x - MOON.center.x,
+                1060,
+                20,
+                C.gold,
             ),
+            label(this.ground, 'Grzbiet miedziowy · 5', ridgeX, ridgeY + 390, 20, C.gold),
+            label(this.ground, 'Cu · opcjonalne wydobycie', ridgeX, ridgeY + 425, 16, C.muted),
         );
         this.addChild(this.ground, this.orbitGate);
     }
@@ -101,21 +108,16 @@ export class MoonSurfaceView extends Container {
         const g = this.site.clear();
         g.roundRect(-175, -125, 350, 250, 28)
             .fill(0x26353e)
-            .stroke({ color: 0x899ca5, width: 7 })
             .circle(0, 0, 75)
             .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
         if (stage === 0) {
             for (const side of [-1, 1]) g.rect(side * 130 - 12, -80, 24, 160).fill(0x796f59);
         } else {
-            g.roundRect(-110, -85, 220, 170, 18)
-                .fill(0x6c8087)
-                .stroke({ color: 0xb2c3c6, width: 4 });
+            g.roundRect(-110, -85, 220, 170, 18).fill(0x6c8087);
             g.roundRect(-35, -70, 70, 140, 10).fill(0x3b525e);
             if (stage >= 2) {
                 for (const side of [-1, 1])
-                    g.roundRect(side * 100 - 27, -70, 54, 140, 18)
-                        .fill(0x9a8967)
-                        .stroke({ color: 0xc1b38e, width: 4 });
+                    g.roundRect(side * 100 - 27, -70, 54, 140, 18).fill(0x9a8967);
                 g.circle(0, 0, 23).fill(stage === 3 ? C.mint : C.cyan);
             }
         }
@@ -132,6 +134,7 @@ export class MoonSurfaceView extends Container {
         d: { state: string; health: number; angle: number },
         threats: { x: number; y: number; radius: number }[],
         maxHealth = 100,
+        showApproach = true,
     ) {
         const g = this.defenseMarkers.clear();
         if (!this.visible || d.state === 'idle') return;
@@ -144,7 +147,7 @@ export class MoonSurfaceView extends Container {
             .fill(0x15232d)
             .rect(x - 125, y - 165, (250 * d.health) / maxHealth, 10)
             .fill(color);
-        if (d.state === 'warning') {
+        if (showApproach && d.state === 'warning') {
             const sx = x + Math.cos(d.angle) * 850,
                 sy = y + Math.sin(d.angle) * 850;
             g.moveTo(sx, sy)

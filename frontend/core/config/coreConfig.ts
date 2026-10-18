@@ -1,3 +1,4 @@
+import { C } from '../../game/graphics/theme';
 export class CoreConfigBase {
     ratio = {
         x: 16,
@@ -8,12 +9,12 @@ export class CoreConfigBase {
     centerX = this.width / 2;
     centerY = this.height / 2;
 
-    primaryColor = 0x1987cf; // #1987cfff
-    primaryDarkColor = 0x0d4063; // #0d4063ff
-    primaryLightColor = 0x56bbff; // #56bbffff
-    primaryContrastColor = 0xffffff; // #ffffff
-    darkColor = 0x061017; // #061017ff
-    roundness = 15;
+    primaryColor = C.raised;
+    primaryDarkColor = C.ink;
+    primaryLightColor = C.line;
+    primaryContrastColor = C.text;
+    darkColor = C.ink;
+    roundness = 18;
 }
 
 export const CoreConfig = new CoreConfigBase();

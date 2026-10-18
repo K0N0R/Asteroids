@@ -1,3 +1,4 @@
+import { anomalyFieldView, recoveryProbeView } from '../graphics/anomalyFieldView';
 import { EnemyFactoryView } from '../graphics/enemyFactoryView';
 import { StationSentryView } from '../graphics/stationSentryView';
 import { sentryPosition } from '../systems/stationSentries';
@@ -37,7 +38,7 @@ import {
 } from '../config';
 import { SoundManager } from '../../core/systems/soundManager';
 import { Ship } from '../state/campaign';
-import { label } from '../ui/primitives';
+import { label, worldLabel } from '../ui/primitives';
 import { enemyPosition } from '../systems/enemies';
 import {
     angleDifference,
@@ -57,7 +58,25 @@ import { MoonSurfaceView } from '../graphics/moonSurface';
 const interpolate = (a: number, b: number, t: number) => a + (b - a) * t;
 export class MissionWorld extends Container {
     private moon: MoonSurfaceView;
+    private moonPrepared = false;
     private transfer = new LunarTransferView();
+    private routes = new Graphics();
+    private gateLabels: ReturnType<typeof label>[] = [];
+    private journeyOverlay = new Container();
+    private journeyInk = new Graphics();
+    private lossTitle = label(this.journeyOverlay, 'SYGNAŁ UTRACONY', 585, 600, 32, C.gold);
+    private lossDetail = label(
+        this.journeyOverlay,
+        'Statek zniszczony · powrót do dowodzenia',
+        540,
+        650,
+        20,
+        C.text,
+    );
+    deathElapsed = 0;
+    get deathFinished() {
+        return this.deathElapsed >= 1.8;
+    }
     private transferZoom = 1;
     private factoryView: EnemyFactoryView | null = null;
     private venusOutpost = new OrbitalOutpostView();
@@ -69,7 +88,10 @@ export class MissionWorld extends Container {
     private rocks = new Map<number, Graphics>();
     private bullets = new Map<number, Graphics>();
     private researchView = researchShipView();
-    private rescueShip: ShipView | null = null;
+    private guideView: ShipView | null = null;
+    private guideMarker = new Graphics();
+    private guideLabel: ReturnType<typeof label> | null = null;
+    private rescueShip: Container | null = null;
     private rescueStatus = new Graphics();
     private anomalyView = researchAnomalyView();
     private researchStatus = new Graphics();
@@ -108,7 +130,8 @@ export class MissionWorld extends Container {
     private clock = 0;
     private navigation = new Graphics();
     private home = stationView();
-    private recoveryView = new Container();
+    private homeTitle: ReturnType<typeof worldLabel>;
+    private recoveryViews = new Map<number, Container>();
     private recoveryRing = new Graphics();
     private surveyRings = new Graphics();
     private laser = new Graphics();
@@ -133,11 +156,46 @@ export class MissionWorld extends Container {
         this.mask = viewportMask;
         this.shipView = new ShipView(modules);
         this.shipView.scale.set(simulation.hullConfig.size);
+        if (simulation.guide) {
+            this.guideView = new ShipView(newShip(0, 'prospector'));
+            this.guideView.scale.set(HULLS.prospector.size);
+            this.guideLabel = worldLabel(this.camera, 'INSTRUKTOR · V', 0, 0, 14, C.mint);
+            this.camera.addChild(this.guideView, this.guideMarker);
+        }
         this.camera.rotation = -Math.PI / 2 - simulation.ship.rotation();
         this.moon = new MoonSurfaceView(!!simulation.surfaceUnlocked);
+        this.moonPrepared = !!simulation.surfaceUnlocked;
         this.camera.addChild(this.moon, this.venusOutpost, this.solarShadows);
-        this.camera.addChild(this.navigation, this.shield, this.home);
-        label(this.home, simulation.stationName, -65, 165, 18, C.mint);
+        if (simulation.anomalyMission) this.camera.addChild(anomalyFieldView());
+        this.camera.addChild(this.navigation, this.routes, this.shield, this.home);
+        for (const region of simulation.sector.regions)
+            this.routes
+                .circle(region.x, region.y, region.radius)
+                .stroke({ color: C.cyan, width: 2, alpha: 0.1 });
+        for (const lane of simulation.sector.hyperlanes) {
+            this.routes
+                .moveTo(lane.a.x, lane.a.y)
+                .lineTo(lane.b.x, lane.b.y)
+                .stroke({ color: 0xa3a9f2, width: 3, alpha: 0.18 });
+            for (const point of [lane.a, lane.b]) {
+                this.routes
+                    .circle(point.x, point.y, 110)
+                    .stroke({ color: 0xa3a9f2, width: 4, alpha: 0.8 })
+                    .circle(point.x, point.y, 85)
+                    .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
+                this.gateLabels.push(
+                    worldLabel(
+                        this.camera,
+                        `K · Śluza / ${lane.name}`,
+                        point.x,
+                        point.y + 135,
+                        16,
+                        0xb5baff,
+                    ),
+                );
+            }
+        }
+        this.homeTitle = worldLabel(this.home, simulation.stationName, 0, 165, 18, C.mint);
         const wreck = wreckView(),
             w = simulation.sector.landmarks.find((l) => l.kind === 'wreck');
         if (w) wreck.position.set(w.x, w.y);
@@ -199,17 +257,20 @@ export class MissionWorld extends Container {
                       ? fortressView(simulation.sector.fortress)
                       : surveySiteView(site.siteId);
             view.position.set(site.x, site.y);
-            this.surveyLabels.set(site.siteId, label(view, site.name, -100, 103, 17, C.cyan));
+            this.surveyLabels.set(site.siteId, worldLabel(view, site.name, 0, 103, 17, C.cyan));
             this.surveyViews.set(site.siteId, view);
             this.camera.addChildAt(view, 2);
         }
         if (simulation.rescueOperation) {
-            this.rescueShip = new ShipView(newShip(0, 'swift'));
+            this.rescueShip = simulation.anomalyMission
+                ? recoveryProbeView()
+                : new ShipView(newShip(0, 'swift'));
             this.camera.addChild(this.rescueShip, this.rescueStatus);
         }
         if (simulation.miningEscort) {
             destroyDisplayTree(this.researchView);
             this.researchView = new ShipView(newShip(0, 'mule'));
+            this.researchView.scale.set(HULLS.mule.size);
         }
         if (simulation.escort) {
             this.anomalyView.position.copyFrom(simulation.sector.researchSite);
@@ -225,7 +286,7 @@ export class MissionWorld extends Container {
         this.outpostScanner.position.set(outpost.x, outpost.y);
         const titles = new Container();
         titles.position.set(outpost.x, outpost.y);
-        this.outpostLabel = label(
+        this.outpostLabel = worldLabel(
             titles,
             simulation.outerSector ? 'BAZA' : simulation.jupiterSector ? 'WĘZEŁ' : 'CERBER',
             -45,
@@ -233,7 +294,7 @@ export class MissionWorld extends Container {
             17,
             C.red,
         );
-        this.terminalLabel = label(
+        this.terminalLabel = worldLabel(
             this.camera,
             'E',
             outpost.terminal.x,
@@ -244,52 +305,104 @@ export class MissionWorld extends Container {
         this.camera.addChildAt(this.outpostScanner, 2);
         this.camera.addChildAt(this.outpostView, 3);
         this.camera.addChild(titles);
-        const signal = simulation.recoverySignal;
         this.camera.addChildAt(this.cacheRings, 2);
         for (const cache of simulation.sector.caches) {
             const view = cacheView();
             view.position.set(cache.x, cache.y);
-            this.cacheLabels.set(cache.id, label(view, cache.name, -90, 72, 17, C.mint));
+            this.cacheLabels.set(cache.id, worldLabel(view, cache.name, 0, 72, 17, C.mint));
             this.cacheViews.set(cache.id, view);
             this.camera.addChildAt(view, 2);
         }
-        if (signal) {
-            if (signal.ship) {
-                const hull = new ShipView(signal.ship);
-                hull.scale.set(HULLS[signal.ship.hull].size);
-                hull.rotation = 0.6;
-                hull.alpha = 0.6;
-                this.recoveryView.addChild(hull);
-            }
-            if (signal.pilot) {
-                const pod = new Graphics()
-                    .roundRect(-15, -26, 30, 52, 14)
-                    .fill(0x5e7481)
-                    .stroke({ color: 0xa9bdc5, width: 1.2 })
-                    .roundRect(-11, -20, 22, 33, 10)
-                    .fill(0x283d4b)
-                    .stroke({ color: C.cyan, width: 1 })
-                    .ellipse(0, -4, 8, 13)
-                    .fill(0x9ccfe3)
-                    .ellipse(0, -4, 4, 7)
-                    .fill({ color: 0xd9ad88, alpha: 0.8 })
-                    .circle(4, -12, 3)
-                    .fill({ color: 0xffffff, alpha: 0.65 })
-                    .roundRect(-7, 17, 14, 4, 2)
-                    .fill(C.mint)
-                    .roundRect(-18, -10, 5, 20, 2)
-                    .roundRect(13, -10, 5, 20, 2)
-                    .fill(0x364c5a);
-                pod.x = signal.ship ? 70 : 0;
-                this.recoveryView.addChild(pod);
-            }
-            this.recoveryView.position.set(signal.x, signal.y);
-            this.camera.addChild(this.recoveryRing, this.recoveryView);
-        }
+        this.camera.addChild(this.recoveryRing);
         this.solarGlare.visible = simulation.mercurySector;
         this.solarGlare.alpha = 0;
-        this.addChild(this.camera, this.solarGlare, this.transfer);
+        this.journeyOverlay.addChildAt(this.journeyInk, 0);
+        this.journeyOverlay.eventMode = 'none';
+        this.lossTitle.visible = this.lossDetail.visible = false;
+        this.addChild(this.camera, this.solarGlare, this.transfer, this.journeyOverlay);
         this.render(1);
+    }
+    private updateJourney(dt: number) {
+        const s = this.simulation,
+            g = this.journeyInk.clear(),
+            dead = s.ended === 'destroyed';
+        for (const title of this.gateLabels) title.rotation = -this.camera.rotation;
+        this.lossTitle.visible = this.lossDetail.visible = dead;
+        this.shipView.visible = !dead || this.deathElapsed < 0.12;
+        this.kineticView.visible = !dead;
+        this.grabberLines.visible = !dead;
+        if (dead) {
+            if (this.deathElapsed === 0)
+                s.events.push({
+                    ...s.position,
+                    kind: 'explosion',
+                    sound: 'destroy',
+                    strength: 120,
+                });
+            this.deathElapsed = Math.min(1.8, this.deathElapsed + dt);
+            const t = this.deathElapsed / 1.8;
+            g.rect(0, 0, 1600, 900).fill({ color: 0x020610, alpha: Math.min(0.7, t * 0.8) });
+            g.circle(800, 450, 25 + t * 230).stroke({
+                color: 0xffbb70,
+                width: 8 * (1 - t) + 1,
+                alpha: 1 - t,
+            });
+            for (let i = 0; i < 16; i++) {
+                const a = i * 2.399,
+                    r = 30 + t * (100 + i * 12),
+                    x = 800 + Math.cos(a) * r,
+                    y = 450 + Math.sin(a) * r;
+                g.poly([x - 6, y - 3, x + 8, y - 2, x + 2, y + 5]).fill({
+                    color: i % 2 ? 0x9daeb5 : 0xffc580,
+                    alpha: 1 - t,
+                });
+            }
+            return;
+        }
+        if (s.cargoTransferRemaining > 0) {
+            const base = this.journeyOverlay.toLocal(this.camera.toGlobal(s.cargoDestination));
+            const t = 1 - s.cargoTransferRemaining / 2.4;
+            g.arc(800, 450, 65, -Math.PI / 2, -Math.PI / 2 + t * Math.PI * 2).stroke({
+                color: C.mint,
+                width: 4,
+                alpha: 0.8,
+            });
+            for (let i = 0; i < 6; i++) {
+                const f = (t * 2 + i / 6) % 1;
+                g.roundRect(795 + (base.x - 800) * f, 445 + (base.y - 450) * f, 10, 10, 2).fill({
+                    color: C.mint,
+                    alpha: 1 - f,
+                });
+            }
+        }
+        if (!s.hyperdrive.active) return;
+        if (s.hyperdrive.state === 'charging') {
+            g.circle(800, 450, 35 + s.hyperdrive.remaining * 150).stroke({
+                color: 0xb3b9ff,
+                width: 3,
+                alpha: 0.8,
+            });
+            g.circle(800, 450, 25).fill({ color: 0xa3a9f2, alpha: 0.2 });
+        } else {
+            g.rect(0, 0, 1600, 900).fill({ color: 0x17243f, alpha: 0.16 });
+            for (let i = 0; i < 48; i++) {
+                const x = (i * 173) % 1600,
+                    y = ((this.clock * 1500 + i * 91) % 1100) - 100;
+                g.moveTo(x, y)
+                    .lineTo(x, y + 70 + (i % 5) * 25)
+                    .stroke({ color: i % 2 ? 0x8ac9ed : 0xc1bcff, width: 1 + (i % 2), alpha: 0.5 });
+            }
+        }
+    }
+    private drawSupportLaser(g: Graphics, beam: { from: Point; to: Point }) {
+        g.moveTo(beam.from.x, beam.from.y)
+            .lineTo(beam.to.x, beam.to.y)
+            .stroke({ color: C.violet, width: 7, alpha: 0.35, cap: 'round' })
+            .moveTo(beam.from.x, beam.from.y)
+            .lineTo(beam.to.x, beam.to.y)
+            .stroke({ color: C.cyan, width: 3, cap: 'round' })
+            .circle(beam.to.x, beam.to.y, 4)
+            .fill(C.text);
     }
     private holHealthBar(g: Graphics, p: Point, health: number, max: number, color: number) {
         const polygon = (width: number) =>
@@ -314,6 +427,7 @@ export class MissionWorld extends Container {
     }
     update(deltaMS: number, input: FlightInput) {
         if (this.simulation.pendingChoice) return;
+        this.simulation.setCombatCamera(this.camera.rotation, this.camera.scale.x);
         this.accumulator += Math.min(deltaMS / 1000, 0.1);
         this.clock += deltaMS / 1000;
         while (this.accumulator >= GAME.step) {
@@ -330,6 +444,7 @@ export class MissionWorld extends Container {
                 : this.accumulator / GAME.step,
             Math.min(deltaMS / 1000, 0.1),
         );
+        this.updateJourney(Math.min(deltaMS / 1000, 0.1));
         this.audio.update(this.simulation);
         for (const event of this.simulation.events.splice(0)) {
             this.audio.event(event, this.simulation.position, this.simulation.elapsed);
@@ -486,6 +601,12 @@ export class MissionWorld extends Container {
                     .stroke({ color: C.cyan, width: 1, alpha: 0.2 });
             }
         this.venusOutpost.update(s, this.camera.rotation);
+        if (s.surfaceUnlocked && !this.moonPrepared) {
+            destroyDisplayTree(this.moon);
+            this.moon = new MoonSurfaceView(true);
+            this.camera.addChildAt(this.moon, 0);
+            this.moonPrepared = true;
+        }
         this.moon.update(s.area === 'surface', s.buildStage, this.camera.rotation);
         this.moon.updateDefense(
             s.lunarDefense,
@@ -503,15 +624,7 @@ export class MissionWorld extends Container {
             }),
         );
         if (s.lunarAssault.state !== 'idle')
-            this.moon.updateDefense(
-                s.lunarAssault,
-                [...s.lunarAssault.enemies].flatMap((id) => {
-                    const enemy = s.enemies.enemies.get(id);
-                    if (!enemy) return [];
-                    return [{ ...enemyPosition(enemy), radius: enemy.config.radius }];
-                }),
-                180,
-            );
+            this.moon.updateDefense(s.lunarAssault, [], 180, false);
         this.atlasLockView.clear();
         if (s.hasRocketLauncher) {
             for (const id of new Set([s.atlasLock.target, s.atlasLock.locked])) {
@@ -644,7 +757,7 @@ export class MissionWorld extends Container {
                 this.surveyViews.set('fortress', next);
                 this.surveyLabels.set(
                     'fortress',
-                    label(next, 'Twierdza Aegis', -100, 103, 17, C.cyan),
+                    worldLabel(next, 'Twierdza Aegis', 0, 103, 17, C.cyan),
                 );
                 destroyDisplayTree(old);
             }
@@ -718,6 +831,8 @@ export class MissionWorld extends Container {
         );
         this.camera.pivot.copyFrom(this.shipView.position);
         this.camera.position.set(800, 450);
+        this.homeTitle.rotation = -this.camera.rotation;
+        this.homeTitle.position.copyFrom(rotateVector({ x: 0, y: 165 }, -this.camera.rotation));
         this.laser.clear();
         for (const { from, to } of s.laserBeams) {
             const combat = s.hullId === 'phoenix',
@@ -777,7 +892,13 @@ export class MissionWorld extends Container {
                 this.grabberLines
                     .poly([tip.x, tip.y - 7, tip.x + 6, tip.y, tip.x, tip.y + 7, tip.x - 6, tip.y])
                     .fill(
-                        arm.held === 'crystals' ? 0xc2a0ec : arm.held === 'parts' ? C.gold : C.mint,
+                        arm.held === 'mercuryOre'
+                            ? 0xa6d2df
+                            : arm.held === 'crystals'
+                              ? 0xc2a0ec
+                              : arm.held === 'parts'
+                                ? C.gold
+                                : C.mint,
                     );
         }
         for (const [id, view] of this.sentryViews)
@@ -786,6 +907,33 @@ export class MissionWorld extends Container {
                 this.sentryViews.delete(id);
             }
         this.sentryStatus.clear();
+        this.guideMarker.clear();
+        if (s.guide && this.guideView && this.guideLabel) {
+            const guide = s.guide,
+                p = guide.position;
+            const visible = guide.state !== 'destroyed' && guide.departure < 2;
+            this.guideView.visible = this.guideLabel.visible = visible;
+            this.guideView.position.set(
+                interpolate(guide.previous.x, p.x, alpha),
+                interpolate(guide.previous.y, p.y, alpha),
+            );
+            this.guideView.rotation =
+                guide.previousAngle +
+                angleDifference(guide.body.rotation(), guide.previousAngle) * alpha;
+            this.guideView.alpha =
+                guide.state === 'complete' ? Math.max(0, 1 - guide.departure / 2) : 1;
+            this.guideLabel.rotation = -this.camera.rotation;
+            this.guideLabel.position.copyFrom(
+                rotateVector({ x: 0, y: -80 }, -this.camera.rotation),
+            );
+            this.guideLabel.position.set(this.guideLabel.x + p.x, this.guideLabel.y + p.y);
+            if (visible)
+                this.guideMarker
+                    .circle(p.x, p.y, 42)
+                    .stroke({ color: C.mint, width: 2, alpha: 0.4 });
+            if (visible)
+                for (const beam of guide.beams) this.drawSupportLaser(this.guideMarker, beam);
+        }
         for (const drone of s.sentries.drones.values()) {
             let view = this.sentryViews.get(drone.id);
             if (!view) {
@@ -971,7 +1119,7 @@ export class MissionWorld extends Container {
             const title = this.cacheLabels.get(cache.id)!;
             title.setText(opened ? `${cache.name} / pusta` : cache.name);
             title.rotation = -this.camera.rotation;
-            title.position.copyFrom(rotateVector({ x: -90, y: 72 }, -this.camera.rotation));
+            title.position.copyFrom(rotateVector({ x: 0, y: 72 }, -this.camera.rotation));
             if (opened) continue;
             this.cacheRings
                 .beginPath()
@@ -991,6 +1139,16 @@ export class MissionWorld extends Container {
         }
         for (const site of s.sector.landmarks) {
             if (!site.siteId) continue;
+            if (!this.surveyViews.has(site.siteId)) {
+                const added = surveySiteView(site.siteId);
+                added.position.set(site.x, site.y);
+                this.surveyLabels.set(
+                    site.siteId,
+                    worldLabel(added, site.name, 0, 103, 17, C.cyan),
+                );
+                this.surveyViews.set(site.siteId, added);
+                this.camera.addChildAt(added, 2);
+            }
             const view = this.surveyViews.get(site.siteId)!;
             view.visible =
                 !(s.venusSector && site.siteId === 'archive' && s.venusOutpostStage >= 0) &&
@@ -1000,7 +1158,7 @@ export class MissionWorld extends Container {
             const title = this.surveyLabels.get(site.siteId)!;
             title.visible = site.kind !== 'construction';
             title.rotation = -this.camera.rotation;
-            title.position.copyFrom(rotateVector({ x: -100, y: 103 }, -this.camera.rotation));
+            title.position.copyFrom(rotateVector({ x: 0, y: 103 }, -this.camera.rotation));
             const done = s.surveyData.has(site.siteId);
             this.surveyRings.circle(site.x, site.y, SCAN.radius).stroke({
                 color: done ? C.mint : C.cyan,
@@ -1035,12 +1193,10 @@ export class MissionWorld extends Container {
             (!security.secured ||
                 (!s.storyMode && (!security.sabotaged || !security.equipmentSecured)));
         this.outpostLabel.rotation = -this.camera.rotation;
-        this.outpostLabel.position.copyFrom(
-            rotateVector({ x: -45, y: -134 }, -this.camera.rotation),
-        );
-        this.terminalLabel.setText(security.sabotageProgress > 0 ? 'G' : 'E');
+        this.outpostLabel.position.copyFrom(rotateVector({ x: 0, y: -134 }, -this.camera.rotation));
+        this.terminalLabel.setText(s.terminalPuzzle?.mode === 'power' ? 'G' : 'E');
         this.terminalLabel.rotation = -this.camera.rotation;
-        const terminalOffset = rotateVector({ x: -6, y: 36 }, -this.camera.rotation);
+        const terminalOffset = rotateVector({ x: 0, y: 36 }, -this.camera.rotation);
         this.terminalLabel.position.set(
             outpost.terminal.x + terminalOffset.x,
             outpost.terminal.y + terminalOffset.y,
@@ -1074,17 +1230,6 @@ export class MissionWorld extends Container {
             g.beginPath()
                 .circle(tx, ty, OUTPOST.interactRadius)
                 .stroke({ color: security.secured ? C.mint : color, width: 1, alpha: 0.3 });
-            if (security.sabotageProgress > 0)
-                g.beginPath()
-                    .arc(
-                        tx,
-                        ty,
-                        48,
-                        -Math.PI / 2,
-                        -Math.PI / 2 +
-                            (security.sabotageProgress / OUTPOST.sabotageSeconds) * Math.PI * 2,
-                    )
-                    .stroke({ color: C.mint, width: 4 });
             if (security.equipmentProgress > 0)
                 g.beginPath()
                     .arc(
@@ -1101,16 +1246,6 @@ export class MissionWorld extends Container {
                     .roundRect(tx + 27, ty - 9, 16, 18, 3)
                     .fill(0x9b8b6c)
                     .stroke({ color: C.gold, width: 1 });
-            if (security.download > 0)
-                g.beginPath()
-                    .arc(
-                        tx,
-                        ty,
-                        42,
-                        -Math.PI / 2,
-                        -Math.PI / 2 + (security.download / OUTPOST.downloadSeconds) * Math.PI * 2,
-                    )
-                    .stroke({ color: C.mint, width: 4 });
             if (security.secured)
                 g.moveTo(tx - 10, ty - 36)
                     .lineTo(tx - 2, ty - 28)
@@ -1127,61 +1262,67 @@ export class MissionWorld extends Container {
                     )
                     .stroke({ color: C.red, width: 3 });
         }
-        const signal = s.recoverySignal;
         this.recoveryRing.clear();
-        this.recoveryView.visible = !!signal && !s.recoveryDestroyed && !s.recoveryDelivered;
-        if (signal && !s.recoveryDestroyed && !s.recoveryDelivered) {
-            if (s.recoverySecured && s.tow) {
-                const x = interpolate(s.tow.previous.x, s.tow.position.x, alpha),
-                    y = interpolate(s.tow.previous.y, s.tow.position.y, alpha);
-                this.recoveryView.position.set(x, y);
-                this.recoveryView.rotation =
-                    s.tow.previousAngle + angleDifference(s.tow.angle, s.tow.previousAngle) * alpha;
-                const held = [...s.salvage.towing.values()].find(
-                    (item) => item.source === 'recovery',
-                );
-                if (held)
-                    this.holHealthBar(
-                        this.recoveryRing,
-                        { x, y },
-                        held.health,
-                        held.maxHealth,
-                        C.mint,
-                    );
-                const a = this.shipView.rotation;
-                const offset = rotateVector(held ? s.salvage.towAnchor(held) : { x: -28, y: 0 }, a);
-                const anchor = {
-                    x: this.shipView.x + offset.x,
-                    y: this.shipView.y + offset.y,
-                };
-                const dx = x - anchor.x,
-                    dy = y - anchor.y,
-                    length = Math.max(1, Math.hypot(dx, dy));
-                const slack = Math.min(45, Math.max(5, (230 - length) * 0.25));
-                const cx = (anchor.x + x) / 2 - (dy / length) * slack,
-                    cy = (anchor.y + y) / 2 + (dx / length) * slack;
+        const visibleSignals = s.worldRecoverySignals;
+        for (const [id, view] of this.recoveryViews) {
+            if (visibleSignals.some((signal) => signal.id === id)) continue;
+            destroyDisplayTree(view);
+            this.recoveryViews.delete(id);
+        }
+        for (const signal of visibleSignals) {
+            let view = this.recoveryViews.get(signal.id);
+            if (!view) {
+                view = new Container();
+                if (signal.ship) {
+                    const hull = new ShipView(signal.ship);
+                    hull.scale.set(HULLS[signal.ship.hull].size);
+                    hull.alpha = 0.65;
+                    view.addChild(hull);
+                }
+                if (signal.pilot) {
+                    const capsule = new Graphics()
+                        .roundRect(-13, -20, 26, 40, 12)
+                        .fill(C.raised)
+                        .ellipse(0, -4, 8, 13)
+                        .fill(C.cyan);
+                    capsule.x = signal.ship ? 60 : 0;
+                    view.addChild(capsule);
+                }
+                this.recoveryViews.set(signal.id, view);
+                this.camera.addChild(view);
+            }
+            const item = s.salvage.items.get(-signal.id);
+            const p = item ? salvagePosition(item) : signal;
+            view.visible = this.inView(p);
+            view.position.copyFrom(p);
+            view.rotation = item ? item.body.rotation() : 0.6;
+            if (item && s.salvage.towing.has(item.id)) {
+                const offset = rotateVector(s.salvage.towAnchor(item), this.shipView.rotation);
                 this.recoveryRing
-                    .moveTo(anchor.x, anchor.y)
-                    .quadraticCurveTo(cx, cy, x, y)
-                    .stroke({ color: C.mint, alpha: 0.5, width: 1 });
+                    .moveTo(this.shipView.x + offset.x, this.shipView.y + offset.y)
+                    .lineTo(p.x, p.y)
+                    .stroke({ color: C.mint, width: 2, alpha: 0.6 });
             } else {
-                this.recoveryRing.circle(signal.x, signal.y, RECOVERY.radius).stroke({
-                    color: C.mint,
-                    width: 1,
-                    alpha: 0.25 + Math.sin(this.clock * 3) * 0.1,
-                });
-                if (s.recoveryProgress > 0)
+                this.recoveryRing
+                    .circle(p.x, p.y, RECOVERY.radius)
+                    .stroke({ color: C.gold, width: 1, alpha: 0.2 });
+                if (signal.id === s.recoverySignal?.id && s.recoveryProgress > 0)
                     this.recoveryRing
-                        .beginPath()
                         .arc(
-                            signal.x,
-                            signal.y,
-                            65,
+                            p.x,
+                            p.y,
+                            RECOVERY.radius,
                             -Math.PI / 2,
                             -Math.PI / 2 + (s.recoveryProgress / s.recoverySeconds) * Math.PI * 2,
                         )
                         .stroke({ color: C.mint, width: 4 });
             }
+        }
+        if (s.rescueOperation && !this.rescueShip) {
+            this.rescueShip = s.anomalyMission
+                ? recoveryProbeView()
+                : new ShipView(newShip(0, 'swift'));
+            this.camera.addChild(this.rescueShip, this.rescueStatus);
         }
         if (s.rescueOperation && this.rescueShip) {
             const r = s.rescueOperation;
@@ -1215,6 +1356,13 @@ export class MissionWorld extends Container {
                         .stroke({ color: r.stabilized ? C.mint : C.gold, width: 2, alpha: 0.6 });
             }
         }
+        if (s.miningEscort && !(this.researchView instanceof ShipView)) {
+            destroyDisplayTree(this.researchView);
+            this.researchView = new ShipView(newShip(0, 'mule'));
+            this.researchView.scale.set(HULLS.mule.size);
+            this.anomalyView.position.copyFrom(s.sector.researchSite);
+            this.camera.addChild(this.anomalyView, this.researchView, this.researchStatus);
+        }
         if (s.escort) {
             const e = s.escort,
                 p = e.position;
@@ -1241,13 +1389,9 @@ export class MissionWorld extends Container {
                     s.miningEscort ? HULLS.mule.health : 140,
                     C.mint,
                 );
-            if (s.miningEscort?.beam) {
-                const beam = s.miningEscort.beam;
-                this.researchStatus
-                    .moveTo(beam.from.x, beam.from.y)
-                    .lineTo(beam.to.x, beam.to.y)
-                    .stroke({ color: C.cyan, width: 4, alpha: 0.8 });
-            }
+            if (this.researchView.visible && s.miningEscort)
+                for (const beam of s.miningEscort.beams)
+                    this.drawSupportLaser(this.researchStatus, beam);
             if (e.state === 'research' && !s.miningEscort)
                 this.researchStatus
                     .beginPath()
@@ -1342,8 +1486,26 @@ export class MissionWorld extends Container {
         for (const rock of s.rocks.values()) {
             let view = this.rocks.get(rock.id);
             if (!view) {
-                view = this.shapes.rock(rock.variant, rock.rich, rock.crystal);
-                if (rock.copper) view.tint = 0xe0aa82;
+                if (rock.mercuryVein) {
+                    view = new Graphics()
+                        .poly([
+                            -1, -0.1, -0.65, -0.75, 0.1, -1, 0.8, -0.5, 1, 0.2, 0.4, 0.85, -0.5,
+                            0.95,
+                        ])
+                        .fill(0x587583)
+                        .stroke({ color: 0x93c1d3, width: 0.06 });
+                    view.poly([-0.4, -0.15, 0, -0.45, 0.4, -0.15, 0.4, 0.2, 0, 0.45, -0.4, 0.2])
+                        .fill(0xb6d5e6)
+                        .stroke({ color: 0xebf7ff, width: 0.07 });
+                    view.moveTo(-0.2, 0)
+                        .lineTo(0.2, 0)
+                        .moveTo(0, -0.2)
+                        .lineTo(0, 0.2)
+                        .stroke({ color: 0x3b6679, width: 0.06 });
+                } else {
+                    view = this.shapes.rock(rock.variant, rock.rich, rock.crystal);
+                    if (rock.copper) view.tint = 0xe0aa82;
+                }
                 view.scale.set(rock.radius);
                 this.rocks.set(rock.id, view);
                 this.rockLayer.addChild(view);
@@ -1440,24 +1602,28 @@ export class MissionWorld extends Container {
                 view = new Graphics()
                     .poly([0, -7, 6, 0, 0, 7, -6, 0])
                     .fill(
-                        item.kind === 'copperOre'
-                            ? 0xd48c62
-                            : item.kind === 'crystals'
-                              ? 0xc2a0ec
-                              : item.kind === 'parts'
-                                ? C.gold
-                                : C.mint,
+                        item.kind === 'mercuryOre'
+                            ? 0xa6d2df
+                            : item.kind === 'copperOre'
+                              ? 0xd48c62
+                              : item.kind === 'crystals'
+                                ? 0xc2a0ec
+                                : item.kind === 'parts'
+                                  ? C.gold
+                                  : C.mint,
                     )
                     .circle(0, 0, 12)
                     .stroke({
                         color:
-                            item.kind === 'copperOre'
-                                ? 0xd48c62
-                                : item.kind === 'crystals'
-                                  ? 0xc2a0ec
-                                  : item.kind === 'parts'
-                                    ? C.gold
-                                    : C.mint,
+                            item.kind === 'mercuryOre'
+                                ? 0xa6d2df
+                                : item.kind === 'copperOre'
+                                  ? 0xd48c62
+                                  : item.kind === 'crystals'
+                                    ? 0xc2a0ec
+                                    : item.kind === 'parts'
+                                      ? C.gold
+                                      : C.mint,
                         width: 1,
                         alpha: 0.3,
                     });

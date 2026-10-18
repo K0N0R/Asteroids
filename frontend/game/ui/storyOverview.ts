@@ -1,4 +1,3 @@
-import { selectableMission } from '../state/missionOrders';
 import type { Container } from 'pixi.js';
 import { HULLS, CREW } from '../config';
 import { capacity, selectedPilot, shipHealth, type Campaign } from '../state/campaign';
@@ -93,7 +92,9 @@ export function storyOverview(
             C.muted,
             325,
         );
-        if (!complete && available && (task.kind === 'ore' || task.kind === 'parts'))
+        if (!complete && available && task.sector === 'earth' && task.kind === 'ore')
+            label(ui, 'C przy Satuk 15 · dostawy automatyczne', x + 15, y + 126, 13, C.mint, 325);
+        else if (!complete && available && (task.kind === 'ore' || task.kind === 'parts'))
             button(
                 ui,
                 `PRZEKAŻ ${task.kind === 'parts' ? 'KOMPONENTY' : 'RUDĘ'} · ${Math.min(c.bank[task.kind === 'parts' ? 'parts' : 'ore'], task.target - p.progress[task.id])}`,
@@ -119,24 +120,11 @@ export function storyOverview(
             );
         else if (!complete && available && task.kind === 'workshop')
             button(ui, 'OTWÓRZ STACJĘ', x + 15, y + 120, 325, actions.station, false, true, 27);
-        else if (!complete && selectableMission(c, task.id) && actions.selectMission)
-            button(
-                ui,
-                actions.missionTask === task.id ? '● CEL TEJ WYPRAWY' : 'WYBIERZ NA MISJĘ →',
-                x + 15,
-                y + 120,
-                325,
-                () => actions.selectMission?.(task.id),
-                actions.missionTask === task.id,
-                true,
-                27,
-                14,
-            );
         else if (!complete)
             label(
                 ui,
                 available && task.kind === 'delivery'
-                    ? `Dostawa na powierzchni · ${task.resource === 'ore' ? 'ruda' : 'komponenty'} · E przy budowie`
+                    ? `Dostawa na powierzchni · ${task.resource === 'ore' ? 'ruda' : 'komponenty'} · C / E przy budowie`
                     : available && task.kind === 'construction'
                       ? `${p.sector === 'mars' ? '7 baza' : '8 placówka'} · E przez 2 s · budowa podczas wyprawy`
                       : available
@@ -183,60 +171,47 @@ export function storyOverview(
                     ? 'Główne cele Ziemi ukończone. Możesz wybrać trasę księżycową; zadania dodatkowe pozostają dostępne.'
                     : 'Stacja paliw odebrana. Zachowujesz dostęp do Ziemi i powierzchni Księżyca.'
                 : p.sector === 'lunar'
-                  ? 'Powierzchnia: E dostarcza materiały. Po fundamentach G rozpoczyna obronę. Porażka nie cofa dostaw.'
-                  : 'Cele realizujesz równolegle. Rozdziel rudę między zadania i rozwój stacji.'),
+                  ? 'Powierzchnia: E lub C dostarcza materiały, G rozpoczyna obronę. Raporty przyjmuje radio.'
+                  : p.sector === 'earth'
+                    ? 'Raporty przyjmuje radio. C przy Satuk 15: dostawy do zadań, nadmiar do magazynu.'
+                    : 'Cele realizujesz równolegle. Rozdziel rudę między zadania i rozwój stacji.'),
         280,
         808,
         15,
         complete ? C.mint : C.muted,
         720,
     );
-    if (actions.missionTask)
-        button(
-            ui,
-            'ZMIEŃ NA SWOBODNY LOT',
-            1072,
-            467,
-            456,
-            () => actions.selectMission?.(null),
-            false,
-            true,
-            26,
-            13,
-        );
     const def = STORY_SECTORS[p.sector],
         pilot = selectedPilot(c);
     label(ui, `SATUK 15 / ${storyAct(p)}`, 1072, 244, 13, C.mint);
     label(ui, def.name, 1072, 276, 27, C.text, 456);
     label(
         ui,
-        actions.missionTask
-            ? `Wybrana misja: ${STORY_TASKS.find((t) => t.id === actions.missionTask)?.title}. Dokowanie po wykonaniu celu. TAB pozwala awaryjnie przerwać wyprawę bez nagrody i ładunku.`
-            : p.sector === 'pluto' ||
-                p.sector === 'uranus' ||
-                p.sector === 'neptune' ||
-                p.sector === 'saturn' ||
-                p.sector === 'jupiter' ||
-                p.sector === 'belt' ||
-                storyAct(p) === 'AKT V'
+        p.sector === 'pluto' ||
+            p.sector === 'uranus' ||
+            p.sector === 'neptune' ||
+            p.sector === 'saturn' ||
+            p.sector === 'jupiter' ||
+            p.sector === 'belt' ||
+            storyAct(p) === 'AKT V'
+            ? storyNextStep(p)
+            : p.sector === 'mercury'
               ? storyNextStep(p)
-              : p.sector === 'mercury'
-                ? storyNextStep(p)
-                : p.sector === 'earth' && p.claimed.includes('mars-belt')
-                  ? EARTH_BRIEFING
-                  : p.sector === 'venus'
-                    ? complete || p.claimed.includes('venus-build')
+              : p.sector === 'earth' && p.claimed.includes('mars-belt')
+                ? EARTH_BRIEFING
+                : p.sector === 'venus'
+                  ? complete || p.claimed.includes('venus-build')
+                      ? storyNextStep(p)
+                      : 'Przed wyprawą na Merkurego potrzebujesz zaplecza przy Wenus. Rozpoznaj orbitę, wybierz miejsce pod placówkę i zgromadź materiały. Ziemia, Księżyc i Mars pozostają dostępne.'
+                  : p.sector === 'mars'
+                    ? complete
                         ? storyNextStep(p)
-                        : 'Przed wyprawą na Merkurego potrzebujesz zaplecza przy Wenus. Rozpoznaj orbitę, wybierz miejsce pod placówkę i zgromadź materiały. Ziemia, Księżyc i Mars pozostają dostępne.'
-                    : p.sector === 'mars'
-                      ? complete
-                          ? storyNextStep(p)
-                          : 'Podejmij pościg w stronę Marsa. Rozpoznaj przekaźnik i zabezpiecz podejście, aby dotrzeć do pasa asteroid. Dalszy przelot wymaga nowej technologii.'
-                      : actOneComplete(p)
-                        ? 'Stacja paliw działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
-                        : p.sector === 'earth'
-                          ? 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
-                          : 'Rozpoznaj trasę i zbuduj księżycową stację paliw: 160 rudy na fundamenty (eskorta Muła i własne dostawy), potem 12 komponentów na instalacje. Ziemia pozostaje dostępna.',
+                        : 'Podejmij pościg w stronę Marsa. Rozpoznaj przekaźnik i zabezpiecz podejście, aby dotrzeć do pasa asteroid. Dalszy przelot wymaga nowej technologii.'
+                    : actOneComplete(p)
+                      ? 'Stacja paliw działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
+                      : p.sector === 'earth'
+                        ? 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
+                        : 'Rozpoznaj trasę i zbuduj księżycową stację paliw: 160 rudy na fundamenty (eskorta Muła i własne dostawy), potem 12 komponentów na instalacje. Ziemia pozostaje dostępna.',
         1072,
         320,
         17,
@@ -314,8 +289,8 @@ export function storyOverview(
                           : p.sector === 'mars'
                             ? 'F przeciwnik · 7 ślad pościgu · 8 pas po rozpoznaniu · 1 powrót. E odczyt / dokowanie. Przelot przez pas wymaga technologii.'
                             : p.sector === 'lunar'
-                              ? 'Orbita: 3 Księżyc po zwiadzie. Powierzchnia: 7 budowa · 2 złoże · 5 miedź · 1 wyjście. E odczyt / dostawa / przejście.'
-                              : '2 złoże · 7 łączność · 8 dalszy węzeł po odblokowaniu · 1 powrót · E odczyt / dokowanie',
+                              ? 'Orbita: 3 Księżyc po zwiadzie. Powierzchnia: 7 budowa · 2 złoże · 5 miedź · 1 wyjście. C transfer · E odczyt / dostawa / przejście.'
+                              : '2 złoże · 7 łączność · 8 dalszy węzeł po odblokowaniu · 1 powrót · C transfer przy stacji · E odczyt / dokowanie',
         1072,
         657,
         14,

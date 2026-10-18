@@ -1,4 +1,13 @@
 export const RESOURCES = {
+    hyperFuel: { name: 'Ogniwa hipernapędu', short: 'OH', category: 'PALIWO', color: 0xa3a9f2 },
+    mercuryOre: { name: 'Spiek merkuriański', short: 'Sp', category: 'RUDY', color: 0xa6d2df },
+    kineticPlates: {
+        name: 'Płyty kinetyczne',
+        short: 'PK',
+        category: 'KOMPONENTY',
+        color: 0xc2d4e5,
+    },
+    kineticModules: { name: 'Moduły osłonowe', short: 'MO', category: 'MODUŁY', color: 0x91b8ef },
     ore: { name: 'Ruda żelaza', short: 'Fe', category: 'RUDY', color: 0x79c9ad },
     copperOre: { name: 'Ruda miedzi', short: 'Cu', category: 'RUDY', color: 0xd48c62 },
     parts: {
@@ -23,6 +32,19 @@ export const RESOURCES = {
     crystals: { name: 'Kryształy', short: '◆', category: 'MINERAŁY', color: 0xc2a0ec },
 } as const;
 export type ResourceId = keyof typeof RESOURCES;
+export const STORAGE_PRIORITY: readonly ResourceId[] = [
+    'hyperFuel',
+    'kineticModules',
+    'kineticPlates',
+    'mercuryOre',
+    'storageFrames',
+    'powerModules',
+    'conductors',
+    'crystals',
+    'parts',
+    'copperOre',
+    'ore',
+];
 export type ResourceStore = Partial<Record<ResourceId, number>>;
 export const RESOURCE_IDS = Object.keys(RESOURCES) as ResourceId[];
 export function resourceTotal(store: ResourceStore) {

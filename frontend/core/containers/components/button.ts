@@ -75,8 +75,8 @@ export class Button extends PIXI.Container {
 
             EffectsManager.clearAllEffectsFromContainer(this.box);
             await EffectsManager.scale(this.box, {
-                x: 1.2,
-                y: 1.2,
+                x: 1.035,
+                y: 1.035,
                 durationMS: 200,
                 group: this.config.group,
             });
