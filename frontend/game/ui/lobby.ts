@@ -52,7 +52,7 @@ import {
     canScrapShip,
     pilotSlots,
 } from '../state/campaign';
-import { type RecipeId } from '../state/chemistry';
+import { RECIPES, type RecipeId } from '../state/chemistry';
 import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
 import { MAX_PILOT_XP, pilotLevel, pilotPoints, pilotName } from '../state/pilots';
@@ -107,7 +107,6 @@ export interface LobbyActions {
     selectShip: (id: number) => void;
     scrapShip: (id: number) => void;
     rescue: () => void;
-    upgradeHyperdrive?: () => void;
     installStationShield?: () => void;
     installKineticShield?: () => void;
     installReinforcedBay?: () => void;
@@ -145,6 +144,7 @@ export class LobbyView extends Container {
     private chosenPilotId: number | null = null;
     private recruit = 0;
     private stationSection: 'facilities' | 'shield' | 'drones' = 'facilities';
+    private recipeHistory: RecipeId[] = [];
     private laboratoryRecipe: RecipeId = 'water';
     private workshopRecipe: RecipeId = 'plating';
     private inventoryPage = 0;
@@ -164,6 +164,7 @@ export class LobbyView extends Container {
         this.refresh();
     }
     resetProfile() {
+        this.recipeHistory = [];
         this.tab = 'overview';
         this.supplyParts = 0;
         this.storyPage = 0;
@@ -172,8 +173,28 @@ export class LobbyView extends Container {
         this.recoveryId = null;
     }
     private go(tab: LobbyTab) {
+        this.recipeHistory = [];
         this.tab = tab;
         this.refresh();
+    }
+    private showRecipe(id: RecipeId) {
+        this.tab = RECIPES[id].category;
+        if (this.tab === 'laboratory') this.laboratoryRecipe = id;
+        else this.workshopRecipe = id;
+        this.refresh();
+    }
+    private get productionNavigation() {
+        return {
+            openRecipe: (id: RecipeId) => {
+                this.recipeHistory.push(
+                    this.tab === 'laboratory' ? this.laboratoryRecipe : this.workshopRecipe,
+                );
+                this.showRecipe(id);
+            },
+            back: this.recipeHistory.length
+                ? () => this.showRecipe(this.recipeHistory.pop()!)
+                : undefined,
+        };
     }
     private art(view: Container, x = 625, y = 440) {
         view.position.set(x, y);
@@ -266,7 +287,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.87', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.90', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
@@ -276,17 +297,33 @@ export class LobbyView extends Container {
                 'Laboratorium',
                 'Przetwarzaj pierwiastki w materiały. Poznawaj cząsteczki, struktury i procesy.',
             );
-            laboratoryOverview(ui, c, this.actions, this.laboratoryRecipe, (id) => {
-                this.laboratoryRecipe = id;
-                this.refresh();
-            });
+            laboratoryOverview(
+                ui,
+                c,
+                this.actions,
+                this.laboratoryRecipe,
+                (id) => {
+                    this.laboratoryRecipe = id;
+                    this.refresh();
+                },
+                undefined,
+                this.productionNavigation,
+            );
         }
         if (this.tab === 'workshop') {
             this.section('Warsztat', 'Wytwarzaj części i zestawy z przygotowanych materiałów.');
-            workshopOverview(ui, c, this.actions, this.workshopRecipe, (id) => {
-                this.workshopRecipe = id;
-                this.refresh();
-            });
+            workshopOverview(
+                ui,
+                c,
+                this.actions,
+                this.workshopRecipe,
+                (id) => {
+                    this.workshopRecipe = id;
+                    this.refresh();
+                },
+                undefined,
+                this.productionNavigation,
+            );
         }
         if (this.tab === 'pilots') this.pilots(ui);
         if (this.tab === 'warehouse') this.warehouse(ui);
@@ -803,7 +840,6 @@ export class LobbyView extends Container {
                 {
                     ...modules,
                     id: ship?.id ?? 0,
-                    hyperdriveLevel: ship?.hyperdriveLevel ?? 0,
                     weapon: modules.weapon ?? 'standard',
                     weapons: ship?.weapons ?? ['standard'],
                 },
@@ -1161,41 +1197,6 @@ export class LobbyView extends Container {
                 hint.setText(describe(key));
             };
         });
-        if (!preview) {
-            const level = ship.hyperdriveLevel,
-                next = level + 1;
-            const detail =
-                level >= 3
-                    ? 'Hipernapęd III. Przeloty przez śluzy bez paliwa.'
-                    : `Hipernapęd ${next}: ${4 * next} × Poszycie stalowe I · ${next} × Zespół napędowy I · ${next} × Układ zasilania I. Zaplecze I.`;
-            const driveTitle = label(ui, 'Hipernapęd', 1072, 683, 16, C.text);
-            driveTitle.eventMode = 'static';
-            driveTitle.on('pointerenter', () => hint.setText(detail));
-            segments(ui, level, 3, 1288, 688, 69);
-            const install = button(
-                ui,
-                level >= 3 ? 'MAX' : level ? 'ULEPSZ' : 'ZAMONTUJ',
-                1390,
-                677,
-                138,
-                () => this.actions.upgradeHyperdrive?.(),
-                false,
-                active &&
-                    !c.activeRun &&
-                    !!this.actions.upgradeHyperdrive &&
-                    c.station.workshop >= 1 &&
-                    level < 3 &&
-                    c.bank.parts >= 4 * next &&
-                    (c.bank.propulsion ?? 0) >= next &&
-                    (c.bank.powerModules ?? 0) >= next,
-                30,
-                12,
-            );
-            install.config.onHover = () => hint.setText(detail);
-            const title = label(ui, `Poziom ${level}/3 · śluzy bez paliwa`, 1072, 705, 11, C.muted);
-            title.eventMode = 'static';
-            title.on('pointerenter', () => hint.setText(detail));
-        }
     }
     private station(ui: Container) {
         const c = this.campaign,

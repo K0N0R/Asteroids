@@ -6,7 +6,7 @@ import type { MissionSimulation } from '../systems/mission';
 import { manufacture, type ProductionScope } from '../state/production';
 import { transferLunarResource, takeLunarRepairKit } from '../state/lunarIndustry';
 import { RESOURCE_IDS, RESOURCES, resourceTotal, type ResourceId } from '../state/resources';
-import type { RecipeId } from '../state/chemistry';
+import { RECIPES, type RecipeId } from '../state/chemistry';
 import { itemIllustration } from '../graphics/items';
 import { C } from '../graphics/shapes';
 import { button, label, panel, clear, illustrationInBox } from './primitives';
@@ -15,6 +15,7 @@ import { laboratoryOverview, workshopOverview } from './production';
 export class LunarStationView extends Container {
     private tab: 'laboratory' | 'workshop' | 'warehouse' = 'warehouse';
     private recipe: RecipeId = 'water';
+    private recipeHistory: RecipeId[] = [];
     private item: ResourceId = 'ore';
     private page = 0;
     private readonly scope: ProductionScope;
@@ -58,6 +59,7 @@ export class LunarStationView extends Container {
                 210 + i * 58,
                 190,
                 () => {
+                    this.recipeHistory = [];
                     this.tab = tab.id;
                     this.recipe = tab.id === 'workshop' ? 'plating' : 'water';
                     this.refresh();
@@ -83,9 +85,23 @@ export class LunarStationView extends Container {
             this.recipe = id;
             this.refresh();
         };
+        const showRecipe = (id: RecipeId) => {
+            this.recipe = id;
+            this.tab = RECIPES[id].category;
+            this.refresh();
+        };
+        const navigation = {
+            openRecipe: (id: RecipeId) => {
+                this.recipeHistory.push(this.recipe);
+                showRecipe(id);
+            },
+            back: this.recipeHistory.length
+                ? () => showRecipe(this.recipeHistory.pop()!)
+                : undefined,
+        };
         if (this.tab === 'laboratory')
-            laboratoryOverview(this, this.c, actions, this.recipe, select, this.scope);
-        else workshopOverview(this, this.c, actions, this.recipe, select, this.scope);
+            laboratoryOverview(this, this.c, actions, this.recipe, select, this.scope, navigation);
+        else workshopOverview(this, this.c, actions, this.recipe, select, this.scope, navigation);
     }
     private warehouse() {
         const { c, sim } = this,

@@ -898,14 +898,15 @@ export function generateStorySector(progress: StoryProgress) {
     }
     if (earth) {
         // All ingredients for electronics and the first production upgrade must be
-        // reachable before that upgrade; repeated sorties can supply larger batches.
+        // reachable in one initial sector, without resetting rocks for the first upgrade.
         const veins = [
-            { x: 1060, y: -180, radius: 34, rich: true, copper: true, variant: 2 },
-            { x: 1210, y: 150, radius: 34, rich: true, copper: true, variant: 7 },
+            { x: 1060, y: -180, radius: 48, rich: true, copper: true, variant: 2 },
+            { x: 1210, y: 150, radius: 48, rich: true, copper: true, variant: 7 },
             { x: 970, y: 300, radius: 32, rich: true, variant: 0 },
             { x: 1120, y: -360, radius: 32, rich: true, variant: 1 },
-            { x: 950, y: -200, radius: 32, rich: false, crystal: true, variant: 71 },
-            { x: 1220, y: 330, radius: 32, rich: false, crystal: true, variant: 72 },
+            { x: 950, y: 420, radius: 32, rich: true, variant: 6 },
+            { x: 950, y: -200, radius: 48, rich: false, crystal: true, variant: 71 },
+            { x: 1220, y: 330, radius: 48, rich: false, crystal: true, variant: 72 },
         ];
         sector.rocks = sector.rocks.filter((r) =>
             veins.every((p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + p.radius + 20),

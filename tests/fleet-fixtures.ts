@@ -26,3 +26,13 @@ export function grantLunarProcessing(c: Campaign) {
         if (!c.story!.claimed.includes(task.id)) c.story!.claimed.push(task.id);
     }
 }
+
+export function grantOrbitalSupplies(
+    c: Campaign,
+    group: readonly { id: string; target: number }[],
+) {
+    for (const task of group) {
+        c.story!.progress[task.id] = task.target;
+        if (!c.story!.claimed.includes(task.id)) c.story!.claimed.push(task.id);
+    }
+}

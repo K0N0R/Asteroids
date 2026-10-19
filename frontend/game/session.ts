@@ -1,7 +1,7 @@
 import { LunarStationView } from './ui/lunarStation';
 import type { ResourceStore } from './state/resources';
-import { RESOURCE_IDS } from './state/resources';
-import { manufacture, upgradeHyperdrive } from './state/production';
+import { RESOURCE_IDS, RESOURCES } from './state/resources';
+import { manufacture } from './state/production';
 import { installKineticUpgrade } from './state/kineticIndustry';
 import { terminalPuzzlePanel } from './ui/terminalPuzzle';
 import { rescueRepairPanel } from './ui/rescueRepair';
@@ -193,11 +193,6 @@ export class GameSession {
                 this.change(
                     () => scrapShip(this.campaign, id),
                     'Kadłub zezłomowany. Odzyskane materiały trafiły do magazynu.',
-                ),
-            upgradeHyperdrive: () =>
-                this.change(
-                    () => upgradeHyperdrive(this.campaign),
-                    'Moduł hipernapędu zamontowany. Śluzy nie wymagają paliwa.',
                 ),
             installKineticShield: () =>
                 this.change(
@@ -1097,7 +1092,7 @@ export class GameSession {
             56,
         );
     }
-    private showResult(result: RunResult) {
+    private showResult(result: RunResult, page = 0) {
         uiCue(result.success ? 'complete' : 'destroy');
         clear(this.overlay);
         this.hasOverlay = true;
@@ -1125,66 +1120,85 @@ export class GameSession {
             42,
         );
         label(this.overlay, `${result.pilotName} / ${result.shipName}`, 450, 345, 23, C.muted);
-        label(
-            this.overlay,
-            result.success
-                ? `Dostarczono: ${resourceSummary(result.cargo)}`
-                : 'Pilot i statek nie wrócili do bazy.',
-            450,
-            395,
-            22,
-            result.success ? C.mint : C.red,
-        );
-        if (result.success)
-            label(
-                this.overlay,
-                `Premia i odzysk: ${result.reward.ore} rudy · ${result.reward.parts} komponentów · ${result.reward.crystals ?? 0} kryształów`,
-                450,
-                435,
-                20,
-                C.gold,
-            );
-        label(this.overlay, result.contractText, 450, result.success ? 470 : 435, 16, C.mint, 700);
-        label(this.overlay, result.reason, 450, result.success ? 500 : 471, 17, C.muted, 700);
-        if (result.equipmentText)
-            label(this.overlay, result.equipmentText, 450, 615, 16, C.mint, 700);
-        const progress = result.pilotProgress;
-        if (progress)
-            label(
-                this.overlay,
-                `Pilot: +${progress.gainedXp} PD · ${progress.levelAfter > progress.levelBefore ? `awans do poziomu ${progress.levelAfter}` : `poziom ${progress.levelAfter}`} · punkty rozwoju ${progress.points}`,
-                450,
-                536,
-                17,
-                C.mint,
-                700,
-            );
-        label(this.overlay, result.recoveryText, 450, 574, 16, C.gold, 700);
-        label(
-            this.overlay,
-            result.overflow
-                ? `Magazyn pełny. Nadwyżka ${result.overflow} jednostek przepadła.`
-                : result.aborted
-                  ? 'Raport nie został rozliczony. Możesz ponowić misję.'
-                  : result.success
-                    ? 'Czas na naprawę, ulepszenia i kolejną wyprawę.'
-                    : 'Baza, magazyn i statki rezerwowe pozostają.',
-            450,
-            659,
-            15,
-            C.muted,
-        );
+        if (result.success) {
+            const resources = RESOURCE_IDS.filter((id) => (result.cargo[id] ?? 0) > 0);
+            const pages = Math.max(1, Math.ceil(resources.length / 7));
+            page = Math.max(0, Math.min(page, pages - 1));
+            label(this.overlay, 'ZEBRANO', 450, 389, 13, C.muted);
+            label(this.overlay, 'W MAGAZYNIE', 1000, 389, 13, C.muted);
+            if (!resources.length) label(this.overlay, 'Ładownia pusta.', 450, 422, 19, C.muted);
+            resources.slice(page * 7, page * 7 + 7).forEach((id, i) => {
+                const y = 420 + i * 26;
+                label(
+                    this.overlay,
+                    `+${result.cargo[id]} ${RESOURCES[id].name}`,
+                    450,
+                    y,
+                    19,
+                    C.mint,
+                    530,
+                );
+                label(this.overlay, `→ ${this.campaign.bank[id] ?? 0}`, 1000, y, 19, C.cyan, 150);
+            });
+            if (pages > 1) {
+                button(
+                    this.overlay,
+                    '←',
+                    450,
+                    602,
+                    65,
+                    () => this.showResult(result, page - 1),
+                    false,
+                    page > 0,
+                    24,
+                    14,
+                );
+                label(this.overlay, `${page + 1} / ${pages}`, 775, 605, 14, C.muted);
+                button(
+                    this.overlay,
+                    '→',
+                    1085,
+                    602,
+                    65,
+                    () => this.showResult(result, page + 1),
+                    false,
+                    page + 1 < pages,
+                    24,
+                    14,
+                );
+            }
+        } else {
+            label(this.overlay, 'Pilot i statek nie wrócili do bazy.', 450, 395, 22, C.red, 700);
+            label(this.overlay, result.contractText, 450, 435, 16, C.mint, 700);
+            label(this.overlay, result.reason, 450, 471, 17, C.muted, 700);
+            if (result.equipmentText)
+                label(this.overlay, result.equipmentText, 450, 540, 16, C.mint, 700);
+            if (result.recoveryText)
+                label(this.overlay, result.recoveryText, 450, 580, 16, C.gold, 700);
+        }
         if (result.deliveries.length)
             button(
                 this.overlay,
                 `ODHOLOWANE OBIEKTY · ${result.deliveries.length}`,
                 450,
-                647,
+                632,
                 700,
                 () => this.showDeliveries(result),
                 false,
                 true,
-                34,
+                26,
+                14,
+            );
+        const progress = result.pilotProgress;
+        if (progress)
+            label(
+                this.overlay,
+                `+${progress.gainedXp} PD · ${progress.levelAfter > progress.levelBefore ? `Awans na poziom ${progress.levelAfter}!` : `Poziom ${progress.levelAfter}`} · Punkty rozwoju: ${progress.points}`,
+                450,
+                665,
+                16,
+                C.mint,
+                700,
             );
         button(
             this.overlay,

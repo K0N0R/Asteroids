@@ -467,9 +467,7 @@ export class MissionHud extends Container {
         }
         this.hyperStatus.visible = true;
         this.hyperStatus.setText(
-            !s.hyperUnlocked
-                ? 'HIPER: brak modułu · Hangar → Ulepszenia'
-                : `HIPERNAPĘD · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA: śluza · kolizja = utrata'}`,
+            `HIPERNAPĘD · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA: śluza · kolizja = utrata'}`,
         );
         const mineral = s.mineralTarget;
         this.mineralTitle.setText(mineral ? `SKAN · ${mineral.deposit.name}` : '');

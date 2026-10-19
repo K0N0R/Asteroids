@@ -1,4 +1,9 @@
 import {
+    pendingOrbitalDeliveries,
+    deliverOrbitalCargo,
+    constructionDeliveryTasks,
+} from '../state/story';
+import {
     lunarProcessingReady,
     lunarConstructionReady,
     lunarModules,
@@ -201,16 +206,28 @@ export class MissionSimulation {
         const p = this.campaign.story;
         return (
             !!p &&
-            ['earth', 'lunar'].includes(p.sector) &&
+            ['earth', 'lunar', 'venus', 'mars'].includes(p.sector) &&
             this.campaign.activeRun?.sector === p.sector
         );
     }
     get cargoDestination(): Point {
-        return this.area === 'surface' ? MOON.construction : { x: 0, y: 0 };
+        return this.area === 'surface'
+            ? MOON.construction
+            : this.atOrbitalDeliverySite
+              ? this.assaultSite
+              : { x: 0, y: 0 };
+    }
+    private get atOrbitalDeliverySite() {
+        return (
+            this.area === 'orbit' &&
+            this.orbitalBaseSector &&
+            Math.hypot(this.position.x - this.assaultSite.x, this.position.y - this.assaultSite.y) <
+                300
+        );
     }
     private get cargoRecipientAvailable() {
         return this.area === 'orbit'
-            ? this.distanceHome < 650
+            ? this.distanceHome < 650 || this.atOrbitalDeliverySite
             : this.surfaceUnlocked &&
                   this.buildStage < 2 &&
                   Math.hypot(
@@ -219,9 +236,11 @@ export class MissionSimulation {
                   ) < 300;
     }
     get cargoTransferManifest(): Cargo {
-        if (this.area === 'orbit') return { ...this.cargo };
+        if (this.area === 'orbit' && !this.atOrbitalDeliverySite) return { ...this.cargo };
         const result: Cargo = { ore: 0, parts: 0 };
-        for (const pending of pendingLunarDeliveries(this.campaign, this.cargo))
+        for (const pending of this.atOrbitalDeliverySite
+            ? pendingOrbitalDeliveries(this.campaign, this.cargo)
+            : pendingLunarDeliveries(this.campaign, this.cargo))
             result[pending.resource] = (result[pending.resource] ?? 0) + pending.amount;
         return result;
     }
@@ -254,7 +273,7 @@ export class MissionSimulation {
             if (this.canTransferCargo) this.cargoTransferRemaining = 2.4;
             else
                 this.setNotice(
-                    'Transfer: poniżej 35 m/s, do 650 m od Satuk 15 albo do 300 m od budowy na powierzchni.',
+                    'Transfer: poniżej 35 m/s, do 650 m od Satuk 15 albo do 300 m od placówki docelowej.',
                 );
         }
         if (this.cargoTransferRemaining > 0) {
@@ -279,9 +298,11 @@ export class MissionSimulation {
                     const construction =
                         this.area === 'surface'
                             ? deliverLunarCargo(this.campaign, this.cargo)
-                            : null;
+                            : this.atOrbitalDeliverySite
+                              ? deliverOrbitalCargo(this.campaign, this.cargo)
+                              : null;
                     const delivery =
-                        this.area === 'surface'
+                        this.area === 'surface' || this.atOrbitalDeliverySite
                             ? construction && {
                                   accepted: construction.accepted,
                                   ...construction.change,
@@ -295,7 +316,7 @@ export class MissionSimulation {
                         this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
                     } else
                         this.setNotice(
-                            this.area === 'surface'
+                            this.area === 'surface' || this.atOrbitalDeliverySite
                                 ? 'Brak wymaganych materiałów · ładunek pozostaje na statku.'
                                 : 'Magazyn pełny · ładunek pozostaje na statku.',
                         );
@@ -905,7 +926,7 @@ export class MissionSimulation {
             ? `Montaż bazy · ${Math.floor((this.orbitalBuildProgress / 2) * 100)}%`
             : this.orbitalBuildReady
               ? '7 baza · E przez 2 s montuje opłacone instalacje'
-              : 'Baza wymaga 40 rudy i 10 komponentów · przekaż materiały w stacji';
+              : 'Załaduj manifest pięciu rodzajów części · C / E przy bazie przekazuje dostawę';
     }
     get venusBuildReady() {
         return !!this.campaign.story && venusPreparationComplete(this.campaign.story);
@@ -946,13 +967,16 @@ export class MissionSimulation {
     get venusStatus() {
         const p = this.campaign.story;
         if (!this.venusSector || !p) return '';
+        const pending = constructionDeliveryTasks(this.campaign)[0];
+        if (pending && this.atOrbitalDeliverySite)
+            return `C / E dostawa · ${resourceSummary({ [pending.resource!]: pending.target - p.progress[pending.id] })}`;
         if (p.claimed.includes('venus-defense'))
             return p.claimed.includes('venus-shield')
                 ? 'Akt III ukończony · placówka obroniona · osłona słoneczna gotowa'
-                : 'Placówka obroniona · przekaż w stacji 12 komponentów na osłonę';
+                : 'Placówka obroniona · dostarcz poszycie lekkie, zasilanie i elektronikę osłony';
         if (this.venusAssault.state !== 'idle') return this.venusAssault.summary;
         if (p.claimed.includes('venus-build'))
-            return `Placówka gotowa · G przy obiekcie rozpoczyna obronę · osłona: ${p.claimed.includes('venus-shield') ? 'gotowa' : 'projekt w stacji'}`;
+            return `Placówka gotowa · G przy obiekcie rozpoczyna obronę · osłona: ${p.claimed.includes('venus-shield') ? 'gotowa' : 'dostawa części przy placówce'}`;
         if (venusPreparationComplete(p))
             return this.orbitalBuildProgress > 0
                 ? `Budowa placówki · ${Math.floor((this.orbitalBuildProgress / 2) * 100)}%`
@@ -1700,15 +1724,10 @@ export class MissionSimulation {
         this.setNotice(`${relay.name} zsynchronizowany · osłona sektora rozszerzona`);
         this.events.push({ ...relay, kind: 'collect', sound: 'complete' });
     }
-    get hyperUnlocked() {
-        return (this.campaign.ship?.hyperdriveLevel ?? 0) > 0;
-    }
     get nearestHypergate() {
         return this.area === 'orbit' ? nearestGate(this.sector.hyperlanes, this.position) : null;
     }
     get hyperdriveLock(): string | null {
-        if (!this.hyperUnlocked)
-            return 'Brak hipernapędu · zainstaluj moduł w Hangar → Ulepszenia.';
         if (this.area !== 'orbit') return 'Hipernapęd działa tylko na orbicie.';
         if (this.engineFault || this.hull <= 0 || this.ended) return 'Napęd lub statek niesprawny.';
         if (this.speed > 60 || this.damageCooldown > 0)
@@ -1816,10 +1835,6 @@ export class MissionSimulation {
             if (drive.guided && this.hyperPathHit(this.position, drive.target)) {
                 drive.cancel();
                 this.setNotice('Śluza zablokowana podczas ładowania.');
-                return;
-            }
-            if (!this.hyperUnlocked) {
-                drive.cancel();
                 return;
             }
             this.deliveryRevision++;
@@ -5107,15 +5122,16 @@ export class MissionSimulation {
     }
     private updateOrbitalBase(input: FlightInput, dt: number) {
         const p = this.campaign.story;
-        if (
-            !this.orbitalBaseSector ||
-            !p ||
-            p.claimed.includes(this.marsBaseSector ? 'mars-base-build' : 'venus-build')
-        )
-            return;
+        if (!this.orbitalBaseSector || !p) return;
+        const pending = pendingOrbitalDeliveries(this.campaign, this.cargo);
+        const built = p.claimed.includes(this.marsBaseSector ? 'mars-base-build' : 'venus-build');
         const ready =
             this.nearbyOrbitalBase &&
-            this.orbitalBuildReady &&
+            (pending.length > 0 || (!built && this.orbitalBuildReady)) &&
+            !this.grippers.arms.some((a) => a.held || a.phase !== 'idle') &&
+            !this.cargoTransferRemaining &&
+            !this.hyperdrive.active &&
+            !this.campaign.activeRun?.mission?.aborted &&
             input.interact &&
             !input.sabotage &&
             !input.fire &&
@@ -5130,6 +5146,18 @@ export class MissionSimulation {
             return;
         }
         this.orbitalBuildProgress += dt;
+        if (this.orbitalBuildProgress + 1e-8 >= 2 && pending.length) {
+            const delivery = deliverOrbitalCargo(this.campaign, this.cargo);
+            this.orbitalBuildProgress = 0;
+            if (delivery) {
+                this.deliveryRevision++;
+                this.radioMessages.push(
+                    `Placówka przyjęła: ${resourceSummary(delivery.accepted)}. ${delivery.change.titles.join(', ')}`,
+                );
+                this.events.push({ ...this.assaultSite, kind: 'collect', sound: 'complete' });
+            }
+            return;
+        }
         if (this.orbitalBuildProgress + 1e-8 >= 2 && recordOrbitalConstruction(this.campaign)) {
             this.orbitalBuildProgress = 0;
             const site = this.sector.landmarks.find((l) => l.key === (this.marsBaseSector ? 7 : 8));

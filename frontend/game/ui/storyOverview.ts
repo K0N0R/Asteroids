@@ -125,7 +125,9 @@ export function storyOverview(
             label(
                 ui,
                 available && task.kind === 'delivery'
-                    ? 'C / E przy budowie na Księżycu'
+                    ? p.sector === 'lunar'
+                        ? 'C / E przy budowie na Księżycu'
+                        : `C / E przy ${p.sector === 'mars' ? 'bazie marsjańskiej' : 'placówce Wenus'}`
                     : available && task.kind === 'construction'
                       ? `${p.sector === 'mars' ? '7 baza' : '8 placówka'} · E przez 2 s · budowa podczas wyprawy`
                       : available
@@ -175,7 +177,7 @@ export function storyOverview(
                   ? 'Powierzchnia: E lub C dostarcza materiały, G rozpoczyna obronę. Raporty przyjmuje radio.'
                   : p.sector === 'earth'
                     ? 'Raporty przyjmuje radio. C przy Satuk 15: dostawy do zadań, nadmiar do magazynu.'
-                    : 'Cele realizujesz równolegle. Rozdziel rudę między zadania i rozwój stacji.'),
+                    : 'Przygotuj części w Laboratorium i Warsztacie, a następnie dostarcz je do budowy.'),
         280,
         808,
         15,

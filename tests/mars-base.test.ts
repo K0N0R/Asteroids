@@ -1,3 +1,5 @@
+import { MARS_CONSTRUCTION } from '../frontend/game/state/orbitalConstruction';
+import { grantOrbitalSupplies } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -11,6 +13,7 @@ import {
     STORY_TASKS,
     MARS_BASE,
     contributeStory,
+    deliverOrbitalCargo,
     storyAct,
     storyObjectives,
     storyVisibleTasks,
@@ -44,8 +47,7 @@ function ready(built = false) {
     c.story!.sector = 'mars';
     c.bank = { ore: 40, parts: 10 };
     if (built) {
-        contributeStory(c, 'mars-base-ore');
-        contributeStory(c, 'mars-base-parts');
+        grantOrbitalSupplies(c, MARS_CONSTRUCTION);
         c.story!.progress['mars-base-build'] = 1;
         c.story!.claimed.push('mars-base-build');
     }
@@ -113,7 +115,7 @@ test('Act V requires the Mercury report and leaves the earlier Mars journal and 
     const c = ready();
     assert.ok(actTwoComplete(c.story!));
     assert.equal(storyAct(c.story!), 'AKT V');
-    assert.equal(storyObjectives(c).length, 2);
+    assert.equal(storyObjectives(c).length, 5);
     assert.equal(
         storyVisibleTasks(c.story!).length,
         STORY_TASKS.filter((t) => t.sector === 'mars').length,
@@ -146,41 +148,34 @@ test('Act V requires the Mercury report and leaves the earlier Mars journal and 
     assert.ok(parseCampaign(JSON.stringify(c)));
 });
 
-test('ore and component projects allow partial contributions in either order and construction never charges twice', () => {
-    for (const partsFirst of [true, false]) {
+test('part deliveries allow partial batches in either order and construction never charges twice', () => {
+    for (const reverse of [true, false]) {
         const c = ready();
-        const first = partsFirst ? 'mars-base-parts' : 'mars-base-ore',
-            second = partsFirst ? 'mars-base-ore' : 'mars-base-parts';
-        c.bank = { ore: 20, parts: 5 };
-        contributeStory(c, first);
-        contributeStory(c, second);
-        assert.equal(c.story!.progress['mars-base-ore'], 20);
-        assert.equal(c.story!.progress['mars-base-parts'], 5);
-        c.bank = { ore: 22, parts: 7 };
-        contributeStory(c, second);
-        contributeStory(c, first);
-        assert.deepEqual(c.bank, { ore: 2, parts: 2 });
-        assert.equal(contributeStory(c, first), null);
         beginRun(c, 1);
+        const entries = reverse ? [...MARS_CONSTRUCTION].reverse() : MARS_CONSTRUCTION;
+        for (const entry of entries) {
+            const half = Math.floor(entry.target / 2);
+            assert.ok(deliverOrbitalCargo(c, { ore: 0, parts: 0, [entry.resource]: half }));
+            assert.equal(c.story!.progress[entry.id], half);
+        }
+        for (const entry of entries)
+            assert.ok(deliverOrbitalCargo(c, { ore: 0, parts: 0, [entry.resource]: entry.target }));
+        const bank = { ...c.bank };
         const s = new MissionSimulation(c, c.activeRun!.seed);
         try {
-            assert.equal(
-                s.landmarks.some((l) => l.key === 8),
-                false,
-            );
             at(s, MARS_BASE);
             hold(s, { ...idle, interact: true });
             assert.equal(c.story!.progress['mars-base-build'], 1);
             assert.ok(s.landmarks.some((l) => l.key === 8));
             assert.equal(s.enemies.enemies.size, 3);
-            assert.deepEqual(c.bank, { ore: 2, parts: 2 });
+            assert.deepEqual(c.bank, bank);
             assert.ok(s.deliveryRevision > 0);
             assert.equal(s.landmarks.find((l) => l.key === 7)!.name, 'Baza marsjańska');
             const restored = parseCampaign(JSON.stringify(c))!;
+            assert.ok(restored);
             finishRun(restored, false, empty, 1, 'refresh');
-            assert.equal(restored.story!.progress['mars-base-build'], 1);
-            assert.equal(restored.story!.progress['mars-base-ore'], 40);
-            assert.equal(restored.story!.progress['mars-base-parts'], 10);
+            for (const t of MARS_CONSTRUCTION)
+                assert.equal(restored.story!.progress[t.id], t.target);
         } finally {
             s.dispose();
         }
@@ -309,8 +304,7 @@ test('leaving aborts an attempt but refresh preserves a radio-confirmed base rep
 
 test('stock Prospector flies to build the base, defends it and secures all three corridor contacts through ordinary sorties', () => {
     const c = ready();
-    contributeStory(c, 'mars-base-ore');
-    contributeStory(c, 'mars-base-parts');
+    grantOrbitalSupplies(c, MARS_CONSTRUCTION);
     for (const goal of ['build', 'defense', 'corridor', 'corridor', 'corridor'] as const) {
         beginRun(c, 1);
         const s = new MissionSimulation(c, c.activeRun!.seed);

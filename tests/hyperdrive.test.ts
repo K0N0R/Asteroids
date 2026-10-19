@@ -35,14 +35,13 @@ function ready() {
             c.story!.claimed.push(t.id);
         }
     }
-    // Supply + relay + workshop are the existing expansion and drive prerequisites.
+    // These tasks open the distant Earth region; the drive itself needs no unlock.
     for (const id of ['earth-supply', 'earth-relay', 'earth-workshop']) {
         const t = STORY_TASKS.find((t) => t.id === id)!;
         c.story!.progress[id] = t.target;
         if (!c.story!.claimed.includes(id)) c.story!.claimed.push(id);
     }
     c.bank = { ore: 60, parts: 8, hydrogen: 6 };
-    c.ship!.hyperdriveLevel = 1;
     assert.ok(parseCampaign(JSON.stringify(c)));
     return c;
 }
@@ -218,5 +217,32 @@ test('gates reject an obstructed route and recheck before departure, without con
         } finally {
             s.dispose();
         }
+    }
+});
+
+test('a fresh Prospector uses an available gate with no workshop, story unlock, parts or fuel', () => {
+    const c = newStoryCampaign();
+    assert.equal(c.station.workshop, 0);
+    assert.deepEqual(c.story!.claimed, []);
+    assert.deepEqual(c.bank, { ore: 0, parts: 0 });
+    beginRun(c, 1);
+    const s = new MissionSimulation(c, c.activeRun!.seed);
+    try {
+        clear(s);
+        s.sector.hyperlanes.push({
+            name: 'Test gate',
+            a: { ...s.position },
+            b: { x: 240, y: 1000 },
+        });
+        assert.equal(s.hyperdriveLock, null);
+        s.step({ ...idle, hyperdrive: true });
+        assert.equal(s.hyperdrive.state, 'charging');
+        advance(s, 120);
+        assert.equal(s.ended, null);
+        assert.ok(Math.hypot(s.position.x - 240, s.position.y - 1000) < 1);
+        assert.deepEqual(c.bank, { ore: 0, parts: 0 });
+        assert.deepEqual(c.story!.claimed, []);
+    } finally {
+        s.dispose();
     }
 });

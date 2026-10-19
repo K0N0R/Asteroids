@@ -44,7 +44,7 @@ test('building consumes the complete bill atomically and raw elements cannot rep
     assert.ok(buyShip(c, 'swift'));
     assert.deepEqual(c.reserveShips, [oldShip]);
     assert.equal(c.ship!.hull, 'swift');
-    assert.equal(c.ship!.hyperdriveLevel, 0);
+    assert.equal(Object.hasOwn(c.ship!, 'hyperdriveLevel'), false);
     for (const id of RESOURCE_IDS)
         assert.equal(
             c.bank[id] ?? 0,
@@ -55,9 +55,9 @@ test('building consumes the complete bill atomically and raw elements cannot rep
 });
 test('all first-ship parts can be made by hand from elements at starting facilities', () => {
     const c = newStoryCampaign();
-    c.bank = { ore: 198, parts: 0, carbon: 2, copperOre: 12, crystals: 9, hydrogen: 4, oxygen: 12 };
+    c.bank = { ore: 16, parts: 0, carbon: 4, copperOre: 12, crystals: 9, hydrogen: 4, oxygen: 12 };
     for (const [recipe, count] of [
-        ['steel', 2],
+        ['steel', 4],
         ['copper', 6],
         ['conductors', 6],
         ['silicon', 3],
@@ -113,17 +113,16 @@ test('emergency equipment handles missing parts despite a large elemental stock 
     assert.deepEqual(paid, before);
     assert.ok(buyShip(paid));
 });
-test('scrapping returns hull families and hyperdrive investments once, without inventing base iron', () => {
+test('scrapping returns only purchased hull families once, without charging for the standard drive', () => {
     const c = newCampaign(),
         ship = newShip(2, 'swift');
-    ship.hyperdriveLevel = 2;
     c.reserveShips = [ship];
     c.nextShipId = 3;
     const refund = scrapRefund(ship);
     assert.equal(refund.ore, 0);
-    assert.equal(refund.parts, 7);
-    assert.equal(refund.propulsion, 2);
-    assert.equal(refund.powerModules, 2);
+    assert.equal(refund.parts, 1);
+    assert.equal(refund.propulsion, 1);
+    assert.equal(refund.powerModules ?? 0, 0);
     assert.ok(scrapShip(c, 2));
     assert.deepEqual(c.bank, refund);
     const before = structuredClone(c);

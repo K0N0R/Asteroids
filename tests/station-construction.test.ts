@@ -50,17 +50,16 @@ test('station equipment uses named manufactured parts, never raw elements', () =
 });
 test('the first workshop can be manufactured from elements at level zero without circular unlocks', () => {
     const c = newStoryCampaign();
-    c.bank = { ore: 99, parts: 0, carbon: 1, copperOre: 10, crystals: 9, oxygen: 6 };
+    c.bank = { ore: 4, parts: 0, carbon: 1, copperOre: 4, crystals: 3, oxygen: 2 };
     for (const [recipe, count] of [
         ['steel', 1],
-        ['copper', 5],
-        ['conductors', 5],
-        ['silicon', 3],
-        ['silica', 3],
-        ['plating', 5],
-        ['machinery', 2],
-        ['electronics', 3],
-        ['power', 1],
+        ['copper', 2],
+        ['conductors', 2],
+        ['silicon', 1],
+        ['silica', 1],
+        ['plating', 2],
+        ['machinery', 1],
+        ['electronics', 1],
     ] as const) {
         assert.equal(c.station.workshop, 0);
         assert.ok(manufacture(c, recipe, count), recipe);

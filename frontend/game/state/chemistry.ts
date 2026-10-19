@@ -18,9 +18,9 @@ export const RECIPES = {
         output: 'water',
         amount: 1,
         level: 0,
-        equation: '2 H₂ + O₂ → 2 H₂O',
+        equation: '2 H + O → H₂O',
         explanation:
-            'Jedna porcja wody zawiera dwie porcje atomów wodoru i jedną tlenu. Równanie obok przedstawia reakcję gazów. Proces wymaga kontrolowanych warunków.',
+            'Każda cząsteczka wody ma dwa atomy wodoru i jeden tlenu. Woda pomaga regulować temperaturę i jest niezbędna do życia.',
     },
     oxygen: {
         title: 'Przygotowanie tlenu',
@@ -29,9 +29,9 @@ export const RECIPES = {
         output: 'oxygenGas',
         amount: 1,
         level: 0,
-        equation: 'O₂: dwa atomy tlenu',
+        equation: '2 O → O₂',
         explanation:
-            'Tlen gazowy tworzy cząsteczki dwuatomowe. Porcje opisują ilość substancji, nie masę.',
+            'Tlen w powietrzu występuje w parach atomów — jako O₂. Astronauci zabierają jego zapas do oddychania.',
     },
     silica: {
         title: 'Otrzymywanie krzemionki',
@@ -40,19 +40,19 @@ export const RECIPES = {
         output: 'silica',
         amount: 1,
         level: 0,
-        equation: 'Si + O₂ → SiO₂',
+        equation: 'Si + 2 O → SiO₂',
         explanation:
-            'Krzemionka jest siecią połączonych atomów. Wzór opisuje ich proporcje; nie jest to oddzielna trzyatomowa cząsteczka.',
+            'Krzemionkę znajdziesz w kwarcu i piasku. Jej połączone atomy tworzą sieć, a z piasku bogatego w krzemionkę powstaje szkło.',
     },
     steel: {
         title: 'Otrzymywanie stali',
         category: 'laboratory',
-        inputs: { ore: 99, carbon: 1 },
+        inputs: { ore: 4, carbon: 1 },
         output: 'steel',
-        amount: 12,
+        amount: 4,
         level: 0,
         explanation:
-            'Stal to stop żelaza z węglem. Nie ma jednego wzoru cząsteczki. Przetwarzamy większą partię żelaza z niewielkim dodatkiem węgla. Porcje opisują ilość substancji, nie kilogramy.',
+            'Dodatek węgla pomaga zwiększyć twardość stali. Stalowe elementy znajdziesz w mostach, narzędziach i konstrukcjach budynków.',
     },
     copper: {
         title: 'Oczyszczanie miedzi',
@@ -61,7 +61,8 @@ export const RECIPES = {
         output: 'pureCopper',
         amount: 1,
         level: 0,
-        explanation: 'Rafinacja poprawia czystość miedzi. Nie zmienia jej w inny pierwiastek.',
+        explanation:
+            'Miedź świetnie przewodzi prąd. Oczyszczanie usuwa domieszki, dzięki czemu lepiej nadaje się do produkcji przewodów.',
     },
     silicon: {
         title: 'Oczyszczanie krzemu',
@@ -70,7 +71,8 @@ export const RECIPES = {
         output: 'pureSilicon',
         amount: 1,
         level: 0,
-        explanation: 'Oczyszczony krzem jest materiałem do elektroniki. Tworzy sieć krystaliczną.',
+        explanation:
+            'Bardzo czysty krzem służy do produkcji układów elektronicznych i ogniw słonecznych. Nawet drobne domieszki zmieniają jego właściwości.',
     },
     alloy: {
         title: 'Lekki stop',
@@ -80,7 +82,7 @@ export const RECIPES = {
         amount: 1,
         level: 1,
         explanation:
-            'Glin i magnez tworzą lekki stop. Pokazujemy mieszaną strukturę, nie cząsteczkę AlMg.',
+            'Glin i magnez należą do lekkich metali. Ich stopy pomagają zmniejszać masę pojazdów, co ułatwia oszczędzanie energii.',
     },
     plating: {
         title: 'Poszycie stalowe I',
@@ -99,7 +101,7 @@ export const RECIPES = {
         amount: 1,
         level: 1,
         explanation:
-            'Lekka alternatywa materiałowa poszycia. Integracja wariantów z parametrami kadłubów nastąpi w etapie floty.',
+            'Lżejsze poszycie zmniejsza masę konstrukcji. Stopy glinu są często używane w lotnictwie.',
     },
     conductors: {
         title: 'Przewodniki miedziane',
@@ -109,7 +111,7 @@ export const RECIPES = {
         amount: 2,
         level: 0,
         explanation:
-            'Miedź dobrze przewodzi prąd. Formujemy przewody, nie wykonujemy reakcji chemicznej.',
+            'Miedź można rozciągać w cienkie druty. Dzięki temu nadaje się do przewodów łączących urządzenia elektryczne.',
     },
     electronics: {
         title: 'Elektronika I',
@@ -173,7 +175,7 @@ export const RECIPES = {
         amount: 2,
         level: 2,
         explanation:
-            'Zaawansowane osłony wymagają badań na Merkurym. Odporności są uproszczeniem gry.',
+            'Tytan łączy wytrzymałość z niewielką masą. Wykorzystuje się go w lotnictwie i technice kosmicznej.',
     },
     kineticModule: {
         title: 'Moduł osłonowy',
@@ -193,7 +195,7 @@ export const MATERIAL_COMPOSITION: Partial<Record<ResourceId, Partial<Record<Ele
         water: { hydrogen: 2, oxygen: 1 },
         oxygenGas: { oxygen: 2 },
         silica: { crystals: 1, oxygen: 2 },
-        steel: { ore: 99 / 12, carbon: 1 / 12 },
+        steel: { ore: 1, carbon: 1 / 4 },
         pureCopper: { copperOre: 2 },
         pureSilicon: { crystals: 2 },
         aluminiumAlloy: { aluminium: 4, magnesium: 1 },

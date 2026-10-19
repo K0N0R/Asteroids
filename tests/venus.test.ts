@@ -1,3 +1,4 @@
+import { VENUS_CONSTRUCTION } from '../frontend/game/state/orbitalConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -24,6 +25,7 @@ import {
     storyRadius,
     travelStory,
     contributeStory,
+    deliverOrbitalCargo,
 } from '../frontend/game/state/story';
 import { generateStorySector } from '../frontend/game/worlds/storySector';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
@@ -108,12 +110,13 @@ test('Venus survey opens the area; site measurements and partial material contri
         assert.equal(storyRadius(c.story!), 3900);
         assert.ok(generateStorySector(c.story!).landmarks.some((l) => l.key === 8));
         if (!supplyFirst) report(c, ['archive']);
-        c.bank.ore = 10;
-        contributeStory(c, 'venus-stockpile');
-        assert.equal(c.story!.progress['venus-stockpile'], 10);
-        c.bank.ore = 22;
-        contributeStory(c, 'venus-stockpile');
-        assert.equal(c.story!.progress['venus-stockpile'], 32);
+        beginRun(c, 1);
+        deliverOrbitalCargo(c, { ore: 0, parts: 3 });
+        assert.equal(c.story!.progress['venus-stockpile'], 3);
+        for (const t of VENUS_CONSTRUCTION)
+            deliverOrbitalCargo(c, { ore: 0, parts: 0, [t.resource]: t.target });
+        assert.equal(c.story!.progress['venus-stockpile'], 8);
+        finishRun(c, true, empty, 1, 'dock', c.activeRun!.repairKits);
         if (supplyFirst) report(c, ['archive']);
         assert.ok(venusPreparationComplete(c.story!));
         assert.equal(storySectorComplete(c.story!, 'venus'), false);
@@ -132,8 +135,10 @@ test('Venus survey opens the area; site measurements and partial material contri
 test('Venus has no lunar surface or Mars patrols; failure keeps contributions and rescue remains sector-specific', () => {
     const c = venusReady();
     report(c, ['relay']);
-    c.bank.ore = 8;
-    contributeStory(c, 'venus-stockpile');
+    beginRun(c, 1);
+    deliverOrbitalCargo(c, { ore: 0, parts: 4 });
+    finishRun(c, true, empty, 1, 'dock', c.activeRun!.repairKits);
+    c.bank.ore = 8; // Keep the emergency pilot fixture eligible.
     // Survival is deterministic; choose a fixture identity that leaves a rescue signal.
     while (!createRecoverySignal(c.ship!, c.pilots[0], STORY_SECTORS.venus.seed, { x: 0, y: 0 }))
         c.ship!.id = c.nextShipId++;
@@ -147,7 +152,7 @@ test('Venus has no lunar surface or Mars patrols; failure keeps contributions an
             data: ['archive'],
             lossPosition: { x: 15000, y: 20000 },
         });
-        assert.equal(c.story!.progress['venus-stockpile'], 8);
+        assert.equal(c.story!.progress['venus-stockpile'], 4);
         assert.equal(c.story!.progress['venus-site'], 0);
         const signal = c.recoverySignals[0];
         assert.equal(signal.seed, STORY_SECTORS.venus.seed);
@@ -232,8 +237,9 @@ test('a stock Prospector can scan Venus, mine the needed supply, survey the futu
         }
     }
     assert.ok(c.bank.ore >= 32);
-    assert.ok(contributeStory(c, 'venus-stockpile'));
-    assert.ok(venusPreparationComplete(c.story!));
+    // Raw mining remains useful for chemistry; it cannot substitute manufactured equipment.
+    assert.equal(contributeStory(c, 'venus-stockpile'), null);
+    assert.equal(venusPreparationComplete(c.story!), false);
     assert.equal(storySectorComplete(c.story!, 'venus'), false);
     assert.ok(actTwoComplete(c.story!));
 });

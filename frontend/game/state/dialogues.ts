@@ -63,7 +63,11 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'operations',
-                text: 'Zapasy są zabezpieczone. Uruchom warsztat stacji i wykonaj odczyt dalszego węzła. Oba zadania są już dostępne; kolejność wybierasz samodzielnie.',
+                text: 'Zapasy są zabezpieczone. Przygotuj materiały w Laboratorium, złóż części w Warsztacie, a potem zamontuj zaplecze w Rozbudowie stacji. Potrzebujemy dwóch poszyć, jednej maszynerii i jednej elektroniki.',
+            },
+            {
+                speaker: 'science',
+                text: 'Samo żelazo nie wystarczy. W początkowym złożu znajdziesz także Węgiel (C), Miedź (Cu), Krzem (Si) i Tlen (O). Najedź celownikiem na skałę, aby odczytać jej skład. Nie musisz szukać ich w kolejnym sektorze.',
             },
         ],
     },

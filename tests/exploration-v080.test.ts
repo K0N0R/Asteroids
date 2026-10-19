@@ -9,7 +9,6 @@ import {
     beginRun,
     parseCampaign,
 } from '../frontend/game/state/campaign';
-import { upgradeHyperdrive } from '../frontend/game/state/production';
 import {
     magneticCoverage,
     MAGNETIC_RELAYS,
@@ -19,22 +18,14 @@ import { MissionSimulation } from '../frontend/game/systems/mission';
 import { HarpoonArms } from '../frontend/game/systems/harpoonArms';
 before(async () => RAPIER.init());
 const idle = { target: { x: 0, y: 0 }, thrust: false, brake: false, fire: false, interact: false };
-test('starter ships have no drive; installed tiers persist and never require fuel', () => {
+test('new ships have neither hyperdrive purchase levels nor fuel', () => {
     const c = newStoryCampaign();
-    assert.equal(c.ship!.hyperdriveLevel, 0);
+    assert.equal(Object.hasOwn(c.ship!, 'hyperdriveLevel'), false);
     assert.equal(Object.hasOwn(c.ship!, 'hyperFuel'), false);
-    c.bank = { ore: 200, parts: 70, powerModules: 10, propulsion: 10 };
-    c.station.workshop = 1;
-    for (let level = 1; level <= 3; level++) {
-        assert.ok(upgradeHyperdrive(c));
-        assert.equal(c.ship!.hyperdriveLevel, level);
-    }
-    const snapshot = structuredClone(c);
-    assert.equal(upgradeHyperdrive(c), false);
-    assert.deepEqual(c, snapshot);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-    assert.equal(newShip(9).hyperdriveLevel, 0);
+    assert.equal(Object.hasOwn(newShip(9), 'hyperdriveLevel'), false);
 });
+
 test('remote magnetic coverage has a real gap and relays expand local coverage without joining the distant deposit', () => {
     assert.equal(magneticCoverage({ x: 0, y: 0 }, []), true);
     assert.equal(magneticCoverage({ x: 0, y: -2800 }, [0, 1, 2]), false);
@@ -90,7 +81,10 @@ test('relay activation expands coverage, persists on loss and requires the south
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
-        s.ship.setTranslation({ x: -17.5, y: 7 }, true);
+        s.ship.setTranslation(
+            { x: MAGNETIC_RELAYS[1].x / 100, y: MAGNETIC_RELAYS[1].y / 100 },
+            true,
+        );
         s.step({ ...idle, interact: true });
         assert.ok(c.magneticRelays.includes(1));
         assert.ok(parseCampaign(JSON.stringify(c)));
@@ -113,7 +107,6 @@ test('the first hydrogen batch can be mined inside local magnetic coverage befor
         (r) => r.crystal && Math.hypot(r.x, r.y) < 1450 && r.radius <= 44,
     );
     assert.ok(rocks.length >= 2);
-    assert.equal(c.ship!.hyperdriveLevel, 0);
 });
 
 test('every Earth hyperlane reaches the remote island outside all station relay coverage', () => {
@@ -126,4 +119,16 @@ test('every Earth hyperlane reaches the remote island outside all station relay 
         );
         assert.ok(magneticCoverage(lane.b, []));
     }
+});
+
+test('Earth magnetic relays are separated from survey objects', () => {
+    const c = newStoryCampaign();
+    c.story!.claimed.push('earth-workshop');
+    const sites = generateStorySector(c.story!).landmarks.filter((l) => l.siteId);
+    for (const relay of MAGNETIC_RELAYS.filter((r) => r.id !== 0))
+        for (const site of sites)
+            assert.ok(
+                Math.hypot(relay.x - site.x, relay.y - site.y) > site.radius + 160,
+                `${relay.name} overlaps ${site.name}`,
+            );
 });

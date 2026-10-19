@@ -77,7 +77,7 @@ test('Mercury needs both solar preparation and defended Venus; backtracking keep
     c.story!.progress['venus-shield'] = 0;
     assert.equal(travelStory(c, 'mercury'), false);
     c.story!.claimed.push('venus-shield');
-    c.story!.progress['venus-shield'] = 12;
+    c.story!.progress['venus-shield'] = 1;
     for (const sector of ['earth', 'lunar', 'mars', 'mercury'] as const)
         assert.ok(travelStory(c, sector));
     assert.ok(parseCampaign(JSON.stringify(c)));

@@ -29,6 +29,28 @@ function productionContext(c: Campaign, scope: ProductionScope) {
         blocked: ready ? null : 'Produkcja wymaga postoju przy działającej bazie księżycowej.',
     };
 }
+/** Preview and execution resolve the same warehouse, including the lunar station. */
+export function productionPreview(
+    c: Campaign,
+    id: RecipeId,
+    batches = 1,
+    scope: ProductionScope = SATUK_PRODUCTION,
+) {
+    const context = productionContext(c, scope);
+    const recipe: ProcessRecipe = RECIPES[id];
+    const outputHave =
+        recipe.output === 'kit' ? context.owner.repairKits : (context.bank[recipe.output] ?? 0);
+    return {
+        ingredients: RESOURCE_IDS.filter((r) => (recipe.inputs[r] ?? 0) > 0).map((resource) => ({
+            resource,
+            have: context.bank[resource] ?? 0,
+            need: recipe.inputs[resource]! * batches,
+        })),
+        outputHave,
+        gain: recipe.amount * batches,
+        outputAfter: outputHave + recipe.amount * batches,
+    };
+}
 export function productionLock(
     c: Campaign,
     id: RecipeId,
@@ -115,20 +137,4 @@ export function manufacture(
 }
 export function availableProcesses(c: Campaign) {
     return RECIPE_IDS.filter((id) => RECIPES[id].level <= c.station.workshop);
-}
-export function upgradeHyperdrive(c: Campaign) {
-    const ship = c.ship;
-    if (!ship || c.activeRun || c.station.workshop < 1 || ship.hyperdriveLevel >= 3) return false;
-    const level = ship.hyperdriveLevel + 1;
-    if (
-        c.bank.parts < 4 * level ||
-        (c.bank.propulsion ?? 0) < level ||
-        (c.bank.powerModules ?? 0) < level
-    )
-        return false;
-    c.bank.parts -= 4 * level;
-    c.bank.propulsion = (c.bank.propulsion ?? 0) - level;
-    c.bank.powerModules = (c.bank.powerModules ?? 0) - level;
-    ship.hyperdriveLevel = level;
-    return true;
 }

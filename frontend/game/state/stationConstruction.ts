@@ -2,7 +2,7 @@ import type { ResourceStore } from './resources';
 
 /** Station technology unlocks and installed devices use manufactured parts. */
 export const WORKSHOP_CONSTRUCTION: readonly ResourceStore[] = [
-    { parts: 4, storageFrames: 2, electronics: 2, powerModules: 1 },
+    { parts: 2, storageFrames: 1, electronics: 1 },
     { parts: 8, storageFrames: 4, electronics: 4, powerModules: 3, lifeSupport: 2 },
 ];
 export const SHIELD_CONSTRUCTION = {

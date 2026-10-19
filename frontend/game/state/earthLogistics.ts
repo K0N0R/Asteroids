@@ -23,7 +23,7 @@ export function receiveStationCargo(c: Campaign, cargo: Cargo) {
     if (
         !run ||
         !p ||
-        !['earth', 'lunar'].includes(p.sector) ||
+        !['earth', 'lunar', 'mars', 'venus'].includes(p.sector) ||
         run.sector !== p.sector ||
         run.area ||
         run.mission?.aborted

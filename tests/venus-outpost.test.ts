@@ -1,3 +1,5 @@
+import { VENUS_SHIELD } from '../frontend/game/state/orbitalConstruction';
+import { grantOrbitalSupplies } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -11,7 +13,8 @@ import {
     STORY_TASKS,
     VENUS_EXPANSION_TASKS,
     VENUS_OUTPOST,
-    contributeStory,
+    deliverOrbitalCargo,
+    syncStory,
     solarShieldReady,
     storySectorComplete,
     storyObjectives,
@@ -111,7 +114,7 @@ test('orbital construction requires both preparation goals and a quiet two-secon
         hold(s, { ...idle, interact: true });
         assert.equal(c.story!.progress['venus-build'], 0);
         c.story!.claimed.push('venus-stockpile');
-        c.story!.progress['venus-stockpile'] = 32;
+        c.story!.progress['venus-stockpile'] = 8;
         s.step(idle);
         hold(s, { ...idle, interact: true });
         assert.equal(c.story!.progress['venus-build'], 1);
@@ -129,21 +132,35 @@ test('orbital construction requires both preparation goals and a quiet two-secon
     }
 });
 
-test('solar shielding accepts components only after building, supports partial payments and never charges twice', () => {
+test('solar shielding accepts three actual part families only after building and supports partial deliveries', () => {
     const c = ready();
-    assert.equal(contributeStory(c, 'venus-shield'), null);
+    beginRun(c, 1);
+    assert.equal(
+        deliverOrbitalCargo(c, {
+            ore: 0,
+            parts: 12,
+            lightPlating: 6,
+            powerModules: 3,
+            electronics: 2,
+        }),
+        null,
+    );
     const built = ready(true);
-    built.bank.parts = 5;
-    contributeStory(built, 'venus-shield');
-    assert.equal(built.story!.progress['venus-shield'], 5);
-    assert.equal(built.bank.parts, 0);
+    beginRun(built, 1);
+    assert.ok(deliverOrbitalCargo(built, { ore: 0, parts: 0, lightPlating: 2 }));
+    assert.equal(built.story!.progress['venus-shield-plating'], 2);
     assert.equal(solarShieldReady(built.story!), false);
-    built.bank.parts = 9;
-    contributeStory(built, 'venus-shield');
-    assert.equal(built.bank.parts, 2);
+    const cargo = { ore: 0, parts: 12, lightPlating: 6, powerModules: 3, electronics: 2 };
+    assert.ok(deliverOrbitalCargo(built, cargo));
+    assert.deepEqual(cargo, {
+        ore: 0,
+        parts: 12,
+        lightPlating: 2,
+        powerModules: 0,
+        electronics: 0,
+    });
     assert.ok(solarShieldReady(built.story!));
-    assert.equal(contributeStory(built, 'venus-shield'), null);
-    assert.equal(built.bank.parts, 2);
+    assert.equal(deliverOrbitalCargo(built, cargo), null);
     assert.equal(storySectorComplete(built.story!, 'venus'), false);
     assert.ok(parseCampaign(JSON.stringify(built)));
 });
@@ -158,9 +175,10 @@ test('defense can precede shielding; the final component payment closes Act III 
     assert.equal(storySectorComplete(c.story!, 'venus'), false);
     assert.equal(solarShieldReady(c.story!), false);
     const bank = { ...c.bank };
-    contributeStory(c, 'venus-shield');
+    grantOrbitalSupplies(c, VENUS_SHIELD);
+    syncStory(c);
     assert.ok(storySectorComplete(c.story!, 'venus'));
-    assert.deepEqual(c.bank, { ore: bank.ore, parts: bank.parts - 12 });
+    assert.deepEqual(c.bank, bank);
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
@@ -195,7 +213,8 @@ test('stock Prospector builds through normal flight, prepares the shield and rep
     } finally {
         s.dispose();
     }
-    assert.ok(contributeStory(c, 'venus-shield'));
+    grantOrbitalSupplies(c, VENUS_SHIELD);
+    syncStory(c);
     assert.ok(solarShieldReady(c.story!));
     beginRun(c, 1);
     s = new MissionSimulation(c, c.activeRun!.seed);
@@ -233,7 +252,8 @@ test('stock Prospector builds through normal flight, prepares the shield and rep
 
 test('AI can destroy the outpost; retry restores its health and keeps construction and shielding', () => {
     const c = ready(true);
-    contributeStory(c, 'venus-shield');
+    grantOrbitalSupplies(c, VENUS_SHIELD);
+    syncStory(c);
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
@@ -284,7 +304,8 @@ test('leaving the defense aborts only the current attempt; unrelated enemies and
 
 test('a radio-confirmed victory survives refresh and lunar reports cannot complete Venus defense', () => {
     const c = ready(true);
-    contributeStory(c, 'venus-shield');
+    grantOrbitalSupplies(c, VENUS_SHIELD);
+    syncStory(c);
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {

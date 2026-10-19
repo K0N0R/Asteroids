@@ -69,7 +69,6 @@ export type ShipModules = Record<
     number
 >;
 export interface Ship extends ShipModules {
-    hyperdriveLevel: number;
     id: number;
     hull: HullId;
     weapon: WeaponId;
@@ -84,7 +83,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 55;
+    version: 58;
     story: StoryProgress | null;
     bank: Cargo;
     lunarStation: { bank: Cargo; repairKits: number };
@@ -166,7 +165,6 @@ export const SAVE_KEY = 'asteroids.campaign.v1';
 export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
     id,
     hull,
-    hyperdriveLevel: 0,
     weapon: 'standard',
     weapons: ['standard'],
     engine: 0,
@@ -178,7 +176,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 55,
+        version: 58,
         story: null,
         bank: { ore: 0, parts: 0 },
         lunarStation: { bank: { ore: 0, parts: 0 }, repairKits: 0 },
@@ -227,7 +225,7 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 55 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 58 || !cargo(p.bank) || !object(p.station)) return null;
         if (
             !object(p.lunarStation) ||
             !cargo(p.lunarStation.bank) ||
@@ -336,7 +334,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         if (
             object(p.activeRun) &&
             p.activeRun.unloaded !== undefined &&
-            (!['earth', 'lunar'].includes(p.activeRun.sector as string) ||
+            (!['earth', 'lunar', 'mars', 'venus'].includes(p.activeRun.sector as string) ||
                 !cargo(p.activeRun.unloaded))
         )
             return null;
@@ -365,7 +363,6 @@ export function parseCampaign(json: string | null): Campaign | null {
             Object.hasOwn(HULLS, ship.hull) &&
             ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
             integer(ship.shield, 3) &&
-            integer(ship.hyperdriveLevel, 3) &&
             integer(ship.handling, 3) &&
             typeof ship.weapon === 'string' &&
             Object.hasOwn(WEAPONS, ship.weapon) &&
@@ -571,10 +568,6 @@ export function scrapRefund(ship: Ship): Cargo {
         const bill: ResourceStore = WEAPON_PARTS[weapon];
         for (const id of RESOURCE_IDS) spent[id] = (spent[id] ?? 0) + (bill[id] ?? 0);
     }
-    const driveLevels = (ship.hyperdriveLevel * (ship.hyperdriveLevel + 1)) / 2;
-    spent.parts += 4 * driveLevels;
-    spent.propulsion = (spent.propulsion ?? 0) + driveLevels;
-    spent.powerModules = (spent.powerModules ?? 0) + driveLevels;
     const refund: Cargo = { ore: 0, parts: 0 };
     for (const id of RESOURCE_IDS) {
         const count = Math.floor((spent[id] ?? 0) / 2);

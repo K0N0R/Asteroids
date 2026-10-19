@@ -1,4 +1,10 @@
 import {
+    MARS_CONSTRUCTION,
+    VENUS_CONSTRUCTION,
+    VENUS_SHIELD,
+    orbitalSuppliesReady,
+} from './orbitalConstruction';
+import {
     LUNAR_PROCESSING,
     LUNAR_PROCESSING_TASKS,
     lunarProcessingReady,
@@ -167,7 +173,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Zaplecze stacji',
-        detail: 'Po zaopatrzeniu i przywróceniu łączności przygotuj części w Laboratorium i Warsztacie. Zamontuj zaplecze I w Rozbudowie stacji.',
+        detail: 'Przygotuj 2 poszycia stalowe I, 1 maszynerię I i 1 elektronikę I. Składniki znajdziesz w początkowym złożu. Zamontuj zaplecze I w Rozbudowie stacji.',
         required: true,
         kind: 'workshop',
         target: 1,
@@ -401,18 +407,18 @@ export const STORY_TASKS: readonly StoryTask[] = [
         dependencies: ['venus-survey'],
         reward: { ore: 16, parts: 4 },
     },
-    {
-        id: 'venus-stockpile',
-        sector: 'venus',
-        act: 3,
-        title: 'Materiały na placówkę',
-        required: true,
-        detail: 'Po zwiadzie przekaż 32 rudy z magazynu na przyszłą placówkę. Możesz dzielić dostawy na kilka wypraw.',
-        kind: 'ore',
-        target: 32,
-        dependencies: ['venus-survey'],
-        reward: { ore: 0, parts: 6 },
-    },
+    ...VENUS_CONSTRUCTION.map(
+        (entry): StoryTask => ({
+            ...entry,
+            sector: 'venus',
+            act: 3,
+            required: true,
+            kind: 'delivery',
+            detail: `Dostarcz ${entry.target} × ${RESOURCES[entry.resource].name}. Załaduj manifest i przekaż części przy budowie.`,
+            dependencies: ['venus-survey'],
+            reward: { ore: 0, parts: 0 },
+        }),
+    ),
     {
         id: 'venus-reserve',
         sector: 'venus',
@@ -431,22 +437,34 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 3,
         title: 'Budowa placówki',
         required: true,
-        detail: 'Po pomiarach i zgromadzeniu rudy leć na plac budowy. Przytrzymaj E przez 2 s przy nieruchomym statku. Materiały są już opłacone.',
+        detail: 'Po pomiarach i dostarczeniu części leć na plac budowy. Przytrzymaj E przez 2 s przy nieruchomym statku. Materiały są już opłacone.',
         kind: 'construction',
         target: 1,
-        dependencies: ['venus-site', 'venus-stockpile'],
+        dependencies: ['venus-site', ...VENUS_CONSTRUCTION.map((t) => t.id)],
         reward: { ore: 0, parts: 0 },
     },
+    ...VENUS_SHIELD.map(
+        (entry): StoryTask => ({
+            ...entry,
+            sector: 'venus',
+            act: 3,
+            required: true,
+            kind: 'delivery',
+            detail: `Dostarcz ${entry.target} × ${RESOURCES[entry.resource].name} do osłony. Części przyjmuje zbudowana placówka.`,
+            dependencies: ['venus-build'],
+            reward: { ore: 0, parts: 0 },
+        }),
+    ),
     {
         id: 'venus-shield',
         sector: 'venus',
         act: 3,
         title: 'Osłona słoneczna',
         required: true,
-        detail: 'Po budowie przekaż 12 komponentów w stacji na przygotowanie osłony Satuk 15 do podróży bliżej Słońca. Możesz dzielić wpłaty.',
-        kind: 'parts',
-        target: 12,
-        dependencies: ['venus-build'],
+        detail: 'Po dostarczeniu poszycia lekkiego, zasilania i elektroniki placówka potwierdzi gotowość osłony do podróży bliżej Słońca.',
+        kind: 'construction',
+        target: 1,
+        dependencies: VENUS_SHIELD.map((t) => t.id),
         reward: { ore: 0, parts: 0 },
     },
     {
@@ -523,30 +541,18 @@ export const STORY_TASKS: readonly StoryTask[] = [
         dependencies: [],
         reward: { ore: 12, parts: 5 },
     },
-    {
-        id: 'mars-base-ore',
-        sector: 'mars',
-        act: 5,
-        title: 'Poszycie bazy marsjańskiej',
-        required: true,
-        detail: 'Po odzyskaniu technologii przekaż w stacji 40 rudy na bazę przy Marsie. Wpłaty mogą pochodzić z wielu wypraw.',
-        kind: 'ore',
-        target: 40,
-        dependencies: ['mercury-technology'],
-        reward: { ore: 0, parts: 0 },
-    },
-    {
-        id: 'mars-base-parts',
-        sector: 'mars',
-        act: 5,
-        title: 'Wyposażenie bazy',
-        required: true,
-        detail: 'Przekaż 10 komponentów na instalacje bazy. Rudę i komponenty możesz gromadzić równolegle.',
-        kind: 'parts',
-        target: 10,
-        dependencies: ['mercury-technology'],
-        reward: { ore: 0, parts: 0 },
-    },
+    ...MARS_CONSTRUCTION.map(
+        (entry): StoryTask => ({
+            ...entry,
+            sector: 'mars',
+            act: 5,
+            required: true,
+            kind: 'delivery',
+            detail: `Dostarcz ${entry.target} × ${RESOURCES[entry.resource].name}. Załaduj manifest i przekaż części przy budowie.`,
+            dependencies: ['mercury-technology'],
+            reward: { ore: 0, parts: 0 },
+        }),
+    ),
     {
         id: 'mars-base-build',
         sector: 'mars',
@@ -556,7 +562,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         detail: 'Po dostawach leć do bazy. Przytrzymaj E przez 2 s przy spokojnym statku. Materiały zostały już opłacone.',
         kind: 'construction',
         target: 1,
-        dependencies: ['mars-base-ore', 'mars-base-parts'],
+        dependencies: MARS_CONSTRUCTION.map((t) => t.id),
         reward: { ore: 0, parts: 0 },
     },
     {
@@ -987,12 +993,17 @@ export const OUTER_BASES = {
 export const NEPTUNE_ARENA = { x: 3900, y: -900 } as const;
 export const JUPITER_UPLINK = { x: 2600, y: 900, terminal: { x: 2340, y: 900 } } as const;
 export const MARS_BASE = { x: -2600, y: 1200 } as const;
-export const VENUS_EXPANSION_TASKS = ['venus-build', 'venus-shield', 'venus-defense'];
+export const VENUS_EXPANSION_TASKS = [
+    'venus-build',
+    ...VENUS_SHIELD.map((t) => t.id),
+    'venus-shield',
+    'venus-defense',
+];
 export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 22;
+    version: 23;
     dialogues: string[];
     sector: StorySectorId;
     progress: Record<string, number>;
@@ -1000,7 +1011,7 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 22,
+    version: 23,
     dialogues: [],
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
@@ -1082,7 +1093,7 @@ export function storyDiscoveredTasks(p: StoryProgress) {
     return storyVisibleTasks(p).filter((t) => p.claimed.includes(t.id) || storyTaskAvailable(p, t));
 }
 export function marsBaseReady(p: StoryProgress) {
-    return ['mars-base-ore', 'mars-base-parts'].every((id) => p.claimed.includes(id));
+    return orbitalSuppliesReady(p, 'mars');
 }
 export function beltPassageReady(p: StoryProgress) {
     return beltTechnologyReady(p) && storySectorComplete(p, 'mars', 5);
@@ -1091,7 +1102,7 @@ export function beltRouteCleared(p: StoryProgress) {
     return BELT_BARRIERS.every((_, i) => p.claimed.includes(`belt-clear-${i}`));
 }
 export function venusPreparationComplete(p: StoryProgress) {
-    return ['venus-site', 'venus-stockpile'].every((id) => p.claimed.includes(id));
+    return p.claimed.includes('venus-site') && orbitalSuppliesReady(p, 'venus');
 }
 export function solarShieldReady(p: StoryProgress) {
     return p.claimed.includes('venus-shield');
@@ -1175,7 +1186,7 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('mars-base-build'))
             return marsBaseReady(p)
                 ? 'Materiały gotowe. Wyrusz do bazy i przytrzymaj E przez 2 s, aby ją zamontować.'
-                : 'Przekaż 40 rudy i 10 komponentów na bazę. Projekty możesz realizować równolegle; wcześniejsze cele Marsa pozostają zapisane.';
+                : 'Wyprodukuj pięć kompletów części i załaduj manifest. Dostarcz wyposażenie do bazy marsjańskiej przez C lub E; dostawy częściowe pozostają na budowie.';
         if (p.claimed.includes('mars-base-defense'))
             return 'Baza obroniona. Odeprzyj kontakty w dalszym korytarzu. Wyniki walk potwierdza radio.';
         if (p.claimed.includes('mars-corridor'))
@@ -1195,14 +1206,14 @@ export function storyNextStep(p: StoryProgress) {
             return 'Akt III ukończony. Placówka obroniona, osłona słoneczna gotowa. Następny kierunek: Merkury.';
         if (p.claimed.includes('venus-build'))
             return p.claimed.includes('venus-defense')
-                ? 'Placówka obroniona. Przekaż brakujące komponenty na osłonę słoneczną w stacji, aby zakończyć przygotowania.'
+                ? 'Placówka obroniona. Dostarcz brakujące części osłony słonecznej do placówki, aby zakończyć przygotowania.'
                 : solarShieldReady(p)
                   ? 'Osłona gotowa. Obroń placówkę: G przez 2 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio Satuk 15.'
-                  : 'Przekaż komponenty na osłonę w stacji i obroń placówkę: G przez 2 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio.';
+                  : 'Dostarcz części osłony do placówki i obroń placówkę: G przez 2 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio.';
         if (venusPreparationComplete(p))
             return 'Miejsce i materiały przygotowane. Wyrusz do placówki i przytrzymaj E przez 2 s, aby ją zbudować.';
         return p.claimed.includes('venus-survey')
-            ? 'Wykonaj pomiary miejsca pod placówkę i przekaż materiały. Te cele możesz realizować równolegle.'
+            ? 'Wykonaj pomiary miejsca pod placówkę i dostarcz manifest części przez C lub E. Te cele możesz realizować równolegle.'
             : 'Rozpoznaj orbitę Wenus i wróć z odczytem. Zwiad otworzy dalszy obszar oraz przygotowania placówki.';
     }
     if (actTwoComplete(p))
@@ -1275,7 +1286,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 22 ||
+        p.version !== 23 ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -1321,6 +1332,8 @@ function settle(c: Campaign): StoryChange {
     const result: StoryChange = { titles: [], reward: { ore: 0, parts: 0 }, overflow: 0 };
     for (const task of STORY_TASKS) {
         if (!storyTaskAvailable(p, task) || p.claimed.includes(task.id)) continue;
+        if (task.id === 'venus-shield' && VENUS_SHIELD.every((t) => p.claimed.includes(t.id)))
+            p.progress[task.id] = 1;
         if (task.kind === 'workshop' && c.station.workshop >= 1) p.progress[task.id] = 1;
         if (task.kind === 'kineticShield' && c.station.shieldLevel > 0) p.progress[task.id] = 1;
         if (p.progress[task.id] < task.target) continue;
@@ -1410,17 +1423,48 @@ export function acknowledgeStoryBriefing(c: Campaign) {
     p.progress[task.id] = 1;
     return settle(c);
 }
-export function lunarDeliveryTasks(c: Campaign) {
+export function constructionDeliveryTasks(c: Campaign) {
     const p = c.story;
-    return p?.sector === 'lunar'
+    return p
         ? STORY_TASKS.filter(
               (t) =>
-                  t.sector === 'lunar' &&
+                  t.sector === p.sector &&
                   t.kind === 'delivery' &&
                   !p.claimed.includes(t.id) &&
                   storyTaskAvailable(p, t),
           )
         : [];
+}
+export function lunarDeliveryTasks(c: Campaign) {
+    return c.story?.sector === 'lunar' ? constructionDeliveryTasks(c) : [];
+}
+export function pendingOrbitalDeliveries(c: Campaign, cargo: Cargo) {
+    const p = c.story;
+    if (
+        !p ||
+        !['mars', 'venus'].includes(p.sector) ||
+        c.activeRun?.sector !== p.sector ||
+        c.activeRun.area ||
+        c.activeRun.mission?.aborted
+    )
+        return [];
+    return constructionDeliveryTasks(c).flatMap((task) => {
+        if (!task.resource) return [];
+        const amount = Math.min(cargo[task.resource] ?? 0, task.target - p.progress[task.id]);
+        return amount > 0 ? [{ task, resource: task.resource, amount }] : [];
+    });
+}
+export function deliverOrbitalCargo(c: Campaign, cargo: Cargo) {
+    const pending = pendingOrbitalDeliveries(c, cargo);
+    if (!pending.length) return null;
+    const accepted: Cargo = { ore: 0, parts: 0 };
+    for (const { task, resource, amount } of pending) {
+        cargo[resource] = (cargo[resource] ?? 0) - amount;
+        accepted[resource] = (accepted[resource] ?? 0) + amount;
+        c.story!.progress[task.id] += amount;
+    }
+    recordCargoDelivery(c, accepted);
+    return { accepted, change: settle(c) };
 }
 export function pendingLunarDeliveries(c: Campaign, cargo: Cargo) {
     const p = c.story;
@@ -1462,7 +1506,7 @@ export function constructionManifest(c: Campaign): Cargo {
     const cargo: Cargo = { ore: 0, parts: 0 };
     if (!c.ship || c.activeRun) return cargo;
     let free = capacity(c);
-    for (const task of lunarDeliveryTasks(c)) {
+    for (const task of constructionDeliveryTasks(c)) {
         const id = task.resource!;
         const count = Math.min(
             free,

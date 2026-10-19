@@ -1,8 +1,42 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-19, wersja 0.86.
+Stan: 2026-10-19, wersja 0.90.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.90 — hipernapęd dla każdego statku
+
+Nowa decyzja autora zastępuje poprzedni system montażu i poziomów: każdy statek, również początkowy Prospector, korzysta z hipernapędu bez ulepszeń, odblokowań, części i paliwa. To podstawowa mechanika szybkiego przemieszczania przez dostępne śluzy. Usunięto poziomy napędu ze statków i zapisów, zakupy z Hangaru i zwroty kosztów montażu przy złomowaniu. HUD nie informuje już o brakującym module.
+
+Pozostają sterowanie spacją, ładowanie, animacja, kolizje i warunki bezpiecznego rozpoczęcia lotu. Rozwój świata nadal określa, jakie obszary i trasy istnieją; nie kupuje się prawa do użycia napędu. Format kampanii 58, dziennik 23. Dawne zapisy z płatnym napędem są odrzucane. Weryfikacja celowana obejmuje rzeczywisty skok świeżego Prospectora bez zaliczonych zadań i bez zasobów.
+
+## Wdrożenie 0.89 — priorytet grywalnego początku i czytelna produkcja
+
+Po uwadze autora wstrzymano poszerzanie dalszych etapów na rzecz początku gry. Stal: 4 paczki Żelaza (Fe) i 1 dodatku Węgla (C) dają 4 paczki stali. To umowne opakowania o różnych rozmiarach, nie proporcje mas ani liczby atomów w stopie. Pierwsze zaplecze wymaga 2 poszyć stalowych I, 1 maszynerii I i 1 elektroniki I. Można wytworzyć cały komplet od zera z 4 Fe, 1 C, 4 Cu, 3 Si i 2 O, na poziomie 0. Początkowy sektor ma te zasoby oraz żelazo na zadanie 24 Fe bez regenerowania asteroid.
+
+Laboratorium i Warsztat pokazują osobno składniki przed procesem oraz wynik po procesie. Tabela podaje nazwę, stan magazynu i zapotrzebowanie wybranej partii. Wynik podaje stan obecny, przyrost i stan po wykonaniu. Wybór 1/5/10/maks. najpierw przelicza podgląd, a jeden przycisk wykonuje transakcję. Usunięto powielone listy kosztów. Woda pokazuje atomy 2 H + O → H₂O, zgodnie z pobraniem dwóch H, jednego O i wynikiem jednej wody. Każdy materiał ma jedną wspólną grafikę produktu, składnika, magazynu i transferu. Oczyszczona miedź i krzem mają po jednej ikonie produktu. Usunięto dopiski o schemacie partii i licznik partii; opisy zawierają ciekawostki o zastosowaniach materiałów.
+
+Szczegóły: [wdrożenie 0.89](implementation-v0.89.md). Format kampanii 57 odrzuca poprzedni balans. Dziennik pozostaje 23. Weryfikacja celowana: 30 testów obejmujących chemię, początek, pierwsze zaplecze i zakres produkcji księżycowej; bez pełnej regresji. Dalsze prace mają najpierw uwzględniać spójność początku i samouczka.
+
+## Wdrożenie 0.88 — manifesty Marsa i Wenus
+
+Baza marsjańska wymaga pięciu rodzin części (30 sztuk), a placówka Wenus osobnego kompletu (21 sztuk). Po montażu Wenus przyjmuje 6 poszyć lekkich I, 3 układy zasilania I i 2 elektroniki I do osłony słonecznej. Dostawy trafiają fizycznie do placówki przez C lub E. Nie są już opłacane rudą i uniwersalnymi komponentami z menu stacji.
+
+Wspólny manifest uwzględnia dostępny zapas, pojemność statku i wcześniej dostarczone ilości. Dostawy częściowe pozostają na budowie, a nadmiar na statku. Fracht nie nalicza doświadczenia za wydobycie. Montaż i obrona zachowują dotychczasowe warunki. Format kampanii 56, dziennik 23; poprzednie zapisy są odrzucane.
+
+Szczegóły: [wdrożenie 0.88](implementation-v0.88.md). Dalej: warianty materiałowe i części II–III, przebudowa czterech obszarów Ziemi oraz zapętlona muzyka. Lokalne magazyny i ręczna produkcja Marsa/Wenus nie należą do tej paczki.
+
+## Weryfikacja — ustalenie autora
+
+Sprawdzać przede wszystkim zmieniony fragment. Nie uruchamiać pełnej regresji po każdej zmianie. Pełny zestaw tylko przy istotnych zmianach przekrojowych albo konkretnym podejrzeniu regresji; nie powtarzać go bez nowej przyczyny.
+
+## Wdrożenie 0.87 — lokalny magazyn i produkcja na Księżycu
+
+Po uruchomieniu pięciu modułów gracz może zatrzymać się przy placówce i przytrzymać E przez 2 sekundy. Osobne zakładki Laboratorium, Warsztat i Magazyn korzystają wyłącznie z lokalnych zapasów. Menu wstrzymuje lot; powrót do statku zachowuje położenie i trwającą wyprawę. Dostawy budowy i odbiór techniczny mają pierwszeństwo przed otwarciem panelu.
+
+Magazyn jest bez limitu. Odkładanie i zabieranie konkretnych zasobów uwzględnia rzeczywisty ładunek i pojemność statku. Wytwarzanie jest ręczne, zużywa lokalne składniki i odkłada wynik w placówce. Po końcowych dostawach lokalny poziom technologii rośnie z 0 do 1. Zestawy naprawcze mają osobny lokalny zapas; gracz zabiera je na statek do limitu 2. Muł zachowuje darmową samonaprawę.
+
+Zakres i weryfikacja: [wdrożenie 0.87](implementation-v0.87.md). Format kampanii 55 odrzuca starsze zapisy, dziennik pozostaje 22. Manifesty i koszty budowy Marsa oraz Wenus przeniesiono na części w 0.88. Dalej warianty materiałowe, części II–III, cztery obszary Ziemi i zapętlona muzyka `theme_loop.mp3`.
 
 ## Wdrożenie 0.86 — manifest i moduły bazy księżycowej
 
@@ -10,7 +44,7 @@ Pierwsza faza budowy wymaga 8 poszyć stalowych I, 4 maszynerii I, 3 elektronik 
 
 Muł czeka na zamontowanie pięciu modułów. Następnie zbiera i dostarcza Żelazo (Fe) oraz Węgiel (C) do dalszej rozbudowy. Zbiera tylko aktualnie potrzebne pierwiastki i zachowuje darmową samonaprawę. Kadłub odblokowuje odbiór techniczny ukończonych instalacji. Baza ma większą, połączoną konstrukcję z zaokrąglonymi modułami pojawiającymi się po dostawach.
 
-Zakres i ograniczenia: [wdrożenie 0.86](implementation-v0.86.md). Lokalna linia jest obecnie częścią automatycznego procesu budowy; osobny magazyn oraz menu ręcznej produkcji w placówce pozostają następnym etapem. Manifesty Marsa i Wenus również wymagają przeniesienia na części. Dalej: warianty materiałowe, części II–III, cztery obszary Ziemi i zapętlona muzyka. Format kampanii 54, dziennik 22.
+Zakres i ograniczenia: [wdrożenie 0.86](implementation-v0.86.md). Osobny magazyn oraz menu ręcznej produkcji w placówce dodano w 0.87. Manifesty Marsa i Wenus również wymagają przeniesienia na części. Dalej: warianty materiałowe, części II–III, cztery obszary Ziemi i zapętlona muzyka. Format kampanii 54, dziennik 22.
 
 ## Wdrożenie 0.85 — urządzenia stacji z części
 
@@ -67,7 +101,7 @@ To fundament, nie koniec refaktoru. Do następnej paczki pozostają: szczegóło
 Ustalenia kierunkowe; stan ich realizacji opisano powyżej. Poniższe zasady zastępują sprzeczne starsze wpisy:
 
 - Muł gracza i AI jako jedyny ma samonaprawę bez zestawów i bez surowców.
-- Usuwamy paliwo hipernapędu. Zainstalowany napęd umożliwia nieograniczone korzystanie ze śluz; ewentualne wymagania jego poziomu pozostają na później.
+- Hipernapęd jest podstawowym wyposażeniem każdego statku, także Prospectora. Bez montażu, poziomów, odblokowań i paliwa; decyzja 0.90 zastępuje wcześniejszy model.
 - Jeden sektor ziemski ma cztery trwałe obszary: A orbita Ziemi, B orbita Księżyca z wejściem na powierzchnię, C duży klaster asteroid, D dalsza orbita z wrakami satelitów. Graf śluz: D ↔ A ↔ B ↔ C.
 - Budowa bazy księżycowej: dostawy podstawowych części → lokalne przetwórstwo → aktywacja Muła i wydobycie → ukończenie modułowej placówki. Ręczna produkcja gracza jest dostępna także w uruchomionej bazie księżycowej; nie wraca produkcja pracowników w tle.
 - Skały i asteroidy dają pierwiastki; wraki pojazdów dają konkretne części. Ikony części wyróżniają się od pierwiastków. Rozładunek do obu stacji pokazuje właściwe grafiki dostarczanych przedmiotów.

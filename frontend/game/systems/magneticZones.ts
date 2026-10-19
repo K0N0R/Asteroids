@@ -1,7 +1,7 @@
 import type { Point } from '../worlds/sector';
 export const MAGNETIC_RELAYS = [
     { id: 0, x: 750, y: 650, radius: 1200, name: 'Przekaźnik orbitalny' },
-    { id: 1, x: -1750, y: 700, radius: 1100, name: 'Przekaźnik zachodni' },
+    { id: 1, x: -2350, y: 100, radius: 1100, name: 'Przekaźnik zachodni' },
     { id: 2, x: 1500, y: -1500, radius: 1000, name: 'Przekaźnik południowy' },
 ] as const;
 export const REMOTE_MAGNETIC_ZONE = {
