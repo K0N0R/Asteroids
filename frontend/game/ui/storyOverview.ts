@@ -125,7 +125,7 @@ export function storyOverview(
             label(
                 ui,
                 available && task.kind === 'delivery'
-                    ? `Dostawa na powierzchni · ${task.resource === 'ore' ? 'ruda' : 'komponenty'} · C / E przy budowie`
+                    ? 'C / E przy budowie na Księżycu'
                     : available && task.kind === 'construction'
                       ? `${p.sector === 'mars' ? '7 baza' : '8 placówka'} · E przez 2 s · budowa podczas wyprawy`
                       : available
@@ -212,7 +212,7 @@ export function storyOverview(
                       ? 'Stacja paliw działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
                       : p.sector === 'earth'
                         ? 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
-                        : 'Rozpoznaj trasę i zbuduj księżycową stację paliw: 160 rudy na fundamenty (eskorta Muła i własne dostawy), potem 12 komponentów na instalacje. Ziemia pozostaje dostępna.',
+                        : storyNextStep(p),
         1072,
         320,
         17,

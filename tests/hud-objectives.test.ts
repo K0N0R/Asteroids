@@ -1,3 +1,4 @@
+import { grantLunarProcessing } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -63,6 +64,7 @@ test('HUD reconciles objectives revealed by lunar construction during an active 
     const c = newStoryCampaign();
     c.story!.sector = 'lunar';
     c.story!.claimed.push('lunar-survey');
+    grantLunarProcessing(c);
     beginRun(c, 1);
     const sim = new MissionSimulation(c, 1);
     const goals = () => storyObjectives(c);
@@ -80,7 +82,7 @@ test('HUD reconciles objectives revealed by lunar construction during an active 
         assert.ok(goals().length > initial);
         assert.doesNotThrow(() => hud.update(101));
         assert.equal(rows().length, goals().length);
-        c.story!.progress['lunar-installations'] = 12;
+        c.story!.progress['lunar-installations'] = 2;
         c.story!.claimed.push('lunar-installations');
         hud.update(101);
         assert.equal(rows().length, goals().length);

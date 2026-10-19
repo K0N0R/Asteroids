@@ -1,3 +1,7 @@
+import { resourceTotal } from '../frontend/game/state/resources';
+import { grantLunarProcessing } from './fleet-fixtures';
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -42,6 +46,7 @@ function lunarReady() {
     contributeStory(c, 'earth-supply');
     beginRun(c, 1);
     finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 1, { data: ['relay'] });
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     buyUpgrade(c, 'workshop');
     syncStory(c);
     beginRun(c, 1);
@@ -49,6 +54,7 @@ function lunarReady() {
     travelStory(c, 'lunar');
     beginRun(c, 1);
     finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 1, { data: ['relay'] });
+    grantLunarProcessing(c);
     return c;
 }
 function at(s: MissionSimulation, p: { x: number; y: number }) {
@@ -195,7 +201,7 @@ test('delivered cargo survives death or refresh, while undelivered freight is lo
 test('construction requires real surface deliveries and radio confirmation; rewards settle once', () => {
     const c = lunarReady();
     c.station.storage = 1;
-    c.bank = { ore: 172, parts: 20 };
+    c.bank = { ore: 172, parts: 20, carbon: 2 };
     assert.equal(deliverLunarCargo(c, { ore: 48, parts: 12 }), null);
     for (let sortie = 0; sortie < 5; sortie++) {
         const manifest = constructionManifest(c);
@@ -205,9 +211,9 @@ test('construction requires real surface deliveries and radio confirmation; rewa
             // Fly normally from Satuk 15 through both approaches and back.
             s.step(idle);
             fly(s, MOON.entrance, () => s.area === 'surface');
-            assert.equal(s.cargo.ore + s.cargo.parts, manifest.ore + manifest.parts);
+            assert.equal(resourceTotal(s.cargo), resourceTotal(manifest));
             const targetStage = sortie < 4 ? (sortie < 3 ? 0 : 1) : 2;
-            fly(s, MOON.construction, () => s.cargo.ore + s.cargo.parts === 0);
+            fly(s, MOON.construction, () => resourceTotal(s.cargo) === 0);
             assert.equal(s.buildStage, targetStage);
             if (sortie === 4) {
                 hold(s, 190);
@@ -226,7 +232,7 @@ test('construction requires real surface deliveries and radio confirmation; rewa
     }
     assert.equal(lunarBuildStage(c.story!), 3);
     assert.equal(c.bank.ore, 36);
-    assert.equal(c.bank.parts, 14);
+    assert.equal(c.bank.parts, 26);
     const bank = { ...c.bank };
     beginRun(c, 1);
     finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 0, { data: ['archive'] });

@@ -1,3 +1,8 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
+import { fundEquipment } from './fleet-fixtures';
+import { MODULE_PARTS } from '../frontend/game/state/equipmentCosts';
+import { fundHull } from './fleet-fixtures';
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -22,7 +27,6 @@ import {
 import { generateSector } from '../frontend/game/worlds/sector';
 import { FlightInput, MissionSimulation } from '../frontend/game/systems/mission';
 import { GAME, HULLS, HullId } from '../frontend/game/config';
-import { storageUsed } from '../frontend/game/state/campaign';
 
 before(async () => {
     await RAPIER.init();
@@ -67,6 +71,7 @@ test('death loses the active pilot and equipment but preserves the station, rese
     c.bank = { ore: 50, parts: 10 };
     assert.ok(hirePilot(c, 1));
     const active = c.selectedPilot;
+    fundEquipment(c, upgradePrice(c, 'engine'));
     assert.ok(buyUpgrade(c, 'engine'));
     c.station.storage = 1;
     const bank = { ...c.bank };
@@ -92,11 +97,14 @@ test('refresh restores an active marker so the interrupted mission can be resolv
 test('upgrade costs and workshop limits are enforced without partial charges', () => {
     const c = newCampaign();
     c.bank = { ore: 200, parts: 30, crystals: 3 };
+    fundEquipment(c, upgradePrice(c, 'engine'));
     assert.ok(buyUpgrade(c, 'engine'));
     const bank = { ...c.bank };
     assert.equal(buyUpgrade(c, 'engine'), false);
     assert.deepEqual(c.bank, bank);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
+    fundEquipment(c, upgradePrice(c, 'engine'));
     assert.ok(buyUpgrade(c, 'engine'));
     beginRun(c, 2);
     assert.equal(buyUpgrade(c, 'armor'), false);
@@ -109,54 +117,39 @@ test('unlimited station storage accepts every item without overflow', () => {
     assert.deepEqual(c.bank, { ore: 152, parts: 2 });
     assert.equal(result!.overflow, 0);
 });
-test('ship upgrades spend more components and less ore at every level without partial charges', () => {
-    const prices = [
-        ['engine', 12, 8],
-        ['handling', 10, 6],
-        ['cargo', 8, 6],
-        ['drill', 12, 10],
-        ['armor', 10, 8],
-        ['shield', 14, 10],
-    ] as const;
-    for (const [upgrade, ore, parts] of prices) {
+test('all module levels require the whole parts bill and never consume raw elements', () => {
+    for (const upgrade of Object.keys(MODULE_PARTS) as (keyof typeof MODULE_PARTS)[]) {
         const c = newCampaign();
         c.station.workshop = 2;
         for (let level = 1; level <= 3; level++) {
-            const price = {
-                ore: ore * level,
-                parts: parts * level,
-                ...(level > 1 ? { crystals: level - 1 } : {}),
-            };
-            assert.deepEqual(upgradePrice(c, upgrade), price);
-            c.bank = { ...price, parts: price.parts - 1, crystals: price.crystals ?? 0 };
-            const missingParts = JSON.stringify(c);
-            assert.equal(buyUpgrade(c, upgrade), false);
-            assert.equal(JSON.stringify(c), missingParts);
-            c.bank.parts++;
-            c.bank.ore--;
-            const missingOre = JSON.stringify(c);
-            assert.equal(buyUpgrade(c, upgrade), false);
-            assert.equal(JSON.stringify(c), missingOre);
-            c.bank.ore++;
+            const price = upgradePrice(c, upgrade);
+            assert.equal(price.ore, 0);
+            assert.equal(price.crystals, undefined);
+            for (const [id, count] of Object.entries(MODULE_PARTS[upgrade]))
+                assert.equal(price[id as keyof typeof price], count * level);
+            for (const [id, count] of Object.entries(price).filter(([, n]) => n > 0)) {
+                c.bank = { ...price, ore: 1000, crystals: 1000, [id]: count - 1 };
+                const saved = JSON.stringify(c);
+                assert.equal(buyUpgrade(c, upgrade), false);
+                assert.equal(JSON.stringify(c), saved);
+            }
+            c.bank = { ...price, ore: 1000, crystals: 1000 };
             assert.ok(buyUpgrade(c, upgrade));
             assert.equal(c.ship![upgrade], level);
-            assert.deepEqual(c.bank, { ore: 0, parts: 0, crystals: 0 });
+            assert.equal(c.bank.ore, 1000);
+            assert.equal(c.bank.crystals, 1000);
             assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
         }
     }
     const c = newCampaign();
-    assert.deepEqual(upgradePrice(c, 'workshop'), { ore: 30, parts: 3 });
-    assert.deepEqual(upgradePrice(c, 'storage'), { ore: 25, parts: 1 });
+    assert.deepEqual(upgradePrice(c, 'workshop'), {
+        ore: 0,
+        parts: 0,
+        ...WORKSHOP_CONSTRUCTION[0],
+    });
+    assert.deepEqual(upgradePrice(c, 'storage'), { ore: 0, parts: 0 });
 });
-test('component-heavy full storage can fund ship upgrades and free space with little ore', () => {
-    const c = newCampaign();
-    c.bank = { ore: 12, parts: 138 };
-    assert.equal(storageUsed(c), 150);
-    assert.ok(buyUpgrade(c, 'engine'));
-    assert.deepEqual(c.bank, { ore: 0, parts: 130 });
-    assert.equal(storageUsed(c), 130);
-    assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-});
+
 test('invalid saves and unavailable storage fail safely', () => {
     assert.equal(parseCampaign('{'), null);
     const c = newCampaign();
@@ -402,9 +395,18 @@ test('buying and selecting hulls keeps each ship loadout and charges exactly onc
     c.station.workshop = 1;
     c.ship!.cargo = 1;
     const original = c.ship!.id;
+    fundHull(c, 'swift');
     assert.ok(buyShip(c, 'swift'));
     assert.equal(c.ship!.hull, 'swift');
-    assert.deepEqual(c.bank, { ore: 105, parts: 7 });
+    assert.deepEqual(c.bank, {
+        ore: 140,
+        parts: 9,
+        electronics: 0,
+        storageFrames: 0,
+        lifeSupport: 0,
+        propulsion: 0,
+        powerModules: 0,
+    });
     const swift = c.ship!.id;
     assert.equal(c.ship!.cargo, 0);
     assert.ok(selectShip(c, original));
@@ -423,7 +425,10 @@ test('ship purchases enforce workshop, bank, fleet capacity and active-run locks
     c.bank = { ore: 140, parts: 9 };
     assert.equal(buyShip(c, 'mule'), false);
     assert.equal(c.bank.ore, 140);
+    fundHull(c, 'swift');
+    fundHull(c, 'prospector', 5);
     c.station.workshop = 1;
+    fundHull(c, 'swift');
     assert.ok(buyShip(c, 'swift'));
     while (ownedShips(c).length < 6) assert.ok(buyShip(c, 'prospector'));
     const bank = { ...c.bank };
@@ -441,6 +446,7 @@ test('death removes the selected ship but leaves upgraded reserves and the mecha
     c.station.workshop = 1;
     c.ship!.engine = 1;
     const reserve = c.ship!.id;
+    fundHull(c, 'swift');
     buyShip(c, 'swift');
     beginRun(c, 9);
     finishRun(c, false, { ore: 20, parts: 3 }, 12, 'collision');
@@ -456,7 +462,9 @@ test('emergency recovery uses a reserve ship before granting a new free hull', (
     const c = newCampaign();
     c.bank.ore = 15;
     const original = c.ship!.id;
+    fundHull(c);
     assert.ok(buyShip(c));
+    c.bank.ore = 0;
     beginRun(c, 1);
     finishRun(c, false, { ore: 0, parts: 0 }, 1, 'loss');
     const nextId = c.nextShipId;
@@ -470,6 +478,7 @@ test('fleet saves roundtrip and reject unknown hulls or duplicate ship identitie
     const c = newCampaign();
     c.bank = { ore: 100, parts: 8 };
     c.station.workshop = 1;
+    fundHull(c, 'swift');
     buyShip(c, 'swift');
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
     const bad = JSON.parse(JSON.stringify(c));
@@ -509,11 +518,25 @@ test('scrapping only a reserve returns half the invested materials once and free
     c.bank = { ore: 100, parts: 8 };
     c.ship!.engine = 1;
     const old = c.ship!.id;
+    fundHull(c);
     assert.ok(buyShip(c));
-    assert.deepEqual(scrapRefund(c.reserveShips[0]), { ore: 13, parts: 4 });
+    assert.deepEqual(scrapRefund(c.reserveShips[0]), {
+        ore: 0,
+        parts: 2,
+        storageFrames: 1,
+        propulsion: 1,
+    });
     assert.equal(scrapShip(c, c.ship!.id), false);
     assert.ok(scrapShip(c, old));
-    assert.deepEqual(c.bank, { ore: 98, parts: 12 });
+    assert.deepEqual(c.bank, {
+        ore: 100,
+        parts: 10,
+        electronics: 0,
+        storageFrames: 1,
+        lifeSupport: 0,
+        propulsion: 1,
+        powerModules: 0,
+    });
     assert.equal(scrapShip(c, old), false);
     assert.equal(ownedShips(c).length, 1);
 });
@@ -521,12 +544,14 @@ test('scrapping only a reserve returns half the invested materials once and free
 test('scrapping accepts a large bank and still rejects active missions', () => {
     const c = newCampaign();
     c.bank.ore = 15;
+    fundHull(c);
     buyShip(c);
     const id = c.reserveShips[0].id;
     c.bank.ore = 150;
     assert.ok(scrapShip(c, id));
     assert.equal(c.reserveShips.length, 0);
     c.bank.ore = 500;
+    fundHull(c);
     buyShip(c);
     c.bank.ore = 10;
     beginRun(c, 9);

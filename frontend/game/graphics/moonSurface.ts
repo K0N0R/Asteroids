@@ -1,3 +1,4 @@
+import { drawLunarBase } from './lunarBase';
 import { Container, Graphics } from 'pixi.js';
 import { MOON } from '../worlds/moon';
 import { random } from '../worlds/sector';
@@ -17,6 +18,7 @@ export class MoonSurfaceView extends Container {
     private status: ReturnType<typeof label> | null = null;
     private titles: { view: ReturnType<typeof label>; anchor: Point; offset: Point }[] = [];
     private stage = -1;
+    private moduleMask = -1;
     private defenseMarkers = new Graphics();
     constructor(enabled: boolean) {
         super();
@@ -97,7 +99,7 @@ export class MoonSurfaceView extends Container {
             this.ground,
             '',
             { x: MOON.construction.x - MOON.center.x, y: 0 },
-            { x: 0, y: 150 },
+            { x: 0, y: 320 },
             20,
             C.mint,
             340,
@@ -149,7 +151,14 @@ export class MoonSurfaceView extends Container {
         this.titles.push({ view, anchor, offset });
         return view;
     }
-    update(surface: boolean, stage: number, cameraAngle: number, detail = 1, progress = 0) {
+    update(
+        surface: boolean,
+        stage: number,
+        cameraAngle: number,
+        detail = 1,
+        progress = 0,
+        modules?: readonly boolean[],
+    ) {
         if (!this.visible) return;
         this.passageProgress.clear();
         if (progress > 0) {
@@ -175,28 +184,18 @@ export class MoonSurfaceView extends Container {
         }
         this.ground.visible = surface;
         this.orbitGate.visible = !surface;
-        if (stage === this.stage) return;
+        const delivered = modules ?? Array(5).fill(stage > 0);
+        const mask = delivered.reduce((value, present, i) => value | (present ? 1 << i : 0), 0);
+        if (stage === this.stage && mask === this.moduleMask) return;
         this.stage = stage;
-        const g = this.site.clear();
-        g.roundRect(-175, -125, 350, 250, 28)
-            .fill(0x26353e)
-            .circle(0, 0, 75)
-            .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
-        if (stage === 0) {
-            for (const side of [-1, 1]) g.rect(side * 130 - 12, -80, 24, 160).fill(0x796f59);
-        } else {
-            g.roundRect(-110, -85, 220, 170, 18).fill(0x6c8087);
-            g.roundRect(-35, -70, 70, 140, 10).fill(0x3b525e);
-            if (stage >= 2) {
-                for (const side of [-1, 1])
-                    g.roundRect(side * 100 - 27, -70, 54, 140, 18).fill(0x9a8967);
-                g.circle(0, 0, 23).fill(stage === 3 ? C.mint : C.cyan);
-            }
-        }
+        this.moduleMask = mask;
+        drawLunarBase(this.site.clear(), delivered, stage);
         this.status!.setText(
             [
-                'Budowa · fundamenty / ruda',
-                'Budowa · instalacje / komponenty',
+                delivered.every(Boolean)
+                    ? 'Produkcja lokalna gotowa · E: Muł'
+                    : 'Budowa · dostarcz części modułów',
+                'Rozbudowa · Żelazo (Fe) i Węgiel (C)',
                 'Instalacje gotowe · E odbiór',
                 'Stacja paliw · odbiór zakończony',
             ][stage],

@@ -1,5 +1,6 @@
+import { constructionCosts } from './constructionCosts';
+import { droneReplacementBill } from '../state/stationConstruction';
 import { kineticInstallationLock, KINETIC_SHIELD_COSTS } from '../state/kineticIndustry';
-import { resourceSummary } from '../state/resources';
 import { Container, Graphics } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { STATION_SHIELD, stationProtectionRadius, stationShieldLock } from '../state/stationShield';
@@ -73,19 +74,9 @@ export function stationShieldContent(
         C.muted,
         456,
     );
-    label(
-        ui,
-        upgradeMode
-            ? nextCost
-                ? `Poziom ${level + 1}: ${resourceSummary(nextCost)} · +150 m`
-                : 'Poziom II · maksymalny zasięg 1150 m'
-            : 'Montaż: 30 Fe · 6 K · 3 MZ',
-        1072,
-        597,
-        19,
-        C.gold,
-        456,
-    );
+    if (!upgradeMode || nextCost)
+        constructionCosts(ui, c.bank, upgradeMode ? nextCost : STATION_SHIELD.cost);
+    else label(ui, 'Poziom II · maksymalny zasięg 1150 m', 1072, 597, 19, C.gold, 456);
     const lock = upgradeMode ? kineticInstallationLock(c, 'shield') : stationShieldLock(c);
     label(
         ui,
@@ -95,7 +86,7 @@ export function stationShieldContent(
               ? 'Tryb testowy korzysta z pełnej osłony od początku.'
               : (lock ?? 'Zaplecze i składniki gotowe. Można rozpocząć montaż.'),
         1072,
-        644,
+        677,
         15,
         C.muted,
         456,
@@ -184,7 +175,7 @@ export function stationDronesContent(ui: Container, c: Campaign, install?: () =>
             ui,
             `Strażnik ${id + 1} · ${status}`,
             1072,
-            438 + id * 29,
+            425 + id * 26,
             16,
             state?.hull ? C.mint : C.muted,
             456,
@@ -192,23 +183,34 @@ export function stationDronesContent(ui: Container, c: Campaign, install?: () =>
     }
     label(
         ui,
-        'Naprawa w hangarze: 4 HP/s po 8 s bez kontaktu. Odbudowę uruchamiasz ręcznie w bazie: 2 poszycia stalowe I + 1 układ zasilania za utraconą jednostkę.',
+        'Naprawa: 4 HP/s po 8 s bez kontaktu. Utracone jednostki odbudowujesz ręcznie z części w bazie.',
         1072,
-        543,
-        16,
+        514,
+        14,
         C.muted,
         456,
     );
-    label(ui, 'Montaż z 3 dronami: 40 Fe · 12 K · 3 MZ', 1072, 633, 18, C.gold, 456);
+    const lost = c.station.sentries?.filter((s) => s.hull <= 0).length ?? 0;
+    if (!c.station.sentries || lost)
+        constructionCosts(
+            ui,
+            c.bank,
+            c.station.sentries ? droneReplacementBill(lost) : D.cost,
+            565,
+        );
+    else label(ui, 'Wszystkie drony są sprawne.', 1072, 600, 17, C.mint, 456);
     const lock = stationDronesLock(c);
     label(
         ui,
-        c.station.sentries
-            ? 'Garnizon pozostaje przy stacji. Nie osłania powierzchni.'
-            : (lock ?? 'Zaplecze i materiały gotowe.'),
+        c.station.sentries && !lost
+            ? 'Garnizon pozostaje przy stacji.'
+            : (lock ??
+                  (lost
+                      ? `Gotowe do odbudowy: ${lost === 1 ? '1 dron' : `${lost} drony`}.`
+                      : 'Części gotowe do montażu.')),
         1072,
-        674,
-        15,
+        697,
+        13,
         C.muted,
         456,
     );

@@ -1,3 +1,6 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
+import { fundHull } from './fleet-fixtures';
 import { solveRelay } from './relay-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -79,10 +82,12 @@ test('new campaign offers only Prospector and Swift, while legacy shops keep all
     assert.equal(buyShip(c, 'aegis'), false);
     assert.deepEqual(c, before);
     assert.ok(hullUnlockReason(c, 'aegis'));
+    fundHull(c, 'swift');
     assert.ok(buyShip(c, 'swift'));
     const legacy = newCampaign();
     legacy.bank = { ore: 9999, parts: 9999 };
     legacy.station.workshop = 2;
+    fundHull(legacy, 'aegis');
     assert.ok(buyShip(legacy, 'aegis'));
     assert.equal(buyShip(legacy, 'lancer'), false);
     const poor = newStoryCampaign();
@@ -99,17 +104,21 @@ test('every normal hull has a campaign unlock and lunar construction opens Mule 
     contributeStory(c, 'earth-supply');
     beginRun(c, 1);
     finishRun(c, true, empty, 1, 'dock', c.activeRun!.repairKits, { data: ['relay'] });
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     assert.equal(hullUnlocked(c, 'mule'), false);
     grant(c, 'lunar-survey');
     grant(c, 'lunar-foundation');
+    assert.equal(hullUnlocked(c, 'mule'), false);
+    grant(c, 'lunar-commission');
     assert.ok(hullUnlocked(c, 'mule'));
     assert.equal(c.ship!.hull, 'prospector');
     assert.equal(buyShip(c, 'mule'), false);
     c.bank = { ore: 1000, parts: 1000 };
+    fundHull(c, 'mule');
     assert.ok(buyShip(c, 'mule'));
-    assert.equal(c.bank.ore, 1000 - HULLS.mule.ore);
+    assert.equal(c.bank.ore, 1000);
     for (const [hull, rule] of Object.entries(HULL_UNLOCKS)) {
         if (!c.story!.claimed.includes(rule.task)) grant(c, rule.task);
         assert.ok(hullUnlocked(c, hull as HullId));

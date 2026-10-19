@@ -1,3 +1,5 @@
+import type { Cargo } from '../state/campaign';
+import { resourceTotal, resourceSummary } from '../state/resources';
 import { ResearchEscort } from './escort';
 import { GAME, HULLS } from '../config';
 import { MOON } from '../worlds/moon';
@@ -15,13 +17,25 @@ export const MINING_CONVOY = {
 
 export class MiningEscort extends ResearchEscort {
     readonly grippers = new GripperSystem(HULLS.mule.grabbers, HULLS.mule.grabberRange);
-    cargoOre = 0;
-    cargoParts = 0;
+    readonly cargo: Cargo = { ore: 0, parts: 0 };
+    get cargoOre() {
+        return this.cargo.ore;
+    }
+    set cargoOre(n: number) {
+        this.cargo.ore = n;
+    }
+    get cargoParts() {
+        return this.cargo.parts;
+    }
+    set cargoParts(n: number) {
+        this.cargo.parts = n;
+    }
     deliveredOre = 0;
     trips = 0;
     repairProgress = 0;
     repairs = 0;
     returning = false;
+    processingReady = true;
     failed = '';
     underThreat = false;
     beam: { from: Point; to: Point } | null = null;
@@ -36,7 +50,7 @@ export class MiningEscort extends ResearchEscort {
         this.previous = this.position;
     }
     get cargoUsed() {
-        return this.cargoOre + this.cargoParts;
+        return resourceTotal(this.cargo);
     }
     get extracting() {
         return !this.returning && this.state === 'research' && !this.failed && !this.repairProgress;
@@ -44,7 +58,9 @@ export class MiningEscort extends ResearchEscort {
     get status() {
         if (this.failed) return `Muł: ${this.failed} · możesz kontynuować dostawy samodzielnie`;
         if (this.state === 'destroyed') return 'Muł zniszczony · dokończ dostawy lub ponów lot';
-        if (this.state === 'complete') return 'Fundamenty gotowe · Muł odblokowany';
+        if (this.state === 'complete') return 'Dostawy zakończone · odbierz instalacje stacji';
+        if (!this.processingReady)
+            return 'Muł czeka na montaż linii przetwarzania i zasilania stacji';
         if (this.state === 'idle') return 'Muł przy budowie · N: nawigacja · E: start eskorty';
         if (this.repairProgress)
             return `Muł: naprawa ${Math.floor(this.repairProgress)}/${GAME.repairSeconds} s`;
@@ -52,8 +68,7 @@ export class MiningEscort extends ResearchEscort {
             return this.waitingReason === 'player'
                 ? 'Muł czeka na eskortę'
                 : 'Muł czeka na udrożnienie drogi';
-        if (this.returning)
-            return `Muł: dostawa do budowy · ${this.cargoOre} Fe / ${this.cargoParts} K`;
+        if (this.returning) return `Muł: dostawa do budowy · ${resourceSummary(this.cargo)}`;
         if (this.extracting && this.underThreat)
             return 'Muł: wydobycie wstrzymane · usuń wrogów ze złoża';
         return `Muł: ${this.extracting ? 'wydobycie' : 'dolot do złoża'} · ładownia ${this.cargoUsed}/${MINING_CONVOY.target} · dostarczono ${this.deliveredOre} Fe`;
@@ -69,6 +84,7 @@ export class MiningEscort extends ResearchEscort {
         this.state = 'travel';
     }
     complete() {
+        this.failed = '';
         this.state = 'complete';
         this.body.setLinvel({ x: 0, y: 0 }, true);
         this.collider.setSensor(true);

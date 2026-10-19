@@ -1,3 +1,4 @@
+import { LunarStationView } from './ui/lunarStation';
 import type { ResourceStore } from './state/resources';
 import { RESOURCE_IDS } from './state/resources';
 import { manufacture, upgradeHyperdrive } from './state/production';
@@ -102,6 +103,7 @@ export class GameSession {
     lobby: LobbyView;
     private overlay = new Container();
     private hasOverlay = false;
+    private lunarStationOpen = false;
     private interactionPanel: Container | null = null;
     private interactionRevision = -1;
     private interactionModel: object | null = null;
@@ -263,6 +265,7 @@ export class GameSession {
                     !['escape', 'tab'].includes(message.data)
                 )
                     return;
+                if (this.lunarStationOpen) return;
                 if (message.name === 'keydown') {
                     this.sandboxSetup?.handleKey(message.data);
                     if (this.sandboxRun && !this.hasOverlay && !PopupContainer.hasActivePopup()) {
@@ -720,6 +723,33 @@ export class GameSession {
         }
         this.launching = false;
     }
+    private closeLunarStation() {
+        this.lunarStationOpen = false;
+        this.hasOverlay = false;
+        clear(this.overlay);
+        InputHandler.clear();
+        if (this.hud) this.hud.visible = true;
+        this.saves.save(this.campaign);
+    }
+    private openLunarStation() {
+        const world = this.mission;
+        if (!world?.simulation.canUseLunarStationFor(this.campaign) || this.hasOverlay) return;
+        this.hasOverlay = true;
+        this.lunarStationOpen = true;
+        world.audio.pause();
+        SoundManager.stopGroup('gameplay');
+        InputHandler.clear();
+        if (this.hud) this.hud.visible = false;
+        clear(this.overlay);
+        this.overlay.addChild(
+            new LunarStationView(
+                this.campaign,
+                world.simulation,
+                () => this.closeLunarStation(),
+                () => this.saves.save(this.campaign),
+            ),
+        );
+    }
     update(deltaMS: number) {
         this.background.setFlight(!!this.mission);
         if (this.mission) {
@@ -778,6 +808,11 @@ export class GameSession {
             repair: !tuning && InputHandler.isKeyPressed('REPAIR'),
             sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });
+        if (simInput.lunarStationRequested) {
+            simInput.lunarStationRequested = false;
+            this.openLunarStation();
+            if (this.lunarStationOpen) return;
+        }
         this.background.camera = this.mission.backgroundCamera;
         this.background.cameraAngle = this.mission.camera.rotation;
         this.background.cameraZoom = this.mission.backgroundZoom;

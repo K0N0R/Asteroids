@@ -665,12 +665,16 @@ test('stolen equipment unlocks only after safe return, leaves mounted weapon unc
         data: ['outpost'],
         equipment: 'rail',
     })!;
-    assert.equal(duplicate.reward.ore, 12);
-    assert.equal(duplicate.reward.parts, 3);
+    assert.equal(duplicate.reward.ore, 0);
+    assert.equal(duplicate.reward.parts, 1);
+    assert.equal(duplicate.reward.storageFrames, 1);
+    assert.equal(duplicate.reward.powerModules, 1);
     assert.ok(duplicate.equipmentText.includes('Duplikat'));
     assert.equal(c.ship!.weapons.filter((w) => w === 'rail').length, 1);
-    assert.equal(c.bank.ore, bank.ore + 12);
-    assert.equal(c.bank.parts, bank.parts + 3);
+    assert.equal(c.bank.ore, bank.ore);
+    assert.equal(c.bank.parts, bank.parts + 1);
+    assert.equal(c.bank.storageFrames, (bank.storageFrames ?? 0) + 1);
+    assert.equal(c.bank.powerModules, (bank.powerModules ?? 0) + 1);
     const lost = campaign();
     finishRun(lost, false, { ore: 0, parts: 0 }, 10, 'death', 0, {
         data: ['outpost'],

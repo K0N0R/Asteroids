@@ -1,3 +1,6 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
+import { fundHull } from './fleet-fixtures';
 import { solveRelay } from './relay-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,6 +44,7 @@ function earthReady() {
     c.bank.ore = 24;
     contributeStory(c, 'earth-supply');
     returning(c, ['relay']);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     returning(c, ['archive']);
@@ -89,6 +93,7 @@ test('required goals gate travel, optional work never blocks it, and backtrackin
     finishRun(ready, false, { ore: 99, parts: 2 }, 5, 'lost', 0, { data: ['relay'] });
     assert.equal(JSON.stringify(ready.story), before);
     assert.deepEqual(parseCampaign(JSON.stringify(ready)), ready);
+    fundHull(ready);
     assert.ok(buyShip(ready));
     assert.ok(hirePilot(ready, 0));
     assert.ok(beginRun(ready, 4));
@@ -298,6 +303,7 @@ test('a fresh starter can mine, scan, dock, build the workshop and unlock the lu
     assert.ok(c.bank.ore >= 24);
     contributeStory(c, 'earth-supply');
     assert.equal(storyRadius(c.story!), 2450);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     sortie('archive', false);

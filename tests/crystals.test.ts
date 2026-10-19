@@ -1,3 +1,5 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -24,26 +26,27 @@ const idle: FlightInput = {
     interact: false,
 };
 
-test('stronger ship and station upgrades require crystals with no partial payment', () => {
+test('station expansion and ship modules require manufactured parts instead of raw silicon', () => {
     const c = newCampaign();
-    c.bank = { ore: 500, parts: 80 };
+    c.bank = { ore: 500, parts: 80, propulsion: 6, storageFrames: 3 };
     c.station.workshop = 1;
     assert.ok(buyUpgrade(c, 'engine'));
-    assert.equal(upgradePrice(c, 'engine').crystals, 1);
+    assert.deepEqual(upgradePrice(c, 'engine'), {
+        ore: 0,
+        parts: 0,
+        propulsion: 4,
+        storageFrames: 2,
+    });
+    assert.ok(buyUpgrade(c, 'engine'));
     const before = { ...c.bank };
-    assert.equal(buyUpgrade(c, 'engine'), false);
+    assert.equal(buyUpgrade(c, 'workshop'), false);
     assert.deepEqual(c.bank, before);
-    c.bank.crystals = 3;
-    assert.ok(buyUpgrade(c, 'engine'));
-    assert.equal(c.bank.crystals, 2);
+    c.bank.crystals = 1000;
+    assert.equal(buyUpgrade(c, 'workshop'), false);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[1]);
     assert.ok(buyUpgrade(c, 'workshop'));
-    assert.equal(c.bank.crystals, 0);
-    assert.equal(c.station.workshop, 2);
-    c.bank.crystals = 2;
-    assert.ok(buyUpgrade(c, 'engine'));
-    assert.equal(c.ship!.engine, 3);
-    assert.equal(c.bank.crystals, 0);
-    assert.equal(scrapRefund(c.ship!).crystals, 1);
+    assert.equal(c.bank.crystals, 1000);
+    assert.equal(scrapRefund(c.ship!).crystals, undefined);
 });
 
 test('docking preserves all silicon, parts and iron; death still loses carried silicon', () => {

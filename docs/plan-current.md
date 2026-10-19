@@ -1,8 +1,40 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-19, wersja 0.82.
+Stan: 2026-10-19, wersja 0.86.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.86 — manifest i moduły bazy księżycowej
+
+Pierwsza faza budowy wymaga 8 poszyć stalowych I, 4 maszynerii I, 3 elektronik I, 2 układów zasilania I i 2 systemów podtrzymywania życia I. Manifest może przewozić kilka rodzajów części naraz, z zachowaniem limitu ładowni. C i E przekazują wszystkie wymagane rodzaje z aktualnego etapu. Dostawy częściowe pozostają na budowie po utracie statku lub ponownym uruchomieniu gry.
+
+Muł czeka na zamontowanie pięciu modułów. Następnie zbiera i dostarcza Żelazo (Fe) oraz Węgiel (C) do dalszej rozbudowy. Zbiera tylko aktualnie potrzebne pierwiastki i zachowuje darmową samonaprawę. Kadłub odblokowuje odbiór techniczny ukończonych instalacji. Baza ma większą, połączoną konstrukcję z zaokrąglonymi modułami pojawiającymi się po dostawach.
+
+Zakres i ograniczenia: [wdrożenie 0.86](implementation-v0.86.md). Lokalna linia jest obecnie częścią automatycznego procesu budowy; osobny magazyn oraz menu ręcznej produkcji w placówce pozostają następnym etapem. Manifesty Marsa i Wenus również wymagają przeniesienia na części. Dalej: warianty materiałowe, części II–III, cztery obszary Ziemi i zapętlona muzyka. Format kampanii 54, dziennik 22.
+
+## Wdrożenie 0.85 — urządzenia stacji z części
+
+Zaplecze I–II, podstawowy generator tarczy, hangar dronów, ręczna odbudowa utraconych dronów i osłony kinetyczne I–II wymagają konkretnych części. Zakupy pobierają cały komplet atomowo. Rozbudowa nadal odblokowuje technologie; samo przetwarzanie pozostaje ręczne w Laboratorium i Warsztacie. Magazyn nie ma limitu ani opłat za pojemność.
+
+Wspólny panel kosztów pokazuje ilustracje części, pełne nazwy i stopień skompletowania. Odbudowa dronów wycenia tylko utracone jednostki i nie leczy przy okazji uszkodzonych ocalałych. Pierwiastki do wyprodukowania pierwszego zaplecza są dostępne w początkowym rejonie Ziemi, bez hipernapędu lub wcześniejszej rozbudowy. Format zapisu 53 odrzuca poprzednie koszty.
+
+Zakres: [wdrożenie 0.85](implementation-v0.85.md). Pakiet 0.86 wdraża manifest części i etapową bazę księżycową — najpierw dostawa wyposażenia do własnego przeróbstwa, potem Muł zbierający lokalne pierwiastki. Ten etap obejmie jednocześnie wymagania, dostawy, odblokowanie Muła i widoczne moduły budowy. Stary schemat dostaw księżycowych zastąpiono w 0.86. Warianty materiałowe, części II–III, cztery obszary Ziemi i zapętlona muzyka pozostają w planie.
+
+## Wdrożenie 0.84 — moduły i uzbrojenie z części
+
+Sześć zwykłych modułów statku oraz warianty uzbrojenia wymagają konkretnych części. Kolejny poziom mnoży cały komplet, bez dodatkowej opłaty surowym żelazem lub krzemem. Każdy statek zachowuje własne moduły i zakupione warianty, a zmiana posiadanego uzbrojenia w bazie pozostaje darmowa.
+
+Hangar pokazuje pełne nazwy części przy wybranym module i uzbrojeniu. Zakup pobiera cały komplet atomowo. Złomowanie i recykling własnego wraku liczą połowę łącznej inwestycji z tych samych receptur; duplikat odzyskanego uzbrojenia daje właściwe części. Format zapisu 52 odrzuca starszą gospodarkę.
+
+Zakres: [wdrożenie 0.84](implementation-v0.84.md). Następne kroki: koszty urządzeń stacji i manifesty kampanii, następnie warianty materiałowe oraz części II–III. Cztery obszary Ziemi, etapowa baza księżycowa i zapętlona muzyka pozostają w planie.
+
+## Wdrożenie 0.83 — kadłuby z rodzin części
+
+Stocznia buduje statki z indywidualnych kompletów sześciu rodzin części poziomu I. Zakładka Budowa w panelu statku pokazuje ilustracje, wymagane ilości i braki. Nie kupujemy kadłubów za surowe żelazo; usunięto ich dawne ceny z konfiguracji. Podstawowy napęd i zasilanie są dostępne w początkowym warsztacie, aby nie blokować pierwszych konstrukcji.
+
+Zezłomowanie oraz recykling własnego wraku przy pełnym hangarze zwracają wszystkie właściwe rodziny części. Zwrot obejmuje także inwestycję w hipernapęd. Awaryjny statek zależy od posiadania części do odbudowy, a duży zapas pierwiastków nie blokuje pomocy po utracie ostatniego kadłuba. Format zapisu 51 odrzuca poprzednią gospodarkę.
+
+Zakres i ograniczenia: [wdrożenie 0.83](implementation-v0.83.md). Moduły i uzbrojenie przeniesiono na części w 0.84. Pozostałe kroki: warianty i części II–III, urządzenia stacji oraz manifesty kampanii. Cztery obszary Ziemi i etapowa baza księżycowa nadal pozostają do wdrożenia. Zapętlona muzyka `theme_loop.mp3` pozostaje w planie poniżej.
 
 ## Wdrożone — kuleczki pierwiastków na skałach
 

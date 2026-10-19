@@ -1,3 +1,9 @@
+import {
+    LUNAR_PROCESSING,
+    LUNAR_PROCESSING_TASKS,
+    lunarProcessingReady,
+} from './lunarConstruction';
+import { RESOURCES, type ResourceId } from './resources';
 import { recordCargoDelivery } from './earthLogistics';
 import { validDialogueHistory } from './dialogues';
 import { capacity, storageCapacity, storageUsed, type Campaign, type Cargo } from './campaign';
@@ -119,7 +125,7 @@ export interface StoryTask {
         | 'rescue'
         | 'factory'
         | 'kineticShield';
-    resource?: 'ore' | 'parts';
+    resource?: ResourceId;
     target: number;
     site?: ScanSiteId;
     dependencies: readonly string[];
@@ -161,7 +167,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Zaplecze stacji',
-        detail: 'Po zaopatrzeniu i przywróceniu łączności uruchom warsztat I w panelu Stacja.',
+        detail: 'Po zaopatrzeniu i przywróceniu łączności przygotuj części w Laboratorium i Warsztacie. Zamontuj zaplecze I w Rozbudowie stacji.',
         required: true,
         kind: 'workshop',
         target: 1,
@@ -206,30 +212,42 @@ export const STORY_TASKS: readonly StoryTask[] = [
         dependencies: [],
         reward: { ore: 15, parts: 2 },
     },
+    ...LUNAR_PROCESSING.map(
+        (module): StoryTask => ({
+            ...module,
+            sector: 'lunar',
+            act: 1,
+            required: true,
+            kind: 'delivery',
+            detail: `Przygotuj ${module.target} × ${RESOURCES[module.resource].name} w bazie. Dostarcz na powierzchnię Księżyca przez C lub E przy budowie.`,
+            dependencies: ['lunar-survey'],
+            reward: { ore: 0, parts: 0 },
+        }),
+    ),
     {
         id: 'lunar-foundation',
         sector: 'lunar',
         act: 1,
         title: 'Fundamenty stacji paliw',
-        detail: 'Na Księżycu podejdź do Muła; E rozpoczyna eskortę. Dostarczcie 160 rudy na budowę. Fundamenty odblokują Muła.',
+        detail: 'Po uruchomieniu lokalnej linii przetwarzania podejdź do Muła; E rozpoczyna eskortę. Dostarczcie 160 porcji Żelaza (Fe) na dalszą rozbudowę.',
         required: true,
         kind: 'delivery',
         resource: 'ore',
         target: 160,
-        dependencies: ['lunar-survey'],
+        dependencies: LUNAR_PROCESSING_TASKS,
         reward: { ore: 0, parts: 0 },
     },
     {
         id: 'lunar-installations',
         sector: 'lunar',
         act: 1,
-        title: 'Instalacje stacji paliw',
-        detail: 'Dostarcz na budowę 12 komponentów. E przy budowie albo transfer C do 300 m; dostawy mogą być częściowe.',
+        title: 'Węgiel do miejscowej produkcji',
+        detail: 'Lokalna linia wykorzysta Żelazo (Fe) i Węgiel (C) do rozbudowy konstrukcji. Dostarcz 2 porcje Węgla (C), samodzielnie lub z Mułem.',
         required: true,
         kind: 'delivery',
-        resource: 'parts',
-        target: 12,
-        dependencies: ['lunar-foundation'],
+        resource: 'carbon',
+        target: 2,
+        dependencies: LUNAR_PROCESSING_TASKS,
         reward: { ore: 0, parts: 0 },
     },
     {
@@ -242,7 +260,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         kind: 'scan',
         site: 'archive',
         target: 1,
-        dependencies: ['lunar-installations'],
+        dependencies: ['lunar-foundation', 'lunar-installations'],
         reward: { ore: 24, parts: 6 },
     },
     {
@@ -974,7 +992,7 @@ export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 21;
+    version: 22;
     dialogues: string[];
     sector: StorySectorId;
     progress: Record<string, number>;
@@ -982,7 +1000,7 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 21,
+    version: 22,
     dialogues: [],
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
@@ -1082,6 +1100,18 @@ export function beltTechnologyReady(p: StoryProgress) {
     return p.claimed.includes('mercury-technology');
 }
 export function storyNextStep(p: StoryProgress) {
+    if (p.sector === 'lunar' && !actOneComplete(p)) {
+        if (!p.claimed.includes('lunar-survey'))
+            return 'Rozpoznaj podejście do Księżyca i prześlij odczyt przez E.';
+        if (!lunarProcessingReady(p))
+            return 'Przygotuj części w Satuk 15. Załaduj manifest dostawy i przekaż wyposażenie na powierzchni. Każda dostawa uruchamia odpowiedni moduł stacji.';
+        if (!p.claimed.includes('lunar-foundation') || !p.claimed.includes('lunar-installations'))
+            return 'Lokalna linia działa. Uruchom Muła przez E i eskortuj wydobycie Żelaza (Fe) oraz Węgla (C). Możesz pomagać własnymi dostawami.';
+        if (!p.claimed.includes('lunar-commission'))
+            return 'Materiały dostarczone. E przy budowie: odbiór techniczny i odblokowanie kadłuba Muła.';
+        return 'Stacja odebrana. Osłoń budowę i odeprzyj atak, aby otworzyć dalszą trasę.';
+    }
+
     if (p.sector === 'pluto') {
         if (storySectorComplete(p, 'pluto'))
             return 'Cele operacyjne kampanii ukończone. Raport finałowego starcia zabezpieczony. Możesz wrócić do wcześniejszych sektorów i zadań dodatkowych.';
@@ -1245,7 +1275,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 21 ||
+        p.version !== 22 ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -1328,7 +1358,7 @@ export function recordLunarDefense(c: Campaign) {
 export function lunarBuildStage(p: StoryProgress) {
     return p.claimed.includes('lunar-commission')
         ? 3
-        : p.claimed.includes('lunar-installations')
+        : p.claimed.includes('lunar-installations') && p.claimed.includes('lunar-foundation')
           ? 2
           : p.claimed.includes('lunar-foundation')
             ? 1
@@ -1380,49 +1410,70 @@ export function acknowledgeStoryBriefing(c: Campaign) {
     p.progress[task.id] = 1;
     return settle(c);
 }
-export function pendingLunarDelivery(c: Campaign, cargo: Cargo) {
+export function lunarDeliveryTasks(c: Campaign) {
+    const p = c.story;
+    return p?.sector === 'lunar'
+        ? STORY_TASKS.filter(
+              (t) =>
+                  t.sector === 'lunar' &&
+                  t.kind === 'delivery' &&
+                  !p.claimed.includes(t.id) &&
+                  storyTaskAvailable(p, t),
+          )
+        : [];
+}
+export function pendingLunarDeliveries(c: Campaign, cargo: Cargo) {
     const p = c.story;
     if (
         !p ||
-        p.sector !== 'lunar' ||
         c.activeRun?.sector !== 'lunar' ||
         c.activeRun.area !== 'surface' ||
         c.activeRun.mission?.aborted
     )
-        return null;
-    const task = STORY_TASKS.find(
-        (t) => t.kind === 'delivery' && !p.claimed.includes(t.id) && storyTaskAvailable(p, t),
-    );
-    if (!task?.resource) return null;
-    const amount = Math.min(cargo[task.resource], task.target - p.progress[task.id]);
-    if (amount <= 0) return null;
-    return { task, resource: task.resource, amount };
+        return [];
+    return lunarDeliveryTasks(c).flatMap((task) => {
+        if (!task.resource) return [];
+        const amount = Math.min(cargo[task.resource] ?? 0, task.target - p.progress[task.id]);
+        return amount > 0 ? [{ task, resource: task.resource, amount }] : [];
+    });
+}
+export function pendingLunarDelivery(c: Campaign, cargo: Cargo) {
+    return pendingLunarDeliveries(c, cargo)[0] ?? null;
 }
 export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = true) {
-    const pending = pendingLunarDelivery(c, cargo);
-    if (!pending) return null;
-    const { task, amount } = pending;
-    const p = c.story!;
-    cargo[pending.resource] -= amount;
-    // Loaded supplies are delivered first; newly mined cargo still earns normal XP on return.
-    if (playerDelivery) recordCargoDelivery(c, { ore: 0, parts: 0, [pending.resource]: amount });
-    p.progress[task.id] += amount;
-    const change = settle(c);
-    return { amount, resource: pending.resource, change };
+    if (!playerDelivery && (!c.story || !lunarProcessingReady(c.story))) return null;
+    const pending = pendingLunarDeliveries(c, cargo);
+    if (!pending.length) return null;
+    const accepted: Cargo = { ore: 0, parts: 0 };
+    for (const { task, resource, amount } of pending) {
+        cargo[resource] = (cargo[resource] ?? 0) - amount;
+        accepted[resource] = (accepted[resource] ?? 0) + amount;
+        c.story!.progress[task.id] += amount;
+    }
+    if (playerDelivery) recordCargoDelivery(c, accepted);
+    return {
+        amount: Object.values(accepted).reduce((sum, n) => sum + n, 0),
+        resource: pending[0].resource,
+        accepted,
+        change: settle(c),
+    };
 }
 export function constructionManifest(c: Campaign): Cargo {
-    const cargo = { ore: 0, parts: 0 };
-    const p = c.story;
-    if (!p || p.sector !== 'lunar' || !c.ship || c.activeRun) return cargo;
-    const task = STORY_TASKS.find(
-        (t) => t.kind === 'delivery' && !p.claimed.includes(t.id) && storyTaskAvailable(p, t),
-    );
-    if (task?.resource)
-        cargo[task.resource] = Math.min(
-            capacity(c),
-            c.bank[task.resource],
-            task.target - p.progress[task.id],
+    const cargo: Cargo = { ore: 0, parts: 0 };
+    if (!c.ship || c.activeRun) return cargo;
+    let free = capacity(c);
+    for (const task of lunarDeliveryTasks(c)) {
+        const id = task.resource!;
+        const count = Math.min(
+            free,
+            (c.bank[id] ?? 0) - (cargo[id] ?? 0),
+            task.target - c.story!.progress[task.id],
         );
+        if (count > 0) {
+            cargo[id] = (cargo[id] ?? 0) + count;
+            free -= count;
+        }
+    }
     return cargo;
 }
 export function contributeStory(c: Campaign, id: string): StoryChange | null {
@@ -1590,6 +1641,14 @@ export function storyObjectives(
     }
     return storyDiscoveredTasks(p)
         .filter((t) => p.sector !== 'mars' || !beltTechnologyReady(p) || t.act === 5)
+        .filter(
+            (t) =>
+                !(
+                    p.sector === 'lunar' &&
+                    lunarProcessingReady(p) &&
+                    LUNAR_PROCESSING_TASKS.some((id) => id === t.id)
+                ),
+        )
         .map((task) => ({
             id: task.id,
             title: `${c.activeRun?.mission?.task === task.id ? '▶ ' : ''}${task.title}`,

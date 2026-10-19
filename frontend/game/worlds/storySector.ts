@@ -896,45 +896,25 @@ export function generateStorySector(progress: StoryProgress) {
                 (r) => Math.hypot(r.x - NEPTUNE_ARENA.x, r.y - NEPTUNE_ARENA.y) > r.radius + 1200,
             );
     }
-    if (progress.sector === 'earth') {
+    if (earth) {
+        // All ingredients for electronics and the first production upgrade must be
+        // reachable before that upgrade; repeated sorties can supply larger batches.
         const veins = [
-            { x: 1060, y: -180 },
-            { x: 1210, y: 150 },
+            { x: 1060, y: -180, radius: 34, rich: true, copper: true, variant: 2 },
+            { x: 1210, y: 150, radius: 34, rich: true, copper: true, variant: 7 },
+            { x: 970, y: 300, radius: 32, rich: true, variant: 0 },
+            { x: 1120, y: -360, radius: 32, rich: true, variant: 1 },
+            { x: 950, y: -200, radius: 32, rich: false, crystal: true, variant: 71 },
+            { x: 1220, y: 330, radius: 32, rich: false, crystal: true, variant: 72 },
         ];
         sector.rocks = sector.rocks.filter((r) =>
-            veins.every((p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 80),
+            veins.every((p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + p.radius + 20),
         );
-        veins.forEach((p, i) =>
-            sector.rocks.push({
-                ...p,
-                radius: 34,
-                rich: true,
-                copper: true,
-                variant: 2 + i * 5,
-                vx: 0,
-                vy: 0,
-            }),
-        );
+        for (const vein of veins) sector.rocks.push({ ...vein, vx: 0, vy: 0 });
         const field = sector.landmarks.find((l) => l.key === 2);
-        if (field) field.name = 'Złoże Fe / Cu';
+        if (field) field.name = 'Złoże pierwiastków';
     }
     if (earth && progress.claimed.includes('earth-workshop')) {
-        // A first fuel batch must be reachable before installing or fuelling a drive.
-        for (const [i, point] of [
-            { x: 950, y: -200 },
-            { x: 1220, y: 230 },
-        ].entries())
-            sector.rocks.push({
-                ...point,
-                radius: 32,
-                crystal: true,
-                rich: false,
-                variant: 71 + i,
-                vx: 4 + i,
-                vy: -3,
-            });
-        const localField = sector.landmarks.find((l) => l.key === 2);
-        if (localField) localField.name = 'Złoże Fe / Cu / H';
         sector.rocks.push({
             x: 130,
             y: -4500,

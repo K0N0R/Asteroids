@@ -1,3 +1,4 @@
+import { fundHull } from './fleet-fixtures';
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -146,6 +147,7 @@ test('full hangar converts the rescued hull to materials without warehouse overf
         signal = c.recoverySignals[0];
     emergencyKit(c);
     c.bank.ore = 100;
+    fundHull(c, 'prospector', 5);
     while (c.reserveShips.length < 5) assert.ok(buyShip(c));
     const refund = scrapRefund(signal.ship!);
     c.bank = { ore: 149, parts: 0 };

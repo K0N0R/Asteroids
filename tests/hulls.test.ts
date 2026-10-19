@@ -1,3 +1,6 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WEAPON_PARTS } from '../frontend/game/state/equipmentCosts';
+import { HULL_CONSTRUCTION } from '../frontend/game/state/fleetConstruction';
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -10,7 +13,6 @@ import {
     STINGER_AMMO,
     PHOENIX,
     HullId,
-    WEAPONS,
     FLEET_LIMIT,
     shipUpgradeDefinition,
 } from '../frontend/game/config';
@@ -20,6 +22,7 @@ import {
     parseCampaign,
     buyShip,
     buyUpgrade,
+    upgradePrice,
     scrapRefund,
     beginRun,
 } from '../frontend/game/state/campaign';
@@ -37,13 +40,13 @@ before(async () => {
 });
 test('Phoenix purchase preserves a central laser, two short grabbers and medium cargo in saves', () => {
     const campaign = newCampaign();
-    campaign.bank = { ore: HULLS.phoenix.ore, parts: HULLS.phoenix.parts };
+    campaign.bank = { ore: 0, parts: 0, ...HULL_CONSTRUCTION.phoenix };
     campaign.station.workshop = 1;
     assert.equal(buyShip(campaign, 'phoenix'), false);
-    assert.deepEqual(campaign.bank, { ore: HULLS.phoenix.ore, parts: HULLS.phoenix.parts });
+    assert.deepEqual(campaign.bank, { ore: 0, parts: 0, ...HULL_CONSTRUCTION.phoenix });
     campaign.station.workshop = 2;
     assert.ok(buyShip(campaign, 'phoenix'));
-    assert.deepEqual(campaign.bank, { ore: 0, parts: 0 });
+    assert.ok(Object.values(campaign.bank).every((n) => n === 0));
     assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
     assert.deepEqual(HULLS.phoenix.lasers, [{ x: 42, y: 0 }]);
     assert.equal(HULLS.phoenix.grabbers.length, 2);
@@ -194,8 +197,11 @@ test('Phoenix saved projector and rocket upgrades affect both weapons and comple
     campaign.ship!.hull = 'phoenix';
     campaign.station.workshop = 2;
     campaign.bank = { ore: 80, parts: 40, crystals: 3 };
+    fundEquipment(campaign, upgradePrice(campaign, 'drill'));
     assert.ok(buyUpgrade(campaign, 'drill'));
+    fundEquipment(campaign, upgradePrice(campaign, 'drill'));
     assert.ok(buyUpgrade(campaign, 'drill'));
+    fundEquipment(campaign, upgradePrice(campaign, 'handling'));
     assert.ok(buyUpgrade(campaign, 'handling'));
     const loaded = parseCampaign(JSON.stringify(campaign))!;
     assert.ok(loaded);
@@ -229,13 +235,13 @@ test('Phoenix saved projector and rocket upgrades affect both weapons and comple
 });
 test('Stinger requires workshop II, persists its identity and fires four guns without a laser', () => {
     const campaign = newCampaign();
-    campaign.bank = { ore: HULLS.stinger.ore, parts: HULLS.stinger.parts };
+    campaign.bank = { ore: 0, parts: 0, ...HULL_CONSTRUCTION.stinger };
     campaign.station.workshop = 1;
     assert.equal(buyShip(campaign, 'stinger'), false);
-    assert.deepEqual(campaign.bank, { ore: HULLS.stinger.ore, parts: HULLS.stinger.parts });
+    assert.deepEqual(campaign.bank, { ore: 0, parts: 0, ...HULL_CONSTRUCTION.stinger });
     campaign.station.workshop = 2;
     assert.equal(buyShip(campaign, 'stinger'), true);
-    assert.deepEqual(campaign.bank, { ore: 0, parts: 0 });
+    assert.ok(Object.values(campaign.bank).every((n) => n === 0));
     assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
     campaign.ship!.hull = 'stinger';
     const sim = new MissionSimulation(campaign, 71);
@@ -629,9 +635,12 @@ test('Aegis specialized upgrades survive saves and strengthen energy shots, dron
     campaign.station.workshop = 2;
     campaign.station.storage = 3;
     campaign.bank = { ore: 350, parts: 40, crystals: 20 };
-    for (const upgrade of ['drill', 'handling', 'shield'] as const)
+    for (const upgrade of ['drill', 'handling', 'shield'] as const) {
+        fundEquipment(campaign, upgradePrice(campaign, upgrade));
         assert.ok(buyUpgrade(campaign, upgrade));
+    }
     assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
+    fundEquipment(campaign, WEAPON_PARTS.rail);
     assert.ok(equipWeapon(campaign, 'rail'));
     assert.ok(equipWeapon(campaign, 'standard'));
     const sim = new MissionSimulation(campaign, 71);
@@ -864,17 +873,18 @@ test('Atlas saved grenade upgrades launch symmetric cone salvos and block ordina
     campaign.station.workshop = 2;
     campaign.station.storage = 3;
     campaign.bank = { ore: 300, parts: 80, crystals: 20 };
-    for (let level = 0; level < 3; level++) assert.ok(buyUpgrade(campaign, 'drill'));
+    for (let level = 0; level < 3; level++) {
+        fundEquipment(campaign, upgradePrice(campaign, 'drill'));
+        assert.ok(buyUpgrade(campaign, 'drill'));
+    }
+    fundEquipment(campaign, upgradePrice(campaign, 'handling'));
     assert.ok(buyUpgrade(campaign, 'handling'));
     assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
     const bank = { ...campaign.bank };
+    fundEquipment(campaign, WEAPON_PARTS.rail);
     assert.ok(equipWeapon(campaign, 'rail'));
     assert.ok(equipWeapon(campaign, 'standard'));
-    assert.deepEqual(campaign.bank, {
-        ore: bank.ore - WEAPONS.rail.ore,
-        parts: bank.parts - WEAPONS.rail.parts,
-        crystals: bank.crystals,
-    });
+    assert.deepEqual(campaign.bank, { ...bank, powerModules: 0, storageFrames: 0 });
     const sim = new MissionSimulation(campaign, 71);
     try {
         clean(sim, true);
@@ -1031,9 +1041,10 @@ test('Harpoon jaws deal high ship damage, count kills once and cannot be fitted 
         c.ship!.hull = 'harpoon';
         c.station.workshop = 2;
         c.bank = { ore: 100, parts: 20 };
+        fundEquipment(c, WEAPON_PARTS.rail);
         assert.ok(equipWeapon(c, 'rail'));
         assert.ok(equipWeapon(c, 'standard'));
-        assert.deepEqual(c.bank, { ore: 76, parts: 14 });
+        assert.deepEqual(c.bank, { ore: 100, parts: 20, storageFrames: 0, powerModules: 0 });
     } finally {
         sim.dispose();
     }
@@ -1086,7 +1097,9 @@ test('Harpoon joint and jaw upgrades persist and improve actual reach and crushi
         c.bank = { ore: 300, parts: 110, crystals: 20 };
         if (upgraded)
             for (let level = 0; level < 3; level++) {
+                fundEquipment(c, upgradePrice(c, 'handling'));
                 assert.ok(buyUpgrade(c, 'handling'));
+                fundEquipment(c, upgradePrice(c, 'drill'));
                 assert.ok(buyUpgrade(c, 'drill'));
             }
         assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
@@ -1165,7 +1178,7 @@ test('all hull types can be purchased and saved while the hangar remains limited
     )) {
         const campaign = newCampaign();
         campaign.station.workshop = 2;
-        campaign.bank = { ore: HULLS[hull].ore, parts: HULLS[hull].parts };
+        campaign.bank = { ore: 0, parts: 0, ...HULL_CONSTRUCTION[hull] };
         assert.ok(buyShip(campaign, hull));
         assert.deepEqual(parseCampaign(JSON.stringify(campaign)), campaign);
     }
@@ -1173,7 +1186,7 @@ test('all hull types can be purchased and saved while the hangar remains limited
     c.station.workshop = 1;
     for (const hull of (Object.keys(HULLS) as HullId[]).slice(0, FLEET_LIMIT)) {
         if (hull === 'prospector') continue;
-        c.bank = { ore: HULLS[hull].ore, parts: HULLS[hull].parts };
+        c.bank = { ore: 0, parts: 0, ...HULL_CONSTRUCTION[hull] };
         assert.ok(buyShip(c, hull));
     }
     assert.equal(c.reserveShips.length, FLEET_LIMIT - 1);
@@ -1185,7 +1198,7 @@ test('utility hulls require workshop II and charge their full cost only once on 
     for (const hull of ['atlas', 'harpoon'] as const) {
         const c = newCampaign();
         c.station.workshop = 1;
-        c.bank = { ore: HULLS[hull].ore, parts: HULLS[hull].parts };
+        c.bank = { ore: 0, parts: 0, ...HULL_CONSTRUCTION[hull] };
         const bank = { ...c.bank };
         assert.equal(buyShip(c, hull), false);
         assert.deepEqual(c.bank, bank);
@@ -1194,7 +1207,7 @@ test('utility hulls require workshop II and charge their full cost only once on 
         assert.equal(buyShip(c, hull), false);
         c.bank.parts++;
         assert.ok(buyShip(c, hull));
-        assert.deepEqual(c.bank, { ore: 0, parts: 0 });
+        assert.ok(Object.values(c.bank).every((n) => n === 0));
         assert.equal(c.ship!.hull, hull);
         assert.equal(c.reserveShips[0].hull, 'prospector');
     }
@@ -1204,9 +1217,11 @@ test('maneuvering modules are purchased per ship, affect actual rotation and are
     c.bank = { ore: 80, parts: 20, crystals: 3 };
     c.station.workshop = 2;
     const initial = scrapRefund(c.ship!);
+    fundEquipment(c, upgradePrice(c, 'handling'));
     assert.ok(buyUpgrade(c, 'handling'));
+    fundEquipment(c, upgradePrice(c, 'handling'));
     assert.ok(buyUpgrade(c, 'handling'));
-    assert.ok(scrapRefund(c.ship!).ore > initial.ore);
+    assert.ok((scrapRefund(c.ship!).propulsion ?? 0) > (initial.propulsion ?? 0));
     const sim = new MissionSimulation(c, 7),
         base = new MissionSimulation(newCampaign(), 7);
     try {

@@ -144,7 +144,7 @@ export const RECIPES = {
         inputs: { storageFrames: 1, electronics: 1, steel: 1 },
         output: 'propulsion',
         amount: 1,
-        level: 1,
+        level: 0,
         explanation: 'Napęd jest zespołem części mechanicznych, sterowania i osłon.',
     },
     power: {
@@ -153,7 +153,7 @@ export const RECIPES = {
         inputs: { electronics: 1, conductors: 2, parts: 1 },
         output: 'powerModules',
         amount: 1,
-        level: 1,
+        level: 0,
         explanation: 'Gotowy układ rozprowadza energię do urządzeń stacji lub statku.',
     },
     kit: {

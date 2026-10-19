@@ -1,4 +1,10 @@
 import {
+    lunarProcessingReady,
+    lunarConstructionReady,
+    lunarModules,
+} from '../state/lunarConstruction';
+import { pendingLunarDeliveries, lunarDeliveryTasks } from '../state/story';
+import {
     mineralDeposit,
     mineralSample,
     MINERAL_SCAN_RANGE,
@@ -37,7 +43,6 @@ import {
     PLUTO_ARENA,
     plutoFinaleReady,
     deliverLunarCargo,
-    pendingLunarDelivery,
     lunarBuildStage,
     recordLunarDefense,
     VENUS_OUTPOST,
@@ -215,10 +220,10 @@ export class MissionSimulation {
     }
     get cargoTransferManifest(): Cargo {
         if (this.area === 'orbit') return { ...this.cargo };
-        const pending = pendingLunarDelivery(this.campaign, this.cargo);
-        return pending
-            ? { ore: 0, parts: 0, [pending.resource]: pending.amount }
-            : { ore: 0, parts: 0 };
+        const result: Cargo = { ore: 0, parts: 0 };
+        for (const pending of pendingLunarDeliveries(this.campaign, this.cargo))
+            result[pending.resource] = (result[pending.resource] ?? 0) + pending.amount;
+        return result;
     }
     get canTransferCargo() {
         return (
@@ -278,11 +283,7 @@ export class MissionSimulation {
                     const delivery =
                         this.area === 'surface'
                             ? construction && {
-                                  accepted: {
-                                      ore: 0,
-                                      parts: 0,
-                                      [construction.resource]: construction.amount,
-                                  },
+                                  accepted: construction.accepted,
                                   ...construction.change,
                               }
                             : receiveStationCargo(this.campaign, this.cargo);
@@ -423,6 +424,9 @@ export class MissionSimulation {
     private opticalCloakPressed = false;
     revealTime = 0;
     tow: TowBody | null = null;
+    lunarStationRequested = false;
+    private lunarStationHeld = false;
+    private lunarStationProgress = 0;
     dockProgress = 0;
     engineFault = false;
     repairProgress = 0;
@@ -603,7 +607,7 @@ export class MissionSimulation {
         if (
             campaign.story?.sector === 'lunar' &&
             campaign.story.claimed.includes('lunar-survey') &&
-            !campaign.story.claimed.includes('lunar-foundation')
+            !lunarConstructionReady(campaign.story)
         ) {
             this.prepareMiningField(false);
         }
@@ -667,11 +671,13 @@ export class MissionSimulation {
         this.escort =
             campaign.story?.sector === 'lunar' &&
             campaign.story.claimed.includes('lunar-survey') &&
-            !campaign.story.claimed.includes('lunar-foundation')
+            !lunarConstructionReady(campaign.story)
                 ? new MiningEscort(this.world)
                 : campaign.activeRun?.contract === 7
                   ? new ResearchEscort(this.world, this.sector.researchSite)
                   : null;
+        if (this.miningEscort)
+            this.miningEscort.processingReady = lunarProcessingReady(campaign.story!);
         this.guide =
             campaign.story?.sector === 'earth' &&
             campaign.activeRun?.sector === 'earth' &&
@@ -968,6 +974,9 @@ export class MissionSimulation {
             this.campaign.story.claimed.includes('lunar-survey')
         );
     }
+    get lunarModuleStates() {
+        return this.campaign.story ? lunarModules(this.campaign.story) : undefined;
+    }
     get buildStage() {
         return this.campaign.story ? lunarBuildStage(this.campaign.story) : 0;
     }
@@ -1039,6 +1048,58 @@ export class MissionSimulation {
                 Math.hypot(l.x - this.position.x, l.y - this.position.y) < l.radius,
         );
     }
+    canUseLunarStationFor(c: Campaign) {
+        return c === this.campaign && this.canUseLunarStation;
+    }
+    get canUseLunarStation() {
+        return (
+            !!this.campaign.activeRun &&
+            this.campaign.story?.sector === 'lunar' &&
+            this.area === 'surface' &&
+            this.nearbyConstruction &&
+            lunarProcessingReady(this.campaign.story) &&
+            this.hull > 0 &&
+            !this.ended &&
+            this.speed < 35 &&
+            this.damageCooldown <= 0 &&
+            !this.transferActive &&
+            !this.hyperdrive.active &&
+            !this.lunarDefense.active &&
+            !this.lunarAssault.active &&
+            !this.campaign.activeRun.mission?.aborted &&
+            ![...this.enemies.enemies.values()].some(
+                (e) =>
+                    Math.hypot(
+                        enemyPosition(e).x - this.position.x,
+                        enemyPosition(e).y - this.position.y,
+                    ) < 750,
+            )
+        );
+    }
+    private updateLunarStation(input: FlightInput, dt: number) {
+        if (!input.interact) this.lunarStationHeld = false;
+        const canOpen =
+            this.canUseLunarStation &&
+            !this.lunarStationHeld &&
+            !this.thrusting &&
+            !input.brake &&
+            !input.turn &&
+            !input.fire &&
+            !input.mine &&
+            !input.repair &&
+            !input.sabotage &&
+            this.cargoTransferRemaining <= 0 &&
+            !this.grippers.arms.some((a) => a.held || a.phase !== 'idle') &&
+            (this.buildStage < 2
+                ? pendingLunarDeliveries(this.campaign, this.cargo).length === 0
+                : this.buildStage >= 3);
+        this.lunarStationProgress = canOpen && input.interact ? this.lunarStationProgress + dt : 0;
+        if (this.lunarStationProgress + 1e-8 >= 2) {
+            this.lunarStationRequested = true;
+            this.lunarStationHeld = true;
+            this.lunarStationProgress = 0;
+        }
+    }
     get nearbyConstruction() {
         return (
             this.area === 'surface' &&
@@ -1049,6 +1110,13 @@ export class MissionSimulation {
         );
     }
     get surfaceContext() {
+        if (
+            this.canUseLunarStation &&
+            (this.buildStage < 2
+                ? pendingLunarDeliveries(this.campaign, this.cargo).length === 0
+                : this.buildStage >= 3)
+        )
+            return 'E przez 2 s · baza księżycowa: Laboratorium / Warsztat / Magazyn';
         if (this.outerSector && (this.firstBoss.active || this.nearbyBossArena))
             return this.bossStartProgress > 0
                 ? `Przygotowanie starcia · ${Math.floor((this.bossStartProgress / 2) * 100)}%`
@@ -1075,10 +1143,11 @@ export class MissionSimulation {
                   ? `Zmiana obszaru · ${Math.floor((this.passageProgress / MOON.transferSeconds) * 100)}%`
                   : `Przytrzymaj E przez 2 s · ${this.area === 'orbit' ? 'lot nad Księżycem' : 'powrót na orbitę'} · poniżej 60 m/s`;
         if (this.nearbyConstruction && this.buildStage < 2) {
-            const key = this.buildStage === 0 ? 'lunar-foundation' : 'lunar-installations';
-            const n = this.campaign.story!.progress[key],
-                target = STORY_TASKS.find((t) => t.id === key)!.target;
-            return `Budowa · ${this.buildStage === 0 ? 'ruda' : 'komponenty'} ${n}/${target} · C transfer lub E 2 s · dostawa pozostaje na budowie`;
+            const tasks = lunarDeliveryTasks(this.campaign),
+                task = tasks[0];
+            return task
+                ? `Budowa · ${RESOURCES[task.resource!].name} ${this.campaign.story!.progress[task.id]}/${task.target}${tasks.length > 1 ? ` · pozostałe pozycje: ${tasks.length - 1}` : ''} · C transfer / E 2 s`
+                : 'Linia przetwarzania gotowa · uruchom Muła przez E';
         }
         return this.nearbyConstruction && this.defenseAvailable ? this.lunarDefense.summary : '';
     }
@@ -1491,9 +1560,10 @@ export class MissionSimulation {
                 this.rocks.delete(rock.id);
             }
         }
-        if (!this.campaign.story!.claimed.includes('lunar-foundation')) {
+        if (!lunarConstructionReady(this.campaign.story!)) {
             this.prepareMiningField(true);
             this.escort = new MiningEscort(this.world);
+            this.miningEscort!.processingReady = lunarProcessingReady(this.campaign.story!);
         }
         this.areaRevision++;
     }
@@ -1994,28 +2064,28 @@ export class MissionSimulation {
             if (
                 this.miningEscort &&
                 this.miningEscort.state !== 'destroyed' &&
-                this.campaign.story!.claimed.includes('lunar-foundation')
+                lunarConstructionReady(this.campaign.story!)
             ) {
                 this.miningEscort.complete();
             } else if (completed && this.miningEscort) {
                 const e = this.miningEscort;
-                const cargo = { ore: e.cargoOre, parts: e.cargoParts };
+                const cargo = e.cargo;
                 const result = deliverLunarCargo(this.campaign, cargo, false);
                 if (result?.change.titles.length)
                     this.radioMessages.push(
                         `Budowa potwierdza dostawę Muła. Ukończono: ${result.change.titles.join(', ')}.`,
                     );
-                e.deliveredOre += e.cargoOre - cargo.ore;
-                e.cargoOre = cargo.ore;
-                e.cargoParts = cargo.parts;
+                e.deliveredOre += result?.accepted.ore ?? 0;
                 e.trips++;
                 this.deliveryRevision++;
-                if (this.campaign.story!.claimed.includes('lunar-foundation')) {
+                if (lunarConstructionReady(this.campaign.story!)) {
                     e.complete();
-                    this.setNotice('Fundamenty ukończone · kadłub Muła odblokowany.');
+                    this.setNotice('Dostawy ukończone · E przy instalacjach: odbiór techniczny.');
                 } else {
                     e.resumeMining();
-                    this.setNotice(`Muł dostarczył ${result?.amount ?? 0} Fe · kolejny kurs.`);
+                    this.setNotice(
+                        `Muł dostarczył ${result ? resourceSummary(result.accepted) : '0'} · kolejny kurs.`,
+                    );
                 }
             } else if (completed) {
                 this.surveyData.add('escort');
@@ -2258,6 +2328,7 @@ export class MissionSimulation {
         this.updateRecovery(input, dt);
         this.updateSalvage(input, dt);
         this.updateSurface(input, dt);
+        this.updateLunarStation(input, dt);
         this.updateOrbitalBase(input, dt);
         this.updateFirstBoss(input, dt);
         this.updateLunarDefense(input, dt);
@@ -2348,6 +2419,12 @@ export class MissionSimulation {
             e.grippers.clear();
             return;
         }
+        const needed = (kind: ResourceId) =>
+            lunarDeliveryTasks(this.campaign).some(
+                (t) =>
+                    t.resource === kind &&
+                    t.target - this.campaign.story!.progress[t.id] > (e.cargo[kind] ?? 0),
+            );
         e.grippers.enabled = e.extracting && !hostileNear && e.cooldown <= 0;
         e.grippers.update(
             dt,
@@ -2358,13 +2435,11 @@ export class MissionSimulation {
             new Map(
                 [...this.loot].filter(
                     ([id, loot]) =>
-                        (loot.kind === 'ore' || loot.kind === 'parts') &&
-                        !this.grippers.arms.some((arm) => arm.targetId === id),
+                        needed(loot.kind) && !this.grippers.arms.some((arm) => arm.targetId === id),
                 ),
             ),
             (kind) => {
-                if (kind === 'ore') e.cargoOre++;
-                else if (kind === 'parts') e.cargoParts++;
+                e.cargo[kind] = (e.cargo[kind] ?? 0) + 1;
                 this.events.push({ ...e.position, kind: 'collect', rich: kind === 'parts' });
             },
             (a, b) =>
@@ -2378,7 +2453,10 @@ export class MissionSimulation {
         );
         for (const [id, loot] of this.loot) if (loot.amount === 0) this.loot.delete(id);
         if (!e.extracting || hostileNear || e.cooldown > 0) return;
-        if (e.cargoUsed >= MINING_CONVOY.target) {
+        if (
+            e.cargoUsed >= MINING_CONVOY.target ||
+            (e.cargoUsed > 0 && !lunarDeliveryTasks(this.campaign).some((t) => needed(t.resource!)))
+        ) {
             e.returnToStation();
             return;
         }
@@ -2387,7 +2465,7 @@ export class MissionSimulation {
             .filter(
                 (l) =>
                     l.amount > 0 &&
-                    (l.kind === 'ore' || l.kind === 'parts') &&
+                    needed(l.kind) &&
                     Math.hypot(l.x - MINING_CONVOY.site.x, l.y - MINING_CONVOY.site.y) < 1150 &&
                     !this.grippers.arms.some((a) => a.targetId === l.id),
             )
@@ -2418,7 +2496,7 @@ export class MissionSimulation {
             .filter(
                 (r) =>
                     !r.defense &&
-                    (r.deposit.total.ore ?? 0) > 0 &&
+                    RESOURCE_IDS.some((id) => needed(id) && (r.deposit.total[id] ?? 0) > 0) &&
                     !r.crystal &&
                     Math.hypot(r.body.translation().x * P - p.x, r.body.translation().y * P - p.y) <
                         MINING_CONVOY.radius,
@@ -2433,6 +2511,7 @@ export class MissionSimulation {
                 .filter(
                     (r) =>
                         !r.defense &&
+                        RESOURCE_IDS.some((id) => needed(id) && (r.deposit.total[id] ?? 0) > 0) &&
                         !r.crystal &&
                         Math.hypot(
                             r.previous.x - MINING_CONVOY.site.x,
@@ -2451,7 +2530,7 @@ export class MissionSimulation {
                     x: rp.x + ((p.x - rp.x) / d) * (remaining.radius + 120),
                     y: rp.y + ((p.y - rp.y) / d) * (remaining.radius + 120),
                 });
-            } else if (e.cargoOre) e.returnToStation();
+            } else if (e.cargoUsed) e.returnToStation();
             else e.fail('złoże wyczerpane');
             return;
         }
@@ -2537,7 +2616,14 @@ export class MissionSimulation {
     }
     private updateEscort(input: FlightInput, dt: number) {
         const e = this.escort;
-        if (!e || (this.miningEscort && this.area !== 'surface')) return;
+        if (this.miningEscort)
+            this.miningEscort.processingReady = lunarProcessingReady(this.campaign.story!);
+        if (
+            !e ||
+            (this.miningEscort &&
+                (this.area !== 'surface' || !lunarProcessingReady(this.campaign.story!)))
+        )
+            return;
         if (!input.interact) e.startHeld = false;
         if (e.state === 'idle') {
             const canStart =
@@ -5118,6 +5204,13 @@ export class MissionSimulation {
                 );
             }
         }
+        if (
+            this.canUseLunarStation &&
+            pendingLunarDeliveries(this.campaign, this.cargo).length === 0
+        ) {
+            this.constructionProgress = 0;
+            return;
+        }
         if (!this.nearbyConstruction || !ready || this.buildStage >= 2)
             this.constructionProgress = 0;
         else {
@@ -5127,11 +5220,11 @@ export class MissionSimulation {
                 this.constructionProgress = 0;
                 if (result) {
                     this.radioMessages.push(
-                        `Budowa przyjęła ${result.amount} ${result.resource === 'ore' ? 'Fe' : 'komponentów'}. ${result.change.titles.length ? `Ukończono: ${result.change.titles.join(', ')}.` : 'Dostawa częściowa zapisana.'}`,
+                        `Budowa przyjęła ${resourceSummary(result.accepted)}. ${result.change.titles.length ? `Ukończono: ${result.change.titles.join(', ')}.` : 'Dostawa częściowa zapisana.'}`,
                     );
                     this.deliveryRevision++;
                     this.setNotice(
-                        `Dostarczono ${result.amount} ${result.resource === 'ore' ? 'rudy' : 'komponentów'} · postęp budowy zapisany`,
+                        `Dostarczono ${resourceSummary(result.accepted)} · postęp budowy zapisany`,
                     );
                     this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
                 } else this.setNotice('Brak wymaganych materiałów w ładowni · wróć do złoża');

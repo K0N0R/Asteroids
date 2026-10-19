@@ -1,3 +1,5 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -74,6 +76,7 @@ test('Earth briefings follow real mission reports, survive saves and replay with
     finishSequence(d);
     assert.equal(finishSequence(d), 'earth-open-orbit');
     assert.equal(pendingDialogue(d), null);
+    fundEquipment(d, WORKSHOP_CONSTRUCTION[d.station.workshop]);
     assert.ok(buyUpgrade(d, 'workshop'));
     syncStory(d);
     assert.equal(pendingDialogue(d), null);

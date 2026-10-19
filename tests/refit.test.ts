@@ -1,3 +1,6 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WEAPON_PARTS } from '../frontend/game/state/equipmentCosts';
+import { fundHull } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -56,6 +59,7 @@ function arena(
 test('Swift is an entry scout with gun, laser and passive radar jamming; Widmo is advanced', () => {
     const c = newCampaign();
     c.bank = { ore: 35, parts: 2 };
+    fundHull(c, 'swift');
     assert.ok(buyShip(c, 'swift'));
     assert.equal(HULLS.swift.guns.length, 1);
     assert.equal(HULLS.swift.lasers.length, 1);
@@ -146,7 +150,9 @@ test('every hull can buy and switch role-specific armament variants only in base
         c.ship!.hull = hull;
         c.station.workshop = 2;
         c.bank = { ore: 100, parts: 20 };
+        fundEquipment(c, WEAPON_PARTS.pulse);
         assert.ok(equipWeapon(c, 'pulse'), hull);
+        fundEquipment(c, WEAPON_PARTS.rail);
         assert.ok(equipWeapon(c, 'rail'), hull);
         const bank = { ...c.bank };
         assert.ok(equipWeapon(c, 'pulse'), hull);

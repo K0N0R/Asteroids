@@ -1,3 +1,5 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -35,6 +37,7 @@ function ready() {
         });
     };
     report('relay');
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     buyUpgrade(c, 'workshop');
     syncStory(c);
     report('archive');

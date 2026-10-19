@@ -205,8 +205,6 @@ export interface HullDefinition {
     maxSpeed: number;
     size: number;
     miningPower: number;
-    ore: number;
-    parts: number;
     workshop: number;
     recovery: number;
     boost: number;
@@ -234,8 +232,6 @@ export const HULLS = {
         maxSpeed: GAME.maxSpeed,
         size: 1,
         miningPower: 1,
-        ore: 15,
-        parts: 0,
         workshop: 0,
         recovery: 0.1,
         boost: 1.45,
@@ -262,8 +258,6 @@ export const HULLS = {
         maxSpeed: 520,
         size: 0.9,
         miningPower: 1,
-        ore: 35,
-        parts: 2,
         workshop: 0,
         recovery: 0.18,
         boost: 1.6,
@@ -290,8 +284,6 @@ export const HULLS = {
         maxSpeed: 260,
         size: 1.25,
         miningPower: 1.3,
-        ore: 85,
-        parts: 6,
         workshop: 1,
         recovery: 0.22,
         boost: 1.25,
@@ -328,8 +320,6 @@ export const HULLS = {
         maxSpeed: 480,
         size: 1,
         miningPower: 1,
-        ore: 90,
-        parts: 7,
         workshop: 1,
         recovery: 0.18,
         boost: 1.65,
@@ -359,8 +349,6 @@ export const HULLS = {
         maxSpeed: 280,
         size: 1.25,
         miningPower: 1,
-        ore: 95,
-        parts: 6,
         workshop: 1,
         recovery: 0.3,
         boost: 1.25,
@@ -393,8 +381,6 @@ export const HULLS = {
         maxSpeed: 560,
         size: 1.1,
         miningPower: 1,
-        ore: 120,
-        parts: 9,
         workshop: 1,
         recovery: 0.22,
         boost: 2.1,
@@ -427,8 +413,6 @@ export const HULLS = {
         maxSpeed: 620,
         size: 0.9,
         miningPower: 1,
-        ore: 165,
-        parts: 14,
         workshop: 2,
         recovery: 0.18,
         boost: 1.6,
@@ -455,8 +439,6 @@ export const HULLS = {
         maxSpeed: 220,
         size: 1.35,
         miningPower: 0.85,
-        ore: 180,
-        parts: 16,
         workshop: 2,
         recovery: 0.25,
         boost: 1.2,
@@ -491,8 +473,6 @@ export const HULLS = {
         maxSpeed: 430,
         size: 1.15,
         miningPower: 1,
-        ore: 155,
-        parts: 14,
         workshop: 2,
         recovery: 0.3,
         boost: 1.4,
@@ -527,8 +507,6 @@ export const HULLS = {
         maxSpeed: 340,
         size: 1.15,
         miningPower: 1,
-        ore: 210,
-        parts: 22,
         workshop: 2,
         recovery: 0.3,
         boost: 1.35,
@@ -558,8 +536,6 @@ export const HULLS = {
         maxSpeed: 680,
         size: 0.95,
         miningPower: 0.8,
-        ore: 165,
-        parts: 14,
         workshop: 2,
         recovery: 0.14,
         boost: 1.95,
@@ -594,8 +570,6 @@ export const HULLS = {
         maxSpeed: 540,
         size: 1.05,
         miningPower: 1,
-        ore: 190,
-        parts: 18,
         workshop: 2,
         recovery: 0.2,
         boost: 1.7,
@@ -628,8 +602,6 @@ export const HULLS = {
         maxSpeed: 410,
         size: 1,
         miningPower: 1,
-        ore: 70,
-        parts: 5,
         workshop: 2,
         recovery: 0.18,
         boost: 1.65,
@@ -660,8 +632,6 @@ export const HULLS = {
         maxSpeed: 290,
         size: 1,
         miningPower: 1,
-        ore: 110,
-        parts: 9,
         workshop: 2,
         recovery: 0.18,
         boost: 1.65,
@@ -749,38 +719,27 @@ export type Upgrade =
     | 'shield'
     | 'workshop'
     | 'storage';
-export const UPGRADES: Record<
-    Upgrade,
-    { title: string; detail: string; ore: number; parts: number }
-> = {
-    engine: { title: 'Silnik impulsowy', detail: 'Ciąg +15% / poziom', ore: 12, parts: 8 },
+export const UPGRADES: Record<Upgrade, { title: string; detail: string }> = {
+    engine: { title: 'Silnik impulsowy', detail: 'Ciąg +15% / poziom' },
     handling: {
         title: 'Dysze manewrowe',
         detail: 'Skręt i reakcja na klawisze +20% / poziom',
-        ore: 10,
-        parts: 6,
     },
-    cargo: { title: 'Moduł ładowni', detail: 'Pojemność +15 / poziom', ore: 8, parts: 6 },
+    cargo: { title: 'Moduł ładowni', detail: 'Pojemność +15 / poziom' },
     drill: {
         title: 'Laser wydobywczy',
         detail: 'Moc lasera +25% / poziom',
-        ore: 12,
-        parts: 10,
     },
-    armor: { title: 'Wzmocnienie kadłuba', detail: 'Kadłub +25 / poziom', ore: 10, parts: 8 },
+    armor: { title: 'Wzmocnienie kadłuba', detail: 'Kadłub +25 / poziom' },
     shield: {
         title: 'Tarcza kinetyczna',
         detail: 'Pojemność +25%, regeneracja +15% / poziom',
-        ore: 14,
-        parts: 10,
     },
     workshop: {
         title: 'Zaplecze produkcyjne',
         detail: 'Odblokowuje wyższy poziom modułów',
-        ore: 30,
-        parts: 3,
     },
-    storage: { title: 'Magazyn stacji', detail: 'Pojemność +100 / poziom', ore: 25, parts: 1 },
+    storage: { title: 'Magazyn stacji', detail: 'Pojemność +100 / poziom' },
 };
 
 export const WIDMO = { duration: 3, cooldown: 12 } as const;
@@ -988,8 +947,6 @@ export const WEAPONS = {
         speed: GAME.shotSpeed,
         life: 1.15,
         length: GAME.gunLength,
-        ore: 0,
-        parts: 0,
         workshop: 0,
     },
     pulse: {
@@ -1000,8 +957,6 @@ export const WEAPONS = {
         speed: 1050,
         life: 0.8,
         length: 28,
-        ore: 16,
-        parts: 3,
         workshop: 1,
     },
     rail: {
@@ -1012,8 +967,6 @@ export const WEAPONS = {
         speed: 1700,
         life: 1.2,
         length: 42,
-        ore: 24,
-        parts: 6,
         workshop: 1,
     },
 } as const;

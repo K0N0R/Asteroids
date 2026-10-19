@@ -1,3 +1,5 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -28,10 +30,18 @@ function ready() {
     finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock', c.activeRun!.repairKits, {
         data: ['relay'],
     });
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     c.station.shield = true;
-    c.bank = { ore: 80, parts: 24, powerModules: 6 };
+    c.bank = {
+        ore: 80,
+        parts: 24,
+        powerModules: 6,
+        electronics: 6,
+        storageFrames: 3,
+        propulsion: 6,
+    };
     return c;
 }
 
@@ -41,8 +51,8 @@ test('sentry hangar validates requirements atomically and installs exactly three
         (c: ReturnType<typeof ready>) => c.story!.claimed.splice(0),
         (c: ReturnType<typeof ready>) => (c.station.workshop = 0),
         (c: ReturnType<typeof ready>) => (c.station.shield = false),
-        (c: ReturnType<typeof ready>) => (c.bank.ore = 39),
-        (c: ReturnType<typeof ready>) => (c.bank.parts = 11),
+        (c: ReturnType<typeof ready>) => (c.bank.electronics = 2),
+        (c: ReturnType<typeof ready>) => (c.bank.parts = 8),
         (c: ReturnType<typeof ready>) => (c.bank.powerModules = 2),
         (c: ReturnType<typeof ready>) => beginRun(c, 1),
     ]) {
@@ -55,7 +65,14 @@ test('sentry hangar validates requirements atomically and installs exactly three
     }
     const c = ready();
     assert.ok(installStationDrones(c));
-    assert.deepEqual(c.bank, { ore: 40, parts: 12, powerModules: 3 });
+    assert.deepEqual(c.bank, {
+        ore: 80,
+        parts: 15,
+        powerModules: 3,
+        electronics: 3,
+        storageFrames: 0,
+        propulsion: 3,
+    });
     assert.equal(c.station.sentries?.length, STATION_DRONES.count);
     assert.ok(c.station.sentries?.every((drone) => drone.hull === STATION_DRONES.hull));
     const snapshot = structuredClone(c);

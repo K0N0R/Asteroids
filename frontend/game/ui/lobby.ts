@@ -1,3 +1,6 @@
+import { constructionCosts } from './constructionCosts';
+import { WEAPON_PARTS, canAffordEquipment } from '../state/equipmentCosts';
+import { HULL_CONSTRUCTION, HULL_PARTS, hasHullParts } from '../state/fleetConstruction';
 import { itemIllustration } from '../graphics/items';
 import { stationShieldContent, stationDronesContent } from './stationShield';
 import { laboratoryOverview, workshopOverview } from './production';
@@ -135,7 +138,7 @@ export class LobbyView extends Container {
     private weaponFocus: WeaponId = 'standard';
     private shopHull: HullId = 'swift';
     private shopPage = 0;
-    private hullDetailMode: 'stats' | 'upgrades' = 'stats';
+    private hullDetailMode: 'stats' | 'construction' | 'upgrades' = 'stats';
     private modulePreviewMode: ModulePreviewMode = 'current';
     private modulePreviewLevel = 1;
     private pilotMode: 'roster' | 'recruit' = 'roster';
@@ -263,7 +266,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.82', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.87', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
@@ -336,7 +339,7 @@ export class LobbyView extends Container {
         );
         if (
             !ready &&
-            ((!c.ship && (c.reserveShips.length > 0 || c.bank.ore < HULLS.prospector.ore)) ||
+            ((!c.ship && (c.reserveShips.length > 0 || !hasHullParts(c.bank, 'prospector'))) ||
                 (!c.pilots.length && c.bank.ore < 12))
         )
             button(
@@ -351,10 +354,10 @@ export class LobbyView extends Container {
                 27,
             );
         const manifest = constructionManifest(c);
-        if (ready && manifest.ore + manifest.parts > 0)
+        if (ready && resourceTotal(manifest) > 0)
             button(
                 ui,
-                `WYLOT Z DOSTAWĄ · ${manifest.ore} R / ${manifest.parts} K`,
+                `WYLOT Z DOSTAWĄ · ${resourceTotal(manifest)} części / porcji`,
                 1072,
                 775,
                 456,
@@ -565,6 +568,7 @@ export class LobbyView extends Container {
             170,
             () => {
                 this.hangarMode = 'shop';
+                this.hullDetailMode = 'construction';
                 this.refresh();
             },
             this.hangarMode === 'shop',
@@ -676,6 +680,7 @@ export class LobbyView extends Container {
             label(ui, 'Hangar czeka na nowy statek.', 392, 431, 25, C.muted);
             button(ui, 'Otwórz stocznię', 425, 494, 330, () => {
                 this.hangarMode = 'shop';
+                this.hullDetailMode = 'construction';
                 this.refresh();
             });
         }
@@ -754,13 +759,18 @@ export class LobbyView extends Container {
             456,
         );
         label(ui, config.role, 1072, 318, 15, C.muted);
-        for (const [i, mode] of (['stats', 'upgrades'] as const).entries())
+        if (owned && this.hullDetailMode === 'construction') this.hullDetailMode = 'stats';
+        const modes = owned
+            ? (['stats', 'upgrades'] as const)
+            : (['stats', 'construction', 'upgrades'] as const);
+        const modeWidth = (456 - (modes.length - 1) * 12) / modes.length;
+        for (const [i, mode] of modes.entries())
             button(
                 ui,
-                mode === 'stats' ? 'Parametry' : 'Ulepszenia',
-                1072 + i * 234,
+                mode === 'stats' ? 'Parametry' : mode === 'construction' ? 'Budowa' : 'Ulepszenia',
+                1072 + i * (modeWidth + 12),
                 350,
-                222,
+                modeWidth,
                 () => {
                     this.hullDetailMode = mode;
                     this.refresh();
@@ -768,8 +778,26 @@ export class LobbyView extends Container {
                 this.hullDetailMode === mode,
                 true,
                 34,
+                15,
             );
-        if (this.hullDetailMode === 'upgrades')
+        if (this.hullDetailMode === 'construction') {
+            label(ui, 'CZĘŚCI DO BUDOWY · POZIOM I', 1072, 400, 12, C.muted);
+            HULL_PARTS.forEach((id, i) => {
+                const need = HULL_CONSTRUCTION[modules.hull][id],
+                    have = c.bank[id] ?? 0;
+                illustrationInBox(ui, itemIllustration(id), 1072, 413 + i * 38, 28, 28);
+                label(ui, RESOURCES[id].name, 1112, 420 + i * 38, 15, C.text, 285);
+                const amount = label(
+                    ui,
+                    `${Math.min(have, need)} / ${need}`,
+                    1528,
+                    420 + i * 38,
+                    16,
+                    have >= need ? C.mint : C.gold,
+                );
+                amount.setHorizontalAlign('right');
+            });
+        } else if (this.hullDetailMode === 'upgrades')
             this.shipModules(
                 ui,
                 {
@@ -865,14 +893,31 @@ export class LobbyView extends Container {
                       ? `Wymagany warsztat ${config.workshop === 2 ? 'II' : 'I'}`
                       : full
                         ? 'Hangar pełny · zwolnij miejsce we flocie'
-                        : 'ZAKUP KADŁUBA BAZOWEGO',
+                        : 'BUDOWA KADŁUBA Z CZĘŚCI',
                 1072,
                 650,
                 12,
                 projectLock || locked || full ? C.gold : C.muted,
                 456,
             );
-            cost(ui, config.ore, config.parts, 1072, 684);
+            const completed = HULL_PARTS.filter(
+                (id) => (c.bank[id] ?? 0) >= HULL_CONSTRUCTION[modules.hull][id],
+            ).length;
+            const materials = label(
+                ui,
+                `Części gotowe: ${completed} / ${HULL_PARTS.length}`,
+                1072,
+                688,
+                15,
+                hasHullParts(c.bank, modules.hull) ? C.mint : C.gold,
+                456,
+            );
+            materials.eventMode = 'static';
+            materials.cursor = 'pointer';
+            materials.on('pointertap', () => {
+                this.hullDetailMode = 'construction';
+                this.refresh();
+            });
             button(
                 ui,
                 projectLock
@@ -881,7 +926,7 @@ export class LobbyView extends Container {
                       ? 'ROZBUDUJ ZAPLECZE →'
                       : full
                         ? 'OTWÓRZ FLOTĘ →'
-                        : 'KUP STATEK →',
+                        : 'ZBUDUJ STATEK →',
                 1072,
                 STATION_LAYOUT.actionY,
                 456,
@@ -898,8 +943,7 @@ export class LobbyView extends Container {
                     }
                 },
                 true,
-                !projectLock &&
-                    (locked || full || (c.bank.ore >= config.ore && c.bank.parts >= config.parts)),
+                !projectLock && (locked || full || hasHullParts(c.bank, modules.hull)),
                 STATION_LAYOUT.actionHeight,
             );
         }
@@ -994,7 +1038,19 @@ export class LobbyView extends Container {
             429,
         );
         label(ui, HULLS[ship.hull].detail, 1072, 530, 17, C.muted, 456);
-        cost(ui, w.ore, w.parts, 1072, 674);
+        label(
+            ui,
+            owned
+                ? 'Wariant należy do tego statku.'
+                : `Koszt: ${resourceSummary(WEAPON_PARTS[id])}`,
+            1072,
+            620,
+            16,
+            C.cyan,
+            456,
+        );
+        if (!owned && c.station.workshop < w.workshop)
+            label(ui, `Wymagane zaplecze produkcyjne ${w.workshop}.`, 1072, 690, 14, C.gold, 456);
         button(
             ui,
             mounted ? 'ZAMONTOWANE' : owned ? 'ZAMONTUJ →' : 'KUP I ZAMONTUJ →',
@@ -1003,11 +1059,11 @@ export class LobbyView extends Container {
             456,
             () => this.actions.equipWeapon(id),
             true,
-            !mounted &&
+            !c.activeRun &&
+                !mounted &&
                 (owned ||
                     (c.station.workshop >= w.workshop &&
-                        c.bank.ore >= w.ore &&
-                        c.bank.parts >= w.parts)),
+                        canAffordEquipment(c.bank, WEAPON_PARTS[id]))),
             48,
         );
     }
@@ -1031,15 +1087,12 @@ export class LobbyView extends Container {
             12,
             C.muted,
         );
-        const hint = label(
-            ui,
-            shipUpgradeDefinition(ship.hull, this.moduleFocus).detail,
-            1072,
-            preview ? 610 : 685,
-            preview ? 13 : 12,
-            C.muted,
-            456,
-        );
+        const describe = (key: typeof this.moduleFocus) => {
+            const level = preview ? 0 : ship[key];
+            const detail = shipUpgradeDefinition(ship.hull, key).detail;
+            return `${detail}\n${!preview && level >= limit ? 'Osiągnięto limit zaplecza.' : `Koszt: ${resourceSummary(upgradePrice({ ...c, ship: { ...ship, [key]: level } }, key))}`}`;
+        };
+        const hint = label(ui, describe(this.moduleFocus), 1072, 610, 13, C.muted, 456);
         (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).forEach((key, i) => {
             const level = ship[key],
                 price = upgradePrice(
@@ -1060,7 +1113,7 @@ export class LobbyView extends Container {
                     key,
                 ),
                 definition = shipUpgradeDefinition(ship.hull, key),
-                y = preview ? 427 + i * 30 : 435 + i * 34;
+                y = 427 + i * 30;
             const title = label(
                 ui,
                 definition.title,
@@ -1078,17 +1131,13 @@ export class LobbyView extends Container {
                 this.refresh();
             });
             title.on('pointerenter', () => {
-                hint.setText(definition.detail);
+                hint.setText(describe(key));
             });
-            title.on('pointerleave', () =>
-                hint.setText(shipUpgradeDefinition(ship.hull, this.moduleFocus).detail),
-            );
+            title.on('pointerleave', () => hint.setText(describe(this.moduleFocus)));
             segments(ui, level, 3, 1288, y + 5, 69);
             const buy = button(
                 ui,
-                !preview && level >= limit
-                    ? 'MAX'
-                    : `${price.ore}R ${price.parts}K${price.crystals ? ` ${price.crystals}◆` : ''}`,
+                !preview && level >= limit ? 'MAX' : preview ? 'PODGLĄD' : 'ULEPSZ',
                 1390,
                 y - 6,
                 138,
@@ -1105,15 +1154,11 @@ export class LobbyView extends Container {
                 },
                 false,
                 preview ||
-                    (active &&
-                        level < limit &&
-                        c.bank.ore >= price.ore &&
-                        c.bank.parts >= price.parts &&
-                        (c.bank.crystals ?? 0) >= (price.crystals ?? 0)),
-                30,
+                    (active && !c.activeRun && level < limit && canAffordEquipment(c.bank, price)),
+                26,
             );
             buy.config.onHover = () => {
-                hint.setText(definition.detail);
+                hint.setText(describe(key));
             };
         });
         if (!preview) {
@@ -1123,15 +1168,15 @@ export class LobbyView extends Container {
                 level >= 3
                     ? 'Hipernapęd III. Przeloty przez śluzy bez paliwa.'
                     : `Hipernapęd ${next}: ${4 * next} × Poszycie stalowe I · ${next} × Zespół napędowy I · ${next} × Układ zasilania I. Zaplecze I.`;
-            const driveTitle = label(ui, 'Hipernapęd', 1072, 639, 16, C.text);
+            const driveTitle = label(ui, 'Hipernapęd', 1072, 683, 16, C.text);
             driveTitle.eventMode = 'static';
             driveTitle.on('pointerenter', () => hint.setText(detail));
-            segments(ui, level, 3, 1288, 644, 69);
+            segments(ui, level, 3, 1288, 688, 69);
             const install = button(
                 ui,
                 level >= 3 ? 'MAX' : level ? 'ULEPSZ' : 'ZAMONTUJ',
                 1390,
-                633,
+                677,
                 138,
                 () => this.actions.upgradeHyperdrive?.(),
                 false,
@@ -1147,7 +1192,7 @@ export class LobbyView extends Container {
                 12,
             );
             install.config.onHover = () => hint.setText(detail);
-            const title = label(ui, `Poziom ${level}/3 · śluzy bez paliwa`, 1072, 662, 12, C.muted);
+            const title = label(ui, `Poziom ${level}/3 · śluzy bez paliwa`, 1072, 705, 11, C.muted);
             title.eventMode = 'static';
             title.on('pointerenter', () => hint.setText(detail));
         }
@@ -1213,8 +1258,8 @@ export class LobbyView extends Container {
             C.muted,
             456,
         );
-        label(ui, level >= limit ? 'MAKSYMALNY POZIOM' : 'KOSZT ROZBUDOWY', 1072, 649, 12, C.muted);
-        if (level < limit) cost(ui, price.ore, price.parts, 1072, 674, false, price.crystals ?? 0);
+        if (level < limit) constructionCosts(ui, c.bank, price);
+        else label(ui, 'MAKSYMALNY POZIOM', 1072, 649, 12, C.muted);
         button(
             ui,
             level >= limit ? 'MAKSYMALNY POZIOM' : 'ROZBUDUJ ZAPLECZE →',
@@ -1223,11 +1268,7 @@ export class LobbyView extends Container {
             456,
             () => this.actions.upgrade('workshop'),
             true,
-            !c.activeRun &&
-                level < limit &&
-                c.bank.ore >= price.ore &&
-                c.bank.parts >= price.parts &&
-                (c.bank.crystals ?? 0) >= (price.crystals ?? 0),
+            !c.activeRun && level < limit && canAffordEquipment(c.bank, price),
             STATION_LAYOUT.actionHeight,
         );
     }
@@ -1746,9 +1787,10 @@ export class LobbyView extends Container {
         panel(ui, 425, 265, 750, 370);
         label(ui, `Zezłomować ${HULLS[ship.hull].name} #${ship.id}?`, 469, 302, 29);
         label(ui, 'Kadłub i zamontowane moduły zostaną usunięte.', 469, 360, 18, C.red);
-        label(ui, 'ODZYSKANE SUROWCE', 469, 409, 12, C.muted);
-        cost(ui, refund.ore, refund.parts, 469, 435, false, refund.crystals ?? 0);
-        if (!room) label(ui, 'Brak miejsca w magazynie na odzysk.', 469, 482, 16, C.gold);
+        label(ui, 'ODZYSKANE CZĘŚCI I MATERIAŁY', 469, 409, 12, C.muted);
+        label(ui, resourceSummary(refund), 469, 435, 17, C.cyan, 650);
+        if (!room)
+            label(ui, 'Zbyt duża ilość zasobów do rozliczenia odzysku.', 469, 508, 16, C.gold);
         button(ui, 'Anuluj', 469, 544, 300, () => {
             this.scrapCandidate = null;
             this.refresh();

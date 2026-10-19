@@ -1,3 +1,5 @@
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -27,9 +29,10 @@ function ready() {
     finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock', c.activeRun!.repairKits, {
         data: ['relay'],
     });
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
-    c.bank = { ore: 50, parts: 10, powerModules: 3 };
+    c.bank = { ore: 50, parts: 10, powerModules: 3, electronics: 3, storageFrames: 2 };
     return c;
 }
 function clear(sim: MissionSimulation) {
@@ -45,11 +48,11 @@ function clear(sim: MissionSimulation) {
     sim.enemies.colliders.clear();
 }
 
-test('station shield enforces unlock, workshop, crew, costs and one-time installation without partial spending', () => {
+test('station shield enforces unlock, workshop, parts and one-time installation without partial spending', () => {
     for (const mutate of [
         (c: ReturnType<typeof ready>) => c.story!.claimed.splice(0),
         (c: ReturnType<typeof ready>) => (c.station.workshop = 0),
-        (c: ReturnType<typeof ready>) => (c.bank.ore = 29),
+        (c: ReturnType<typeof ready>) => (c.bank.electronics = 2),
         (c: ReturnType<typeof ready>) => (c.bank.parts = 5),
         (c: ReturnType<typeof ready>) => (c.bank.powerModules = 2),
         (c: ReturnType<typeof ready>) => beginRun(c, 1),
@@ -65,7 +68,13 @@ test('station shield enforces unlock, workshop, crew, costs and one-time install
     assert.equal(stationProtectionRadius(c), 260);
     assert.ok(installStationShield(c));
     assert.equal(stationProtectionRadius(c), 850);
-    assert.deepEqual(c.bank, { ore: 20, parts: 4, powerModules: 0 });
+    assert.deepEqual(c.bank, {
+        ore: 50,
+        parts: 4,
+        powerModules: 0,
+        electronics: 0,
+        storageFrames: 0,
+    });
     const before = structuredClone(c);
     assert.equal(installStationShield(c), false);
     assert.deepEqual(c, before);

@@ -39,7 +39,7 @@ function ready(hull: HullId = 'harpoon') {
     c.station.storage = 1;
     c.station.shield = true;
     c.ship = newShip(1, hull);
-    c.bank = { ore: 100, parts: 30, powerModules: 6, storageFrames: 1 };
+    c.bank = { ore: 100, parts: 30, powerModules: 6, storageFrames: 1, electronics: 2 };
     for (const t of STORY_TASKS.filter(
         (t) => (t.act <= 3 && t.required) || t.id === 'mercury-survey',
     )) {

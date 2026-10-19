@@ -1,3 +1,4 @@
+import { WEAPON_PARTS, spendEquipment } from './equipmentCosts';
 import { WEAPONS, type WeaponId } from '../config';
 import type { Campaign } from './campaign';
 
@@ -7,14 +8,8 @@ export function equipWeapon(c: Campaign, id: WeaponId) {
     if (c.activeRun || !ship || !Object.hasOwn(WEAPONS, id) || ship.weapon === id) return false;
     const weapon = WEAPONS[id];
     if (!ship.weapons.includes(id)) {
-        if (
-            c.station.workshop < weapon.workshop ||
-            c.bank.ore < weapon.ore ||
-            c.bank.parts < weapon.parts
-        )
+        if (c.station.workshop < weapon.workshop || !spendEquipment(c.bank, WEAPON_PARTS[id]))
             return false;
-        c.bank.ore -= weapon.ore;
-        c.bank.parts -= weapon.parts;
         ship.weapons.push(id);
     }
     ship.weapon = id;

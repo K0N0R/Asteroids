@@ -1,3 +1,6 @@
+import { grantLunarProcessing } from './fleet-fixtures';
+import { fundEquipment } from './fleet-fixtures';
+import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -40,6 +43,7 @@ function ready() {
     finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock', c.activeRun!.repairKits, {
         data: ['relay'],
     });
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     beginRun(c, 1);
@@ -47,6 +51,7 @@ function ready() {
     travelStory(c, 'lunar');
     beginRun(c, 1);
     finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock', 0, { data: ['relay'] });
+    grantLunarProcessing(c);
     return c;
 }
 function steer(
@@ -240,7 +245,7 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
         assert.ok(e.ambushed);
         assert.ok(s.enemyKills >= 2);
         assert.equal(c.story!.progress['lunar-foundation'], 160);
-        assert.ok(hullUnlocked(c, 'mule'));
+        assert.equal(hullUnlocked(c, 'mule'), false);
         assert.ok(parseCampaign(JSON.stringify(c)));
         assert.equal(
             s.surveyData.has('escort'),
@@ -390,16 +395,16 @@ test('player and Mule deliver to one persistent construction counter, including 
         assert.equal(e.cargoOre, 0);
         assert.equal(e.trips, 1);
         assert.equal(hullUnlocked(c, 'mule'), false);
-        const rest = { ore: 45, parts: 0 };
+        const rest = { ore: 45, parts: 0, carbon: 2 };
         deliverLunarCargo(c, rest);
         s.step(idle);
         assert.equal(rest.ore, 15);
         assert.equal(c.story!.progress['lunar-foundation'], 160);
         assert.equal(e.state, 'complete');
-        assert.ok(hullUnlocked(c, 'mule'));
+        assert.equal(hullUnlocked(c, 'mule'), false);
         finishRun(c, false, s.cargo, s.elapsed, 'loss');
         assert.equal(c.story!.progress['lunar-foundation'], 160);
-        assert.ok(hullUnlocked(c, 'mule'));
+        assert.equal(hullUnlocked(c, 'mule'), false);
     } finally {
         s.dispose();
     }

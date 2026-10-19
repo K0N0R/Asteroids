@@ -469,7 +469,11 @@ export class MissionWorld extends Container {
         while (this.accumulator >= GAME.step) {
             this.simulation.step(input);
             this.accumulator -= GAME.step;
-            if (this.simulation.ended || this.simulation.pendingChoice) {
+            if (
+                this.simulation.ended ||
+                this.simulation.pendingChoice ||
+                this.simulation.lunarStationRequested
+            ) {
                 this.accumulator = 0;
                 break;
             }
@@ -651,6 +655,7 @@ export class MissionWorld extends Container {
                 ? lunarTransferPose(s.transferFraction, s.area === 'surface', 1).detail
                 : 1,
             s.passageProgress,
+            s.lunarModuleStates,
         );
         this.moon.updateDefense(
             s.lunarDefense,

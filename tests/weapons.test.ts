@@ -27,7 +27,7 @@ const idle: FlightInput = {
 };
 function ready() {
     const c = newCampaign();
-    c.bank = { ore: 100, parts: 20 };
+    c.bank = { ore: 100, parts: 20, electronics: 3, powerModules: 4, storageFrames: 3 };
     c.station.workshop = 1;
     return c;
 }
@@ -37,16 +37,28 @@ test('weapon purchases require the workshop and enough resources, charge once an
     c.station.workshop = 0;
     assert.equal(equipWeapon(c, 'rail'), false);
     c.station.workshop = 1;
-    c.bank.parts = 5;
+    c.bank.parts = 2;
     assert.equal(equipWeapon(c, 'rail'), false);
     assert.equal(c.bank.ore, 100);
     c.bank.parts = 20;
     assert.ok(equipWeapon(c, 'rail'));
-    assert.deepEqual(c.bank, { ore: 76, parts: 14 });
+    assert.deepEqual(c.bank, {
+        ore: 100,
+        parts: 17,
+        electronics: 3,
+        powerModules: 2,
+        storageFrames: 1,
+    });
     assert.equal(equipWeapon(c, 'rail'), false);
     assert.ok(equipWeapon(c, 'standard'));
     assert.ok(equipWeapon(c, 'rail'));
-    assert.deepEqual(c.bank, { ore: 76, parts: 14 });
+    assert.deepEqual(c.bank, {
+        ore: 100,
+        parts: 17,
+        electronics: 3,
+        powerModules: 2,
+        storageFrames: 1,
+    });
     assert.deepEqual(c.ship!.weapons, ['standard', 'rail']);
     beginRun(c, 71);
     assert.equal(equipWeapon(c, 'pulse'), false);
@@ -60,8 +72,11 @@ test('mounts are per hull and their purchase value is included in scrapping once
     equipWeapon(c, 'rail');
     equipWeapon(c, 'pulse');
     const upgraded = scrapRefund(c.ship!);
-    assert.equal(upgraded.ore - base.ore, 20);
-    assert.equal(upgraded.parts - base.parts, 4);
+    assert.equal(upgraded.ore - base.ore, 0);
+    assert.equal(upgraded.parts - base.parts, 1);
+    assert.equal(upgraded.powerModules, 2);
+    assert.equal(upgraded.storageFrames, 2);
+    assert.equal(upgraded.electronics, 2);
     c.reserveShips = [newShip(2, 'swift')];
     c.nextShipId = 3;
     assert.ok(selectShip(c, 2));

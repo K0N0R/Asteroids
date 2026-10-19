@@ -1,3 +1,6 @@
+import { WORKSHOP_CONSTRUCTION } from './stationConstruction';
+import { moduleParts, WEAPON_PARTS, spendEquipment } from './equipmentCosts';
+import { HULL_CONSTRUCTION, hasHullParts } from './fleetConstruction';
 import { RESOURCE_IDS, STORAGE_PRIORITY, resourceTotal, type ResourceStore } from './resources';
 import { receiveStationCargo } from './earthLogistics';
 import { STATION_DRONES, type StationDroneState } from './stationDrones';
@@ -81,9 +84,10 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 50;
+    version: 55;
     story: StoryProgress | null;
     bank: Cargo;
+    lunarStation: { bank: Cargo; repairKits: number };
     ship: Ship | null;
     reserveShips: Ship[];
     nextShipId: number;
@@ -174,9 +178,10 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 50,
+        version: 55,
         story: null,
         bank: { ore: 0, parts: 0 },
+        lunarStation: { bank: { ore: 0, parts: 0 }, repairKits: 0 },
         ship: newShip(),
         reserveShips: [],
         nextShipId: 2,
@@ -222,7 +227,13 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 50 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 55 || !cargo(p.bank) || !object(p.station)) return null;
+        if (
+            !object(p.lunarStation) ||
+            !cargo(p.lunarStation.bank) ||
+            !integer(p.lunarStation.repairKits, REPAIR_KITS.kitLimit)
+        )
+            return null;
         if (
             !integer(p.station.workshop, 2) ||
             !integer(p.station.storage, 3) ||
@@ -549,43 +560,40 @@ export function ownedShips(c: Campaign) {
     return [...(c.ship ? [c.ship] : []), ...c.reserveShips];
 }
 export function scrapRefund(ship: Ship): Cargo {
-    let ore = HULLS[ship.hull].ore,
-        parts = HULLS[ship.hull].parts;
+    const spent: Cargo = { ore: 0, ...HULL_CONSTRUCTION[ship.hull] };
     for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const) {
-        const levels = (ship[key] * (ship[key] + 1)) / 2;
-        ore += UPGRADES[key].ore * levels;
-        parts += UPGRADES[key].parts * levels;
+        for (let level = 0; level < ship[key]; level++) {
+            const bill = moduleParts(key, level);
+            for (const id of RESOURCE_IDS) spent[id] = (spent[id] ?? 0) + (bill[id] ?? 0);
+        }
     }
     for (const weapon of ship.weapons) {
-        ore += WEAPONS[weapon].ore;
-        parts += WEAPONS[weapon].parts;
+        const bill: ResourceStore = WEAPON_PARTS[weapon];
+        for (const id of RESOURCE_IDS) spent[id] = (spent[id] ?? 0) + (bill[id] ?? 0);
     }
-    const crystals = (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).reduce(
-        (sum, key) => sum + (ship[key] * (ship[key] - 1)) / 2,
-        0,
-    );
-    return {
-        ore: Math.floor(ore / 2),
-        parts: Math.floor(parts / 2),
-        ...(crystals >= 2 ? { crystals: Math.floor(crystals / 2) } : {}),
-    };
+    const driveLevels = (ship.hyperdriveLevel * (ship.hyperdriveLevel + 1)) / 2;
+    spent.parts += 4 * driveLevels;
+    spent.propulsion = (spent.propulsion ?? 0) + driveLevels;
+    spent.powerModules = (spent.powerModules ?? 0) + driveLevels;
+    const refund: Cargo = { ore: 0, parts: 0 };
+    for (const id of RESOURCE_IDS) {
+        const count = Math.floor((spent[id] ?? 0) / 2);
+        if (count) refund[id] = count;
+    }
+    return refund;
 }
 export function canScrapShip(c: Campaign, id: number): boolean {
     if (c.activeRun) return false;
     const ship = c.reserveShips.find((ship) => ship.id === id);
     if (!ship) return false;
     const refund = scrapRefund(ship);
-    return (
-        storageUsed(c) + refund.ore + refund.parts + (refund.crystals ?? 0) <= storageCapacity(c)
-    );
+    return RESOURCE_IDS.every((id) => Number.isSafeInteger((c.bank[id] ?? 0) + (refund[id] ?? 0)));
 }
 export function scrapShip(c: Campaign, id: number): boolean {
     if (!canScrapShip(c, id)) return false;
     const ship = c.reserveShips.find((ship) => ship.id === id)!;
     const refund = scrapRefund(ship);
-    c.bank.ore += refund.ore;
-    c.bank.parts += refund.parts;
-    if (refund.crystals) c.bank.crystals = (c.bank.crystals ?? 0) + refund.crystals;
+    for (const id of RESOURCE_IDS) if (refund[id]) c.bank[id] = (c.bank[id] ?? 0) + refund[id]!;
     c.reserveShips = c.reserveShips.filter((ship) => ship.id !== id);
     return true;
 }
@@ -606,14 +614,12 @@ export function storageUsed(c: Campaign) {
     return resourceTotal(c.bank);
 }
 export function upgradePrice(c: Campaign, upgrade: Upgrade): Cargo {
-    const level =
-        upgrade === 'storage' || upgrade === 'workshop'
-            ? c.station[upgrade]
-            : (c.ship?.[upgrade] ?? 0);
+    if (upgrade !== 'workshop' && upgrade !== 'storage')
+        return { ore: 0, parts: 0, ...moduleParts(upgrade, c.ship?.[upgrade] ?? 0) };
     return {
-        ore: UPGRADES[upgrade].ore * (level + 1),
-        parts: UPGRADES[upgrade].parts * (level + 1),
-        ...(level > 0 ? { crystals: upgrade === 'workshop' ? 2 : level } : {}),
+        ore: 0,
+        parts: 0,
+        ...(upgrade === 'workshop' ? WORKSHOP_CONSTRUCTION[c.station.workshop] : {}),
     };
 }
 export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
@@ -621,18 +627,9 @@ export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
     const station = upgrade === 'workshop';
     if (!station && !c.ship) return false;
     const level = upgrade === 'workshop' ? c.station[upgrade] : c.ship![upgrade];
-    const limit = upgrade === 'workshop' ? 2 : station ? 3 : c.station.workshop + 1;
+    const limit = station ? WORKSHOP_CONSTRUCTION.length : c.station.workshop + 1;
     const price = upgradePrice(c, upgrade);
-    if (
-        level >= limit ||
-        c.bank.ore < price.ore ||
-        c.bank.parts < price.parts ||
-        (c.bank.crystals ?? 0) < (price.crystals ?? 0)
-    )
-        return false;
-    c.bank.ore -= price.ore;
-    c.bank.parts -= price.parts;
-    if (price.crystals) c.bank.crystals = (c.bank.crystals ?? 0) - price.crystals;
+    if (level >= limit || !spendEquipment(c.bank, price)) return false;
     if (upgrade === 'workshop') c.station[upgrade]++;
     else c.ship![upgrade]++;
     return true;
@@ -651,29 +648,34 @@ export function buyShip(c: Campaign, hull: HullId = 'prospector'): boolean {
         return false;
     const config = HULLS[hull];
     if ('salvageOnly' in config || !hullUnlocked(c, hull)) return false;
-    if (
-        c.station.workshop < config.workshop ||
-        c.bank.ore < config.ore ||
-        c.bank.parts < config.parts
-    )
-        return false;
-    c.bank.ore -= config.ore;
-    c.bank.parts -= config.parts;
+    if (c.station.workshop < config.workshop || !hasHullParts(c.bank, hull)) return false;
+    for (const id of RESOURCE_IDS) {
+        const amount = (HULL_CONSTRUCTION[hull] as Readonly<ResourceStore>)[id] ?? 0;
+        if (amount) c.bank[id] = (c.bank[id] ?? 0) - amount;
+    }
     if (c.ship) c.reserveShips.push(c.ship);
     c.ship = newShip(c.nextShipId++, hull);
     return true;
 }
 export function emergencyKit(c: Campaign): boolean {
     if (c.activeRun || (c.ship && c.pilots.length)) return false;
-    if (!c.ship && c.reserveShips.length) c.ship = c.reserveShips.shift()!;
-    // Only supply items that the player cannot afford. Paid replacements remain meaningful.
-    if (!c.ship && c.bank.ore < HULLS.prospector.ore) c.ship = newShip(c.nextShipId++);
+    let changed = false;
+    if (!c.ship && c.reserveShips.length) {
+        c.ship = c.reserveShips.shift()!;
+        changed = true;
+    }
+    // A stock of raw elements cannot replace a ship needed to gather and process resources.
+    if (!c.ship && !hasHullParts(c.bank, 'prospector')) {
+        c.ship = newShip(c.nextShipId++);
+        changed = true;
+    }
     if (!c.pilots.length && c.bank.ore < 12) {
         const pilot = newPilot(c.nextPilotId++, 3);
         c.pilots.push(pilot);
         c.selectedPilot = pilot.id;
+        changed = true;
     }
-    return !!c.ship && c.pilots.length > 0;
+    return changed;
 }
 export function pilotSlots(c: Campaign) {
     return c.pilots.length + c.recoverySignals.filter((signal) => signal.pilot).length;
@@ -798,19 +800,14 @@ export function deliverSalvage(
             } else description += ' · brak wolnego kadłuba do modernizacji';
         }
     }
-    const free = Math.max(0, storageCapacity(c) - storageUsed(c));
-    const crystals = Math.min(free, refund.crystals ?? 0),
-        parts = Math.min(free - crystals, refund.parts),
-        ore = Math.min(free - crystals - parts, refund.ore);
-    c.bank.ore += ore;
-    c.bank.parts += parts;
-    if (crystals) c.bank.crystals = (c.bank.crystals ?? 0) + crystals;
+    for (const resource of RESOURCE_IDS)
+        if (refund[resource]) c.bank[resource] = (c.bank[resource] ?? 0) + refund[resource]!;
     const record: SalvageDelivery = {
         id,
         source,
         description,
-        materials: { ore, parts, ...(crystals ? { crystals } : {}) },
-        overflow: refund.ore + refund.parts + (refund.crystals ?? 0) - ore - parts - crystals,
+        materials: { ...refund },
+        overflow: 0,
         rescueXp,
     };
     (active.deliveries ??= []).push(record);
@@ -894,13 +891,12 @@ export function finishRun(
             }
             c.recoverySignals = c.recoverySignals.filter((s) => s.id !== signal.id);
             result.recoveryText = `Odzysk zabezpieczony: ${recoveryDescription(signal)}.`;
-            if (salvage.ore || salvage.parts)
+            if (resourceTotal(salvage))
                 result.recoveryText =
                     (signal.pilot ? `Uratowano ${pilotName(signal.pilot)}. ` : '') +
                     'Hangar pełny: wrak rozebrano na materiały.';
-            result.reward.ore += salvage.ore;
-            result.reward.parts += salvage.parts;
-            if (salvage.crystals) result.reward.crystals = salvage.crystals;
+            for (const id of RESOURCE_IDS)
+                if (salvage[id]) result.reward[id] = (result.reward[id] ?? 0) + salvage[id]!;
         } else if (signal)
             result.recoveryText = 'Nie podjęto celu ratunkowego. Sygnał pozostaje dostępny.';
         const recycled = recovery.recycledWreck;
@@ -923,9 +919,12 @@ export function finishRun(
         ) {
             const weapon = WEAPONS[equipment];
             if (c.ship!.weapons.includes(equipment)) {
-                result.reward.ore += Math.floor(weapon.ore / 2);
-                result.reward.parts += Math.floor(weapon.parts / 2);
-                result.equipmentText = `Duplikat ${weapon.name} rozebrano: ${Math.floor(weapon.ore / 2)} rudy / ${Math.floor(weapon.parts / 2)} komponentów.`;
+                const bill: ResourceStore = WEAPON_PARTS[equipment];
+                for (const id of RESOURCE_IDS) {
+                    const count = Math.floor((bill[id] ?? 0) / 2);
+                    if (count) result.reward[id] = (result.reward[id] ?? 0) + count;
+                }
+                result.equipmentText = `Duplikat ${weapon.name} rozebrano na części.`;
             } else {
                 c.ship!.weapons.push(equipment);
                 result.equipmentText = `Odzyskano ${weapon.name} · dostępne w Hangar → Uzbrojenie.`;
@@ -954,33 +953,17 @@ export function finishRun(
             !c.story.claimed.includes('neptune-boss')
                 ? 12
                 : 0;
+        const mined: Cargo = { ore: 0, parts: 0 };
+        for (const id of RESOURCE_IDS)
+            mined[id] =
+                Math.max(0, (collected[id] ?? 0) - (active.freight?.[id] ?? 0)) +
+                (active.unloaded?.[id] ?? 0);
         result.pilotProgress = awardPilotXp(
             pilot,
             Math.min(
                 50,
                 expeditionXp(
-                    active.freight
-                        ? {
-                              ore:
-                                  Math.max(0, collected.ore - active.freight.ore) +
-                                  (active.unloaded?.ore ?? 0),
-                              parts:
-                                  Math.max(0, collected.parts - active.freight.parts) +
-                                  (active.unloaded?.parts ?? 0),
-                              crystals:
-                                  (collected.crystals ?? 0) + (active.unloaded?.crystals ?? 0),
-                              copperOre:
-                                  (collected.copperOre ?? 0) + (active.unloaded?.copperOre ?? 0),
-                          }
-                        : {
-                              ...collected,
-                              ore: collected.ore + (active.unloaded?.ore ?? 0),
-                              parts: collected.parts + (active.unloaded?.parts ?? 0),
-                              copperOre:
-                                  (collected.copperOre ?? 0) + (active.unloaded?.copperOre ?? 0),
-                              crystals:
-                                  (collected.crystals ?? 0) + (active.unloaded?.crystals ?? 0),
-                          },
+                    mined,
                     data,
                     !c.story && contractReady(active.contract, collected, data, kills),
                     signal && recovery.securedId === signal.id ? signal : null,

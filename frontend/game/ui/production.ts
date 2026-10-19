@@ -1,7 +1,7 @@
 import { type Container } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { RECIPES, RECIPE_IDS, type RecipeId, type ProcessRecipe } from '../state/chemistry';
-import { maxProduction, productionLock } from '../state/production';
+import { maxProduction, productionLock, type ProductionScope } from '../state/production';
 import { RESOURCES, resourceSummary } from '../state/resources';
 import { itemIllustration } from '../graphics/items';
 import { C } from '../graphics/shapes';
@@ -16,8 +16,9 @@ export function laboratoryOverview(
     actions: ProductionActions,
     selected: RecipeId,
     select: (id: RecipeId) => void,
+    scope?: ProductionScope,
 ) {
-    processOverview(ui, c, actions, 'laboratory', selected, select);
+    processOverview(ui, c, actions, 'laboratory', selected, select, scope);
 }
 export function workshopOverview(
     ui: Container,
@@ -25,8 +26,9 @@ export function workshopOverview(
     actions: ProductionActions,
     selected: RecipeId,
     select: (id: RecipeId) => void,
+    scope?: ProductionScope,
 ) {
-    processOverview(ui, c, actions, 'workshop', selected, select);
+    processOverview(ui, c, actions, 'workshop', selected, select, scope);
 }
 /** Shared rendering primitives; each screen has its own route, category and selection. */
 function processOverview(
@@ -36,6 +38,7 @@ function processOverview(
     category: 'laboratory' | 'workshop',
     selected: RecipeId,
     select: (id: RecipeId) => void,
+    scope?: ProductionScope,
 ) {
     const ids = RECIPE_IDS.filter((id) => RECIPES[id].category === category);
     const id = ids.includes(selected) ? selected : ids[0];
@@ -71,8 +74,8 @@ function processOverview(
         C.cyan,
         456,
     );
-    const lock = productionLock(c, id),
-        max = maxProduction(c, id);
+    const lock = productionLock(c, id, 1, scope),
+        max = maxProduction(c, id, scope);
     label(
         ui,
         lock ?? 'Składniki gotowe. Wybierz liczbę partii.',
@@ -91,7 +94,7 @@ function processOverview(
             146,
             () => actions.manufacture(id, count),
             false,
-            !productionLock(c, id, count),
+            !productionLock(c, id, count, scope),
             40,
             13,
         ),

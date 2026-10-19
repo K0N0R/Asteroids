@@ -1,45 +1,88 @@
+import { lunarProcessingReady, lunarConstructionReady } from './lunarConstruction';
 import type { Campaign } from './campaign';
 import { REPAIR_KITS } from '../config';
 import { RECIPES, RECIPE_IDS, type RecipeId, type ProcessRecipe } from './chemistry';
 import { RESOURCE_IDS, resourceSummary } from './resources';
 
-export function productionLock(c: Campaign, id: RecipeId, batches = 1): string | null {
+export interface ProductionScope {
+    site: 'satuk' | 'lunar';
+    canAccess?: () => boolean;
+}
+export const SATUK_PRODUCTION: ProductionScope = { site: 'satuk' };
+function productionContext(c: Campaign, scope: ProductionScope) {
+    if (scope.site === 'satuk')
+        return {
+            bank: c.bank,
+            owner: c,
+            level: c.station.workshop,
+            blocked: c.activeRun ? 'Produkcja dostępna po powrocie do bazy.' : null,
+        };
+    const ready =
+        c.story?.sector === 'lunar' &&
+        c.activeRun?.sector === 'lunar' &&
+        lunarProcessingReady(c.story) &&
+        scope.canAccess?.();
+    return {
+        bank: c.lunarStation.bank,
+        owner: c.lunarStation,
+        level: c.story && lunarConstructionReady(c.story) ? 1 : 0,
+        blocked: ready ? null : 'Produkcja wymaga postoju przy działającej bazie księżycowej.',
+    };
+}
+export function productionLock(
+    c: Campaign,
+    id: RecipeId,
+    batches = 1,
+    scope: ProductionScope = SATUK_PRODUCTION,
+): string | null {
     if (!Object.hasOwn(RECIPES, id)) return 'Nieznany przepis.';
     if (!Number.isSafeInteger(batches) || batches <= 0) return 'Wybierz poprawną liczbę partii.';
-    if (c.activeRun) return 'Produkcja dostępna po powrocie do bazy.';
+    const context = productionContext(c, scope);
+    if (context.blocked) return context.blocked;
     const recipe: ProcessRecipe = RECIPES[id];
-    if (c.station.workshop < recipe.level) return `Wymagane zaplecze produkcyjne ${recipe.level}.`;
+    if (context.level < recipe.level) return `Wymagane zaplecze produkcyjne ${recipe.level}.`;
     if (
         (id === 'kineticPlate' || id === 'kineticModule') &&
         c.story &&
         !c.story.claimed.includes('mercury-survey')
     )
         return 'Najpierw badania na Merkurym.';
-    if (recipe.output === 'kit' && c.repairKits + recipe.amount * batches > REPAIR_KITS.kitLimit)
+    if (
+        recipe.output === 'kit' &&
+        context.owner.repairKits + recipe.amount * batches > REPAIR_KITS.kitLimit
+    )
         return 'Osiągnięto limit zestawów naprawczych.';
     if (
         !Number.isSafeInteger(
             recipe.amount * batches +
-                (recipe.output === 'kit' ? c.repairKits : (c.bank[recipe.output] ?? 0)),
+                (recipe.output === 'kit'
+                    ? context.owner.repairKits
+                    : (context.bank[recipe.output] ?? 0)),
         )
     )
         return 'Zbyt duża partia.';
     for (const resource of RESOURCE_IDS) {
         const amount = (recipe.inputs[resource] ?? 0) * batches;
-        if (!Number.isSafeInteger(amount) || (c.bank[resource] ?? 0) < amount)
+        if (!Number.isSafeInteger(amount) || (context.bank[resource] ?? 0) < amount)
             return `Potrzeba: ${resourceSummary(recipe.inputs)} na partię.`;
     }
     return null;
 }
-export function maxProduction(c: Campaign, id: RecipeId) {
+export function maxProduction(
+    c: Campaign,
+    id: RecipeId,
+    scope: ProductionScope = SATUK_PRODUCTION,
+) {
+    const context = productionContext(c, scope);
     if (!Object.hasOwn(RECIPES, id)) return 0;
     const recipe: ProcessRecipe = RECIPES[id];
     let count = Math.min(
         ...RESOURCE_IDS.filter((r) => (recipe.inputs[r] ?? 0) > 0).map((r) =>
-            Math.floor((c.bank[r] ?? 0) / recipe.inputs[r]!),
+            Math.floor((context.bank[r] ?? 0) / recipe.inputs[r]!),
         ),
     );
-    const existing = recipe.output === 'kit' ? c.repairKits : (c.bank[recipe.output] ?? 0);
+    const existing =
+        recipe.output === 'kit' ? context.owner.repairKits : (context.bank[recipe.output] ?? 0);
     count = Math.min(
         count,
         Math.floor(
@@ -48,18 +91,26 @@ export function maxProduction(c: Campaign, id: RecipeId) {
                 recipe.amount,
         ),
     );
-    return Number.isSafeInteger(count) && count > 0 && !productionLock(c, id, count) ? count : 0;
+    return Number.isSafeInteger(count) && count > 0 && !productionLock(c, id, count, scope)
+        ? count
+        : 0;
 }
 /** Validate the whole batch before mutating either inventory. No queues or elapsed-time production. */
-export function manufacture(c: Campaign, id: RecipeId, batches = 1) {
-    if (productionLock(c, id, batches)) return false;
+export function manufacture(
+    c: Campaign,
+    id: RecipeId,
+    batches = 1,
+    scope: ProductionScope = SATUK_PRODUCTION,
+) {
+    const context = productionContext(c, scope);
+    if (productionLock(c, id, batches, scope)) return false;
     const recipe: ProcessRecipe = RECIPES[id];
     for (const resource of RESOURCE_IDS) {
         const amount = (recipe.inputs[resource] ?? 0) * batches;
-        if (amount) c.bank[resource] = (c.bank[resource] ?? 0) - amount;
+        if (amount) context.bank[resource] = (context.bank[resource] ?? 0) - amount;
     }
-    if (recipe.output === 'kit') c.repairKits += recipe.amount * batches;
-    else c.bank[recipe.output] = (c.bank[recipe.output] ?? 0) + recipe.amount * batches;
+    if (recipe.output === 'kit') context.owner.repairKits += recipe.amount * batches;
+    else context.bank[recipe.output] = (context.bank[recipe.output] ?? 0) + recipe.amount * batches;
     return true;
 }
 export function availableProcesses(c: Campaign) {

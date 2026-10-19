@@ -1,3 +1,4 @@
+import { grantLunarProcessing } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -27,7 +28,10 @@ function ready(survey = false) {
     grant(c, 'earth-workshop');
     grant(c, 'earth-route');
     assert.ok(travelStory(c, 'lunar'));
-    if (survey) grant(c, 'lunar-survey');
+    if (survey) {
+        grant(c, 'lunar-survey');
+        grantLunarProcessing(c);
+    }
     return c;
 }
 function at(s: MissionSimulation, p: { x: number; y: number }) {
@@ -151,6 +155,7 @@ test('mined lunar materials delivered to construction count once for return XP a
 
 test('technical commission confirms immediately after a real surface scan and remains after loss', () => {
     const c = ready(true);
+    grant(c, 'lunar-foundation');
     grant(c, 'lunar-installations');
     assert.ok(beginRun(c, 1, null, false, 'lunar-commission'));
     const s = new MissionSimulation(c, c.activeRun!.seed);

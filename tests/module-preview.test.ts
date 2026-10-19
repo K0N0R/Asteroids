@@ -1,3 +1,4 @@
+import { fundEquipment } from './fleet-fixtures';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { newCampaign, newShip, buyUpgrade, upgradePrice } from '../frontend/game/state/campaign';
@@ -40,10 +41,12 @@ test('a maximum preview never changes the price or level of a real upgrade', () 
     const visual = previewModules(c.ship!, 'all', 'armor', 3);
     assert.equal(visual.armor, 3);
     assert.deepEqual(upgradePrice(c, 'armor'), price);
+    fundEquipment(c, upgradePrice(c, 'armor'));
     assert.ok(buyUpgrade(c, 'armor'));
     assert.equal(c.ship!.armor, 2);
     assert.equal(c.bank.ore, 1000 - price.ore);
-    assert.equal(c.bank.parts, 1000 - price.parts);
+    assert.equal(c.bank.parts, 1000);
+    assert.equal(c.bank.storageFrames, 0);
 });
 
 test('comparison uses the selected hull specialization including cooldown reductions', () => {

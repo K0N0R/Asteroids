@@ -1,3 +1,4 @@
+import { grantLunarProcessing } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -35,6 +36,7 @@ function foundationCampaign() {
         c.story!.progress[id] = t.target;
         c.story!.claimed.push(id);
     }
+    grantLunarProcessing(c);
     c.story!.sector = 'lunar';
     assert.ok(parseCampaign(JSON.stringify(c)));
     return c;

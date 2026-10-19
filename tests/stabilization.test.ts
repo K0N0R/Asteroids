@@ -1,3 +1,7 @@
+import { fundEquipment } from './fleet-fixtures';
+import { RESOURCE_IDS, type ResourceStore } from '../frontend/game/state/resources';
+import { fundHull } from './fleet-fixtures';
+import { HULL_CONSTRUCTION } from '../frontend/game/state/fleetConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -43,17 +47,17 @@ test('every hull can be bought, fully upgraded, saved and scrapped without creat
         };
         c.bank = { ore: 250, parts: 100, crystals: 50 };
         const original = c.ship!.id;
+        fundHull(c, hull);
         assert.ok(buyShip(c, hull), hull);
         const purchased = c.ship!.id;
-        const spent = { ore: HULLS[hull].ore, parts: HULLS[hull].parts, crystals: 0 };
+        const spent: ResourceStore = { ore: 0, ...HULL_CONSTRUCTION[hull] };
         for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const) {
             for (let level = 0; level < 3; level++) {
                 c.bank = { ore: 250, parts: 100, crystals: 50 };
                 const price = upgradePrice(c, key);
+                fundEquipment(c, price);
                 assert.ok(buyUpgrade(c, key), `${hull}: ${key} ${level + 1}`);
-                spent.ore += price.ore;
-                spent.parts += price.parts;
-                spent.crystals += price.crystals ?? 0;
+                for (const id of RESOURCE_IDS) spent[id] = (spent[id] ?? 0) + (price[id] ?? 0);
             }
             const snapshot = JSON.stringify(c);
             assert.equal(buyUpgrade(c, key), false);
@@ -61,9 +65,8 @@ test('every hull can be bought, fully upgraded, saved and scrapped without creat
         }
         assert.deepEqual(parseCampaign(JSON.stringify(c)), c, hull);
         const refund = scrapRefund(c.ship!);
-        assert.equal(refund.ore, Math.floor(spent.ore / 2), hull);
-        assert.equal(refund.parts, Math.floor(spent.parts / 2), hull);
-        assert.equal(refund.crystals, Math.floor(spent.crystals / 2), hull);
+        for (const id of RESOURCE_IDS)
+            assert.equal(refund[id] ?? 0, Math.floor((spent[id] ?? 0) / 2), `${hull}: ${id}`);
         assert.ok(selectShip(c, original));
         c.bank = { ore: 0, parts: 0 };
         assert.ok(scrapShip(c, purchased));
@@ -75,6 +78,7 @@ test('every hull can be bought, fully upgraded, saved and scrapped without creat
 test('scrapping preserves every refunded material beyond the former warehouse boundary', () => {
     const c = newCampaign();
     c.bank.ore = 15;
+    fundHull(c);
     assert.ok(buyShip(c));
     const reserve = c.reserveShips[0];
     reserve.engine = 3;
