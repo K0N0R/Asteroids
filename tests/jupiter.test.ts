@@ -1,3 +1,4 @@
+import { manufacture } from '../frontend/game/state/production';
 import { solveTerminal } from './terminal-test-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -289,10 +290,16 @@ test('death, refresh and reports from other sectors cannot keep an unreturned in
     assert.equal(restored.story!.progress['jupiter-survey'], 1);
 });
 
-test('stock Prospector surveys, fights both patrols, mines sabotage supplies, hacks the node and returns the observation package through ordinary sorties', () => {
+test('stock Prospector surveys, fights both patrols, loads manufactured sabotage supplies, hacks the node and returns the observation package through ordinary sorties', () => {
     const c = ready();
     for (const goal of ['survey', 'patrol', 'patrol', 'uplink', 'package'] as const) {
-        beginRun(c, 1);
+        if (goal === 'uplink') {
+            c.bank.ore += 99;
+            c.bank.carbon = (c.bank.carbon ?? 0) + 1;
+            assert.ok(manufacture(c, 'steel'));
+            assert.ok(manufacture(c, 'plating'));
+        }
+        assert.ok(beginRun(c, 1, null, false, null, goal === 'uplink' ? { parts: 1 } : {}));
         const s = new MissionSimulation(c, c.activeRun!.seed);
         try {
             if (goal === 'patrol') combat(s);
@@ -313,7 +320,10 @@ test('stock Prospector surveys, fights both patrols, mines sabotage supplies, ha
                 assert.ok(!s.rocks.has(rich.id));
                 fly(s, rich.previous, 45);
                 hold(s, idle, 180);
-                assert.ok(s.cargo.parts >= 1, 'actual mining provides the sabotage component');
+                assert.ok(
+                    s.cargo.parts >= 1,
+                    'prepared sabotage part remains aboard after elemental mining',
+                );
                 fly(s, JUPITER_UPLINK.terminal, 45);
                 for (let f = 0; f < 600 && !s.outpost.sabotaged && !s.ended; f++) {
                     s.step({ ...idle, sabotage: true });

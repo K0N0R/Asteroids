@@ -15,7 +15,6 @@ import {
     stationShieldLock,
 } from '../frontend/game/state/stationShield';
 import { contributeStory, syncStory } from '../frontend/game/state/story';
-import { queueJob, advanceCrew } from '../frontend/game/state/crew';
 import { MissionSimulation } from '../frontend/game/systems/mission';
 
 before(async () => RAPIER.init());
@@ -30,7 +29,6 @@ function ready() {
     });
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
-    c.crew.mechanic = true;
     c.bank = { ore: 50, parts: 10, powerModules: 3 };
     return c;
 }
@@ -51,7 +49,6 @@ test('station shield enforces unlock, workshop, crew, costs and one-time install
     for (const mutate of [
         (c: ReturnType<typeof ready>) => c.story!.claimed.splice(0),
         (c: ReturnType<typeof ready>) => (c.station.workshop = 0),
-        (c: ReturnType<typeof ready>) => (c.crew.mechanic = false),
         (c: ReturnType<typeof ready>) => (c.bank.ore = 29),
         (c: ReturnType<typeof ready>) => (c.bank.parts = 5),
         (c: ReturnType<typeof ready>) => (c.bank.powerModules = 2),
@@ -72,30 +69,6 @@ test('station shield enforces unlock, workshop, crew, costs and one-time install
     const before = structuredClone(c);
     assert.equal(installStationShield(c), false);
     assert.deepEqual(c, before);
-});
-
-test('power modules manufactured during ordinary flights fund a permanent shield that survives ship loss', () => {
-    const c = ready();
-    c.bank = { ore: 50, parts: 15, copperOre: 12 };
-    for (const kind of [
-        'smeltCopper',
-        'smeltCopper',
-        'smeltCopper',
-        'powerModule',
-        'powerModule',
-        'powerModule',
-    ] as const) {
-        assert.ok(queueJob(c, kind));
-        beginRun(c, 1);
-        advanceCrew(c, 60);
-        finishRun(c, true, { ore: 0, parts: 0 }, 60, 'dock', c.activeRun!.repairKits);
-    }
-    assert.equal(c.bank.powerModules, 3);
-    assert.ok(installStationShield(c));
-    beginRun(c, 1);
-    finishRun(c, false, { ore: 0, parts: 0 }, 1, 'loss');
-    assert.equal(c.station.shield, true);
-    assert.equal(parseCampaign(JSON.stringify(c))?.station.shield, true);
 });
 
 test('shield state is strictly validated and previous save formats are rejected', () => {

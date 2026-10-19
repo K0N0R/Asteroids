@@ -1,3 +1,4 @@
+import { manufacture } from '../frontend/game/state/production';
 import { solveTerminal } from './terminal-test-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -146,6 +147,7 @@ function fight(s: MissionSimulation) {
     assert.equal(s.enemies.enemies.has(FIRST_BOSS.id), false);
 }
 function acquireComponent(s: MissionSimulation) {
+    assert.ok(s.cargo.parts >= 1, 'sabotage part was prepared at the base');
     const rock = [...s.rocks.values()]
         .filter((r) => r.rich && !r.crystal)
         .sort((a, b) => {
@@ -371,7 +373,7 @@ test('real first-encounter combat retreats without kill loot, confirms its repor
     assert.equal(e.story!.progress['neptune-boss'], 0);
 });
 
-test('stock Prospector traverses both sectors, mines hacking supplies, defeats both Uranus contacts and forces the heavy unit to retreat through ordinary sorties', () => {
+test('stock Prospector traverses both sectors, loads manufactured hacking supplies, defeats both Uranus contacts and forces the heavy unit to retreat through ordinary sorties', () => {
     const c = ready();
     for (const goal of [
         'u-survey',
@@ -385,7 +387,11 @@ test('stock Prospector traverses both sectors, mines hacking supplies, defeats b
         'n-route',
     ] as const) {
         if (goal === 'n-survey') assert.ok(travelStory(c, 'neptune'));
-        beginRun(c, 1);
+        c.bank.ore += 99;
+        c.bank.carbon = (c.bank.carbon ?? 0) + 1;
+        assert.ok(manufacture(c, 'steel'));
+        assert.ok(manufacture(c, 'plating'));
+        assert.ok(beginRun(c, 1, null, false, null, { parts: 1 }));
         const s = new MissionSimulation(c, c.activeRun!.seed);
         try {
             if (goal === 'u-base' || goal === 'n-base') {

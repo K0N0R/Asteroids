@@ -19,7 +19,6 @@ export function stationShieldLock(c: Campaign): string | null {
     if (c.story && !c.story.claimed.includes('earth-workshop'))
         return 'Ukończ rozwój zaplecza Satuk 15 w sektorze Ziemi.';
     if (c.station.workshop < 1) return 'Wymagany warsztat I.';
-    if (!c.crew.mechanic) return 'Zatrudnij mechanika w stacji.';
     const cost = STATION_SHIELD.cost;
     if (
         c.bank.ore < cost.ore ||

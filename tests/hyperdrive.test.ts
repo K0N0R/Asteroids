@@ -11,7 +11,6 @@ import {
     selectShip,
 } from '../frontend/game/state/campaign';
 import { STORY_TASKS, storyRadius } from '../frontend/game/state/story';
-import { refuelHyperdrive, queueJob, advanceCrew } from '../frontend/game/state/crew';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 import { Hyperdrive, HYPERDRIVE, segmentDistance } from '../frontend/game/systems/hyperdrive';
 import { generateStorySector } from '../frontend/game/worlds/storySector';
@@ -28,7 +27,6 @@ const idle: FlightInput = {
 function ready() {
     const c = newStoryCampaign();
     c.station.workshop = 1;
-    c.crew.mechanic = true;
     for (const t of STORY_TASKS.filter(
         (t) => t.sector === 'earth' && t.required && t.id !== 'earth-expansion',
     )) {
@@ -45,7 +43,6 @@ function ready() {
     }
     c.bank = { ore: 60, parts: 8, hydrogen: 6 };
     c.ship!.hyperdriveLevel = 1;
-    c.ship!.hyperFuel = 3;
     assert.ok(parseCampaign(JSON.stringify(c)));
     return c;
 }
@@ -104,56 +101,24 @@ test('expanded Earth has three distinct regions, two bidirectional cleared lanes
     assert.equal(generateStorySector(fresh.story!).hyperlanes.length, 0);
 });
 
-test('stock Prospector flies to a gate, crosses the full lane and returns with separate fuel charges', () => {
+test('stock Prospector flies to a gate, crosses the full lane and returns repeatedly without fuel charges', () => {
     const s = run();
     try {
         fly(s, s.sector.hyperlanes[0].a);
-        clear(s); // Moving hazards are exercised separately; this checks gate navigation and fuel.
-        assert.equal(s.hyperFuel, 3);
+        clear(s); // Moving hazards are exercised separately; this checks gate navigation.
         s.step({ ...idle, hyperdrive: true });
         assert.equal(s.hyperdrive.state, 'charging');
-        assert.equal(s.hyperFuel, 3);
         advance(s, 120, true);
         assert.equal(s.ended, null);
         assert.equal(s.hyperdrive.state, 'idle');
-        assert.equal(s.hyperFuel, 2);
         assert.ok(Math.hypot(s.position.x, s.position.y + 4100) < 1);
         assert.equal(s.speed, 0);
         advance(s, 120, true);
-        assert.equal(s.hyperFuel, 2, 'a held space must not repeat a jump');
         s.step(idle);
         s.step({ ...idle, hyperdrive: true });
         advance(s, 120);
-        assert.equal(s.hyperFuel, 1);
         assert.ok(Math.hypot(s.position.x, s.position.y + 1300) < 1);
         assert.ok(parseCampaign(JSON.stringify(s.campaign)));
-    } finally {
-        s.dispose();
-    }
-});
-
-test('cancel during charging keeps fuel; failed starts require a fresh press and cannot spend unavailable fuel', () => {
-    const s = run();
-    try {
-        clear(s);
-        s.step({ ...idle, hyperdrive: true });
-        advance(s, 5);
-        s.step({ ...idle, hyperdrive: true });
-        assert.equal(s.hyperdrive.state, 'idle');
-        assert.equal(s.hyperFuel, 3);
-        s.campaign.ship!.hyperFuel = 0;
-        s.step(idle);
-        s.step({ ...idle, hyperdrive: true });
-        assert.equal(s.hyperdrive.state, 'idle');
-        assert.equal(s.hyperFuel, 0);
-        s.campaign.ship!.hyperFuel = 1;
-        advance(s, 60, true);
-        assert.equal(s.hyperdrive.state, 'idle');
-        s.step(idle);
-        s.step({ ...idle, hyperdrive: true });
-        advance(s, 180);
-        assert.equal(s.hyperFuel, 0);
-        assert.equal(s.ended, null);
     } finally {
         s.dispose();
     }
@@ -163,19 +128,27 @@ test('swept hyperflight collision with a thin off-axis physical obstacle destroy
     const s = run();
     try {
         clear(s);
-        s.world.createCollider(RAPIER.ColliderDesc.ball(0.02).setTranslation(9.1, 0.25));
+        const gate = s.sector.hyperlanes[0];
+        s.ship.setTranslation({ x: gate.a.x / 100, y: gate.a.y / 100 }, true);
+        s.ship.setLinvel({ x: 0, y: 0 }, true);
         const shield = s.kineticShield.charge;
         s.step({ ...idle, hyperdrive: true });
+        for (let frame = 0; frame < 60 && s.hyperdrive.state === 'charging' && !s.ended; frame++)
+            advance(s, 1);
+        assert.equal(s.hyperdrive.state, 'transit');
+        const point = { x: (gate.a.x + gate.b.x) / 200, y: (gate.a.y + gate.b.y) / 200 };
+        s.world.createCollider(
+            RAPIER.ColliderDesc.ball(0.02).setTranslation(point.x + 0.25, point.y),
+        );
         advance(s, 180);
         assert.equal(s.ended, 'destroyed');
         assert.equal(s.hull, 0);
-        assert.equal(s.hyperFuel, 2);
         assert.equal(
             s.kineticShield.charge,
             shield,
             'ordinary shielding cannot save a hyperspeed collision',
         );
-        assert.ok(s.position.x < 910);
+        assert.ok(Math.hypot(s.position.x - gate.b.x, s.position.y - gate.b.y) > 1);
         assert.match(s.deathReason, /hiperskoku/);
         const time = s.elapsed,
             data = [...s.surveyData],
@@ -203,7 +176,6 @@ test('hyperflight refuses towing, surface transitions, excess speed and unfinish
         s.step(idle);
         s.step({ ...idle, hyperdrive: true });
         assert.equal(s.hyperdrive.state, 'idle');
-        assert.equal(s.hyperFuel, 3);
         s.ship.setLinvel({ x: 0, y: 0 }, true);
         const item = s.salvage.add(90001, 'patrol', { x: 100, y: 0 }, { x: 0, y: 0 })!;
         assert.ok(s.salvage.attach(item, s.ship));
@@ -214,40 +186,6 @@ test('hyperflight refuses towing, surface transitions, excess speed and unfinish
     } finally {
         s.dispose();
     }
-});
-
-test('fuel production and partial refuelling are atomic, per ship, persistent and unavailable during a sortie', () => {
-    const c = ready();
-    c.ship!.hyperFuel = 1;
-    c.bank.hyperFuel = 1;
-    assert.ok(refuelHyperdrive(c));
-    assert.equal(c.ship!.hyperFuel, 2);
-    assert.equal(c.bank.hyperFuel, 0);
-    assert.equal(refuelHyperdrive(c), false);
-    assert.ok(queueJob(c, 'hyperFuel'));
-    assert.equal(advanceCrew(c, 45), 0);
-    beginRun(c, 1);
-    assert.equal(refuelHyperdrive(c), false);
-    assert.equal(advanceCrew(c, 45), 1);
-    finishRun(c, true, { ore: 0, parts: 0 }, 45, 'dock');
-    assert.ok(refuelHyperdrive(c));
-    assert.equal(c.ship!.hyperFuel, 3);
-    assert.equal(c.bank.hyperFuel, 2);
-    c.reserveShips.push(newShip(c.nextShipId++));
-    c.reserveShips[0].hyperFuel = 0;
-    c.reserveShips[0].hyperdriveLevel = 1;
-    assert.ok(selectShip(c, c.reserveShips[0].id));
-    assert.equal(c.ship!.hyperFuel, 0);
-    assert.ok(refuelHyperdrive(c));
-    assert.equal(c.ship!.hyperFuel, 2);
-    assert.equal(c.bank.hyperFuel, 0);
-    assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-    for (const fuel of [-1, 4, 1.5, NaN, undefined]) {
-        const invalid = structuredClone(c);
-        invalid.ship!.hyperFuel = fuel as number;
-        assert.equal(parseCampaign(JSON.stringify(invalid)), null);
-    }
-    assert.equal(parseCampaign(JSON.stringify({ ...c, version: 42 })), null);
 });
 
 test('hyperdrive charge and route stepping depend on simulation time and cap the endpoint without overshooting', () => {
@@ -276,7 +214,6 @@ test('gates reject an obstructed route and recheck before departure, without con
             advance(s, 100);
             assert.equal(s.ended, null);
             assert.equal(s.hyperdrive.state, 'idle');
-            assert.equal(s.hyperFuel, 3);
             assert.match(s.notice, /zablokowana/);
         } finally {
             s.dispose();

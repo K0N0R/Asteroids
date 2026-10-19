@@ -1,5 +1,5 @@
 import { ResearchEscort } from './escort';
-import { GAME, HULLS, JOBS } from '../config';
+import { GAME, HULLS } from '../config';
 import { MOON } from '../worlds/moon';
 import type RAPIER from '@dimforge/rapier2d-compat';
 import type { Point } from '../worlds/sector';
@@ -11,7 +11,6 @@ export const MINING_CONVOY = {
     home: { x: MOON.construction.x + 230, y: MOON.construction.y },
     target: HULLS.mule.cargo,
     radius: 330,
-    kitCost: { ore: JOBS.kit.ore * 2, parts: JOBS.kit.parts * 2 },
 } as const;
 
 export class MiningEscort extends ResearchEscort {
@@ -20,7 +19,6 @@ export class MiningEscort extends ResearchEscort {
     cargoParts = 0;
     deliveredOre = 0;
     trips = 0;
-    repairKits = 0;
     repairProgress = 0;
     repairs = 0;
     returning = false;
@@ -101,29 +99,17 @@ export class MiningEscort extends ResearchEscort {
             !hostileNear &&
             this.cooldown <= 0
         ) {
-            if (
-                !this.repairKits &&
-                this.cargoOre >= MINING_CONVOY.kitCost.ore &&
-                this.cargoParts >= MINING_CONVOY.kitCost.parts
-            ) {
-                this.cargoOre -= MINING_CONVOY.kitCost.ore;
-                this.cargoParts -= MINING_CONVOY.kitCost.parts;
-                this.repairKits++;
+            this.previous = this.position;
+            this.previousAngle = this.body.rotation();
+            this.body.setLinvel({ x: 0, y: 0 }, true);
+            this.body.setAngvel(0, true);
+            this.repairProgress += dt;
+            if (this.repairProgress + 1e-8 >= GAME.repairSeconds) {
+                this.health = Math.min(HULLS.mule.health, this.health + GAME.repairHull);
+                this.repairProgress = 0;
+                this.repairs++;
             }
-            if (this.repairKits) {
-                this.previous = this.position;
-                this.previousAngle = this.body.rotation();
-                this.body.setLinvel({ x: 0, y: 0 }, true);
-                this.body.setAngvel(0, true);
-                this.repairProgress += dt;
-                if (this.repairProgress + 1e-8 >= GAME.repairSeconds) {
-                    this.repairKits--;
-                    this.health = Math.min(HULLS.mule.health, this.health + GAME.repairHull);
-                    this.repairProgress = 0;
-                    this.repairs++;
-                }
-                return false;
-            }
+            return false;
         }
         this.repairProgress = 0;
         super.update(dt, player, rocks, true);

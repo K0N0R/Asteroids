@@ -31,6 +31,7 @@ import {
     PLUTO_ARENA,
     plutoFinaleReady,
     deliverLunarCargo,
+    pendingLunarDelivery,
     lunarBuildStage,
     recordLunarDefense,
     VENUS_OUTPOST,
@@ -60,8 +61,7 @@ import {
     AEGIS,
     ENEMY_MINES,
     ATLAS_WEAPONS,
-    CREW,
-    JOBS,
+    REPAIR_KITS,
     PHOENIX,
     STINGER_AMMO,
     WIDMO,
@@ -206,6 +206,13 @@ export class MissionSimulation {
                       this.position.y - MOON.construction.y,
                   ) < 300;
     }
+    get cargoTransferManifest(): Cargo {
+        if (this.area === 'orbit') return { ...this.cargo };
+        const pending = pendingLunarDelivery(this.campaign, this.cargo);
+        return pending
+            ? { ore: 0, parts: 0, [pending.resource]: pending.amount }
+            : { ore: 0, parts: 0 };
+    }
     get canTransferCargo() {
         return (
             this.stationLogistics &&
@@ -221,7 +228,7 @@ export class MissionSimulation {
             !this.transferActive &&
             !this.campaign.activeRun?.mission?.aborted &&
             !this.grippers.arms.some((a) => a.held || a.phase !== 'idle') &&
-            Object.values(this.cargo).some((n) => n > 0)
+            resourceTotal(this.cargoTransferManifest) > 0
         );
     }
     private updateStationLogistics(input: FlightInput, dt: number) {
@@ -1149,9 +1156,7 @@ export class MissionSimulation {
     get recoverySeconds() {
         return RECOVERY.seconds / this.hullConfig.towPickupSpeed;
     }
-    get repairKitCost() {
-        return { ore: JOBS.kit.ore * 2, parts: JOBS.kit.parts * 2 };
-    }
+
     get nearbyWreck() {
         if (this.salvage.full) return undefined;
         return [...this.salvage.items.values()]
@@ -1365,7 +1370,7 @@ export class MissionSimulation {
                 ? 'Dron zniszczony · przytrzymaj R, aby odbudować'
                 : 'Dron zniszczony · brak zestawu naprawczego';
         if (this.engineFault)
-            return this.repairKits > 0
+            return this.repairKits > 0 || this.modules.hull === 'mule'
                 ? 'AWARIA NAPĘDU · zwolnij poniżej 80 m/s i przytrzymaj R'
                 : 'AWARIA NAPĘDU · brak zestawów · wróć do bazy z ograniczonym ciągiem';
         if (
@@ -1405,7 +1410,7 @@ export class MissionSimulation {
                         ? `Kamuflaż optyczny · ${this.opticalCloakTime.toFixed(1)} s`
                         : `PPM · kamuflaż ${this.opticalCloakCooldown > 1e-8 ? `${Math.ceil(this.opticalCloakCooldown)} s` : 'gotowy'}`
                     : this.hullId === 'mule'
-                      ? `LPM · lasery    /    PPM · zestaw ${this.repairKits ? 'zapas musi wynosić 0' : `${this.repairKitCost.ore} rudy / ${this.repairKitCost.parts} komponenty`}`
+                      ? 'LPM · lasery / R · darmowa samonaprawa'
                       : this.hullId === 'fighter'
                         ? 'LPM · działka    /    PPM · granaty'
                         : 'LPM · działka bojowe    /    PPM · laser wydobywczy';
@@ -1594,12 +1599,6 @@ export class MissionSimulation {
         this.setNotice(`${relay.name} zsynchronizowany · osłona sektora rozszerzona`);
         this.events.push({ ...relay, kind: 'collect', sound: 'complete' });
     }
-    get hyperFuel() {
-        return this.campaign.ship?.hyperFuel ?? 0;
-    }
-    get hyperCapacity() {
-        return this.hyperUnlocked ? 2 + this.campaign.ship!.hyperdriveLevel : 0;
-    }
     get hyperUnlocked() {
         return (this.campaign.ship?.hyperdriveLevel ?? 0) > 0;
     }
@@ -1607,9 +1606,9 @@ export class MissionSimulation {
         return this.area === 'orbit' ? nearestGate(this.sector.hyperlanes, this.position) : null;
     }
     get hyperdriveLock(): string | null {
-        if (!this.hyperUnlocked) return 'Brak hipernapędu · zainstaluj moduł w Przemysł → Paliwo.';
+        if (!this.hyperUnlocked)
+            return 'Brak hipernapędu · zainstaluj moduł w Hangar → Ulepszenia.';
         if (this.area !== 'orbit') return 'Hipernapęd działa tylko na orbicie.';
-        if (this.hyperFuel <= 0) return 'Brak paliwa · tankowanie w Przemysł → Nawigacja.';
         if (this.engineFault || this.hull <= 0 || this.ended) return 'Napęd lub statek niesprawny.';
         if (this.speed > 60 || this.damageCooldown > 0)
             return 'Wyhamuj poniżej 60 m/s i zerwij ostrzał.';
@@ -1636,7 +1635,7 @@ export class MissionSimulation {
         this.hyperHeld = !!input.hyperdrive;
         if (pressed && this.hyperdrive.state === 'charging') {
             this.hyperdrive.cancel();
-            this.setNotice('Ładowanie hipernapędu przerwane · paliwo zachowane.');
+            this.setNotice('Ładowanie hipernapędu przerwane.');
             return;
         }
         if (!pressed || this.hyperdrive.active) return;
@@ -1664,25 +1663,10 @@ export class MissionSimulation {
             target = { ...gate.to };
             guided = true;
         } else {
-            const dx = input.target.x - from.x,
-                dy = input.target.y - from.y,
-                length = Math.hypot(dx, dy);
-            if (length < 10) {
-                this.setNotice('Wskaż kurs myszą. K prowadzi do najbliższej śluzy.');
-                return;
-            }
-            let distance = HYPERDRIVE.range as number;
-            while (
-                distance >= HYPERDRIVE.minimum &&
-                Math.hypot(
-                    from.x + (dx / length) * distance - this.mapCenter.x,
-                    from.y + (dy / length) * distance - this.mapCenter.y,
-                ) >
-                    this.sectorRadius - 130
-            )
-                distance -= 100;
-            target = { x: from.x + (dx / length) * distance, y: from.y + (dy / length) * distance };
+            this.setNotice('Podejdź do śluzy hipernapędu. K prowadzi do najbliższej śluzy.');
+            return;
         }
+
         if (
             Math.hypot(target.x - from.x, target.y - from.y) < HYPERDRIVE.minimum ||
             Math.hypot(target.x - this.mapCenter.x, target.y - this.mapCenter.y) >
@@ -1730,14 +1714,13 @@ export class MissionSimulation {
             if (!drive.charge(dt)) return;
             if (drive.guided && this.hyperPathHit(this.position, drive.target)) {
                 drive.cancel();
-                this.setNotice('Śluza zablokowana podczas ładowania · paliwo zachowane.');
+                this.setNotice('Śluza zablokowana podczas ładowania.');
                 return;
             }
-            if (!this.campaign.ship || this.hyperFuel <= 0) {
+            if (!this.hyperUnlocked) {
                 drive.cancel();
                 return;
             }
-            this.campaign.ship.hyperFuel--;
             this.deliveryRevision++;
         }
         const from = this.position,
@@ -1815,20 +1798,6 @@ export class MissionSimulation {
             (input.boost && input.thrust)
         )
             this.revealTime = 3;
-        if (
-            this.modules.hull === 'mule' &&
-            input.mine &&
-            this.repairKits === 0 &&
-            this.campaign.repairKits < CREW.kitLimit &&
-            this.cargo.ore >= this.repairKitCost.ore &&
-            this.cargo.parts >= this.repairKitCost.parts
-        ) {
-            this.cargo.ore -= this.repairKitCost.ore;
-            this.cargo.parts -= this.repairKitCost.parts;
-            this.supplyRepairKit();
-            this.setNotice('Utworzono zestaw naprawczy · przytrzymaj R, aby użyć.');
-            this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
-        }
         this.aimTarget = { ...input.target };
         if (this.aegis) {
             this.aegis.update(dt, this.position);
@@ -2387,8 +2356,7 @@ export class MissionSimulation {
             .filter(
                 (l) =>
                     l.amount > 0 &&
-                    (l.kind === 'ore' ||
-                        (l.kind === 'parts' && e.cargoParts < MINING_CONVOY.kitCost.parts * 2)) &&
+                    (l.kind === 'ore' || l.kind === 'parts') &&
                     Math.hypot(l.x - MINING_CONVOY.site.x, l.y - MINING_CONVOY.site.y) < 1150 &&
                     !this.grippers.arms.some((a) => a.targetId === l.id),
             )
@@ -3449,10 +3417,6 @@ export class MissionSimulation {
     get repairSeconds() {
         return GAME.repairSeconds;
     }
-    private supplyRepairKit() {
-        this.repairKits++;
-        if (this.campaign.activeRun) this.campaign.activeRun.repairKits = this.repairKits;
-    }
     private updateRepair(input: FlightInput, dt: number) {
         if (
             !input.repair ||
@@ -3462,7 +3426,7 @@ export class MissionSimulation {
             input.interact ||
             input.sabotage ||
             this.speed > GAME.repairSpeed ||
-            this.repairKits <= 0 ||
+            (this.modules.hull !== 'mule' && this.repairKits <= 0) ||
             this.hull <= 0 ||
             (!this.engineFault && this.hull >= this.maxHull && (!this.aegis || this.aegis.drone))
         ) {
@@ -3487,8 +3451,10 @@ export class MissionSimulation {
             this.events.push({ ...point, kind: 'weld', strength: 3, velocity: this.velocity });
         }
         if (this.repairProgress + 1e-8 >= this.repairSeconds) {
-            this.repairKits--;
-            this.statistics.repairKitsUsed++;
+            if (this.modules.hull !== 'mule') {
+                this.repairKits--;
+                this.statistics.repairKitsUsed++;
+            }
             if (this.campaign.activeRun) this.campaign.activeRun.repairKits = this.repairKits;
             this.engineFault = false;
             this.repairProgress = 0;
@@ -3780,7 +3746,7 @@ export class MissionSimulation {
                 strength: STATION_DRONES.radius,
             });
             this.setNotice(
-                'Dron strażniczy zniszczony · odbudowa: 2 K + 1 MZ, wolny mechanik w stacji.',
+                'Dron strażniczy zniszczony · ręczna odbudowa w bazie: 2 poszycia I i 1 układ zasilania.',
             );
         }
     }
@@ -4606,17 +4572,21 @@ export class MissionSimulation {
                     variant: (rock.variant * 7 + (side > 0 ? 3 : 1)) % 128,
                 });
         }
-        if (rock.copper && rock.radius <= 44) this.addLoot(x, y, 'copperOre', 1);
+        if (rock.copper && rock.radius <= 44) this.addLoot(x, y, 'copperOre', 1, true);
         if (rock.crystal && rock.radius <= 44) {
-            this.addLoot(x, y, 'crystals', 1);
-            this.addLoot(x + 14, y, 'hydrogen', 3);
+            this.addLoot(x, y, 'crystals', 1, true);
+            this.addLoot(x + 14, y, 'hydrogen', 3, true);
         }
         const count = Math.ceil(rock.radius / 17);
         for (let i = 0; i < count; i++)
             this.addLoot(
                 x + (this.rng() - 0.5) * 50,
                 y + (this.rng() - 0.5) * 50,
-                rock.rich && i === 0 ? 'parts' : 'ore',
+                rock.rich && i === 0
+                    ? (['carbon', 'oxygen', 'aluminium', 'magnesium', 'nitrogen'] as const)[
+                          rock.variant % 5
+                      ]
+                    : 'ore',
                 1,
                 true,
             );

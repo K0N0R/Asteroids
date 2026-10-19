@@ -13,7 +13,7 @@ import {
     buyUpgrade,
     parseCampaign,
 } from '../frontend/game/state/campaign';
-import { hireMechanic, queueJob, advanceCrew } from '../frontend/game/state/crew';
+import { manufacture } from '../frontend/game/state/production';
 import assert from 'node:assert/strict';
 
 const idle: FlightInput = {
@@ -194,10 +194,10 @@ async function main() {
     const progression: object[] = [];
     for (let sortie = 0; sortie < 24 && c.station.workshop < 2; sortie++) {
         buyUpgrade(c, 'workshop');
-        if (!c.crew.mechanic) hireMechanic(c);
-        if (c.station.storage === 0 && c.bank.ore + c.bank.parts > 100) buyUpgrade(c, 'storage');
-        if (c.station.workshop && (c.bank.crystals ?? 0) < 2) queueJob(c, 'crystallize');
-        if (c.bank.parts < 12) queueJob(c, 'refine');
+        if (c.bank.parts < 12) {
+            manufacture(c, 'steel');
+            manufacture(c, 'plating');
+        }
         assert.ok(beginRun(c, 71 + sortie), 'Normal campaign must allow the next sortie');
         const s = new Simulation(c, 71 + sortie);
         try {
@@ -206,7 +206,6 @@ async function main() {
                 returning ||= s.cargoUsed >= 25 || s.elapsed > 90;
                 const flight = returning ? steer(s, { x: 0, y: 0 }, 85) : mine(s);
                 s.step({ ...flight, interact: returning && s.distanceHome < 170 && s.speed < 60 });
-                advanceCrew(c, GAME.step);
                 s.events.length = 0;
             }
             const result = finishRun(

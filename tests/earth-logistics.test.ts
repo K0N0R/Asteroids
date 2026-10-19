@@ -143,12 +143,12 @@ test('C transfers at 400 m without docking, supports multiple loads and gives ca
     }
 });
 
-test('full storage keeps excess aboard and an interrupted animation never transfers cargo', () => {
+test('large inventories accept all cargo but an interrupted animation transfers nothing', () => {
     const { c, s } = run();
     try {
         grant(c, 'earth-supply');
         grant(c, 'earth-reserve');
-        c.bank = { ore: storageCapacity(c) - 2, parts: 0 };
+        c.bank = { ore: 2_000_000, parts: 0 };
         s.ship.setTranslation({ x: 4, y: 0 }, true);
         s.cargo = { ore: 10, parts: 0 };
         s.step({ ...idle, unload: true });
@@ -159,13 +159,13 @@ test('full storage keeps excess aboard and an interrupted animation never transf
         s.ship.setLinvel({ x: 0, y: 0 }, true);
         s.step({ ...idle, unload: true });
         advance(s, 150);
-        assert.equal(s.cargo.ore, 8);
-        assert.equal(c.bank.ore, storageCapacity(c));
-        assert.equal(c.activeRun!.unloaded!.ore, 2);
+        assert.equal(s.cargo.ore, 0);
+        assert.equal(c.bank.ore, 2_000_010);
+        assert.equal(c.activeRun!.unloaded!.ore, 10);
         const total = structuredClone(c.activeRun!.unloaded);
         s.step({ ...idle, unload: true });
         advance(s, 150);
-        assert.equal(s.cargo.ore, 8);
+        assert.equal(s.cargo.ore, 0);
         assert.deepEqual(c.activeRun!.unloaded, total);
     } finally {
         s.dispose();

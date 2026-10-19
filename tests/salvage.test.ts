@@ -298,7 +298,7 @@ test('asteroid impacts hurt the tow at the contact and Aurora shields salvage fr
     }
 });
 
-test('recycling pays only after a safe return, respects storage and cannot pay twice', () => {
+test('salvage recycling pays only after safe return, has unlimited storage and cannot pay twice', () => {
     const c = newCampaign();
     beginRun(c, 71);
     const result = finishRun(c, true, { ore: 0, parts: 0 }, 60, 'dock', 0, {
@@ -318,14 +318,14 @@ test('recycling pays only after a safe return, respects storage and cannot pay t
         { ore: 0, parts: 0 },
     );
     const full = newCampaign();
-    full.bank.ore = storageCapacity(full) - 2;
+    full.bank.ore = 2_000_000;
     beginRun(full, 71);
     const overflow = finishRun(full, true, { ore: 0, parts: 0 }, 60, 'dock', 0, {
         recycledWreck: 'lancer',
     })!;
     assert.equal(full.bank.crystals, 1);
-    assert.equal(full.bank.parts, 1);
-    assert.equal(overflow.overflow, 18);
+    assert.equal(full.bank.parts, 7);
+    assert.equal(overflow.overflow, 0);
 });
 
 test('a disabled rescue tow stays in the sector and can be attached again without losing its pilot', () => {

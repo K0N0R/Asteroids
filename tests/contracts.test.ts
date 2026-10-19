@@ -143,13 +143,13 @@ test('survey data is lost on death and on refresh and cannot complete the next m
     }
 });
 
-test('survey payouts preserve cargo and obey station overflow without losing the completion', () => {
+test('survey payouts preserve all cargo and rewards in unlimited storage', () => {
     const c = surveyCampaign();
     c.bank.ore = 148;
     beginRun(c, 1);
     const result = finishRun(c, true, { ore: 4, parts: 1 }, 1, 'dock', 0, { data: ['relay'] });
-    assert.deepEqual(c.bank, { ore: 148, parts: 2 });
-    assert.equal(result!.overflow, 24);
+    assert.deepEqual(c.bank, { ore: 170, parts: 4 });
+    assert.equal(result!.overflow, 0);
     assert.equal(c.contractCompletions[2], 1);
 });
 

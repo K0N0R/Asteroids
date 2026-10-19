@@ -4,11 +4,10 @@ import { Container, Graphics } from 'pixi.js';
 import { BasePopup } from '../../core/containers/popup/basePopup';
 import { Campaign } from '../state/campaign';
 import { MissionSimulation } from '../systems/mission';
-import { CONTRACTS, GAME, JOBS } from '../config';
+import { CONTRACTS, GAME } from '../config';
 import { C, ShipView } from '../graphics/shapes';
 import { PROTOTYPES } from '../systems/prototypes';
 import { button, clear, label, panel } from './primitives';
-import { workerJobs } from '../state/crew';
 import { missionObjectives } from './missionReadout';
 import { objectiveMark } from './hudIcons';
 
@@ -68,7 +67,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         );
         label(
             root,
-            `HIPER ${s.hyperFuel}/${s.hyperCapacity} · SPACJA skok / śluza / anuluj ładowanie · kolizja = utrata`,
+            `HIPERNAPĘD · SPACJA: śluza / anuluj ładowanie · kolizja = utrata`,
             280,
             208,
             13,
@@ -91,7 +90,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                       : s.aegis
                         ? `Energia ${s.energyDamage} · dron ${s.aegis.drone ? Math.ceil(s.aegis.drone.hull) : 0} HP · impuls ${Math.ceil(s.aegis.cooldown)} s`
                         : s.hullId === 'mule'
-                          ? `Lasery ×2 · zestawy ${s.repairKits} · produkcja ${s.repairKitCost.ore}/${s.repairKitCost.parts}`
+                          ? 'Lasery ×2 · R: darmowa samonaprawa'
                           : s.hullId === 'stinger'
                             ? `4 działa · LPM ${(STINGER_AMMO.light.damage * s.stingerDamageMultiplier).toFixed(1)} / PPM ${(STINGER_AMMO.armor.damage * s.stingerDamageMultiplier).toFixed(1)} · zestawy ${s.repairKits}`
                             : s.hullId === 'phoenix'
@@ -246,18 +245,16 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             C.gold,
             460,
         );
-        label(root, 'ZAŁOGA STACJI', 860, 503, 13, C.muted);
-        (['mechanic', 'quartermaster'] as const).forEach((role, i) => {
-            const jobs = workerJobs(c, role),
-                head = jobs[0];
-            const title = role === 'mechanic' ? 'Mechanik' : 'Intendent';
-            const state = !c.crew[role]
-                ? 'niezatrudniony'
-                : !head
-                  ? 'brak zadań'
-                  : `${JOBS[head.kind].title} · ${Math.ceil(head.remaining)} s${jobs.length > 1 ? ` · +${jobs.length - 1} w kolejce` : ''}`;
-            label(root, `${title}: ${state}`, 860, 532 + i * 36, 15, head ? C.mint : C.muted, 460);
-        });
+        label(root, 'PRZETWARZANIE', 860, 503, 13, C.muted);
+        label(
+            root,
+            'Laboratorium i warsztat obsługujesz ręcznie w bazie.\nPodczas lotu nie trwa produkcja.',
+            860,
+            532,
+            16,
+            C.muted,
+            460,
+        );
         label(root, 'ODZYSK', 860, 635, 13, C.muted);
         label(
             root,

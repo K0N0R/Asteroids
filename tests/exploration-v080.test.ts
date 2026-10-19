@@ -9,7 +9,7 @@ import {
     beginRun,
     parseCampaign,
 } from '../frontend/game/state/campaign';
-import { upgradeHyperdrive, refuelHyperdrive } from '../frontend/game/state/crew';
+import { upgradeHyperdrive } from '../frontend/game/state/production';
 import {
     magneticCoverage,
     MAGNETIC_RELAYS,
@@ -19,26 +19,20 @@ import { MissionSimulation } from '../frontend/game/systems/mission';
 import { HarpoonArms } from '../frontend/game/systems/harpoonArms';
 before(async () => RAPIER.init());
 const idle = { target: { x: 0, y: 0 }, thrust: false, brake: false, fire: false, interact: false };
-test('starter ships have no hyperdrive; installation levels, costs, refuelling and save validation are per ship', () => {
+test('starter ships have no drive; installed tiers persist and never require fuel', () => {
     const c = newStoryCampaign();
     assert.equal(c.ship!.hyperdriveLevel, 0);
-    assert.equal(c.ship!.hyperFuel, 0);
-    c.bank = { ore: 200, parts: 70, powerModules: 10, hyperFuel: 12 };
-    c.crew.mechanic = true;
+    assert.equal(Object.hasOwn(c.ship!, 'hyperFuel'), false);
+    c.bank = { ore: 200, parts: 70, powerModules: 10, propulsion: 10 };
     c.station.workshop = 1;
-    assert.equal(refuelHyperdrive(c), false);
     for (let level = 1; level <= 3; level++) {
         assert.ok(upgradeHyperdrive(c));
         assert.equal(c.ship!.hyperdriveLevel, level);
-        assert.ok(refuelHyperdrive(c));
-        assert.equal(c.ship!.hyperFuel, level + 2);
     }
     const snapshot = structuredClone(c);
     assert.equal(upgradeHyperdrive(c), false);
     assert.deepEqual(c, snapshot);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-    c.ship!.hyperFuel = 6;
-    assert.equal(parseCampaign(JSON.stringify(c)), null);
     assert.equal(newShip(9).hyperdriveLevel, 0);
 });
 test('remote magnetic coverage has a real gap and relays expand local coverage without joining the distant deposit', () => {

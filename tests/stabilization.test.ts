@@ -1,7 +1,7 @@
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
-import { CREW, GAME, HULLS, type HullId } from '../frontend/game/config';
+import { REPAIR_KITS, GAME, HULLS, type HullId } from '../frontend/game/config';
 import {
     beginRun,
     buyShip,
@@ -15,7 +15,6 @@ import {
     selectShip,
     upgradePrice,
 } from '../frontend/game/state/campaign';
-import { advanceCrew, queueJob } from '../frontend/game/state/crew';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 
 before(async () => {
@@ -67,59 +66,25 @@ test('every hull can be bought, fully upgraded, saved and scrapped without creat
         assert.equal(refund.crystals, Math.floor(spent.crystals / 2), hull);
         assert.ok(selectShip(c, original));
         c.bank = { ore: 0, parts: 0 };
-        if (refund.ore + refund.parts + (refund.crystals ?? 0) <= 450) {
-            assert.ok(scrapShip(c, purchased));
-            assert.deepEqual(c.bank, refund);
-            assert.equal(scrapShip(c, purchased), false);
-        } else {
-            // Large investments cannot be recycled into a smaller warehouse.
-            const snapshot = JSON.stringify(c);
-            assert.equal(scrapShip(c, purchased), false);
-            assert.equal(JSON.stringify(c), snapshot);
-        }
+        assert.ok(scrapShip(c, purchased));
+        assert.deepEqual(c.bank, refund);
+        assert.equal(scrapShip(c, purchased), false);
     }
 });
 
-test('consuming a field kit releases its reserved stock slot for station production and saves', () => {
-    const c = newCampaign();
-    c.crew.mechanic = true;
-    c.bank = { ore: 18, parts: 3 };
-    c.repairKits = 7;
-    for (let i = 0; i < 3; i++) assert.ok(queueJob(c, 'kit'));
-    assert.ok(beginRun(c, 71));
-    const sim = new MissionSimulation(c, 71);
-    try {
-        sim.hull = sim.maxHull - 30;
-        for (let i = 0; i < 300; i++) sim.step({ ...idle, repair: true });
-        assert.equal(sim.repairKits, 1);
-        assert.equal(c.activeRun!.repairKits, 1);
-        assert.equal(advanceCrew(c, 90), 3);
-        assert.equal(c.repairKits + c.activeRun!.repairKits, CREW.kitLimit - 1);
-        assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-        finishRun(c, true, sim.cargo, sim.elapsed, 'dock', sim.repairKits);
-        assert.equal(c.repairKits, CREW.kitLimit - 1);
-    } finally {
-        sim.dispose();
-    }
-});
-
-test('scrapping availability includes crystals at the warehouse boundary', () => {
+test('scrapping preserves every refunded material beyond the former warehouse boundary', () => {
     const c = newCampaign();
     c.bank.ore = 15;
     assert.ok(buyShip(c));
     const reserve = c.reserveShips[0];
     reserve.engine = 3;
     const refund = scrapRefund(reserve);
-    assert.equal(refund.crystals, 1);
-    c.bank.ore = 150 - refund.ore - refund.parts;
-    const snapshot = JSON.stringify(c);
-    assert.equal(canScrapShip(c, reserve.id), false);
-    assert.equal(scrapShip(c, reserve.id), false);
-    assert.equal(JSON.stringify(c), snapshot);
-    c.bank.ore--;
-    assert.equal(canScrapShip(c, reserve.id), true);
+    c.bank.ore = 2_000_000;
+    assert.ok(canScrapShip(c, reserve.id));
     assert.ok(scrapShip(c, reserve.id));
-    assert.equal(c.bank.ore + c.bank.parts + c.bank.crystals!, 150);
+    assert.equal(c.bank.ore, 2_000_000 + refund.ore);
+    assert.equal(c.bank.parts, refund.parts);
+    assert.equal(c.bank.crystals, refund.crystals);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
 

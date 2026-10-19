@@ -318,7 +318,7 @@ test('surface quarry supports actual mining and collection with the starter ship
         }
         assert.equal(s.ended, null);
         assert.ok(s.cargo.ore > 0);
-        assert.ok(s.cargo.parts > 0);
+        assert.equal(s.cargo.parts, 0, 'natural rocks do not contain manufactured parts');
         assert.ok(s.statistics.rocksDestroyed > 0);
         // Leave the solid quarry around its northern edge before approaching construction.
         fly(

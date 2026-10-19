@@ -14,7 +14,11 @@ await build({
 });
 const result = spawnSync(
     process.execPath,
-    ['--test', ...entries.map((name) => `dist/tests/${name.replace(/\.ts$/, '.cjs')}`)],
+    [
+        '--test',
+        ...(process.env.TEST_REPORTER ? [`--test-reporter=${process.env.TEST_REPORTER}`] : []),
+        ...entries.map((name) => `dist/tests/${name.replace(/\.ts$/, '.cjs')}`),
+    ],
     {
         stdio: 'inherit',
     },

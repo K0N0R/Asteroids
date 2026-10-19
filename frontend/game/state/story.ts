@@ -136,7 +136,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Pierwsze zaopatrzenie',
-        detail: 'Wydobądź 24 rudy. Do 650 m od Satuk 15 zwolnij poniżej 35 m/s i naciśnij C: transfer bez dokowania. Dostawy mogą być częściowe.',
+        detail: 'Wydobądź 24 porcje Żelaza (Fe). Do 650 m od Satuk 15 zwolnij poniżej 35 m/s i naciśnij C: transfer bez dokowania. Dostawy mogą być częściowe.',
         required: true,
         kind: 'ore',
         target: 24,
@@ -186,7 +186,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Rezerwa materiałowa',
-        detail: 'Dodatkowy przydział: dostarcz 16 rudy po pierwszym zaopatrzeniu. Transfer C przy Satuk 15. Nie blokuje podróży dalej.',
+        detail: 'Dodatkowy przydział: dostarcz 16 porcji Żelaza (Fe) po pierwszym zaopatrzeniu. Transfer C przy Satuk 15. Nie blokuje podróży dalej.',
         required: false,
         kind: 'ore',
         target: 16,
@@ -1380,7 +1380,7 @@ export function acknowledgeStoryBriefing(c: Campaign) {
     p.progress[task.id] = 1;
     return settle(c);
 }
-export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = true) {
+export function pendingLunarDelivery(c: Campaign, cargo: Cargo) {
     const p = c.story;
     if (
         !p ||
@@ -1396,12 +1396,19 @@ export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = tr
     if (!task?.resource) return null;
     const amount = Math.min(cargo[task.resource], task.target - p.progress[task.id]);
     if (amount <= 0) return null;
-    cargo[task.resource] -= amount;
+    return { task, resource: task.resource, amount };
+}
+export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = true) {
+    const pending = pendingLunarDelivery(c, cargo);
+    if (!pending) return null;
+    const { task, amount } = pending;
+    const p = c.story!;
+    cargo[pending.resource] -= amount;
     // Loaded supplies are delivered first; newly mined cargo still earns normal XP on return.
-    if (playerDelivery) recordCargoDelivery(c, { ore: 0, parts: 0, [task.resource]: amount });
+    if (playerDelivery) recordCargoDelivery(c, { ore: 0, parts: 0, [pending.resource]: amount });
     p.progress[task.id] += amount;
     const change = settle(c);
-    return { amount, resource: task.resource, change };
+    return { amount, resource: pending.resource, change };
 }
 export function constructionManifest(c: Campaign): Cargo {
     const cargo = { ore: 0, parts: 0 };

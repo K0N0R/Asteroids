@@ -1,4 +1,5 @@
-import { RESOURCES } from '../state/resources';
+import { itemIllustration } from '../graphics/items';
+import { RESOURCES, RESOURCE_IDS, type ResourceId } from '../state/resources';
 import { anomalyFieldView, recoveryProbeView } from '../graphics/anomalyFieldView';
 import { EnemyFactoryView } from '../graphics/enemyFactoryView';
 import { StationSentryView } from '../graphics/stationSentryView';
@@ -115,7 +116,8 @@ export class MissionWorld extends Container {
     private enemyStatus = new Graphics();
     private mineView = new Graphics();
     private repairBeams = new Graphics();
-    private loot = new Map<number, Graphics>();
+    private loot = new Map<number, Container>();
+    private transferItems: { id: ResourceId; view: Container }[] = [];
     private particles: {
         view: Graphics;
         vx: number;
@@ -339,6 +341,7 @@ export class MissionWorld extends Container {
         const s = this.simulation,
             g = this.journeyInk.clear(),
             dead = s.ended === 'destroyed';
+        for (const item of this.transferItems) item.view.visible = false;
         for (const title of this.gateLabels) {
             title.view.rotation = -this.camera.rotation;
             const offset = rotateVector({ x: 0, y: 135 }, -this.camera.rotation);
@@ -384,12 +387,21 @@ export class MissionWorld extends Container {
                 width: 4,
                 alpha: 0.8,
             });
-            for (let i = 0; i < 6; i++) {
+            const kinds = RESOURCE_IDS.filter((id) => (s.cargoTransferManifest[id] ?? 0) > 0);
+            for (let i = 0; i < 6 && kinds.length; i++) {
+                const id = kinds[(i + Math.floor(t * kinds.length)) % kinds.length];
+                let item = this.transferItems[i];
+                if (!item || item.id !== id) {
+                    if (item) destroyDisplayTree(item.view);
+                    const view = itemIllustration(id);
+                    view.scale.set(0.17);
+                    this.journeyOverlay.addChild(view);
+                    item = this.transferItems[i] = { id, view };
+                }
                 const f = (t * 2 + i / 6) % 1;
-                g.roundRect(795 + (base.x - 800) * f, 445 + (base.y - 450) * f, 10, 10, 2).fill({
-                    color: C.mint,
-                    alpha: 1 - f,
-                });
+                item.view.visible = true;
+                item.view.position.set(800 + (base.x - 800) * f, 450 + (base.y - 450) * f);
+                item.view.alpha = 1 - f;
             }
         }
         if (!s.hyperdrive.active) return;
@@ -1673,18 +1685,23 @@ export class MissionWorld extends Container {
         }
         for (const [id, view] of this.loot)
             if (!s.loot.has(id)) {
-                view.destroy();
+                destroyDisplayTree(view);
                 this.loot.delete(id);
             }
         for (const item of s.loot.values()) {
             let view = this.loot.get(item.id);
             if (!view) {
                 const color = RESOURCES[item.kind].color;
-                view = new Graphics()
-                    .circle(0, 0, 6)
-                    .fill(color)
-                    .circle(-2, -2, 2)
-                    .fill({ color: 0xffffff, alpha: 0.45 });
+                if (RESOURCES[item.kind].category === 'PIERWIASTKI') {
+                    view = new Graphics()
+                        .circle(0, 0, 6)
+                        .fill(color)
+                        .circle(-2, -2, 2)
+                        .fill({ color: 0xffffff, alpha: 0.45 });
+                } else {
+                    view = itemIllustration(item.kind);
+                    view.scale.set(0.18);
+                }
                 this.loot.set(item.id, view);
                 this.effectLayer.addChild(view);
             }

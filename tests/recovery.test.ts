@@ -141,7 +141,7 @@ test('a failed or refreshed flight leaves the rescue target and its pilot in the
     assert.deepEqual(parseCampaign(JSON.stringify(loaded)), loaded);
 });
 
-test('full hangar converts the rescued hull to materials with storage overflow reported', () => {
+test('full hangar converts the rescued hull to materials without warehouse overflow', () => {
     const c = lostCampaign(),
         signal = c.recoverySignals[0];
     emergencyKit(c);
@@ -153,8 +153,8 @@ test('full hangar converts the rescued hull to materials with storage overflow r
     const result = finishRun(c, true, { ore: 0, parts: 0 }, 5, 'dock', 0, { securedId: signal.id });
     assert.equal(c.reserveShips.length, 5);
     assert.equal(c.recoverySignals.length, 0);
-    assert.equal(c.bank.ore + c.bank.parts, 150);
-    assert.equal(result!.overflow, refund.ore + refund.parts - 1);
+    assert.equal(c.bank.ore + c.bank.parts, 149 + refund.ore + refund.parts);
+    assert.equal(result!.overflow, 0);
     assert.deepEqual(result!.reward, refund);
     assert.ok(c.pilots.some((p) => p.id === signal.pilot!.id));
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);

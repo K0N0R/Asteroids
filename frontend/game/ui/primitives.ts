@@ -92,3 +92,33 @@ export function button(
 export function clear(parent: Container) {
     for (const child of parent.removeChildren()) destroyDisplayTree(child);
 }
+
+/** Shared station layout: content cards and their primary action share one baseline. */
+export const STATION_LAYOUT = {
+    top: 214,
+    bottom: 805,
+    right: 1040,
+    padding: 32,
+    actionY: 729,
+    actionHeight: 44,
+} as const;
+
+/** Reserve a real box for artwork, including asymmetric molecule bounds. */
+export function illustrationInBox(
+    parent: Container,
+    artwork: Container,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+) {
+    const bounds = artwork.getLocalBounds();
+    const scale = Math.min(width / Math.max(1, bounds.width), height / Math.max(1, bounds.height));
+    artwork.scale.set(scale);
+    artwork.position.set(
+        x + width / 2 - ((bounds.minX + bounds.maxX) / 2) * scale,
+        y + height / 2 - ((bounds.minY + bounds.maxY) / 2) * scale,
+    );
+    parent.addChild(artwork);
+    return artwork;
+}

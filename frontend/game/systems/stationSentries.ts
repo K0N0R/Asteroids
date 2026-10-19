@@ -1,5 +1,5 @@
 import RAPIER from '@dimforge/rapier2d-compat';
-import { GAME, JOBS } from '../config';
+import { GAME } from '../config';
 import type { Campaign } from '../state/campaign';
 import { STATION_DRONES as D, type StationDroneState } from '../state/stationDrones';
 import type { Point } from '../worlds/sector';
@@ -89,31 +89,9 @@ export class StationSentries {
             this.clear();
             return;
         }
-        const mechanic =
-            this.campaign.crew.mechanic &&
-            !this.campaign.crew.mechanicAboard &&
-            !this.campaign.crew.jobs.some((job) => JOBS[job.kind].worker === 'mechanic');
         this.angle += dt * 0.12;
         states.forEach((state, id) => {
-            if (state.hull <= 0) {
-                if (!mechanic) return;
-                if (state.rebuildRemaining <= 0) {
-                    const cost = D.replacement;
-                    if (
-                        this.campaign.bank.parts < cost.parts ||
-                        (this.campaign.bank.powerModules ?? 0) < cost.powerModules
-                    )
-                        return;
-                    this.campaign.bank.parts -= cost.parts;
-                    this.campaign.bank.powerModules =
-                        (this.campaign.bank.powerModules ?? 0) - cost.powerModules;
-                    state.rebuildRemaining = D.rebuildSeconds;
-                }
-                state.rebuildRemaining = Math.max(0, state.rebuildRemaining - dt);
-                if (state.rebuildRemaining > 1e-8) return;
-                state.rebuildRemaining = 0;
-                state.hull = D.hull;
-            }
+            if (state.hull <= 0) return;
             if (!this.drones.has(id)) this.launch(id, state);
         });
         for (const drone of this.drones.values()) {
@@ -152,7 +130,7 @@ export class StationSentries {
             let destination = { x: Math.cos(angle) * D.orbit, y: Math.sin(angle) * D.orbit };
             if (drone.mode === 'repair') {
                 destination = { x: Math.cos(angle) * 200, y: Math.sin(angle) * 200 };
-                if (Math.hypot(p.x, p.y) < 260 && mechanic && drone.quiet >= D.repairDelay)
+                if (Math.hypot(p.x, p.y) < 260 && drone.quiet >= D.repairDelay)
                     drone.state.hull = Math.min(D.hull, drone.state.hull + D.repairRate * dt);
                 target = undefined;
             } else if (target) {

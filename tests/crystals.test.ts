@@ -11,7 +11,6 @@ import {
     storageUsed,
     scrapRefund,
 } from '../frontend/game/state/campaign';
-import { hireMechanic, queueJob, cancelJob, advanceCrew } from '../frontend/game/state/crew';
 import { generateSector } from '../frontend/game/worlds/sector';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 before(async () => {
@@ -24,33 +23,6 @@ const idle: FlightInput = {
     fire: false,
     interact: false,
 };
-
-test('crystal smelting requires workshop I and reserves inputs, refunds once and produces in flight only', () => {
-    const c = newCampaign();
-    c.bank = { ore: 30, parts: 10 };
-    hireMechanic(c);
-    const before = { ...c.bank };
-    assert.equal(queueJob(c, 'crystallize'), false);
-    assert.deepEqual(c.bank, before);
-    c.station.workshop = 1;
-    const used = storageUsed(c);
-    assert.ok(queueJob(c, 'crystallize'));
-    assert.equal(c.bank.parts, 5);
-    assert.equal(storageUsed(c), used);
-    const id = c.crew.jobs[0].id;
-    assert.ok(cancelJob(c, id));
-    assert.equal(cancelJob(c, id), false);
-    assert.equal(c.bank.parts, 10);
-    assert.ok(queueJob(c, 'crystallize'));
-    assert.equal(advanceCrew(c, 100), 0);
-    beginRun(c, 7);
-    assert.equal(advanceCrew(c, 89), 0);
-    assert.equal(c.bank.crystals ?? 0, 0);
-    assert.equal(advanceCrew(c, 1), 1);
-    assert.equal(c.bank.crystals, 1);
-    assert.equal(storageUsed(c), used - 4);
-    assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-});
 
 test('stronger ship and station upgrades require crystals with no partial payment', () => {
     const c = newCampaign();
@@ -74,16 +46,16 @@ test('stronger ship and station upgrades require crystals with no partial paymen
     assert.equal(scrapRefund(c.ship!).crystals, 1);
 });
 
-test('docking prioritizes crystals before parts and ore; death loses carried crystals', () => {
+test('docking preserves all silicon, parts and iron; death still loses carried silicon', () => {
     const c = newCampaign();
     c.bank.ore = 147;
     beginRun(c, 7);
     const result = finishRun(c, true, { ore: 3, parts: 2, crystals: 2 }, 1, 'dock')!;
     assert.equal(c.bank.crystals, 2);
-    assert.equal(c.bank.parts, 1);
-    assert.equal(c.bank.ore, 147);
-    assert.equal(result.overflow, 4);
-    assert.equal(storageUsed(c), 150);
+    assert.equal(c.bank.parts, 2);
+    assert.equal(c.bank.ore, 150);
+    assert.equal(result.overflow, 0);
+    assert.equal(storageUsed(c), 154);
     const lost = newCampaign();
     beginRun(lost, 7);
     finishRun(lost, false, { ore: 0, parts: 0, crystals: 2 }, 1, 'death');

@@ -3,7 +3,7 @@ import { KineticShield, shieldProfile } from '../systems/kineticShield';
 import { drawKineticShield } from '../graphics/kineticShieldView';
 import { Container, Graphics, Rectangle } from 'pixi.js';
 import { C, ShipView, stationView, DroneView } from '../graphics/shapes';
-import { HullId, WeaponId, type JobKind } from '../config';
+import { HullId, WeaponId } from '../config';
 import type { ShipModules } from '../state/campaign';
 import type { RecoverySignal } from '../state/recovery';
 import { label } from './primitives';
@@ -14,6 +14,7 @@ export type LobbyIcon =
     | 'station'
     | 'pilot'
     | 'crew'
+    | 'laboratory'
     | 'signal'
     | 'ore'
     | 'parts'
@@ -53,6 +54,12 @@ export function lobbyIcon(kind: LobbyIcon, color: number = C.mint) {
         g.poly([
             -10, 10, -3, 3, -8, -4, -6, -11, -1, -5, 4, -7, 5, -12, 10, -6, 7, 1, 1, 4, -6, 12,
         ]).stroke({ color, width: 2 });
+    if (kind === 'laboratory') {
+        g.roundRect(-4, -13, 8, 17, 3).roundRect(-8, -14, 16, 5, 2).fill(color);
+        g.circle(0, 5, 11).fill(color);
+        g.circle(-3, 3, 3).fill(C.ink);
+        g.circle(4, 8, 2).fill(C.ink);
+    }
     if (kind === 'signal')
         g.beginPath()
             .circle(0, 0, 3)
@@ -142,16 +149,19 @@ export function cost(
         icon.position.set(x + 250, y + 11);
         parent.addChild(icon);
         label(parent, `${crystals}`, x + 272, y, 20, 0xc2a0ec);
+        label(parent, 'Krzem (Si)', x + 250, y + 23, 10, C.muted);
     }
     const rock = lobbyIcon('ore', C.gold);
     rock.position.set(x + 10, y + 11);
     parent.addChild(rock);
     label(parent, `${ore}`, x + 30, y, 20, C.gold);
+    label(parent, 'Żelazo (Fe)', x, y + 23, 10, C.muted);
     if (parts || showZeroParts) {
         const chip = lobbyIcon('parts', C.cyan);
         chip.position.set(x + 125, y + 11);
         parent.addChild(chip);
         label(parent, `${parts}`, x + 146, y, 20, C.cyan);
+        label(parent, 'Poszycie stalowe I', x + 115, y + 23, 10, C.muted);
     }
 }
 export function segments(
@@ -329,96 +339,38 @@ export function pilotPortrait(archetype: number, mechanic = false, identity = ar
     return root;
 }
 
-export function stationScene(level: number, selected: 'workshop' | 'storage') {
-    const root = new Container(),
-        view = stationView(level),
-        g = new Graphics();
-    view.scale.set(1.8);
-    root.addChild(view);
-    const x = selected === 'workshop' ? 230 : -230;
-    g.moveTo(x * 0.58, 0)
-        .lineTo(x, 0)
-        .stroke({ color: C.mint, width: 2, alpha: 0.65 })
-        .beginPath()
-        .circle(x, 0, 38)
-        .fill(C.ink)
-        .stroke({ color: C.mint, width: 2 });
-    const icon = lobbyIcon(selected === 'workshop' ? 'crew' : 'cargo');
-    icon.position.set(x, 0);
-    icon.scale.set(1.8);
-    root.addChild(g, icon);
-    return root;
-}
-
-export function workshopScene(kind: JobKind, kitParts = 0) {
+/** Production bay: machines, workbench and material processing unlocked by each tier. */
+export function productionBayScene(level: number) {
     const root = new Container(),
         g = new Graphics();
-    g.poly([-265, 76, -215, 128, 215, 128, 265, 76, 215, -115, -215, -115])
-        .fill({ color: 0x0b1d2b, alpha: 0.9 })
-        .stroke({ color: C.line, width: 2 });
-    g.moveTo(-175, -115)
-        .lineTo(-175, 80)
-        .lineTo(-80, 80)
-        .moveTo(175, -115)
-        .lineTo(175, 80)
-        .lineTo(80, 80)
-        .stroke({ color: C.cyan, width: 5, alpha: 0.55 });
-    for (let i = 0; i < 4; i++) g.rect(-180 + i * 120, 117, 50, 7).fill(C.gold);
-    const input = lobbyIcon(
-        kitParts > 0 || kind === 'recycle' || kind === 'crystallize' ? 'parts' : 'ore',
-        C.gold,
-    );
-    input.scale.set(3);
-    input.position.set(-135, 0);
-    const output = lobbyIcon(
-        kind === 'crystallize'
-            ? 'crystals'
-            : kind === 'recycle'
-              ? 'ore'
-              : kind === 'refine'
-                ? 'parts'
-                : 'health',
-        kind === 'crystallize' ? 0xc2a0ec : C.mint,
-    );
-    output.scale.set(3.5);
-    output.position.set(130, 0);
-    g.moveTo(-45, 0)
-        .lineTo(45, 0)
-        .moveTo(29, -13)
-        .lineTo(45, 0)
-        .lineTo(29, 13)
-        .stroke({ color: C.mint, width: 3 });
-    root.addChild(g, input, output);
-    label(
-        root,
-        kitParts > 0
-            ? `${kitParts} komponentów`
-            : kind === 'crystallize'
-              ? '5 komponentów'
-              : kind === 'recycle'
-                ? '1 komponent'
-                : kind === 'refine'
-                  ? '8 rudy'
-                  : '6 rudy + 1 komponent',
-        -190,
-        56,
-        15,
-        C.gold,
-    );
-    label(
-        root,
-        kind === 'crystallize'
-            ? '1 kryształ'
-            : kind === 'recycle'
-              ? '5 rudy'
-              : kind === 'refine'
-                ? '1 komponent'
-                : '1 zestaw',
-        77,
-        56,
-        15,
-        C.mint,
-    );
+    // A cutaway assembly room, with rounded machinery instead of a station overview.
+    g.roundRect(-270, -150, 540, 300, 40).fill(0x253855);
+    g.roundRect(-250, -132, 500, 224, 30).fill(0x1b2944);
+    g.roundRect(-240, 103, 480, 26, 13).fill(0x526d88);
+    for (const x of [-215, 175]) g.roundRect(x, -109, 40, 150, 19).fill(0x7d9bb1);
+    g.roundRect(-185, -90, 370, 15, 7).fill(0xa7c4d6);
+    g.roundRect(-130, -90, 66, 47, 14).fill(C.cyan);
+    g.roundRect(-108, -48, 22, 53, 10).fill(0xbcd5df);
+    g.roundRect(-126, -2, 57, 16, 8).fill(C.mint);
+    g.roundRect(-155, 45, 310, 29, 12).fill(0xb4cad8);
+    for (const x of [-140, 118]) g.roundRect(x, 69, 22, 36, 8).fill(0x7891aa);
+    // Workpiece and control display.
+    g.roundRect(-53, 5, 109, 34, 12).fill(0xf0c47f);
+    g.roundRect(-32, 14, 68, 9, 4).fill(0xffe3ab);
+    g.roundRect(84, -43, 77, 63, 14).fill(0x647e9a);
+    g.roundRect(94, -33, 57, 42, 9).fill(0x13213a);
+    for (let i = 0; i < 3; i++) g.roundRect(103, -23 + i * 11, 25 + i * 7, 5, 2).fill(C.mint);
+    for (let i = 0; i < 3; i++)
+        g.circle(-211, -82 + i * 29, 6).fill(i <= level ? C.mint : 0x405574);
+    if (level >= 1) {
+        g.roundRect(183, 37, 47, 56, 15).fill(0xe7b979);
+        g.roundRect(193, 49, 27, 20, 7).fill(0x637a92);
+    }
+    if (level >= 2) {
+        g.roundRect(-228, 37, 53, 56, 15).fill(0x8bcfc6);
+        g.roundRect(-217, 49, 31, 20, 7).fill(0x324d6a);
+    }
+    root.addChild(g);
     return root;
 }
 

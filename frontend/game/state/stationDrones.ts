@@ -25,12 +25,20 @@ export interface StationDroneState {
 
 export function stationDronesLock(c: Campaign): string | null {
     if (!c.story) return 'Hangar jest dostępny w kampanii Satuk 15.';
-    if (c.station.sentries) return 'Hangar już zamontowany.';
     if (c.activeRun) return 'Montaż jest dostępny po powrocie do stacji.';
+    if (c.station.sentries) {
+        const lost = c.station.sentries.filter((s) => s.hull <= 0).length;
+        if (!lost) return 'Wszystkie drony są sprawne.';
+        if (
+            c.bank.parts < lost * STATION_DRONES.replacement.parts ||
+            (c.bank.powerModules ?? 0) < lost * STATION_DRONES.replacement.powerModules
+        )
+            return 'Brakuje poszycia lub układów zasilania do odbudowy.';
+        return null;
+    }
     if (!c.station.shield) return 'Najpierw zamontuj generator tarczy stacji.';
     if (!c.story.claimed.includes('earth-workshop') || c.station.workshop < 1)
         return 'Wymagane zaplecze Satuk 15 i warsztat I.';
-    if (!c.crew.mechanic || c.crew.mechanicAboard) return 'Mechanik musi pracować w stacji.';
     const cost = STATION_DRONES.cost;
     if (
         c.bank.ore < cost.ore ||
@@ -43,6 +51,17 @@ export function stationDronesLock(c: Campaign): string | null {
 
 export function installStationDrones(c: Campaign) {
     if (stationDronesLock(c)) return false;
+    if (c.station.sentries) {
+        const lost = c.station.sentries.filter((s) => s.hull <= 0);
+        c.bank.parts -= lost.length * STATION_DRONES.replacement.parts;
+        c.bank.powerModules =
+            (c.bank.powerModules ?? 0) - lost.length * STATION_DRONES.replacement.powerModules;
+        for (const state of lost) {
+            state.hull = STATION_DRONES.hull;
+            state.rebuildRemaining = 0;
+        }
+        return true;
+    }
     const cost = STATION_DRONES.cost;
     c.bank.ore -= cost.ore;
     c.bank.parts -= cost.parts;

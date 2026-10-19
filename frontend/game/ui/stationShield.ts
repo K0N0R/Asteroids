@@ -4,28 +4,23 @@ import { Container, Graphics } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { STATION_SHIELD, stationProtectionRadius, stationShieldLock } from '../state/stationShield';
 import { C } from '../graphics/shapes';
-import { button, label } from './primitives';
+import { button, label, STATION_LAYOUT } from './primitives';
 import { STATION_DRONES as D, stationDronesLock } from '../state/stationDrones';
 import { StationSentryView } from '../graphics/stationSentryView';
 
-export function stationShieldOverview(
+export function stationShieldContent(
     ui: Container,
     c: Campaign,
-    back: () => void,
     install?: () => void,
-    openDrones?: () => void,
     upgrade?: () => void,
 ) {
-    button(ui, '← PRZEMYSŁ I MAGAZYN', 280, 218, 300, back, false, true, 36, 14);
-    if (openDrones)
-        button(ui, 'DRONY STRAŻNICZE →', 1072, 218, 456, openDrones, false, true, 36, 14);
     const active = !c.story || c.station.shield;
     const upgradeMode = c.station.shield;
     const level = c.station.shieldLevel;
     const nextCost = KINETIC_SHIELD_COSTS[level];
     const g = new Graphics(),
-        x = 625,
-        y = 490;
+        x = 640,
+        y = 515;
     const radius = active ? 220 : 68;
     g.circle(x, y, 220).stroke({ color: C.line, width: 2, alpha: 0.6 });
     g.circle(x, y, radius).fill({ color: C.cyan, alpha: 0.07 }).stroke({ color: C.cyan, width: 3 });
@@ -40,8 +35,16 @@ export function stationShieldOverview(
             .stroke({ color: C.mint, width: 2 });
     }
     ui.addChild(g);
-    label(ui, 'SATUK 15', x - 44, y + 60, 16, C.text);
-    label(ui, `Obszar ochrony: ${stationProtectionRadius(c)} m`, 360, 755, 22, C.cyan, 580);
+    label(ui, 'SATUK 15', x, y + 60, 16, C.text).setHorizontalAlign('center');
+    label(
+        ui,
+        `Obszar ochrony: ${stationProtectionRadius(c)} m`,
+        x,
+        755,
+        22,
+        C.cyan,
+        580,
+    ).setHorizontalAlign('center');
     label(ui, 'MODUŁ OBRONNY / STACJA', 1072, 244, 13, C.mint);
     label(ui, 'Generator tarczy', 1072, 278, 30, C.text);
     label(
@@ -107,26 +110,20 @@ export function stationShieldOverview(
               ? 'TARCZA ZAMONTOWANA'
               : 'ZAMONTUJ GENERATOR',
         1072,
-        731,
+        STATION_LAYOUT.actionY,
         456,
         () => (upgradeMode ? upgrade?.() : install?.()),
         true,
         (upgradeMode ? !!upgrade : !!install) && !lock,
-        44,
+        STATION_LAYOUT.actionHeight,
         16,
     );
 }
 
-export function stationDronesOverview(
-    ui: Container,
-    c: Campaign,
-    back: () => void,
-    install?: () => void,
-) {
-    button(ui, '← OCHRONA SATUK 15', 280, 218, 300, back, false, true, 36, 14);
+export function stationDronesContent(ui: Container, c: Campaign, install?: () => void) {
     const diagram = new Graphics();
-    const x = 625,
-        y = 490;
+    const x = 640,
+        y = 515;
     diagram.circle(x, y, 220).stroke({ color: C.line, width: 2, alpha: 0.6 });
     diagram
         .beginPath()
@@ -145,8 +142,16 @@ export function stationDronesOverview(
         view.alpha = c.station.sentries ? (c.station.sentries[id].hull > 0 ? 1 : 0.25) : 0.45;
         ui.addChild(view);
     }
-    label(ui, 'SATUK 15', x - 44, y + 60, 16, C.text);
-    label(ui, `Patrol ${D.orbit} m · granica ${D.leash} m`, 360, 755, 22, C.mint, 580);
+    label(ui, 'SATUK 15', x, y + 60, 16, C.text).setHorizontalAlign('center');
+    label(
+        ui,
+        `Patrol ${D.orbit} m · granica ${D.leash} m`,
+        x,
+        755,
+        22,
+        C.mint,
+        580,
+    ).setHorizontalAlign('center');
     label(ui, 'MODUŁ OBRONNY / STACJA', 1072, 244, 13, C.mint);
     label(ui, 'Drony strażnicze', 1072, 278, 30, C.text);
     label(
@@ -187,14 +192,14 @@ export function stationDronesOverview(
     }
     label(
         ui,
-        'Naprawa w hangarze: 4 HP/s po 8 s bez kontaktu. Odbudowa: 30 s, 2 K + 1 MZ za jednostkę. Serwis wymaga wolnego mechanika w stacji; działa tylko podczas lotu na orbicie.',
+        'Naprawa w hangarze: 4 HP/s po 8 s bez kontaktu. Odbudowę uruchamiasz ręcznie w bazie: 2 poszycia stalowe I + 1 układ zasilania za utraconą jednostkę.',
         1072,
         543,
         16,
         C.muted,
         456,
     );
-    label(ui, 'Montaż z 3 dronami: 40 Fe · 12 K · 3 MZ', 1072, 654, 18, C.gold, 456);
+    label(ui, 'Montaż z 3 dronami: 40 Fe · 12 K · 3 MZ', 1072, 633, 18, C.gold, 456);
     const lock = stationDronesLock(c);
     label(
         ui,
@@ -202,21 +207,21 @@ export function stationDronesOverview(
             ? 'Garnizon pozostaje przy stacji. Nie osłania powierzchni.'
             : (lock ?? 'Zaplecze i materiały gotowe.'),
         1072,
-        695,
+        674,
         15,
         C.muted,
         456,
     );
     button(
         ui,
-        c.station.sentries ? 'HANGAR ZAMONTOWANY' : 'ZAMONTUJ HANGAR',
+        c.station.sentries ? 'ODBUDUJ UTRACONE DRONY' : 'ZAMONTUJ HANGAR',
         1072,
-        758,
+        STATION_LAYOUT.actionY,
         456,
         () => install?.(),
         true,
         !!install && !lock,
-        44,
+        STATION_LAYOUT.actionHeight,
         16,
     );
 }

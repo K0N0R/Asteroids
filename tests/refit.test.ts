@@ -20,7 +20,6 @@ import {
     parseCampaign,
     buyShip,
 } from '../frontend/game/state/campaign';
-import { assignCrew, advanceCrew, queueJob } from '../frontend/game/state/crew';
 import { equipWeapon } from '../frontend/game/state/weapons';
 import { MissionSimulation } from '../frontend/game/systems/mission';
 
@@ -82,31 +81,6 @@ test('radar jamming is passive and never makes an ordinary ship invisible', () =
     } finally {
         sim.dispose();
     }
-});
-
-test('station workers survive a loss and cannot auto-repair or fabricate in flight', () => {
-    const { c, sim } = arena('prospector');
-    try {
-        c.crew.mechanic = c.crew.quartermaster = true;
-        sim.hull = 25;
-        sim.cargo.parts = 16;
-        sim.repairKits = 0;
-        for (let frame = 0; frame < 2400; frame++) sim.step(idle);
-        assert.equal(sim.hull, 25);
-        assert.equal(sim.repairKits, 0);
-        assert.equal(sim.cargo.parts, 16);
-        finishRun(c, false, sim.cargo, sim.elapsed, 'loss');
-        assert.ok(c.crew.mechanic && c.crew.quartermaster);
-    } finally {
-        sim.dispose();
-    }
-    const station = newCampaign();
-    station.crew.mechanic = true;
-    station.bank = { ore: 10, parts: 0 };
-    assert.ok(queueJob(station, 'refine'));
-    assert.ok(beginRun(station, 71));
-    assert.equal(advanceCrew(station, 45), 1);
-    assert.equal(station.bank.parts, 1);
 });
 
 test('enemy wreck bonuses are seeded, saved, credited once and can rebuild both enemy hulls', () => {

@@ -1,4 +1,6 @@
-import { refuelHyperdrive, upgradeHyperdrive } from './state/crew';
+import type { ResourceStore } from './state/resources';
+import { RESOURCE_IDS } from './state/resources';
+import { manufacture, upgradeHyperdrive } from './state/production';
 import { installKineticUpgrade } from './state/kineticIndustry';
 import { terminalPuzzlePanel } from './ui/terminalPuzzle';
 import { rescueRepairPanel } from './ui/rescueRepair';
@@ -55,14 +57,7 @@ import { MissionHud } from './ui/hud';
 import { button, clear, label, panel } from './ui/primitives';
 import { C } from './graphics/shapes';
 import { SoundManager } from '../core/systems/soundManager';
-import {
-    advanceCrew,
-    cancelJob,
-    hireMechanic,
-    hireQuartermaster,
-    queueJob,
-    installCargoBay,
-} from './state/crew';
+
 import { selectContract } from './state/contracts';
 import { trainPilot } from './state/pilots';
 import { PROTOTYPES, PrototypeId } from './systems/prototypes';
@@ -112,7 +107,7 @@ export class GameSession {
     private interactionModel: object | null = null;
     private dialogue: DialoguePlayback | null = null;
     private launching = false;
-    private crewSaveSeconds = 0;
+    private autosaveSeconds = 0;
     private savedDeliveryRevision = 0;
     private sandboxRun: SandboxRun | null = null;
     private sandboxSetup: SandboxSetup | null = null;
@@ -158,8 +153,8 @@ export class GameSession {
                         : 'Brak materiałów lub zadanie niedostępne.',
                 );
             },
-            launch: (recoveryId, loadConstruction, missionTask) =>
-                this.launch(recoveryId, loadConstruction, missionTask),
+            launch: (recoveryId, loadConstruction, missionTask, supplies) =>
+                this.launch(recoveryId, loadConstruction, missionTask, supplies),
             equipWeapon: (weapon) =>
                 this.change(() => equipWeapon(this.campaign, weapon), 'Uzbrojenie zamontowane.'),
             upgrade: (upgrade) =>
@@ -200,12 +195,7 @@ export class GameSession {
             upgradeHyperdrive: () =>
                 this.change(
                     () => upgradeHyperdrive(this.campaign),
-                    'Moduł hipernapędu zamontowany. Zatankuj ogniwa przed wylotem.',
-                ),
-            refuelHyperdrive: () =>
-                this.change(
-                    () => refuelHyperdrive(this.campaign),
-                    'Ogniwa uzupełnione w zbiorniku aktywnego statku.',
+                    'Moduł hipernapędu zamontowany. Śluzy nie wymagają paliwa.',
                 ),
             installKineticShield: () =>
                 this.change(
@@ -227,27 +217,10 @@ export class GameSession {
                     () => installStationDrones(this.campaign),
                     'Hangar gotowy. Trzy drony strażnicze rozpoczną patrol przy kolejnym wylocie.',
                 ),
-            installCargoBay: () =>
+            manufacture: (kind, batches) =>
                 this.change(
-                    () => installCargoBay(this.campaign),
-                    'Segment magazynowy zamontowany. Pojemność wzrosła o 200.',
-                ),
-            hireMechanic: () =>
-                this.change(() => hireMechanic(this.campaign), 'Mechanik stacji gotowy do pracy.'),
-            hireQuartermaster: () =>
-                this.change(
-                    () => hireQuartermaster(this.campaign),
-                    'Intendent uruchomił stanowisko odzysku.',
-                ),
-            queueJob: (kind) =>
-                this.change(
-                    () => queueJob(this.campaign, kind),
-                    'Zadanie dodane. Mechanik rozpocznie pracę po starcie wyprawy.',
-                ),
-            cancelJob: (id) =>
-                this.change(
-                    () => cancelJob(this.campaign, id),
-                    'Zadanie anulowane. Surowce wróciły do magazynu.',
+                    () => manufacture(this.campaign, kind, batches),
+                    'Partia gotowa. Produkty trafiły do magazynu.',
                 ),
             rescue: () => {
                 const ready = emergencyKit(this.campaign);
@@ -655,11 +628,21 @@ export class GameSession {
         recoveryId: number | null = null,
         loadConstruction = false,
         missionTask: string | null = null,
+        supplies: ResourceStore = {},
     ) {
         if (this.launching || this.mission || this.hasOverlay) return;
         this.launching = true;
         const randomSeed = crypto.getRandomValues(new Uint32Array(1))[0];
-        if (!beginRun(this.campaign, randomSeed, recoveryId, loadConstruction, missionTask)) {
+        if (
+            !beginRun(
+                this.campaign,
+                randomSeed,
+                recoveryId,
+                loadConstruction,
+                missionTask,
+                supplies,
+            )
+        ) {
             this.launching = false;
             return;
         }
@@ -719,8 +702,9 @@ export class GameSession {
             this.campaign.repairKits += this.campaign.activeRun!.repairKits;
             const freight = this.campaign.activeRun!.freight;
             if (freight) {
-                this.campaign.bank.ore += freight.ore;
-                this.campaign.bank.parts += freight.parts;
+                for (const id of RESOURCE_IDS)
+                    if (freight[id])
+                        this.campaign.bank[id] = (this.campaign.bank[id] ?? 0) + freight[id]!;
             }
             this.campaign.activeRun = null;
             this.campaign.sorties--;
@@ -815,14 +799,12 @@ export class GameSession {
             return;
         }
         const elapsed = this.mission.simulation.elapsed - elapsedBefore;
-        const completed = advanceCrew(this.campaign, elapsed);
-        this.crewSaveSeconds += elapsed;
-        if (completed || this.crewSaveSeconds >= 5) {
+        this.autosaveSeconds += elapsed;
+        if (this.autosaveSeconds >= 5) {
             if (this.campaign.activeRun)
                 this.campaign.activeRun.lastPosition = this.mission.simulation.position;
             this.saves.save(this.campaign);
-            this.crewSaveSeconds = 0;
-            if (completed) this.mission.simulation.setNotice('Załoga zakończyła zadanie w bazie.');
+            this.autosaveSeconds = 0;
         }
         if (this.mission.simulation.deliveryRevision !== this.savedDeliveryRevision) {
             this.savedDeliveryRevision = this.mission.simulation.deliveryRevision;

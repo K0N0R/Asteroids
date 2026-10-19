@@ -23,12 +23,11 @@ import { SALVAGE } from '../systems/salvage';
 import { WEAPONS, type WeaponId } from '../config';
 import {
     CONTRACTS,
-    CREW,
+    REPAIR_KITS,
     FLEET_LIMIT,
     GAME,
     HULLS,
     HullId,
-    JOBS,
     PILOTS,
     PilotSkillId,
     RECOVERY,
@@ -37,7 +36,6 @@ import {
     UPGRADES,
     Upgrade,
 } from '../config';
-import { CrewState, newCrew, reservedResources } from './crew';
 import { createRecoverySignal, RecoverySignal, recoveryDescription } from './recovery';
 import { Point } from '../worlds/sector';
 import { contractLockReason, contractReady } from './contracts';
@@ -68,7 +66,6 @@ export type ShipModules = Record<
     number
 >;
 export interface Ship extends ShipModules {
-    hyperFuel: number;
     hyperdriveLevel: number;
     id: number;
     hull: HullId;
@@ -84,7 +81,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 49;
+    version: 50;
     story: StoryProgress | null;
     bank: Cargo;
     ship: Ship | null;
@@ -136,7 +133,6 @@ export interface Campaign {
         reportedBossXp?: 12 | 18;
         deliveries?: SalvageDelivery[];
     } | null;
-    crew: CrewState;
     repairKits: number;
     sorties: number;
     recovered: number;
@@ -166,7 +162,6 @@ export const SAVE_KEY = 'asteroids.campaign.v1';
 export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
     id,
     hull,
-    hyperFuel: 0,
     hyperdriveLevel: 0,
     weapon: 'standard',
     weapons: ['standard'],
@@ -179,7 +174,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 49,
+        version: 50,
         story: null,
         bank: { ore: 0, parts: 0 },
         ship: newShip(),
@@ -202,7 +197,6 @@ export function newCampaign(): Campaign {
         selectedPilot: 1,
         nextPilotId: 2,
         activeRun: null,
-        crew: newCrew(),
         repairKits: 1,
         sorties: 0,
         recovered: 0,
@@ -218,15 +212,17 @@ const object = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
 const cargo = (value: unknown): value is Cargo =>
     object(value) &&
-    integer(value.ore) &&
-    integer(value.parts) &&
-    RESOURCE_IDS.every((id) => value[id] === undefined || integer(value[id])) &&
+    integer(value.ore, Number.MAX_SAFE_INTEGER) &&
+    integer(value.parts, Number.MAX_SAFE_INTEGER) &&
+    RESOURCE_IDS.every(
+        (id) => value[id] === undefined || integer(value[id], Number.MAX_SAFE_INTEGER),
+    ) &&
     Object.keys(value).every((key) => RESOURCE_IDS.some((id) => id === key));
 
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 49 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 50 || !cargo(p.bank) || !object(p.station)) return null;
         if (
             !integer(p.station.workshop, 2) ||
             !integer(p.station.storage, 3) ||
@@ -344,66 +340,10 @@ export function parseCampaign(json: string | null): Campaign | null {
                     )))
         )
             return null;
-        if (
-            !object(p.crew) ||
-            typeof p.crew.mechanic !== 'boolean' ||
-            typeof p.crew.mechanicAboard !== 'boolean' ||
-            typeof p.crew.quartermaster !== 'boolean' ||
-            typeof p.crew.quartermasterAboard !== 'boolean' ||
-            !integer(p.repairKits, CREW.kitLimit) ||
-            !integer(p.crew.completed) ||
-            !integer(p.crew.nextJobId) ||
-            p.crew.nextJobId < 1
-        )
-            return null;
-        if (!Array.isArray(p.crew.jobs) || p.crew.jobs.length > CREW.queueLimit * 2) return null;
-        for (const job of p.crew.jobs) {
-            if (
-                !object(job) ||
-                !integer(job.id) ||
-                job.id < 1 ||
-                job.id >= p.crew.nextJobId ||
-                typeof job.kind !== 'string' ||
-                !Object.hasOwn(JOBS, job.kind)
-            )
-                return null;
-            const recipe = JOBS[job.kind as keyof typeof JOBS];
-            if (!p.crew[recipe.worker]) return null;
-            if ('workshop' in recipe && p.station.workshop < recipe.workshop) return null;
-            if (
-                typeof job.remaining !== 'number' ||
-                !Number.isFinite(job.remaining) ||
-                job.remaining <= 0 ||
-                job.remaining > recipe.seconds
-            )
-                return null;
-        }
-        for (const role of ['mechanic', 'quartermaster'] as const)
-            if (
-                p.crew.jobs.filter((job) => JOBS[job.kind as keyof typeof JOBS].worker === role)
-                    .length > CREW.queueLimit
-            )
-                return null;
-        if (new Set(p.crew.jobs.map((job) => job.id)).size !== p.crew.jobs.length) return null;
-        if (
-            p.crew.mechanicAboard &&
-            (!p.crew.mechanic ||
-                p.crew.jobs.some(
-                    (job) => JOBS[job.kind as keyof typeof JOBS].worker === 'mechanic',
-                ))
-        )
-            return null;
+        if (!integer(p.repairKits, REPAIR_KITS.kitLimit)) return null;
         if (
             p.activeRun !== null &&
-            (!object(p.activeRun) || !integer(p.activeRun.repairKits, CREW.embarkKits))
-        )
-            return null;
-        if (
-            p.crew.quartermasterAboard &&
-            (!p.crew.quartermaster ||
-                p.crew.jobs.some(
-                    (job) => JOBS[job.kind as keyof typeof JOBS].worker === 'quartermaster',
-                ))
+            (!object(p.activeRun) || !integer(p.activeRun.repairKits, REPAIR_KITS.embarkKits))
         )
             return null;
         const validShip = (ship: unknown): ship is Ship =>
@@ -415,10 +355,6 @@ export function parseCampaign(json: string | null): Campaign | null {
             ['engine', 'cargo', 'drill', 'armor'].every((key) => integer(ship[key], 3)) &&
             integer(ship.shield, 3) &&
             integer(ship.hyperdriveLevel, 3) &&
-            integer(
-                ship.hyperFuel,
-                ship.hyperdriveLevel === 0 ? 0 : 2 + (ship.hyperdriveLevel as number),
-            ) &&
             integer(ship.handling, 3) &&
             typeof ship.weapon === 'string' &&
             Object.hasOwn(WEAPONS, ship.weapon) &&
@@ -545,8 +481,6 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
                 return null;
         }
-        p.crew.mechanicAboard = false;
-        p.crew.quartermasterAboard = false;
         if (p.story !== null && !validStory(p.story)) return null;
         if (
             object(p.activeRun) &&
@@ -580,7 +514,6 @@ export function parseCampaign(json: string | null): Campaign | null {
                 typeof order.task !== 'string' ||
                 typeof order.aborted !== 'boolean' ||
                 p.activeRun.recoveryId !== null ||
-                p.activeRun.freight !== undefined ||
                 !selectableMission(p as unknown as Campaign, order.task, true)
             )
                 return null;
@@ -588,15 +521,9 @@ export function parseCampaign(json: string | null): Campaign | null {
         const campaign = p as unknown as Campaign;
         if (campaign.activeRun?.freight !== undefined) {
             const initial = campaign.activeRun.freight;
-            if (
-                !campaign.story ||
-                campaign.story.sector !== 'lunar' ||
-                !cargo(initial) ||
-                resourceTotal(initial) > capacity(campaign)
-            )
-                return null;
+            if (!cargo(initial) || resourceTotal(initial) > capacity(campaign)) return null;
         }
-        if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > CREW.kitLimit)
+        if (campaign.repairKits + (campaign.activeRun?.repairKits ?? 0) > REPAIR_KITS.kitLimit)
             return null;
         if (storageUsed(campaign) > storageCapacity(campaign)) return null;
         return campaign;
@@ -671,16 +598,12 @@ export function selectShip(c: Campaign, id: number): boolean {
     c.ship = selected;
     return true;
 }
-export function storageCapacity(c: Campaign) {
-    return (
-        150 +
-        c.station.storage * 100 +
-        (c.station.cargoBays ?? 0) * 200 +
-        c.station.reinforcedBays * 400
-    );
+/** Computed only, never serialized. Station storage has no gameplay capacity. */
+export function storageCapacity(_c: Campaign) {
+    return Number.POSITIVE_INFINITY;
 }
 export function storageUsed(c: Campaign) {
-    return resourceTotal(c.bank) + reservedResources(c);
+    return resourceTotal(c.bank);
 }
 export function upgradePrice(c: Campaign, upgrade: Upgrade): Cargo {
     const level =
@@ -694,11 +617,10 @@ export function upgradePrice(c: Campaign, upgrade: Upgrade): Cargo {
     };
 }
 export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
-    if (c.activeRun) return false;
-    const station = upgrade === 'storage' || upgrade === 'workshop';
+    if (c.activeRun || upgrade === 'storage') return false;
+    const station = upgrade === 'workshop';
     if (!station && !c.ship) return false;
-    const level =
-        upgrade === 'workshop' || upgrade === 'storage' ? c.station[upgrade] : c.ship![upgrade];
+    const level = upgrade === 'workshop' ? c.station[upgrade] : c.ship![upgrade];
     const limit = upgrade === 'workshop' ? 2 : station ? 3 : c.station.workshop + 1;
     const price = upgradePrice(c, upgrade);
     if (
@@ -711,7 +633,7 @@ export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
     c.bank.ore -= price.ore;
     c.bank.parts -= price.parts;
     if (price.crystals) c.bank.crystals = (c.bank.crystals ?? 0) - price.crystals;
-    if (upgrade === 'workshop' || upgrade === 'storage') c.station[upgrade]++;
+    if (upgrade === 'workshop') c.station[upgrade]++;
     else c.ship![upgrade]++;
     return true;
 }
@@ -762,6 +684,7 @@ export function beginRun(
     recoveryId: number | null = null,
     loadConstruction = false,
     missionTask: string | null = null,
+    supplies: ResourceStore = {},
 ): boolean {
     if (
         c.activeRun ||
@@ -778,14 +701,27 @@ export function beginRun(
     const signal = c.recoverySignals.find((signal) => signal.id === recoveryId);
     if (recoveryId !== null && !signal) return false;
     if (c.story && signal && signal.seed !== STORY_SECTORS[c.story.sector].seed) return false;
-    const freight =
+    if (
+        !object(supplies) ||
+        Object.keys(supplies).some((key) => !RESOURCE_IDS.includes(key as keyof ResourceStore)) ||
+        RESOURCE_IDS.some(
+            (id) => supplies[id] !== undefined && !integer(supplies[id], Number.MAX_SAFE_INTEGER),
+        )
+    )
+        return false;
+    const freight: Cargo =
         loadConstruction && recoveryId === null ? constructionManifest(c) : { ore: 0, parts: 0 };
-    if (loadConstruction && freight.ore + freight.parts <= 0) return false;
-    c.bank.ore -= freight.ore;
-    c.bank.parts -= freight.parts;
-    c.crew.mechanicAboard = false;
-    c.crew.quartermasterAboard = false;
-    const repairKits = Math.min(c.repairKits, CREW.embarkKits);
+    if (loadConstruction && resourceTotal(freight) <= 0) return false;
+    for (const id of RESOURCE_IDS) {
+        if (supplies[id]) freight[id] = (freight[id] ?? 0) + supplies[id]!;
+    }
+    if (
+        resourceTotal(freight) > capacity(c) ||
+        RESOURCE_IDS.some((id) => (freight[id] ?? 0) > (c.bank[id] ?? 0))
+    )
+        return false;
+    for (const id of RESOURCE_IDS) if (freight[id]) c.bank[id] = (c.bank[id] ?? 0) - freight[id]!;
+    const repairKits = c.ship.hull === 'mule' ? 0 : Math.min(c.repairKits, REPAIR_KITS.embarkKits);
     c.repairKits -= repairKits;
     c.activeRun = {
         ...(missionTask ? { mission: { task: missionTask, aborted: false } } : {}),
@@ -796,7 +732,7 @@ export function beginRun(
         recoveryId,
         lastPosition: { x: 240, y: 0 },
         ...(c.story ? { sector: c.story.sector } : {}),
-        ...(loadConstruction ? { freight } : {}),
+        ...(resourceTotal(freight) ? { freight } : {}),
     };
     c.sorties++;
     return true;

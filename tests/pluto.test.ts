@@ -1,3 +1,4 @@
+import { manufacture } from '../frontend/game/state/production';
 import { solveTerminal } from './terminal-test-helper';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -147,6 +148,7 @@ function fight(s: MissionSimulation) {
     assert.equal(s.enemies.enemies.has(FINAL_BOSS.id), false);
 }
 function acquireComponent(s: MissionSimulation) {
+    assert.ok(s.cargo.parts >= 1, 'sabotage part was prepared at the base');
     const rock = [...s.rocks.values()]
         .filter((r) => r.rich && !r.crystal)
         .sort((a, b) => {
@@ -325,10 +327,14 @@ test('final victory is radio-confirmed before docking and survives loss, and pay
         s.dispose();
     }
 });
-test('ordinary stock Prospector sorties survey Pluto, hack with mined supplies, report both patrols and defeat all three final phases', () => {
+test('ordinary stock Prospector sorties survey Pluto, hack with prepared supplies, report both patrols and defeat all three final phases', () => {
     const c = ready();
     for (const goal of ['survey', 'base', 'patrol', 'patrol', 'boss'] as const) {
-        beginRun(c, 1);
+        c.bank.ore += 99;
+        c.bank.carbon = (c.bank.carbon ?? 0) + 1;
+        assert.ok(manufacture(c, 'steel'));
+        assert.ok(manufacture(c, 'plating'));
+        assert.ok(beginRun(c, 1, null, false, null, { parts: 1 }));
         const s = new MissionSimulation(c, c.activeRun!.seed);
         try {
             if (goal === 'survey') {

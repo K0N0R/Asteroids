@@ -408,18 +408,15 @@ export class MissionHud extends Container {
                     ? `Kamuflaż ${s.opticalCloakTime.toFixed(1)} s`
                     : `Kamuflaż ${s.opticalCloakCooldown > 1e-8 ? `odnowienie ${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy'}`,
             );
-        else if (s.hullId === 'mule')
-            this.supportStatus?.setText(
-                `Zestawy ${s.repairKits} · produkcja ${s.repairKits ? 'zapas musi wynosić 0' : `${s.repairKitCost.ore} rudy / ${s.repairKitCost.parts} komponenty`}`,
-            );
+        else if (s.hullId === 'mule') this.supportStatus?.setText('Muł · R: darmowa samonaprawa');
         const cargoKinds = RESOURCE_IDS.filter((id) => (s.cargo[id] ?? 0) > 0);
         this.cargo.setText(
             `${s.cargoUsed} / ${s.cargoCapacity}${
                 cargoKinds.length
                     ? ` · ${cargoKinds
-                          .slice(0, 4)
-                          .map((id) => `${RESOURCES[id].short} ${s.cargo[id]}`)
-                          .join(' · ')}${cargoKinds.length > 4 ? ' …' : ''}`
+                          .slice(0, 2)
+                          .map((id) => `${RESOURCES[id].name} ${s.cargo[id]}`)
+                          .join(' · ')}${cargoKinds.length > 2 ? ' …' : ''}`
                     : ''
             }`,
         );
@@ -466,7 +463,7 @@ export class MissionHud extends Container {
         this.hyperStatus.setText(
             !s.hyperUnlocked
                 ? 'HIPER: brak modułu · montaż w stacji'
-                : `HIPER ${s.hyperFuel}/${s.hyperCapacity} · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA skok / śluza · kolizja = utrata'}`,
+                : `HIPERNAPĘD · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA: śluza · kolizja = utrata'}`,
         );
         this.context.setText(flightHint(s));
         this.cargoControls.setText(

@@ -1,8 +1,35 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-18, wersja 0.79.
+Stan: 2026-10-19, wersja 0.81.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.81 — pierwsza paczka gospodarki edukacyjnej
+
+Interfejs po doprecyzowaniu autora: trzy niezależne zakładki w bocznej nawigacji — **Rozbudowa stacji**, **Laboratorium**, **Warsztat**. Rozbudowa ma stale widoczne podzakładki Zaplecze, Tarcze stacji i Drony, które podmieniają zawartość tego samego ekranu bez przejść i strzałek powrotu. Zawierają zakup poziomów zaplecza, tarcze i drony. Hipernapęd znajduje się w Hangarze, w ulepszeniach danego statku. Laboratorium zawiera wyłącznie procesy materiałowe, Warsztat wyłącznie produkcję części; każda zakładka zachowuje własny wybrany przepis. Nie ma wspólnego ekranu „Przemysł”.
+
+Zaimplementowano katalog dziewięciu podstawowych pierwiastków i tytanu z Merkurego, siedem procesów laboratoryjnych oraz jedenaście receptur warsztatowych. Transakcje ręczne obsługują partie 1/5/10/maks., braki składników, poziom warsztatu i badania Merkurego. Są ilustracje cząsteczek, struktur i części, osobny ekran magazynu bez limitu oraz wspólne grafiki łupu i animacji transferu. Usunięto stan zatrudnienia, kolejki pracowników i ich produkcję podczas lotu. Utracone drony odbudowuje się ręcznie w bazie.
+
+Muł gracza i AI naprawia się bez zestawów i surowców; inne statki nadal wymagają zestawów. Usunięto zasób paliwa, zbiorniki, tankowanie i jego koszty. Hipernapęd korzysta ze śluz bez paliwa; montaż wymaga przygotowanych części. Przed wylotem można załadować poszycie do działań w terenie. Manifest ma kontrolę dostępności i pojemności, zachowuje się w zapisie i nie daje doświadczenia za ponowny przywóz własnych zapasów. Format kampanii 50 odrzuca poprzednie zapisy.
+
+To fundament, nie koniec refaktoru. Do następnej paczki pozostają: szczegółowe składy i rozpoznawanie złóż, pełne koszty statków i konstrukcji oparte na rodzinach części, warianty i poziomy II–III, przebudowa manifestów wszystkich aktów oraz samouczek chemiczny. Stare wewnętrzne klucze `ore`, `parts`, `crystals` i `copperOre` oznaczają teraz odpowiednio żelazo, poszycie stalowe I, krzem i miedź; ich nazwy techniczne i starsze opisy fabularne wymagają dalszego porządku. Nie dodano jeszcze czterech trwałych obszarów Ziemi, lokalnej produkcji na Księżycu ani nowego modułowego modelu budowy tej placówki.
+
+## Najnowsze ustalenia autora — 2026-10-19
+
+Ustalenia kierunkowe; stan ich realizacji opisano powyżej. Poniższe zasady zastępują sprzeczne starsze wpisy:
+
+- Muł gracza i AI jako jedyny ma samonaprawę bez zestawów i bez surowców.
+- Usuwamy paliwo hipernapędu. Zainstalowany napęd umożliwia nieograniczone korzystanie ze śluz; ewentualne wymagania jego poziomu pozostają na później.
+- Jeden sektor ziemski ma cztery trwałe obszary: A orbita Ziemi, B orbita Księżyca z wejściem na powierzchnię, C duży klaster asteroid, D dalsza orbita z wrakami satelitów. Graf śluz: D ↔ A ↔ B ↔ C.
+- Budowa bazy księżycowej: dostawy podstawowych części → lokalne przetwórstwo → aktywacja Muła i wydobycie → ukończenie modułowej placówki. Ręczna produkcja gracza jest dostępna także w uruchomionej bazie księżycowej; nie wraca produkcja pracowników w tle.
+- Skały i asteroidy dają pierwiastki; wraki pojazdów dają konkretne części. Ikony części wyróżniają się od pierwiastków. Rozładunek do obu stacji pokazuje właściwe grafiki dostarczanych przedmiotów.
+- Wygląd bazy księżycowej rozwija się etapami jako duży kompleks kopuł, hal, korytarzy i instalacji w zaokrąglonym stylu gry.
+
+Szczegóły, etapy i kryteria sprawdzenia: [plan refaktoru gospodarki](chemistry-economy-refactor-plan.md).
+
+## Nadrzędny nowy zakres: gospodarka edukacyjna
+
+Autor zlecił na początek plan dużego refaktoru, bez wdrożenia nowej gospodarki: bezlimitowy magazyn, wydobywanie podstawowych pierwiastków, ręczne procesy chemiczne w bazie, produkcja części I–III i budowa z nich statków, osobna rozbudowa stacji oraz usunięcie zatrudnienia pracowników i produkcji podczas lotu. [Szczegółowy plan, zasady edukacyjne, kolejność i testy](chemistry-economy-refactor-plan.md). Ten kierunek zastępuje starsze plany rozbudowy pojemności magazynu i załogi produkcyjnej. Wersja 0.81 wdraża pierwszy etap; zakres pozostały do realizacji opisano powyżej.
 
 ## Polityka zapisu od 0.54
 

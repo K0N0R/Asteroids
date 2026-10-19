@@ -1,5 +1,6 @@
+import { resourceSummary } from '../state/resources';
 import type { Container } from 'pixi.js';
-import { HULLS, CREW } from '../config';
+import { HULLS, REPAIR_KITS } from '../config';
 import { capacity, selectedPilot, shipHealth, type Campaign } from '../state/campaign';
 import {
     STORY_SECTORS,
@@ -128,7 +129,7 @@ export function storyOverview(
                     : available && task.kind === 'construction'
                       ? `${p.sector === 'mars' ? '7 baza' : '8 placówka'} · E przez 2 s · budowa podczas wyprawy`
                       : available
-                        ? `Premia: ${task.reward.ore} rudy · ${task.reward.parts} komponentów`
+                        ? `Premia: ${resourceSummary(task.reward)}`
                         : 'Zadanie zostanie udostępnione później.',
                 x + 15,
                 y + 126,
@@ -262,39 +263,12 @@ export function storyOverview(
     );
     label(
         ui,
-        `${Math.min(c.repairKits, CREW.embarkKits)} zest. naprawczych na pokład`,
+        c.ship?.hull === 'mule'
+            ? 'Muł · darmowa samonaprawa, bez zestawów'
+            : `${Math.min(c.repairKits, REPAIR_KITS.embarkKits)} zest. naprawczych na pokład`,
         1072,
         619,
         15,
         C.muted,
-    );
-    label(
-        ui,
-        p.sector === 'pluto'
-            ? '7 zwiad · 0 baza / F osłona równolegle · E dane / G skaner: komponent · 3 finał po obu raportach: G przez 2 s · 8 dodatkowy odczyt · 1 powrót.'
-            : p.sector === 'uranus' || p.sector === 'neptune'
-              ? '7 zwiad · 0 baza po zwiadzie · E dane / G skaner: komponent · F kontakty · 8 dalsza trasa. Neptun: 3 starcie po bazie · G przez 2 s.'
-              : p.sector === 'saturn'
-                ? '2 złoże · 7 zwiad · 5 kryształy po zwiadzie · F patrol · 8 trasa po zaopatrzeniu i walce · 1 powrót. Rudę przywozisz zwykłym transportem.'
-                : p.sector === 'jupiter'
-                  ? '7 zwiad · 0 terminal po zwiadzie · E pobieranie bez alarmu · G skaner: 1 komponent · F patrole · 8 pakiet po raportach · 1 powrót.'
-                  : p.sector === 'belt'
-                    ? '7 wejście · 3 / 4 / 5 przeszkody po zwiadzie · 8 granica po oczyszczeniu · F opcjonalne patrole · 1 powrót. E odczyt / dokowanie.'
-                    : storyAct(p) === 'AKT V'
-                      ? '7 baza · E montaż / dokowanie · G obrona przy bazie · F patrole w korytarzu · 8 pomiary po montażu. Raporty zabezpieczysz po powrocie.'
-                      : p.sector === 'mercury'
-                        ? '7 pomiary · F przeciwnik · 8 technologia po raportach. 3 / 4 / 5 schronienia: lewa strona dużych skał. Nie niszcz osłon bez potrzeby.'
-                        : p.sector === 'venus'
-                          ? '7 przekaźnik · 8 placówka · 2 złoże · 1 powrót. E odczyt / budowa / dokowanie · G obrona przy placówce. Osłona: komponenty w stacji.'
-                          : p.sector === 'mars'
-                            ? 'F przeciwnik · 7 ślad pościgu · 8 pas po rozpoznaniu · 1 powrót. E odczyt / dokowanie. Przelot przez pas wymaga technologii.'
-                            : p.sector === 'lunar'
-                              ? 'Orbita: 3 Księżyc po zwiadzie. Powierzchnia: 7 budowa · 2 złoże · 5 miedź · 1 wyjście. C transfer · E odczyt / dostawa / przejście.'
-                              : '2 złoże · 7 łączność · 8 dalszy węzeł po odblokowaniu · 1 powrót · C transfer przy stacji · E odczyt / dokowanie',
-        1072,
-        657,
-        14,
-        C.muted,
-        456,
     );
 }

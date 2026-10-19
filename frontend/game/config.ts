@@ -280,7 +280,7 @@ export const HULLS = {
     mule: {
         name: 'Mule',
         role: 'Statek wydobywczy',
-        detail: 'LPM: dwa lasery. PPM: zestaw za surowce z ładowni, koszt podwójny, tylko przy zapasie 0.',
+        detail: 'LPM: dwa lasery. PPM: samonaprawa bez surowców i zestawów naprawczych.',
         health: 150,
         shield: { capacity: 60, regen: 6, delay: 6 },
         cargo: 110,
@@ -689,18 +689,7 @@ export const STINGER_AMMO = {
     armor: { damage: 12, interval: 0.4, speed: 1500, life: 1, patrol: 0.45, lancer: 1.5 },
 } as const;
 
-export const CREW = {
-    hireOre: 12,
-    quartermasterOre: 20,
-    quartermasterParts: 2,
-    queueLimit: 3,
-    kitLimit: 10,
-    embarkKits: 2,
-    fieldRepairSeconds: 8,
-    fieldRepairThreshold: 0.6,
-    fieldKitSeconds: 30,
-    fieldKitParts: 8,
-} as const;
+export const REPAIR_KITS = { kitLimit: 10, embarkKits: 2 } as const;
 export const PILOT_PROGRESSION = {
     thresholds: [0, 20, 50, 90, 140],
     skillLimit: 2,
@@ -716,114 +705,6 @@ export const PILOT_SKILLS = {
     },
 } as const;
 export type PilotSkillId = keyof typeof PILOT_SKILLS;
-export const JOBS = {
-    hyperFuel: {
-        title: 'Ogniwa wodorowe',
-        materials: { hydrogen: 6 },
-        ore: 0,
-        parts: 1,
-        seconds: 45,
-        output: 'hyperFuel',
-        amount: 3,
-        worker: 'mechanic',
-        workshop: 1,
-    },
-    kineticPlate: {
-        title: 'Płyty kinetyczne',
-        ore: 0,
-        parts: 2,
-        materials: { mercuryOre: 4 },
-        seconds: 60,
-        output: 'kineticPlates',
-        amount: 2,
-        worker: 'mechanic',
-        workshop: 2,
-    },
-    kineticModule: {
-        title: 'Moduł osłonowy',
-        ore: 0,
-        parts: 4,
-        materials: { kineticPlates: 2, powerModules: 2 },
-        seconds: 90,
-        output: 'kineticModules',
-        amount: 1,
-        worker: 'mechanic',
-        workshop: 2,
-    },
-    smeltCopper: {
-        title: 'Przewodniki miedziane',
-        ore: 0,
-        parts: 0,
-        materials: { copperOre: 4 },
-        seconds: 45,
-        output: 'conductors',
-        amount: 2,
-        worker: 'mechanic',
-        workshop: 1,
-    },
-    powerModule: {
-        title: 'Moduł zasilania',
-        ore: 0,
-        parts: 3,
-        materials: { conductors: 2 },
-        seconds: 60,
-        output: 'powerModules',
-        amount: 1,
-        worker: 'mechanic',
-        workshop: 1,
-    },
-    storageFrame: {
-        title: 'Segment magazynowy',
-        ore: 12,
-        parts: 4,
-        materials: { powerModules: 2 },
-        seconds: 90,
-        output: 'storageFrames',
-        amount: 1,
-        worker: 'mechanic',
-        workshop: 1,
-    },
-    crystallize: {
-        title: 'Przetop kryształów',
-        ore: 0,
-        parts: 5,
-        seconds: 90,
-        output: 'crystals',
-        amount: 1,
-        worker: 'mechanic',
-        workshop: 1,
-    },
-    refine: {
-        title: 'Przetop żelaza',
-        ore: 8,
-        parts: 0,
-        seconds: 45,
-        output: 'parts',
-        amount: 1,
-        worker: 'mechanic',
-    },
-    kit: {
-        title: 'Zestaw naprawczy',
-        ore: 6,
-        parts: 1,
-        seconds: 30,
-        output: 'kit',
-        amount: 1,
-        worker: 'mechanic',
-    },
-    recycle: {
-        title: 'Odzysk rudy',
-        ore: 0,
-        parts: 1,
-        seconds: 60,
-        output: 'ore',
-        amount: 5,
-        worker: 'quartermaster',
-    },
-} as const;
-export type JobKind = keyof typeof JOBS;
-export type CrewRole = 'mechanic' | 'quartermaster';
-
 export const PILOTS = [
     {
         name: 'Mira Voss',
@@ -894,7 +775,7 @@ export const UPGRADES: Record<
         parts: 10,
     },
     workshop: {
-        title: 'Warsztat stacji',
+        title: 'Zaplecze produkcyjne',
         detail: 'Odblokowuje wyższy poziom modułów',
         ore: 30,
         parts: 3,

@@ -6,7 +6,6 @@ import {
     AEGIS,
     HULLS,
     GAME,
-    JOBS,
     WIDMO,
     STINGER_AMMO,
     PHOENIX,
@@ -1473,60 +1472,31 @@ test('Widmo optical cloak lasts three seconds, prevents targeting and cannot ref
         sim.dispose();
     }
 });
-test('Mule mines with LPM and repeatedly fabricates one kit at zero stock for twice the station cost', () => {
+test('Mule mines with LPM and repairs repeatedly with no kits or resources', () => {
     const sim = roleArena('mule');
     try {
         sim.repairKits = 0;
         sim.step({ ...idle, fire: true });
         assert.equal(sim.laserBeams.length, 2);
         assert.equal(sim.bullets.size, 0);
-        sim.step({ ...idle, mine: true });
-        assert.equal(sim.repairKits, 0);
-        sim.cargo.ore = JOBS.kit.ore * 2 - 1;
-        sim.cargo.parts = JOBS.kit.parts * 2;
-        sim.step({ ...idle, mine: true });
-        assert.equal(sim.repairKits, 0);
-        assert.equal(sim.cargo.parts, JOBS.kit.parts * 2);
-        sim.cargo.ore = JOBS.kit.ore * 4;
-        sim.cargo.parts = JOBS.kit.parts * 2 - 1;
-        sim.step({ ...idle, mine: true });
-        assert.equal(sim.repairKits, 0);
-        assert.equal(sim.cargo.ore, JOBS.kit.ore * 4);
-        sim.cargo.parts = JOBS.kit.parts * 4;
-        sim.cargo.crystals = 1;
-        sim.step({ ...idle, mine: true });
-        assert.equal(sim.repairKits, 1);
-        assert.equal(sim.laserBeams.length, 0);
-        assert.equal(sim.cargo.ore, JOBS.kit.ore * 2);
-        assert.equal(sim.cargo.parts, JOBS.kit.parts * 2);
-        for (let frame = 0; frame < 60; frame++) sim.step({ ...idle, mine: true });
-        assert.equal(sim.repairKits, 1);
-        assert.equal(sim.cargo.ore, JOBS.kit.ore * 2);
-        assert.equal(sim.cargo.parts, JOBS.kit.parts * 2);
+        sim.cargo.ore = 0;
+        sim.cargo.parts = 0;
+        for (let cycle = 0; cycle < 2; cycle++) {
+            sim.hull = sim.maxHull - GAME.repairHull;
+            for (let frame = 0; frame < Math.ceil(GAME.repairSeconds / GAME.step) + 2; frame++)
+                sim.step({ ...idle, repair: true });
+            assert.equal(sim.hull, sim.maxHull);
+            assert.equal(sim.repairKits, 0);
+            assert.equal(sim.cargo.ore, 0);
+            assert.equal(sim.cargo.parts, 0);
+            assert.equal(sim.statistics.repairKitsUsed, 0);
+        }
+        sim.repairKits = 1;
         sim.hull -= GAME.repairHull;
-        for (let frame = 0; frame < 301; frame++) sim.step({ ...idle, repair: true });
-        assert.equal(sim.repairKits, 0);
-        assert.equal(sim.hull, sim.maxHull);
-        sim.step(idle);
-        sim.step({ ...idle, mine: true });
-        assert.equal(sim.repairKits, 1);
-        assert.equal(sim.cargo.ore, 0);
-        assert.equal(sim.cargo.parts, 0);
-        assert.equal(sim.cargo.crystals, 1);
+        for (let frame = 0; frame < 310; frame++) sim.step({ ...idle, repair: true });
+        assert.equal(sim.repairKits, 1, 'Mule does not consume an embarked kit either');
     } finally {
         sim.dispose();
-    }
-    const next = roleArena('mule');
-    try {
-        next.repairKits = 1;
-        next.cargo.ore = JOBS.kit.ore * 2;
-        next.cargo.parts = JOBS.kit.parts * 2;
-        next.step({ ...idle, mine: true });
-        assert.equal(next.repairKits, 1);
-        assert.equal(next.cargo.ore, JOBS.kit.ore * 2);
-        assert.equal(next.cargo.parts, JOBS.kit.parts * 2);
-    } finally {
-        next.dispose();
     }
 });
 test('Bastion retains guns while PPM throws timed splash grenades instead of mining', () => {

@@ -31,7 +31,6 @@ function ready() {
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     c.station.shield = true;
-    c.crew.mechanic = true;
     c.bank = { ore: 80, parts: 24, powerModules: 6 };
     return c;
 }
@@ -42,8 +41,6 @@ test('sentry hangar validates requirements atomically and installs exactly three
         (c: ReturnType<typeof ready>) => c.story!.claimed.splice(0),
         (c: ReturnType<typeof ready>) => (c.station.workshop = 0),
         (c: ReturnType<typeof ready>) => (c.station.shield = false),
-        (c: ReturnType<typeof ready>) => (c.crew.mechanic = false),
-        (c: ReturnType<typeof ready>) => (c.crew.mechanicAboard = true),
         (c: ReturnType<typeof ready>) => (c.bank.ore = 39),
         (c: ReturnType<typeof ready>) => (c.bank.parts = 11),
         (c: ReturnType<typeof ready>) => (c.bank.powerModules = 2),
@@ -89,7 +86,7 @@ test('save preserves damaged and rebuilding sentries and rejects invalid garriso
     assert.equal(parseCampaign(JSON.stringify(newStoryCampaign()))?.station.sentries, null);
 });
 
-test('patrol acquires only local visible enemies, returns to station and repairs only with an available mechanic', () => {
+test('patrol acquires only local visible enemies, returns to station and repairs automatically without station workers', () => {
     const c = ready();
     installStationDrones(c);
     const world = new RAPIER.World({ x: 0, y: 0 });
@@ -132,12 +129,10 @@ test('patrol acquires only local visible enemies, returns to station and repairs
         assert.equal(shots, 0);
         assert.ok([...sentries.drones.values()].every((drone) => drone.target === null));
         sentries.damage(0, 65);
-        c.crew.mechanicAboard = true;
-        tick(25);
-        assert.equal(drone.state.hull, 15);
+        tick(10);
+        assert.ok(drone.state.hull > 15 && drone.state.hull < STATION_DRONES.hull);
         assert.ok(Math.hypot(sentryPosition(drone).x, sentryPosition(drone).y) < 260);
-        c.crew.mechanicAboard = false;
-        tick(20);
+        tick(15);
         assert.equal(drone.state.hull, STATION_DRONES.hull);
     } finally {
         sentries.clear();
@@ -146,48 +141,39 @@ test('patrol acquires only local visible enemies, returns to station and repairs
     }
 });
 
-test('replacement charges once, respects resources, mechanic and orbit, and resumes paid construction after a sortie', () => {
+test('replacement is manual at the base, charges each lost drone once and never builds during flight', () => {
     const c = ready();
-    installStationDrones(c);
+    assert.ok(installStationDrones(c));
+    c.station.sentries![0].hull = 0;
     const world = new RAPIER.World({ x: 0, y: 0 });
-    const fleet = new EnemyFleet(world, []);
-    let sentries = new StationSentries(world, c);
-    const tick = (seconds: number, orbit = true) =>
+    const fleet = new EnemyFleet(world, []),
+        sentries = new StationSentries(world, c);
+    try {
+        const bank = structuredClone(c.bank);
         sentries.update(
-            seconds,
-            orbit,
+            120,
+            true,
             fleet,
             () => false,
             () => false,
         );
-    try {
-        tick(0);
-        assert.ok(sentries.damage(0, 1000));
+        assert.deepEqual(c.bank, bank);
+        assert.equal(c.station.sentries![0].hull, 0);
+        assert.ok(beginRun(c, 1));
+        assert.equal(installStationDrones(c), false);
+        finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock');
         c.bank.parts = 1;
-        tick(60);
-        assert.equal(sentries.drones.size, 2);
-        assert.equal(c.bank.powerModules, 3);
+        const before = structuredClone(c);
+        assert.equal(installStationDrones(c), false);
+        assert.deepEqual(c, before);
         c.bank.parts = 5;
-        c.crew.mechanicAboard = true;
-        tick(60);
-        assert.equal(c.bank.parts, 5);
-        c.crew.mechanicAboard = false;
-        tick(10);
-        assert.equal(c.bank.parts, 3);
-        assert.equal(c.bank.powerModules, 2);
-        assert.equal(c.station.sentries![0].rebuildRemaining, 20);
-        tick(60, false);
-        assert.equal(sentries.drones.size, 0);
-        assert.equal(c.station.sentries![0].rebuildRemaining, 20);
-        sentries.clear();
-        sentries = new StationSentries(world, c);
-        tick(19);
-        assert.equal(sentries.drones.size, 2);
-        tick(1);
-        assert.equal(sentries.drones.size, 3);
+        assert.ok(installStationDrones(c));
         assert.equal(c.bank.parts, 3);
         assert.equal(c.bank.powerModules, 2);
         assert.equal(c.station.sentries![0].hull, STATION_DRONES.hull);
+        const done = structuredClone(c);
+        assert.equal(installStationDrones(c), false);
+        assert.deepEqual(c, done);
     } finally {
         sentries.clear();
         fleet.dispose();
@@ -309,7 +295,7 @@ test('a physical obstacle blocks sentry detection and fire until the line of sig
     }
 });
 
-test('station production pauses paid replacement and losing the player ship preserves garrison damage', () => {
+test('lost drones remain unrepaired during flight and a player loss preserves garrison damage', () => {
     const c = ready();
     installStationDrones(c);
     beginRun(c, 1);
@@ -329,14 +315,11 @@ test('station production pauses paid replacement and losing the player ship pres
         sentries.damage(0, 1000);
         sentries.damage(1, 20);
         tick(5);
-        assert.equal(c.station.sentries![0].rebuildRemaining, 25);
+        assert.equal(c.station.sentries![0].rebuildRemaining, 0);
         const bank = structuredClone(c.bank);
-        c.crew.jobs.push({ id: 1, kind: 'kit', remaining: 10 });
-        c.crew.nextJobId = 2;
         tick(20);
-        assert.equal(c.station.sentries![0].rebuildRemaining, 25);
+        assert.equal(c.station.sentries![0].rebuildRemaining, 0);
         assert.deepEqual(c.bank, bank);
-        c.crew.jobs.length = 0;
         const states = structuredClone(c.station.sentries);
         finishRun(c, false, { ore: 0, parts: 0 }, 30, 'loss');
         assert.deepEqual(c.station.sentries, states);

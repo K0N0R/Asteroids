@@ -1,6 +1,13 @@
-import { stationShieldOverview, stationDronesOverview } from './stationShield';
-import { industryOverview } from './industry';
-import { resourceTotal, resourceSummary } from '../state/resources';
+import { itemIllustration } from '../graphics/items';
+import { stationShieldContent, stationDronesContent } from './stationShield';
+import { laboratoryOverview, workshopOverview } from './production';
+import {
+    RESOURCE_IDS,
+    RESOURCES,
+    resourceTotal,
+    resourceSummary,
+    type ResourceStore,
+} from '../state/resources';
 import { hullUnlockReason } from '../state/fleetUnlocks';
 import { latestDialogue } from '../state/dialogues';
 import { storyOverview } from './storyOverview';
@@ -18,13 +25,10 @@ import { ATLAS_WEAPONS, GAME, PHOENIX, STINGER_AMMO, WEAPONS, type WeaponId } fr
 import { Container, Graphics } from 'pixi.js';
 import {
     CONTRACTS,
-    CrewRole,
-    CREW,
+    REPAIR_KITS,
     FLEET_LIMIT,
     HULLS,
     HullId,
-    JOBS,
-    JobKind,
     PILOTS,
     PILOT_PROGRESSION,
     PILOT_SKILLS,
@@ -37,7 +41,6 @@ import {
     Campaign,
     capacity,
     selectedPilot,
-    storageCapacity,
     storageUsed,
     upgradePrice,
     ownedShips,
@@ -46,12 +49,12 @@ import {
     canScrapShip,
     pilotSlots,
 } from '../state/campaign';
-import { workerJobs, jobStorage } from '../state/crew';
+import { type RecipeId } from '../state/chemistry';
 import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
 import { MAX_PILOT_XP, pilotLevel, pilotPoints, pilotName } from '../state/pilots';
 import { C } from '../graphics/shapes';
-import { button, clear, label, panel } from './primitives';
+import { button, clear, label, panel, illustrationInBox, STATION_LAYOUT } from './primitives';
 
 import {
     bareModules,
@@ -66,8 +69,7 @@ import {
     segments,
     signalScene,
     stat,
-    stationScene,
-    workshopScene,
+    productionBayScene,
 } from './lobbyGraphics';
 
 export type LobbyTab =
@@ -75,11 +77,10 @@ export type LobbyTab =
     | 'hangar'
     | 'station'
     | 'pilots'
-    | 'crew'
+    | 'warehouse'
     | 'recovery'
-    | 'industry'
-    | 'stationShield'
-    | 'stationDrones';
+    | 'laboratory'
+    | 'workshop';
 export interface LobbyActions {
     replayDialogue?: () => void;
     openSandbox?: () => void;
@@ -91,6 +92,7 @@ export interface LobbyActions {
         recoveryId: number | null,
         loadConstruction?: boolean,
         missionTask?: string | null,
+        supplies?: ResourceStore,
     ) => void;
     equipWeapon: (weapon: WeaponId) => void;
     upgrade: (upgrade: Upgrade) => void;
@@ -102,25 +104,22 @@ export interface LobbyActions {
     selectShip: (id: number) => void;
     scrapShip: (id: number) => void;
     rescue: () => void;
-    installCargoBay?: () => void;
-    refuelHyperdrive?: () => void;
     upgradeHyperdrive?: () => void;
     installStationShield?: () => void;
     installKineticShield?: () => void;
     installReinforcedBay?: () => void;
     installStationDrones?: () => void;
-    hireMechanic: () => void;
-    hireQuartermaster: () => void;
-    queueJob: (kind: JobKind) => void;
-    cancelJob: (id: number) => void;
+    manufacture: (kind: RecipeId, batches: number) => void;
 }
 
 const NAV: { tab: LobbyTab; title: string; icon: Parameters<typeof lobbyIcon>[0] }[] = [
     { tab: 'overview', title: 'Wyprawa', icon: 'flight' },
     { tab: 'hangar', title: 'Hangar', icon: 'ship' },
-    { tab: 'station', title: 'Stacja', icon: 'station' },
+    { tab: 'station', title: 'Rozbudowa stacji', icon: 'station' },
+    { tab: 'laboratory', title: 'Laboratorium', icon: 'laboratory' },
+    { tab: 'workshop', title: 'Warsztat', icon: 'crew' },
+    { tab: 'warehouse', title: 'Magazyn', icon: 'cargo' },
     { tab: 'pilots', title: 'Piloci', icon: 'pilot' },
-    { tab: 'crew', title: 'Załoga', icon: 'crew' },
     { tab: 'recovery', title: 'Ratunek', icon: 'signal' },
 ];
 export class LobbyView extends Container {
@@ -142,10 +141,11 @@ export class LobbyView extends Container {
     private pilotMode: 'roster' | 'recruit' = 'roster';
     private chosenPilotId: number | null = null;
     private recruit = 0;
-    private stationPart: 'workshop' | 'storage' = 'workshop';
-    private industryPage: 'basic' | 'kinetic' | 'navigation' = 'basic';
-    private recipe: JobKind = 'refine';
-    private crewRole: CrewRole = 'mechanic';
+    private stationSection: 'facilities' | 'shield' | 'drones' = 'facilities';
+    private laboratoryRecipe: RecipeId = 'water';
+    private workshopRecipe: RecipeId = 'plating';
+    private inventoryPage = 0;
+    private supplyParts = 0;
     private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield' = 'engine';
     private scrapCandidate: number | null = null;
     private recoveryId: number | null = null;
@@ -162,6 +162,7 @@ export class LobbyView extends Container {
     }
     resetProfile() {
         this.tab = 'overview';
+        this.supplyParts = 0;
         this.storyPage = 0;
         this.storyPageSector = null;
         this.scrapCandidate = null;
@@ -175,11 +176,11 @@ export class LobbyView extends Container {
         view.position.set(x, y);
         this.visual.addChild(view);
     }
-    private section(title: string, subtitle: string) {
+    private section(title: string, subtitle: string, detailPanel = true) {
         const ui = this.content;
         label(ui, title, 280, 111, 39);
         label(ui, subtitle, 282, 166, 16, C.muted);
-        panel(ui, 1040, 214, 520, 591);
+        if (detailPanel) panel(ui, 1040, STATION_LAYOUT.top, 520, 591);
     }
     refresh(message?: string) {
         if (message !== undefined) {
@@ -218,13 +219,12 @@ export class LobbyView extends Container {
         );
         label(ui, 'DOM POŚRÓD GWIAZD', 31, 91, 11, C.muted);
         NAV.forEach(({ tab, title, icon }, i) => {
-            const card = choiceCard(ui, 25, 184 + i * 65, 185, 51, this.tab === tab, () =>
-                this.go(tab),
-            );
-            const mark = lobbyIcon(icon, this.tab === tab ? C.mint : C.muted);
-            mark.position.set(24, 25);
+            const active = this.tab === tab;
+            const card = choiceCard(ui, 25, 170 + i * 55, 185, 46, active, () => this.go(tab));
+            const mark = lobbyIcon(icon, active ? C.mint : C.muted);
+            mark.position.set(24, 23);
             card.addChild(mark);
-            label(card, title, 49, 15, 17, this.tab === tab ? C.mint : C.text);
+            label(card, title, 49, 14, tab === 'station' ? 15 : 17, active ? C.mint : C.text);
             const badge =
                 tab === 'pilots'
                     ? c.pilots.reduce((sum, p) => sum + pilotPoints(p), 0)
@@ -238,7 +238,7 @@ export class LobbyView extends Container {
                 ui,
                 'POWTÓRZ ODPRAWĘ',
                 25,
-                600,
+                625,
                 185,
                 this.actions.replayDialogue,
                 false,
@@ -263,82 +263,30 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.80', 30, 851, 11, C.muted);
-        const industrial = resourceSummary({
-            copperOre: c.bank.copperOre,
-            conductors: c.bank.conductors,
-            powerModules: c.bank.powerModules,
-            storageFrames: c.bank.storageFrames,
-        });
-        if (industrial !== 'brak') label(ui, industrial, 600, 44, 14, C.cyan, 480);
+        label(ui, 'ORBIT / 0.81', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
-        cost(ui, c.bank.ore, c.bank.parts, 1130, 37, true);
-        const crystalIcon = lobbyIcon('crystals', 0xc2a0ec);
-        crystalIcon.position.set(1410, 48);
-        ui.addChild(crystalIcon);
-        label(ui, `${c.bank.crystals ?? 0}`, 1435, 37, 20, 0xc2a0ec);
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
         if (this.tab === 'station') this.station(ui);
-        if (this.tab === 'industry') {
-            this.section('Przemysł Satuk 15', 'Rudy → komponenty → moduły → konstrukcje.');
-            industryOverview(
-                ui,
-                c,
-                {
-                    ...this.actions,
-                    back: () => this.go('station'),
-                    openNavigation: () => {
-                        this.industryPage = 'navigation';
-                        this.refresh();
-                    },
-                    toggleIndustry: () => {
-                        this.industryPage =
-                            this.industryPage === 'basic'
-                                ? 'kinetic'
-                                : this.industryPage === 'kinetic'
-                                  ? 'navigation'
-                                  : 'basic';
-                        this.refresh();
-                    },
-                },
-                this.industryPage,
+        if (this.tab === 'laboratory') {
+            this.section(
+                'Laboratorium',
+                'Przetwarzaj pierwiastki w materiały. Poznawaj cząsteczki, struktury i procesy.',
             );
-            button(
-                ui,
-                'OCHRONA SATUK 15 →',
-                650,
-                218,
-                355,
-                () => this.go('stationShield'),
-                false,
-                true,
-                34,
-                14,
-            );
+            laboratoryOverview(ui, c, this.actions, this.laboratoryRecipe, (id) => {
+                this.laboratoryRecipe = id;
+                this.refresh();
+            });
         }
-        if (this.tab === 'stationShield') {
-            this.section('Ochrona Satuk 15', 'Rozbuduj bezpieczny obszar wokół stacji.');
-            stationShieldOverview(
-                ui,
-                c,
-                () => this.go('industry'),
-                this.actions.installStationShield,
-                () => this.go('stationDrones'),
-                this.actions.installKineticShield,
-            );
-        }
-        if (this.tab === 'stationDrones') {
-            this.section('Ochrona Satuk 15', 'Garnizon stacji');
-            stationDronesOverview(
-                ui,
-                c,
-                () => this.go('stationShield'),
-                this.actions.installStationDrones,
-            );
+        if (this.tab === 'workshop') {
+            this.section('Warsztat', 'Wytwarzaj części i zestawy z przygotowanych materiałów.');
+            workshopOverview(ui, c, this.actions, this.workshopRecipe, (id) => {
+                this.workshopRecipe = id;
+                this.refresh();
+            });
         }
         if (this.tab === 'pilots') this.pilots(ui);
-        if (this.tab === 'crew') this.crew(ui);
+        if (this.tab === 'warehouse') this.warehouse(ui);
         if (this.tab === 'recovery') this.recovery(ui);
         this.toast = label(
             ui,
@@ -354,19 +302,37 @@ export class LobbyView extends Container {
     private departure(ui: Container) {
         const c = this.campaign,
             ready = !!c.ship && !!selectedPilot(c);
+        if (ready)
+            button(
+                ui,
+                `Zabierz poszycie I: ${this.supplyParts} · zmień`,
+                1072,
+                670,
+                456,
+                () => {
+                    const choices = [0, 1, 2, 5];
+                    this.supplyParts =
+                        choices[(choices.indexOf(this.supplyParts) + 1) % choices.length];
+                    this.refresh();
+                },
+                false,
+                !c.activeRun,
+                30,
+                14,
+            );
         button(
             ui,
             ready ? 'WYLOT DO SEKTORA →' : !c.ship ? 'PRZYGOTUJ STATEK →' : 'ZATRUDNIJ PILOTA →',
             1072,
-            719,
+            STATION_LAYOUT.actionY,
             456,
             () => {
-                if (ready) this.actions.launch(null, false, null);
+                if (ready) this.actions.launch(null, false, null, { parts: this.supplyParts });
                 else this.go(!c.ship ? 'hangar' : 'pilots');
             },
             true,
-            !c.activeRun,
-            52,
+            !c.activeRun && this.supplyParts <= c.bank.parts,
+            STATION_LAYOUT.actionHeight,
         );
         if (
             !ready &&
@@ -550,7 +516,9 @@ export class LobbyView extends Container {
         );
         label(
             ui,
-            `${Math.min(c.repairKits, CREW.embarkKits)} zest. naprawczych na pokład`,
+            c.ship?.hull === 'mule'
+                ? 'Muł · darmowa samonaprawa, bez zestawów'
+                : `${Math.min(c.repairKits, REPAIR_KITS.embarkKits)} zest. naprawczych na pokład`,
             1072,
             623,
             15,
@@ -574,10 +542,7 @@ export class LobbyView extends Container {
             catalogue = (Object.keys(HULLS) as HullId[]).filter(
                 (id) => !('salvageOnly' in HULLS[id]),
             );
-        this.section(
-            'Twój statek. Twój styl.',
-            'Wybierz kadłub, zmień statek lub zamontuj moduły.',
-        );
+        this.section('Hangar', 'Wybierz kadłub, zmień statek lub zamontuj moduły.');
         button(
             ui,
             `Moje statki · ${ships.length}/${FLEET_LIMIT}`,
@@ -749,7 +714,7 @@ export class LobbyView extends Container {
             );
             const thumbnail = fittedShip(
                 typeof entry === 'string' ? bareModules(hull) : entry,
-                52,
+                STATION_LAYOUT.actionHeight,
                 72,
             );
             thumbnail.position.set(37, 45);
@@ -810,7 +775,6 @@ export class LobbyView extends Container {
                 {
                     ...modules,
                     id: ship?.id ?? 0,
-                    hyperFuel: ship?.hyperFuel ?? 0,
                     hyperdriveLevel: ship?.hyperdriveLevel ?? 0,
                     weapon: modules.weapon ?? 'standard',
                     weapons: ship?.weapons ?? ['standard'],
@@ -903,26 +867,26 @@ export class LobbyView extends Container {
                         ? 'Hangar pełny · zwolnij miejsce we flocie'
                         : 'ZAKUP KADŁUBA BAZOWEGO',
                 1072,
-                680,
+                650,
                 12,
                 projectLock || locked || full ? C.gold : C.muted,
+                456,
             );
-            cost(ui, config.ore, config.parts, 1072, 699);
+            cost(ui, config.ore, config.parts, 1072, 684);
             button(
                 ui,
                 projectLock
                     ? 'PROJEKT ZABLOKOWANY'
                     : locked
-                      ? 'ROZBUDUJ WARSZTAT →'
+                      ? 'ROZBUDUJ ZAPLECZE →'
                       : full
                         ? 'OTWÓRZ FLOTĘ →'
                         : 'KUP STATEK →',
                 1072,
-                741,
+                STATION_LAYOUT.actionY,
                 456,
                 () => {
                     if (locked) {
-                        this.stationPart = 'workshop';
                         this.go('station');
                     } else if (full) {
                         this.hangarMode = 'owned';
@@ -936,7 +900,7 @@ export class LobbyView extends Container {
                 true,
                 !projectLock &&
                     (locked || full || (c.bank.ore >= config.ore && c.bank.parts >= config.parts)),
-                40,
+                STATION_LAYOUT.actionHeight,
             );
         }
     }
@@ -956,7 +920,6 @@ export class LobbyView extends Container {
             owned = ship.weapons.includes(id),
             mounted = ship.weapon === id;
         this.art(hullPreview({ ...ship, weapon: id }), 625, 430);
-        label(ui, `UZBROJENIE / ${HULLS[ship.hull].name}`, 388, 285, 16, C.muted);
         (Object.keys(WEAPONS) as WeaponId[]).forEach((key, i) => {
             const definition = WEAPONS[key],
                 card = choiceCard(ui, 280 + i * 240, 650, 225, 141, id === key, () => {
@@ -1036,7 +999,7 @@ export class LobbyView extends Container {
             ui,
             mounted ? 'ZAMONTOWANE' : owned ? 'ZAMONTUJ →' : 'KUP I ZAMONTUJ →',
             1072,
-            728,
+            STATION_LAYOUT.actionY,
             456,
             () => this.actions.equipWeapon(id),
             true,
@@ -1072,8 +1035,8 @@ export class LobbyView extends Container {
             ui,
             shipUpgradeDefinition(ship.hull, this.moduleFocus).detail,
             1072,
-            645,
-            13,
+            preview ? 610 : 685,
+            preview ? 13 : 12,
             C.muted,
             456,
         );
@@ -1097,7 +1060,7 @@ export class LobbyView extends Container {
                     key,
                 ),
                 definition = shipUpgradeDefinition(ship.hull, key),
-                y = 435 + i * 34;
+                y = preview ? 427 + i * 30 : 435 + i * 34;
             const title = label(
                 ui,
                 definition.title,
@@ -1153,119 +1116,119 @@ export class LobbyView extends Container {
                 hint.setText(definition.detail);
             };
         });
+        if (!preview) {
+            const level = ship.hyperdriveLevel,
+                next = level + 1;
+            const detail =
+                level >= 3
+                    ? 'Hipernapęd III. Przeloty przez śluzy bez paliwa.'
+                    : `Hipernapęd ${next}: ${4 * next} × Poszycie stalowe I · ${next} × Zespół napędowy I · ${next} × Układ zasilania I. Zaplecze I.`;
+            const driveTitle = label(ui, 'Hipernapęd', 1072, 639, 16, C.text);
+            driveTitle.eventMode = 'static';
+            driveTitle.on('pointerenter', () => hint.setText(detail));
+            segments(ui, level, 3, 1288, 644, 69);
+            const install = button(
+                ui,
+                level >= 3 ? 'MAX' : level ? 'ULEPSZ' : 'ZAMONTUJ',
+                1390,
+                633,
+                138,
+                () => this.actions.upgradeHyperdrive?.(),
+                false,
+                active &&
+                    !c.activeRun &&
+                    !!this.actions.upgradeHyperdrive &&
+                    c.station.workshop >= 1 &&
+                    level < 3 &&
+                    c.bank.parts >= 4 * next &&
+                    (c.bank.propulsion ?? 0) >= next &&
+                    (c.bank.powerModules ?? 0) >= next,
+                30,
+                12,
+            );
+            install.config.onHover = () => hint.setText(detail);
+            const title = label(ui, `Poziom ${level}/3 · śluzy bez paliwa`, 1072, 662, 12, C.muted);
+            title.eventMode = 'static';
+            title.on('pointerenter', () => hint.setText(detail));
+        }
     }
     private station(ui: Container) {
         const c = this.campaign,
-            part = this.stationPart,
-            level = c.station[part],
-            limit = part === 'workshop' ? 2 : 3,
-            price = upgradePrice(c, part);
-        this.section(
-            'Rozwijaj swój dom.',
-            'Warsztat i magazyn pozostają z Tobą po każdej wyprawie.',
-        );
-        this.art(
-            fittedScene(stationScene(c.station.workshop + c.station.storage, part), 680, 360),
-            625,
-            438,
-        );
-        (['workshop', 'storage'] as const).forEach((key, i) => {
-            const card = choiceCard(ui, 280 + i * 240, 650, 225, 141, part === key, () => {
-                this.stationPart = key;
-                this.refresh();
-            });
-            const icon = lobbyIcon(key === 'workshop' ? 'crew' : 'cargo');
-            icon.position.set(33, 37);
-            card.addChild(icon);
-            label(card, key === 'workshop' ? 'Warsztat' : 'Magazyn', 64, 23, 23);
-            label(card, `Poziom ${c.station[key]}`, 64, 60, 15, C.muted);
-            segments(card, c.station[key], key === 'workshop' ? 2 : 3, 24, 109, 177);
-        });
-        const industry = choiceCard(ui, 760, 650, 225, 141, false, () => this.go('industry'));
-        label(industry, 'Przemysł', 20, 23, 23);
-        label(industry, 'Produkcja, magazyn, tarcza', 20, 60, 15, C.muted);
-        label(industry, 'OTWÓRZ →', 20, 108, 14, C.mint);
-        label(ui, 'MODUŁ STACJI', 1072, 244, 13, C.muted);
-        label(ui, part === 'workshop' ? 'Warsztat' : 'Magazyn', 1072, 276, 31);
-        label(ui, `Poziom ${level} / ${limit}`, 1072, 326, 18, C.mint);
-        segments(ui, level, limit, 1072, 367, 456);
-        if (part === 'workshop') {
-            label(ui, `Moduły statku do poziomu ${level + 1}`, 1072, 405, 24, C.text, 456);
-            label(
-                ui,
-                level === 0
-                    ? 'Warsztat I odblokuje nowe kadłuby.'
-                    : level < limit
-                      ? `Po rozbudowie: moduły do poziomu ${level + 2}.`
-                      : 'Najwyższy poziom warsztatu.',
-                1072,
-                447,
-                16,
-                C.muted,
-                456,
-            );
+            level = c.station.workshop,
+            limit = 2;
+        const price = upgradePrice(c, 'workshop');
+        this.section('Rozbudowa stacji', 'Ulepszaj zaplecze i wyposażenie stacji.');
+        const sections = [
+            { id: 'facilities', title: 'Zaplecze' },
+            { id: 'shield', title: 'Tarcze stacji' },
+            { id: 'drones', title: 'Drony' },
+        ] as const;
+        sections.forEach((section, i) => {
             button(
                 ui,
-                'Zobacz moduły statku',
-                1072,
-                511,
-                456,
+                section.title,
+                280 + i * 245,
+                218,
+                235,
                 () => {
-                    this.hangarMode = 'owned';
-                    this.chosenShipId = c.ship?.id ?? null;
-                    this.go('hangar');
+                    this.stationSection = section.id;
+                    this.refresh();
                 },
-                false,
+                this.stationSection === section.id,
                 true,
-                40,
-            );
-        } else {
-            stat(
-                ui,
-                'ZAJĘTE / POJEMNOŚĆ',
-                `${storageUsed(c)} / ${storageCapacity(c)}`,
-                1072,
-                405,
-                'cargo',
-            );
-            label(
-                ui,
-                `W tym rezerwacje zadań: ${storageUsed(c) - resourceTotal(c.bank)}`,
-                1072,
-                468,
-                15,
-                C.muted,
-            );
-            label(
-                ui,
-                level < limit
-                    ? 'Rozbudowa: +100 miejsca na surowce.'
-                    : 'Najwyższa pojemność magazynu.',
-                1072,
-                503,
+                38,
                 16,
-                C.muted,
             );
+        });
+        if (this.stationSection === 'shield') {
+            stationShieldContent(
+                ui,
+                c,
+                this.actions.installStationShield,
+                this.actions.installKineticShield,
+            );
+            return;
         }
-        label(ui, 'WYPRAWY', 1072, 576, 12, C.muted);
-        label(ui, `${c.sorties}`, 1072, 598, 24);
-        label(ui, 'POWROTY', 1245, 576, 12, C.muted);
-        label(ui, `${c.recovered}`, 1245, 598, 24);
+        if (this.stationSection === 'drones') {
+            stationDronesContent(ui, c, this.actions.installStationDrones);
+            return;
+        }
+        this.art(fittedScene(productionBayScene(level), 650, 350), 640, 520);
+        label(ui, 'ZAPLECZE PRODUKCYJNE', 640, 755, 16, C.mint).setHorizontalAlign('center');
+        label(ui, 'ROZWÓJ TECHNOLOGII', 1072, 244, 13, C.muted);
+        label(ui, 'Zaplecze produkcyjne', 1072, 276, 30, C.text, 456);
+        label(ui, `Poziom ${level} / ${limit}`, 1072, 326, 18, C.mint);
+        segments(ui, level, limit, 1072, 367, 456);
+        label(ui, `Moduły statku do poziomu ${level + 1}`, 1072, 405, 24, C.text, 456);
+        label(
+            ui,
+            level === 0
+                ? 'Podstawowa produkcja jest już dostępna. Rozbudowa I odblokuje nowe kadłuby i bardziej złożone części.'
+                : level < limit
+                  ? 'Rozbudowa II odblokuje zaawansowane procesy, osłony i kolejne ulepszenia statków.'
+                  : 'Najwyższy poziom zaplecza.',
+            1072,
+            447,
+            17,
+            C.muted,
+            456,
+        );
         label(ui, level >= limit ? 'MAKSYMALNY POZIOM' : 'KOSZT ROZBUDOWY', 1072, 649, 12, C.muted);
         if (level < limit) cost(ui, price.ore, price.parts, 1072, 674, false, price.crystals ?? 0);
         button(
             ui,
-            level >= limit ? 'MAKSYMALNY POZIOM' : 'ROZBUDUJ →',
+            level >= limit ? 'MAKSYMALNY POZIOM' : 'ROZBUDUJ ZAPLECZE →',
             1072,
-            719,
+            STATION_LAYOUT.actionY,
             456,
-            () => this.actions.upgrade(part),
+            () => this.actions.upgrade('workshop'),
             true,
-            level < limit &&
+            !c.activeRun &&
+                level < limit &&
                 c.bank.ore >= price.ore &&
                 c.bank.parts >= price.parts &&
                 (c.bank.crystals ?? 0) >= (price.crystals ?? 0),
-            52,
+            STATION_LAYOUT.actionHeight,
         );
     }
     private pilots(ui: Container) {
@@ -1280,10 +1243,7 @@ export class LobbyView extends Container {
                 : pilot
                   ? { ...PILOTS[pilot.archetype], name: pilotName(pilot) }
                   : null;
-        this.section(
-            'Kto zasiądzie za sterami?',
-            'Wybierz pilota, rozwiń umiejętności albo zaproś nową osobę.',
-        );
+        this.section('Piloci', 'Wybierz pilota, rozwiń umiejętności albo zaproś nową osobę.');
         button(
             ui,
             `Moi piloci · ${c.pilots.length}`,
@@ -1402,7 +1362,7 @@ export class LobbyView extends Container {
                 ui,
                 pilotSlots(c) >= 8 ? 'ZAŁOGA PEŁNA' : 'ZATRUDNIJ PILOTA →',
                 1072,
-                719,
+                STATION_LAYOUT.actionY,
                 456,
                 () => {
                     this.chosenPilotId = null;
@@ -1411,7 +1371,7 @@ export class LobbyView extends Container {
                 },
                 true,
                 c.bank.ore >= 12 && pilotSlots(c) < 8,
-                52,
+                STATION_LAYOUT.actionHeight,
             );
         } else if (pilot) {
             const level = pilotLevel(pilot),
@@ -1474,7 +1434,7 @@ export class LobbyView extends Container {
                     ui,
                     'USTAW AKTYWNEGO PILOTA →',
                     1072,
-                    731,
+                    STATION_LAYOUT.actionY,
                     456,
                     () => this.actions.selectPilot(pilot.id),
                     true,
@@ -1484,155 +1444,119 @@ export class LobbyView extends Container {
             else label(ui, '● Aktywny pilot na następną wyprawę', 1072, 754, 15, C.mint);
         }
     }
-    private crew(ui: Container) {
-        const c = this.campaign,
-            role = this.crewRole,
-            hired = c.crew[role];
-        const jobs = workerJobs(c, role),
-            recipe = JOBS[this.recipe];
-        const quartermaster = role === 'quartermaster';
-        this.section('Załoga dba o Aurorę.', 'Zaplanuj pracę stacji na czas swojej wyprawy.');
-        (['mechanic', 'quartermaster'] as const).forEach((worker, i) => {
-            button(
-                ui,
-                worker === 'mechanic' ? 'Mechanik' : 'Intendent',
-                280 + i * 240,
-                218,
-                225,
-                () => {
-                    this.crewRole = worker;
-                    this.recipe = worker === 'mechanic' ? 'refine' : 'recycle';
-                    this.refresh();
-                },
-                role === worker,
-                true,
-                38,
-            );
-        });
-        this.art(workshopScene(this.recipe), 625, 441);
-        label(
-            ui,
-            quartermaster ? 'NIKO RELL / INTENDENT BAZY' : 'ADA VALE / MECHANIK STACJI',
-            388,
-            286,
-            16,
-            hired ? C.mint : C.muted,
+    private warehouse(ui: Container) {
+        const c = this.campaign;
+        this.section(
+            'Magazyn',
+            'Pierwiastki, materiały i części przechowywane na stacji. Pojemność bez limitu.',
+            false,
         );
-        const recipes = (
-            quartermaster ? ['recycle'] : ['refine', 'kit', 'crystallize']
-        ) as JobKind[];
-        recipes.forEach((kind, i) => {
-            const job = JOBS[kind],
-                card = choiceCard(ui, 280 + i * 240, 650, 225, 141, this.recipe === kind, () => {
-                    this.recipe = kind;
-                    this.refresh();
-                });
-            label(card, job.title, 16, 23, 20, C.text, 190);
+        const categoryOrder = { PIERWIASTKI: 0, MATERIAŁY: 1, CZĘŚCI: 2 };
+        const entries = RESOURCE_IDS.filter((id) => (c.bank[id] ?? 0) > 0).sort(
+            (a, b) => categoryOrder[RESOURCES[a].category] - categoryOrder[RESOURCES[b].category],
+        );
+        if (!entries.length) {
+            panel(ui, 280, 214, 1280, 591);
+            label(ui, 'Tu trafią Twoje znaleziska', 320, 250, 30, C.text);
             label(
-                card,
-                `${job.seconds} s · ${kind === 'crystallize' ? '1 kryształ' : kind === 'recycle' ? '5 rudy' : kind === 'refine' ? '1 komponent' : '1 zestaw'}`,
-                20,
-                64,
-                15,
+                ui,
+                'Wydobywaj pierwiastki ze skał, odzyskuj części z wraków i dostarczaj je do stacji.',
+                320,
+                300,
+                18,
                 C.muted,
+                1120,
             );
-            cost(card, job.ore, job.parts, 20, 99);
-        });
-        label(ui, quartermaster ? 'ODZYSK / STACJA' : 'WARSZTAT / STACJA', 1072, 244, 13, C.muted);
-        label(
-            ui,
-            hired
-                ? `Zadania ${jobs.length}/${CREW.queueLimit}`
-                : quartermaster
-                  ? 'Niko Rell'
-                  : 'Ada Vale',
-            1072,
-            276,
-            31,
-        );
-        if (!hired) {
-            const portrait = pilotPortrait(
-                quartermaster ? 2 : 0,
-                !quartermaster,
-                quartermaster ? 92 : 91,
-            );
-            portrait.scale.set(0.6);
-            portrait.position.set(1285, 479);
-            ui.addChild(portrait);
-            const ore = quartermaster ? CREW.quartermasterOre : CREW.hireOre;
-            const parts = quartermaster ? CREW.quartermasterParts : 0;
-            cost(ui, ore, parts, 1072, 671);
+            const categories = [
+                { id: 'ore', title: 'Pierwiastki', detail: 'Wydobywane ze skał i asteroid' },
+                { id: 'water', title: 'Materiały', detail: 'Przygotowywane w Laboratorium' },
+                {
+                    id: 'electronics',
+                    title: 'Części',
+                    detail: 'Wytwarzane w Warsztacie lub odzyskiwane z wraków',
+                },
+            ] as const;
+            categories.forEach((entry, i) => {
+                const x = 320 + i * 410;
+                illustrationInBox(ui, itemIllustration(entry.id), x + 100, 390, 170, 150);
+                label(ui, entry.title, x, 580, 25, C.text, 365);
+                label(ui, entry.detail, x, 622, 17, C.muted, 350);
+            });
             button(
                 ui,
-                'ZATRUDNIJ →',
+                'PRZYGOTUJ WYPRAWĘ',
                 1072,
-                719,
+                STATION_LAYOUT.actionY,
                 456,
-                () =>
-                    quartermaster ? this.actions.hireQuartermaster() : this.actions.hireMechanic(),
+                () => this.go('overview'),
                 true,
-                c.bank.ore >= ore &&
-                    c.bank.parts >= parts &&
-                    (!quartermaster || c.station.workshop >= 1),
-                52,
+                true,
+                STATION_LAYOUT.actionHeight,
             );
             return;
         }
-        label(ui, `Zestawy w bazie ${c.repairKits}/${CREW.kitLimit}`, 1072, 326, 16, C.muted);
-        if (!jobs.length) label(ui, 'Kolejka jest pusta.', 1072, 404, 21, C.muted);
-        jobs.forEach((job, i) => {
-            const y = 370 + i * 77;
-            label(ui, `${i + 1}. ${JOBS[job.kind].title}`, 1072, y, 18);
-            label(
-                ui,
-                `${Math.ceil(job.remaining)} s${i ? ' · w kolejce' : ' · następne'}`,
-                1072,
-                y + 28,
-                13,
-                C.muted,
-            );
-            button(ui, '×', 1470, y, 58, () => this.actions.cancelJob(job.id), false, true, 34);
+        const last = Math.max(0, Math.ceil(entries.length / 15) - 1);
+        this.inventoryPage = Math.min(this.inventoryPage, last);
+        entries.slice(this.inventoryPage * 15, this.inventoryPage * 15 + 15).forEach((id, i) => {
+            const x = 280 + (i % 3) * 432,
+                y = 260 + Math.floor(i / 3) * 96;
+            panel(ui, x, y, 416, 82);
+            illustrationInBox(ui, itemIllustration(id), x + 14, y + 14, 56, 54);
+            label(ui, RESOURCES[id].category, x + 88, y + 12, 11, C.muted);
+            label(ui, RESOURCES[id].name, x + 88, y + 33, 16, RESOURCES[id].color, 210);
+            const quantity = c.bank[id] ?? 0;
+            const amountText = new Intl.NumberFormat('pl-PL', {
+                notation: quantity >= 100000 ? 'compact' : 'standard',
+                maximumFractionDigits: 1,
+            }).format(quantity);
+            const amount = label(ui, amountText, x + 394, y + 16, 20, C.text);
+            amount.setHorizontalAlign('right');
         });
-        label(ui, recipe.title, 1072, 654, 17);
-        cost(ui, recipe.ore, recipe.parts, 1072, 680);
-        const full = jobs.length >= CREW.queueLimit;
-        const kitLimit =
-            this.recipe === 'kit' &&
-            c.repairKits + c.crew.jobs.filter((j) => j.kind === 'kit').length >= CREW.kitLimit;
-        const room =
-            storageUsed(c) + jobStorage(this.recipe) - recipe.ore - recipe.parts <=
-            storageCapacity(c);
-        const workshop = this.recipe !== 'crystallize' || c.station.workshop >= 1;
-        button(
+        label(
             ui,
-            full
-                ? 'KOLEJKA PEŁNA'
-                : kitLimit
-                  ? 'LIMIT ZESTAWÓW'
-                  : !room
-                    ? 'MAGAZYN PEŁNY'
-                    : !workshop
-                      ? 'WYMAGANY WARSZTAT I'
-                      : 'DODAJ ZADANIE →',
-            1072,
-            728,
-            456,
-            () => this.actions.queueJob(this.recipe),
-            true,
-            !full &&
-                !kitLimit &&
-                room &&
-                workshop &&
-                c.bank.ore >= recipe.ore &&
-                c.bank.parts >= recipe.parts,
-            48,
+            `${entries.length} rodzajów zasobów · ${resourceTotal(c.bank).toLocaleString('pl-PL')} szt.`,
+            280,
+            218,
+            16,
+            C.muted,
         );
+        if (last > 0) {
+            label(ui, `Strona ${this.inventoryPage + 1}/${last + 1}`, 840, 780, 16, C.muted);
+            button(
+                ui,
+                '←',
+                700,
+                769,
+                90,
+                () => {
+                    this.inventoryPage--;
+                    this.refresh();
+                },
+                false,
+                this.inventoryPage > 0,
+                36,
+            );
+            button(
+                ui,
+                '→',
+                1030,
+                769,
+                90,
+                () => {
+                    this.inventoryPage++;
+                    this.refresh();
+                },
+                false,
+                this.inventoryPage < last,
+                36,
+            );
+        }
     }
     private recovery(ui: Container) {
         const c = this.campaign,
             signal = c.recoverySignals.find((entry) => entry.id === this.recoveryId);
         this.section(
-            'Sygnał wciąż dociera.',
+            'Ratunek',
             'Położenie wraków i kapsuł. Możesz je odzyskać podczas zwykłego lotu.',
         );
         this.art(
@@ -1664,7 +1588,7 @@ export class LobbyView extends Container {
                 label(
                     card,
                     entry.area === 'surface'
-                        ? 'Powierzchnia Księżyca · wejście przez 3'
+                        ? 'Powierzchnia Księżyca'
                         : `${(Math.hypot(entry.x, entry.y) / 1000).toFixed(1)} km od ${c.story ? 'Satuk 15' : 'Aurory'}`,
                     18,
                     49,
@@ -1712,7 +1636,9 @@ export class LobbyView extends Container {
             );
         }
         if (!signal) {
-            label(ui, 'Brak sygnałów do odzyskania.', 381, 718, 22, C.muted);
+            label(ui, 'Brak sygnałów do odzyskania.', 625, 718, 22, C.muted).setHorizontalAlign(
+                'center',
+            );
             label(ui, 'Cisza w eterze.', 1072, 279, 30);
             label(
                 ui,
@@ -1727,12 +1653,12 @@ export class LobbyView extends Container {
                 ui,
                 'ZAPLANUJ WYPRAWĘ →',
                 1072,
-                719,
+                STATION_LAYOUT.actionY,
                 456,
                 () => this.go('overview'),
                 true,
                 true,
-                52,
+                STATION_LAYOUT.actionHeight,
             );
             return;
         }
@@ -1744,7 +1670,7 @@ export class LobbyView extends Container {
         label(
             ui,
             signal.area === 'surface'
-                ? 'Powierzchnia Księżyca · wejście przez 3'
+                ? 'Powierzchnia Księżyca'
                 : `${(Math.hypot(signal.x, signal.y) / 1000).toFixed(1)} km od ${c.story ? 'Satuk 15' : 'Aurory'}`,
             1072,
             326,
@@ -1794,7 +1720,17 @@ export class LobbyView extends Container {
         );
         if (signal.ship && ownedShips(c).length >= FLEET_LIMIT)
             label(ui, 'Pełny hangar: wrak da materiały.', 1072, 684, 14, C.muted);
-        button(ui, 'WRÓĆ DO DOWODZENIA', 1072, 719, 456, () => this.go('overview'), true, true, 52);
+        button(
+            ui,
+            'WRÓĆ DO DOWODZENIA',
+            1072,
+            STATION_LAYOUT.actionY,
+            456,
+            () => this.go('overview'),
+            true,
+            true,
+            STATION_LAYOUT.actionHeight,
+        );
     }
     private scrapConfirmation(ui: Container) {
         const ship = this.campaign.reserveShips.find((entry) => entry.id === this.scrapCandidate);

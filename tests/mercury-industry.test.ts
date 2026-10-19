@@ -1,3 +1,4 @@
+import { manufacture } from '../frontend/game/state/production';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -11,7 +12,6 @@ import {
     storageUsed,
 } from '../frontend/game/state/campaign';
 import { STORY_TASKS, syncStory, storySectorComplete } from '../frontend/game/state/story';
-import { queueJob, cancelJob, advanceCrew } from '../frontend/game/state/crew';
 import { hullUnlocked } from '../frontend/game/state/fleetUnlocks';
 import {
     kineticInstallationLock,
@@ -38,7 +38,6 @@ function ready(hull: HullId = 'harpoon') {
     c.station.workshop = 2;
     c.station.storage = 1;
     c.station.shield = true;
-    c.crew.mechanic = true;
     c.ship = newShip(1, hull);
     c.bank = { ore: 100, parts: 30, powerModules: 6, storageFrames: 1 };
     for (const t of STORY_TASKS.filter(
@@ -169,64 +168,15 @@ test('stock Harpoon flies from Satuk, tears out real material, collects it, dock
     } finally {
         s.dispose();
     }
-    assert.ok(queueJob(c, 'kineticPlate'));
-    assert.ok(beginRun(c, 1));
-    assert.equal(advanceCrew(c, 60), 1);
-    finishRun(c, true, { ore: 0, parts: 0 }, 60, 'production');
+    c.bank.steel = 2;
+    assert.ok(manufacture(c, 'kineticPlate'));
     assert.equal(c.bank.kineticPlates, 2);
-    assert.ok(queueJob(c, 'kineticModule'));
-    assert.ok(beginRun(c, 1));
-    assert.equal(advanceCrew(c, 90), 1);
-    finishRun(c, true, { ore: 0, parts: 0 }, 90, 'production');
+    assert.ok(manufacture(c, 'kineticModule'));
     assert.ok(installKineticUpgrade(c, 'shield'));
     syncStory(c);
     assert.equal(stationProtectionRadius(c), 1000);
     assert.ok(c.story!.claimed.includes('mercury-shield'));
     assert.ok(parseCampaign(JSON.stringify(c)));
-});
-
-test('kinetic production validates unlocks, workshop, costs and refunds without losing reserved materials', () => {
-    const c = ready();
-    c.bank.mercuryOre = 8;
-    const before = structuredClone(c.bank);
-    assert.ok(queueJob(c, 'kineticPlate'));
-    assert.ok(storageUsed(c) <= storageCapacity(c));
-    assert.equal(advanceCrew(c, 120), 0, 'no offline or lobby production');
-    assert.ok(cancelJob(c, c.crew.jobs[0].id));
-    assert.deepEqual(c.bank, before);
-    c.story!.claimed = c.story!.claimed.filter((id) => id !== 'mercury-survey');
-    c.story!.progress['mercury-survey'] = 0;
-    const snapshot = structuredClone(c);
-    assert.equal(queueJob(c, 'kineticPlate'), false);
-    assert.deepEqual(c, snapshot);
-});
-
-test('two shield and warehouse levels consume their own costs exactly once, and saves preserve them while rejecting old formats', () => {
-    const c = ready();
-    c.bank.ore = 120;
-    c.bank.kineticModules = 3;
-    c.bank.kineticPlates = 4;
-    c.bank.storageFrames = 2;
-    const base = storageCapacity(c);
-    for (let level = 1; level <= 2; level++) {
-        assert.ok(installKineticUpgrade(c, 'shield'));
-        assert.equal(stationProtectionRadius(c), 850 + level * 150);
-        assert.ok(installKineticUpgrade(c, 'storage'));
-        assert.equal(storageCapacity(c), base + level * 400);
-    }
-    const snapshot = structuredClone(c);
-    assert.equal(installKineticUpgrade(c, 'shield'), false);
-    assert.equal(installKineticUpgrade(c, 'storage'), false);
-    assert.deepEqual(c, snapshot);
-    assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-    for (const field of ['shieldLevel', 'reinforcedBays'] as const)
-        for (const bad of [-1, 3, NaN, undefined]) {
-            const invalid = structuredClone(c);
-            invalid.station[field] = bad as number;
-            assert.equal(parseCampaign(JSON.stringify(invalid)), null);
-        }
-    assert.equal(parseCampaign(JSON.stringify({ ...c, version: 41 })), null);
-    assert.equal(parseCampaign(JSON.stringify({ ...c, story: { ...c.story, version: 19 } })), null);
 });
 
 test('locked and in-flight installs are atomic, and a lost sortie never delivers the special resource', () => {

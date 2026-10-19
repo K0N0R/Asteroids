@@ -173,6 +173,26 @@ test('stock Prospector reaches the Moon, escorts repeated mining deliveries, def
                 input.target = enemyPosition(enemy);
                 input.fire = true;
             }
+            if (!enemy && s.speed < 30) {
+                const obstacle = [...s.rocks.values()]
+                    .filter((r) => {
+                        const q = r.body.translation();
+                        return (
+                            Math.hypot(q.x * 100 - s.position.x, q.y * 100 - s.position.y) <
+                            r.radius + 230
+                        );
+                    })
+                    .sort(
+                        (a, b) =>
+                            Math.hypot(a.previous.x - s.position.x, a.previous.y - s.position.y) -
+                            Math.hypot(b.previous.x - s.position.x, b.previous.y - s.position.y),
+                    )[0];
+                if (obstacle) {
+                    const q = obstacle.body.translation();
+                    input.target = { x: q.x * 100, y: q.y * 100 };
+                    input.mine = true;
+                }
+            }
             const cargoBefore = e.cargoUsed;
             const returningResource = e.grippers.arms.some(
                 (arm) => arm.phase === 'return' && arm.held,
@@ -385,17 +405,14 @@ test('player and Mule deliver to one persistent construction counter, including 
     }
 });
 
-test('Mule crafts from its own real cargo, repairs over time, and damage interrupts the repair', () => {
+test('AI Mule repairs without cargo or kits, and damage interrupts repair', () => {
     const world = new RAPIER.World({ x: 0, y: 0 });
     const e = new MiningEscort(world);
     try {
         e.state = 'travel';
         e.health = 80;
-        e.cargoOre = MINING_CONVOY.kitCost.ore;
-        e.cargoParts = MINING_CONVOY.kitCost.parts;
         e.update(1, e.position, [], false);
         assert.equal(e.cargoUsed, 0);
-        assert.equal(e.repairKits, 1);
         assert.equal(e.health, 80);
         assert.equal(e.repairProgress, 1);
         e.damage(5, 0);
@@ -403,9 +420,8 @@ test('Mule crafts from its own real cargo, repairs over time, and damage interru
         for (let i = 0; i < 60 * 7; i++) e.update(1 / 60, e.position, [], false);
         assert.equal(e.health, 100);
         assert.equal(e.repairs, 1);
-        assert.equal(e.repairKits, 0);
         e.update(10, e.position, [], false);
-        assert.equal(e.health, 100, 'no free kit when cargo is empty');
+        assert.equal(e.health, 125, 'another repair is free with empty cargo');
     } finally {
         world.free();
     }

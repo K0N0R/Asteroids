@@ -1,7 +1,6 @@
 import type { Point } from '../worlds/sector';
 
 export const HYPERDRIVE = {
-    capacity: 3,
     range: 4000,
     speed: 4000,
     charge: 0.7,

@@ -22,15 +22,6 @@ import {
 import { generateSector } from '../frontend/game/worlds/sector';
 import { FlightInput, MissionSimulation } from '../frontend/game/systems/mission';
 import { GAME, HULLS, HullId } from '../frontend/game/config';
-import {
-    advanceCrew,
-    assignMechanic,
-    assignCrew,
-    cancelJob,
-    hireMechanic,
-    hireQuartermaster,
-    queueJob,
-} from '../frontend/game/state/crew';
 import { storageUsed } from '../frontend/game/state/campaign';
 
 before(async () => {
@@ -110,13 +101,13 @@ test('upgrade costs and workshop limits are enforced without partial charges', (
     beginRun(c, 2);
     assert.equal(buyUpgrade(c, 'armor'), false);
 });
-test('full station storage accepts valuable parts first and reports overflow', () => {
+test('unlimited station storage accepts every item without overflow', () => {
     const c = newCampaign();
     c.bank.ore = 147;
     beginRun(c, 5);
     const result = finishRun(c, true, { ore: 5, parts: 2 }, 1, 'dock');
-    assert.deepEqual(c.bank, { ore: 148, parts: 2 });
-    assert.equal(result!.overflow, 4);
+    assert.deepEqual(c.bank, { ore: 152, parts: 2 });
+    assert.equal(result!.overflow, 0);
 });
 test('ship upgrades spend more components and less ore at every level without partial charges', () => {
     const prices = [
@@ -321,62 +312,6 @@ test('fast impacts damage the hull while slow contact is harmless', () => {
     assert.ok(collide(500) < GAME.hull);
 });
 
-test('crew inputs are reserved and refunded once, and queue limits prevent extra charges', () => {
-    const c = newCampaign();
-    c.bank = { ore: 100, parts: 5 };
-    assert.ok(hireMechanic(c));
-    assert.equal(hireMechanic(c), false);
-    const used = storageUsed(c),
-        bank = { ...c.bank };
-    assert.ok(queueJob(c, 'refine'));
-    assert.equal(storageUsed(c), used);
-    const id = c.crew.jobs[0].id;
-    assert.ok(cancelJob(c, id));
-    assert.equal(cancelJob(c, id), false);
-    assert.deepEqual(c.bank, bank);
-    for (let i = 0; i < 3; i++) assert.ok(queueJob(c, 'refine'));
-    const after = { ...c.bank };
-    assert.equal(queueJob(c, 'kit'), false);
-    assert.deepEqual(c.bank, after);
-});
-
-test('crew works only during a run and carries excess time into the next queued task', () => {
-    const c = newCampaign();
-    c.bank = { ore: 100, parts: 5 };
-    hireMechanic(c);
-    queueJob(c, 'refine');
-    queueJob(c, 'kit');
-    assert.equal(advanceCrew(c, 90), 0);
-    assert.equal(c.crew.jobs[0].remaining, 45);
-    beginRun(c, 13);
-    const parts = c.bank.parts;
-    assert.equal(advanceCrew(c, 50), 1);
-    assert.equal(c.bank.parts, parts + 1);
-    assert.equal(c.crew.jobs[0].remaining, 25);
-    const loaded = parseCampaign(JSON.stringify(c))!;
-    assert.ok(loaded);
-    assert.equal(advanceCrew(loaded, 25), 1);
-    assert.equal(loaded.repairKits, 1);
-    assert.equal(loaded.crew.completed, 2);
-    assert.equal(advanceCrew(loaded, 500), 0);
-    assert.equal(loaded.crew.completed, 2);
-    finishRun(loaded, false, { ore: 0, parts: 0 }, 75, 'loss');
-    assert.equal(loaded.crew.mechanic, true);
-    assert.equal(loaded.repairKits, 1);
-});
-
-test('reserved inputs keep cancellation safe after a full extraction', () => {
-    const c = newCampaign();
-    c.bank = { ore: 147, parts: 0 };
-    c.crew.mechanic = true;
-    queueJob(c, 'refine');
-    beginRun(c, 3);
-    finishRun(c, true, { ore: 10, parts: 2 }, 0, 'dock');
-    assert.equal(storageUsed(c), 150);
-    assert.ok(cancelJob(c, c.crew.jobs[0].id));
-    assert.equal(storageUsed(c), 150);
-});
-
 test('repair kits embark once, return only when unused, and are lost on interrupted missions', () => {
     const c = newCampaign();
     c.repairKits = 5;
@@ -389,21 +324,6 @@ test('repair kits embark once, return only when unused, and are lost on interrup
     beginRun(c, 2);
     finishRun(c, false, { ore: 0, parts: 0 }, 1, 'refresh', 2);
     assert.equal(c.repairKits, 2);
-});
-
-test('malformed crew saves are rejected without silently corrupting the campaign', () => {
-    const c = newCampaign();
-    c.bank = { ore: 100, parts: 5 };
-    hireMechanic(c);
-    queueJob(c, 'refine');
-    const valid = JSON.parse(JSON.stringify(c));
-    for (const bad of [0, -1, Infinity, '45', 100]) {
-        valid.crew.jobs[0].remaining = bad;
-        assert.equal(parseCampaign(JSON.stringify(valid)), null);
-    }
-    valid.crew.jobs[0].remaining = 10;
-    valid.crew.jobs[0].kind = '__proto__';
-    assert.equal(parseCampaign(JSON.stringify(valid)), null);
 });
 
 test('field repair requires uninterrupted calm flight, consumes one kit and restores the engine', () => {
@@ -521,7 +441,6 @@ test('death removes the selected ship but leaves upgraded reserves and the mecha
     c.station.workshop = 1;
     c.ship!.engine = 1;
     const reserve = c.ship!.id;
-    c.crew.mechanic = true;
     buyShip(c, 'swift');
     beginRun(c, 9);
     finishRun(c, false, { ore: 20, parts: 3 }, 12, 'collision');
@@ -529,7 +448,6 @@ test('death removes the selected ship but leaves upgraded reserves and the mecha
     assert.equal(c.reserveShips.length, 1);
     assert.equal(c.reserveShips[0].id, reserve);
     assert.equal(c.reserveShips[0].engine, 1);
-    assert.equal(c.crew.mechanic, true);
     assert.ok(selectShip(c, reserve));
     assert.equal(c.ship!.hull, 'prospector');
 });
@@ -600,14 +518,16 @@ test('scrapping only a reserve returns half the invested materials once and free
     assert.equal(ownedShips(c).length, 1);
 });
 
-test('scrapping rejects full storage and active missions without removing ships or materials', () => {
+test('scrapping accepts a large bank and still rejects active missions', () => {
     const c = newCampaign();
     c.bank.ore = 15;
     buyShip(c);
     const id = c.reserveShips[0].id;
     c.bank.ore = 150;
-    assert.equal(scrapShip(c, id), false);
-    assert.equal(c.reserveShips.length, 1);
+    assert.ok(scrapShip(c, id));
+    assert.equal(c.reserveShips.length, 0);
+    c.bank.ore = 500;
+    buyShip(c);
     c.bank.ore = 10;
     beginRun(c, 9);
     assert.equal(scrapShip(c, id), false);
