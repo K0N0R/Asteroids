@@ -1,3 +1,5 @@
+import { drawMineralMarkers, mineralMarkerKey } from './mineralMarkers';
+import type { ResourceStore } from '../state/resources';
 import { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { random } from '../worlds/sector';
 import { EnemyKind, HullId, ScanSiteId, WeaponId, WEAPONS } from '../config';
@@ -527,8 +529,13 @@ export function surveySiteView(site: ScanSiteId) {
 
 export class ShapeLibrary {
     private rocks = new Map<string, GraphicsContext>();
-    lunarRock(variant: number, rich: boolean, copper = false) {
-        const key = `lunar:${variant}:${rich}:${copper}`;
+    lunarRock(
+        variant: number,
+        rich: boolean,
+        copper = false,
+        contents: Readonly<ResourceStore> = {},
+    ) {
+        const key = `lunar:${variant}:${rich}:${copper}:${mineralMarkerKey(contents)}`;
         let context = this.rocks.get(key);
         if (!context) {
             const rng = random(variant * 163 + 71);
@@ -558,19 +565,13 @@ export class ShapeLibrary {
                 .fill(copper ? 0xd4ad9b : 0xbfc1d2)
                 .poly([peakX, peakY, right * 0.8, -0.1, right, 0.3, -0.08, 0.12])
                 .fill(copper ? 0xbe9690 : 0x989eb6);
-            if (rich)
-                context
-                    .beginPath()
-                    .moveTo(left * 0.55, 0.18)
-                    .lineTo(-0.2, -0.08)
-                    .lineTo(peakX + 0.1, peakY * 0.45)
-                    .stroke({ color: copper ? 0xf2ba87 : 0xe0d9cd, width: 0.07 });
+            drawMineralMarkers(context, contents, variant, true);
             this.rocks.set(key, context);
         }
         return new Graphics(context);
     }
-    rock(variant: number, rich: boolean, crystal = false) {
-        const key = `${variant}:${rich}:${crystal}`;
+    rock(variant: number, rich: boolean, crystal = false, contents: Readonly<ResourceStore> = {}) {
+        const key = `${variant}:${rich}:${crystal}:${mineralMarkerKey(contents)}`;
         let context = this.rocks.get(key);
         if (!context) {
             const rng = random(variant * 163 + 8),
@@ -615,23 +616,7 @@ export class ShapeLibrary {
                     .ellipse(x, y, r, r * 0.75)
                     .fill({ color: 0x414d74, alpha: 0.65 });
             }
-            if (rich)
-                for (let i = 0; i < 3; i++) {
-                    const x = (rng() - 0.5) * 0.85,
-                        y = (rng() - 0.5) * 0.75;
-                    context
-                        .poly([x, y - 0.08, x + 0.13, y, x + 0.06, y + 0.1, x - 0.06, y + 0.03])
-                        .fill(C.gold);
-                }
-            if (crystal)
-                for (const [x, y] of [
-                    [-0.18, -0.18],
-                    [0.18, 0.2],
-                    [0.23, -0.23],
-                ])
-                    context
-                        .poly([x, y - 0.16, x + 0.08, y, x, y + 0.1, x - 0.07, y])
-                        .fill(0xb9a5ef);
+            drawMineralMarkers(context, contents, variant);
             this.rocks.set(key, context);
         }
         return new Graphics(context);

@@ -1,5 +1,11 @@
+import {
+    mineralDeposit,
+    mineralSample,
+    MINERAL_SCAN_RANGE,
+    type MineralDeposit,
+} from '../worlds/mineralDeposits';
 import { MAGNETIC_RELAYS, REMOTE_MAGNETIC_ZONE, magneticCoverage } from './magneticZones';
-import { type ResourceId, RESOURCE_IDS, RESOURCES } from '../state/resources';
+import { type ResourceId, type ResourceStore, RESOURCE_IDS, RESOURCES } from '../state/resources';
 import { ANOMALY, AnomalyExposure } from './anomalyField';
 import { EarthGuide } from './earthGuide';
 import { Hyperdrive, HYPERDRIVE, nearestGate, segmentDistance } from './hyperdrive';
@@ -98,6 +104,7 @@ export interface FlightInput {
     mine?: boolean;
 }
 export interface Rock {
+    deposit: MineralDeposit;
     surface?: boolean;
     drift?: RockSpec['drift'];
     mercuryVein?: boolean;
@@ -1490,7 +1497,7 @@ export class MissionSimulation {
         }
         this.areaRevision++;
     }
-    private addRock(spec: RockSpec) {
+    private addRock(spec: RockSpec, deposit = mineralDeposit(spec)) {
         // Surface outcrops remain fixed; every orbital rock starts in motion.
         if (Math.hypot(spec.x - MOON.center.x, spec.y - MOON.center.y) >= MOON.radius + 500) {
             const massive = spec.anchored || spec.beltBarrier !== undefined || spec.radius >= 100;
@@ -1528,6 +1535,7 @@ export class MissionSimulation {
         );
         const rock: Rock = {
             ...spec,
+            deposit,
             surface: Math.hypot(spec.x - MOON.center.x, spec.y - MOON.center.y) < MOON.radius + 500,
             copper: spec.copper ?? (!!spec.rich && !spec.crystal && spec.variant % 5 === 2),
             id: ++this.ids,
@@ -1543,6 +1551,29 @@ export class MissionSimulation {
         this.rocks.set(rock.id, rock);
         this.asteroidColliders.set(collider.handle, rock.id);
         return rock;
+    }
+    get mineralTarget() {
+        if (this.hull <= 0 || this.transferActive || this.hyperdrive.active) return null;
+        const p = this.position;
+        let best: Rock | null = null,
+            distance = Infinity;
+        for (const rock of this.rocks.values()) {
+            if (!!rock.surface !== (this.area === 'surface')) continue;
+            const q = rock.body.translation(),
+                x = q.x * P,
+                y = q.y * P;
+            const cursorDistance = Math.hypot(x - this.aimTarget.x, y - this.aimTarget.y);
+            if (
+                cursorDistance > rock.radius + 12 ||
+                Math.hypot(x - p.x, y - p.y) > MINERAL_SCAN_RANGE + rock.radius
+            )
+                continue;
+            if (cursorDistance < distance) {
+                best = rock;
+                distance = cursorDistance;
+            }
+        }
+        return best;
     }
     setNotice(text: string) {
         this.notice = text;
@@ -2387,6 +2418,7 @@ export class MissionSimulation {
             .filter(
                 (r) =>
                     !r.defense &&
+                    (r.deposit.total.ore ?? 0) > 0 &&
                     !r.crystal &&
                     Math.hypot(r.body.translation().x * P - p.x, r.body.translation().y * P - p.y) <
                         MINING_CONVOY.radius,
@@ -2467,6 +2499,7 @@ export class MissionSimulation {
             .filter(
                 (r) =>
                     !r.defense &&
+                    (r.deposit.total.ore ?? 0) > 0 &&
                     !r.crystal &&
                     !r.anchored &&
                     Math.hypot(r.previous.x - guide.goal.x, r.previous.y - guide.goal.y) < 900,
@@ -2497,7 +2530,7 @@ export class MissionSimulation {
         guide.beams.push(...this.supportMiningBeams('prospector', p, guide.body.rotation(), rock));
         this.damageRock(rock, GAME.laserDamage * 0.5 * dt);
         if (rock.health <= 0) {
-            const units = Math.min(2 - guide.minedOre, Math.ceil(rock.radius / 17));
+            const units = Math.min(2 - guide.minedOre, rock.deposit.total.ore ?? 0);
             this.breakRock(rock, units);
             guide.minedOre += units;
         }
@@ -4525,6 +4558,7 @@ export class MissionSimulation {
         rock.health -= amount;
     }
     private breakRock(rock: Rock, oreLimit?: number) {
+        if (!this.rocks.has(rock.id)) return;
         this.statistics.rocksDestroyed++;
         if (this.beltSector && rock.beltBarrier !== undefined) {
             this.clearedBeltRocks.add(rock.beltBarrier);
@@ -4547,51 +4581,79 @@ export class MissionSimulation {
             strength: rock.radius,
             velocity: { x: v.x * P, y: v.y * P },
         });
-        if (rock.mercuryVein) {
-            this.addLoot(x, y, 'mercuryOre', MERCURY_VEINS.yield, true);
-            this.setNotice('Spiek wyrwany · zbierz chwytakami i dostarcz do Satuk 15.');
-            return;
-        }
         if (oreLimit !== undefined) {
-            for (let i = 0; i < oreLimit; i++) this.addLoot(x + i * 12, y, 'ore', 1, true);
+            const sample = mineralSample(rock.deposit, oreLimit);
+            this.addLoot(x, y, 'ore', sample.count, true);
+            if (resourceTotal(sample.rest.total)) {
+                const remainder = this.addRock(
+                    {
+                        x: x + rock.radius * 0.4,
+                        y,
+                        radius: Math.min(44, rock.radius * 0.85),
+                        vx: v.x * P + 15,
+                        vy: v.y * P,
+                        rich: rock.rich,
+                        copper: rock.copper,
+                        crystal: rock.crystal,
+                        variant: rock.variant,
+                        anchored: rock.anchored,
+                    },
+                    sample.rest,
+                );
+                if (!remainder) this.releaseMinerals(x, y, sample.rest.total);
+            }
             return;
         }
-        if (rock.defense) return; // Retry attempts cannot generate an infinite supply of loot.
-        if (rock.radius > 44) {
-            for (const side of [-1, 1])
-                this.addRock({
+        if (rock.defense) return;
+        for (const [index, fragment] of rock.deposit.fragments.entries()) {
+            const side = index === 0 ? -1 : 1;
+            const child = this.addRock(
+                {
+                    ...fragment.spec,
                     x: x + side * rock.radius * 0.5,
                     y,
-                    radius: rock.radius * 0.43,
                     vx: v.x * P + side * 34,
                     vy: v.y * P + (this.rng() - 0.5) * 30,
-                    rich: rock.rich,
-                    crystal: rock.crystal,
-                    copper: rock.copper,
+                    anchored: rock.anchored,
                     orbit: rock.orbit,
-                    variant: (rock.variant * 7 + (side > 0 ? 3 : 1)) % 128,
-                });
-        }
-        if (rock.copper && rock.radius <= 44) this.addLoot(x, y, 'copperOre', 1, true);
-        if (rock.crystal && rock.radius <= 44) {
-            this.addLoot(x, y, 'crystals', 1, true);
-            this.addLoot(x + 14, y, 'hydrogen', 3, true);
-        }
-        const count = Math.ceil(rock.radius / 17);
-        for (let i = 0; i < count; i++)
-            this.addLoot(
-                x + (this.rng() - 0.5) * 50,
-                y + (this.rng() - 0.5) * 50,
-                rock.rich && i === 0
-                    ? (['carbon', 'oxygen', 'aluminium', 'magnesium', 'nitrogen'] as const)[
-                          rock.variant % 5
-                      ]
-                    : 'ore',
-                1,
-                true,
+                },
+                fragment.deposit,
             );
+            // A full physics pool must not erase the mineral budget of a fragment.
+            if (!child) this.releaseMinerals(x, y, fragment.deposit.total);
+        }
+        this.releaseMinerals(x, y, rock.deposit.loose);
+        if (rock.mercuryVein)
+            this.setNotice('Tytan (Ti) wydobyty · zbierz chwytakami i dostarcz do Satuk 15.');
+    }
+    private releaseMinerals(x: number, y: number, contents: Readonly<ResourceStore>) {
+        for (const id of RESOURCE_IDS) {
+            const amount = contents[id] ?? 0;
+            if (amount)
+                this.addLoot(
+                    x + (this.rng() - 0.5) * 35,
+                    y + (this.rng() - 0.5) * 35,
+                    id,
+                    amount,
+                    true,
+                );
+        }
     }
     private addLoot(x: number, y: number, kind: Loot['kind'], amount: number, fromRock = false) {
+        if (fromRock && this.loot.size + amount > 400) {
+            const nearby = [...this.loot.values()].find(
+                (item) =>
+                    item.kind === kind &&
+                    item.source === 'asteroid' &&
+                    Math.hypot(item.x - x, item.y - y) < 180,
+            );
+            if (nearby) nearby.amount += amount;
+            else {
+                const id = ++this.ids;
+                this.loot.set(id, { id, x, y, kind, amount, source: 'asteroid' });
+            }
+            return;
+        }
         for (let i = 0; i < amount && this.loot.size < 400; i++) {
             const id = ++this.ids,
                 a = i * 2.4,

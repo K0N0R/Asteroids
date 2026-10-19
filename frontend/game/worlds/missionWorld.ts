@@ -138,6 +138,7 @@ export class MissionWorld extends Container {
     private supportDrone = new Container();
     private sentryViews = new Map<number, StationSentryView>();
     private sentryStatus = new Graphics();
+    private mineralMarker = new Graphics();
     private rockLayer = new Container();
     private effectLayer = new Container();
     private shapes = new ShapeLibrary();
@@ -215,7 +216,13 @@ export class MissionWorld extends Container {
             w = simulation.sector.landmarks.find((l) => l.kind === 'wreck');
         if (w) wreck.position.set(w.x, w.y);
         else wreck.visible = false;
-        this.camera.addChild(wreck, this.rockLayer, this.effectLayer, this.shipView);
+        this.camera.addChild(
+            wreck,
+            this.rockLayer,
+            this.mineralMarker,
+            this.effectLayer,
+            this.shipView,
+        );
         if (modules.hull === 'widmo') {
             const trail = this.dashTrailView;
             for (let i = 0; i < 22; i++) {
@@ -1565,6 +1572,24 @@ export class MissionWorld extends Container {
                         .stroke({ color: C.mint, width: 3 });
             }
         }
+        this.mineralMarker.clear();
+        const scannedRock = s.mineralTarget;
+        if (scannedRock) {
+            const pos = scannedRock.body.translation(),
+                r = scannedRock.radius + 15;
+            for (let i = 0; i < 4; i++) {
+                const angle = (i * Math.PI) / 2;
+                this.mineralMarker
+                    .arc(
+                        pos.x * GAME.pixelsPerMeter,
+                        pos.y * GAME.pixelsPerMeter,
+                        r,
+                        angle - 0.18,
+                        angle + 0.18,
+                    )
+                    .stroke({ color: C.cyan, width: 2, alpha: 0.8 });
+            }
+        }
         for (const [id, view] of this.rocks)
             if (!s.rocks.has(id)) {
                 view.destroy();
@@ -1573,30 +1598,20 @@ export class MissionWorld extends Container {
         for (const rock of s.rocks.values()) {
             let view = this.rocks.get(rock.id);
             if (!view) {
-                if (rock.mercuryVein) {
-                    view = new Graphics()
-                        .poly([
-                            -1, -0.1, -0.65, -0.75, 0.1, -1, 0.8, -0.5, 1, 0.2, 0.4, 0.85, -0.5,
-                            0.95,
-                        ])
-                        .fill(0x587583)
-                        .stroke({ color: 0x93c1d3, width: 0.06 });
-                    view.poly([-0.4, -0.15, 0, -0.45, 0.4, -0.15, 0.4, 0.2, 0, 0.45, -0.4, 0.2])
-                        .fill(0xb6d5e6)
-                        .stroke({ color: 0xebf7ff, width: 0.07 });
-                    view.moveTo(-0.2, 0)
-                        .lineTo(0.2, 0)
-                        .moveTo(0, -0.2)
-                        .lineTo(0, 0.2)
-                        .stroke({ color: 0x3b6679, width: 0.06 });
-                } else if (
-                    Math.hypot(rock.previous.x - MOON.center.x, rock.previous.y - MOON.center.y) <
-                    MOON.radius
-                ) {
-                    view = this.shapes.lunarRock(rock.variant, rock.rich, rock.copper);
+                if (rock.surface) {
+                    view = this.shapes.lunarRock(
+                        rock.variant,
+                        rock.rich,
+                        rock.copper,
+                        rock.deposit.total,
+                    );
                 } else {
-                    view = this.shapes.rock(rock.variant, rock.rich, rock.crystal);
-                    if (rock.copper) view.tint = 0xe0aa82;
+                    view = this.shapes.rock(
+                        rock.variant,
+                        rock.rich,
+                        rock.crystal,
+                        rock.deposit.total,
+                    );
                 }
                 view.scale.set(rock.radius);
                 this.rocks.set(rock.id, view);
@@ -1705,6 +1720,8 @@ export class MissionWorld extends Container {
                 this.loot.set(item.id, view);
                 this.effectLayer.addChild(view);
             }
+            if (RESOURCES[item.kind].category === 'PIERWIASTKI')
+                view.scale.set(Math.min(2.2, 1 + Math.log2(Math.max(1, item.amount)) * 0.2));
             view.position.set(item.x, item.y);
             view.alpha = 0.8 + Math.sin(this.clock * 3 + item.id) * 0.2;
         }

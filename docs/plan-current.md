@@ -1,8 +1,24 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-19, wersja 0.81.
+Stan: 2026-10-19, wersja 0.82.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożone — kuleczki pierwiastków na skałach
+
+Asteroidy i skały powierzchniowe mają okrągłe, kolorowe kuleczki zamiast nieregularnych oznaczeń zawartości. Kolory pochodzą z katalogu pierwiastków, a obecność kuleczek wynika z rzeczywistego składu skały lub odłamka. Kuleczki wskazują rodzaje pierwiastków, nie procentowy udział masowy. Usunięto barwienie całego obrazu miedzi, które zmieniało też kolory znaczników. Oznaczenia mają płaskie kolory, zaokrąglenia i brak obrysów.
+
+## Do wdrożenia — zapętlona muzyka w tle
+
+Ustalenie autora z 2026-10-19: dodać `frontend/assets/sounds/cc0/music/theme_loop.mp3` jako zapętloną muzykę w tle. Plik jest już w projekcie. Odtwarzanie ma respektować ustawienia włączenia i głośności muzyki, płynnie zapętlać utwór i nie tworzyć równoległych kopii podczas zmian widoków lub powrotów z lotu. Ten punkt pozostaje w planie; muzyka nie jest jeszcze podłączona.
+
+## Wdrożenie 0.82 — rozpoznawanie złóż i zachowanie składu
+
+Celownik na lokalnej skale pokazuje nazwę złoża i pełny urobek w pierwiastkach, razem z zawartością przyszłych odłamków. Zasięg czujnika wynosi 950 m od statku do powierzchni skały. Odczyt znika po opuszczeniu celu, zniszczeniu skały, przejściu na inną instancję, rozpoczęciu hiperskoku lub utracie statku. Ilości są porcjami gry, nie masą ani procentowym składem chemicznym.
+
+Każda skała otrzymuje deterministyczny, niezmienny plan zawartości przy utworzeniu. Z planu korzystają skaner, rozpad i łup; fragmenty dziedziczą własną część złoża. Zachowano dotychczasowe źródła i wielkości wydobycia, aby ta paczka nie zmieniała równocześnie całego balansu kampanii. Instruktor pobiera najwyżej dwie porcje żelaza, a pozostałe zasoby pozostają w rzeczywistym odłamku. Przy pełnej puli skał zawartość niemożliwego do utworzenia fragmentu trafia do urobku; przy licznych luźnych porcjach powstają pakiety, zamiast utraty minerałów.
+
+Format zapisu pozostaje 50 — nie dodano nowego stanu kampanii. Dalszy zakres: koszty floty i urządzeń oparte na rodzinach części, tiery II–III, manifesty budowy i cztery trwałe obszary Ziemi oraz lokalne przetwarzanie na Księżycu. To nie jest jeszcze nowy system klas mineralogicznych ani realistyczny rozkład składu asteroid.
 
 ## Wdrożenie 0.81 — pierwsza paczka gospodarki edukacyjnej
 

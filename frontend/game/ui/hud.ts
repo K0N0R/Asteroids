@@ -1,4 +1,4 @@
-import { RESOURCE_IDS, RESOURCES } from '../state/resources';
+import { RESOURCE_IDS, RESOURCES, resourceSummary, resourceTotal } from '../state/resources';
 import { salvagePosition } from '../systems/salvage';
 import { RadarTrail } from '../systems/radarTrail';
 import { sentryPosition } from '../systems/stationSentries';
@@ -18,6 +18,9 @@ import { hudLabel as label, keyHint, mouseHint, objectiveMark } from './hudIcons
 export class MissionHud extends Container {
     cameraAngle = 0;
     target = 1;
+    private mineralTitle: Typography;
+    private mineralContents: Typography;
+    private mineralHint: Typography;
     private cargoControls: Typography;
     private health: Typography;
     private shieldValue: Typography;
@@ -104,6 +107,9 @@ export class MissionHud extends Container {
         this.selectedGoal.label = 'selected-navigation-goal';
         this.selectedGoal.visible = false;
         if (sim.missionStatus) this.orderStatus = label(this, '', 40, 235, 15, C.mint, 700);
+        this.mineralTitle = label(this, '', 40, 650, 17, C.cyan, 740);
+        this.mineralContents = label(this, '', 40, 684, 16, C.text, 740);
+        this.mineralHint = label(this, '', 40, 750, 13, C.muted, 740);
         this.context = label(this, '', 40, 797, 18, C.mint, 670);
         keyHint(this, 'WASD', 'lot', 40, 845, 54);
         keyHint(this, 'SHIFT', 'boost', 145, 845, 54);
@@ -139,7 +145,7 @@ export class MissionHud extends Container {
                     : sim.hullId === 'widmo'
                       ? 'kamuflaż'
                       : sim.hullId === 'mule'
-                        ? 'zestaw'
+                        ? 'naprawa'
                         : sim.hullId === 'stinger'
                           ? 'AP'
                           : sim.hullId === 'phoenix'
@@ -462,8 +468,26 @@ export class MissionHud extends Container {
         this.hyperStatus.visible = true;
         this.hyperStatus.setText(
             !s.hyperUnlocked
-                ? 'HIPER: brak modułu · montaż w stacji'
+                ? 'HIPER: brak modułu · Hangar → Ulepszenia'
                 : `HIPERNAPĘD · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA: śluza · kolizja = utrata'}`,
+        );
+        const mineral = s.mineralTarget;
+        this.mineralTitle.setText(mineral ? `SKAN · ${mineral.deposit.name}` : '');
+        this.mineralContents.setText(
+            mineral && resourceTotal(mineral.deposit.total)
+                ? `Urobek: ${resourceSummary(mineral.deposit.total)}`
+                : '',
+        );
+        this.mineralHint.setText(
+            mineral
+                ? mineral.mercuryVein
+                    ? 'Tylko szczęki Harpuna mogą wydobyć ten materiał.'
+                    : mineral.defense
+                      ? 'Zagrożenie obrony stacji nie dostarcza zasobów.'
+                      : mineral.deposit.fragments.length
+                        ? 'Pełny urobek wymaga rozbicia wszystkich odłamków. Ilości oznaczają porcje gry.'
+                        : 'Ilości oznaczają porcje gry, nie masę ani procentowy skład chemiczny.'
+                : '',
         );
         this.context.setText(flightHint(s));
         this.cargoControls.setText(
