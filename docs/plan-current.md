@@ -1,8 +1,24 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-20, wersja 0.99.
+Stan: 2026-10-20, wersja 0.102.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.102 — nabór, rozwój i użyteczne specjalizacje pilotów
+
+Nabór ma listę kandydatów z portretami, panel porównania specjalizacji, cztery konkretne parametry oraz koszt magazyn/wymóg. Zatrudnienie od razu otwiera nowego pilota; brak żelaza, miejsc lub trwająca wyprawa wyjaśniają blokadę. Rozwój pokazuje PD, punkty i rzeczywisty efekt każdego szkolenia teraz → po rozwinięciu, z uwzględnieniem perku, statku i limitu szansy kapsuły.
+
+Specjalizacje: Nawigacja — obrót +20%, hamowanie +10%; Eksploatacja złóż — moc wydobycia +20%, hamowanie +20%; Zwiad — tempo skanowania +35%, premia kapsuły +20 p.p. Szkolenie manewrów daje +6%, wydobycia +10% na poziom; procedury ewakuacji nadal +6 p.p. Premie są używane w symulacji, nie tylko w opisach.
+
+Fryzury, ich tylne warstwy i słuchawki dopasowują szerokość do obrysu głowy. Poprawiono ostry wystający fragment zaczesanej fryzury Miry. Generyczne odcienie skóry mają ważony rozkład z większym udziałem jaśniejszych odcieni i bez powtarzania tego samego tonu w jednej trójce kandydatów. Stałe postacie fabularne zachowują wizerunki. [Szczegóły](implementation-v0.102.md).
+
+## Wdrożenie 0.101 — postacie fabularne i wspólna pula portretów
+
+Doprecyzowanie autora z 2026-10-20 zrealizowane przed częściami II–III: portrety bez hełmów, oczu, nosa i ust, z lekkim obrotem, zgodne z referencjami. Różnicujemy obrys twarzy, fryzurę, ubiór i kolory zamiast dodawać elementy twarzy.
+
+Wspólna biblioteka ma 15 fryzur, 8 obrysów twarzy, 6 krojów stroju, 8 odcieni skóry, 9 kolorów włosów, 8 akcentów i 5 kolorów tkanin, dwie strony lekkiego obrotu i opcjonalną słuchawkę. Wszystkie fryzury i stroje mogą występować u kobiet i mężczyzn. Wygląd pilotów w naborze, załodze, ratunku i panelu wyprawy jest wyliczany z ich stałej tożsamości; zatrudnienie i wczytanie nie losują go ponownie.
+
+Rozmówcy mają osobne, stałe zestawy: Ada Serrin (dowodzenie, bordowy warkocz), dr Ivo Nadir (nauka, ciemne krótkie loki) i Tomas Vale (instruktor, brązowy quiff i pomarańczowy kombinezon). Jest również osobny wzorzec mechaniczki. Wspólne elementy są wektorowe i skalują się do dialogów oraz kart. Format kampanii 65 i dziennika 29 bez zmian. [Szczegóły](implementation-v0.101.md).
 
 ## Wdrożenie 0.99 — mapa Układu Słonecznego i panel wyprawy
 
@@ -17,14 +33,13 @@ Zakres autora z 2026-10-20 wdrożony w pierwszej kolejności:
 
 Wersja aplikacji 0.99.0, format kampanii 65 i dziennika 29 bez zmian. Szczegóły: [wdrożenie 0.99](implementation-v0.99.md).
 
-Proponowany kolejny pakiet: prezentacja raportów literka po literce z dźwiękiem i bardziej naturalne kwestie rozmówców, zgodnie z poniższym ustaleniem autora.
+## Wdrożenie 0.100 — animowane wypowiedzi i naturalniejsze raporty
 
-## Do wdrożenia — prezentacja kwestii podczas składania raportu
+Tekst odpraw i komunikatów radiowych pojawia się literka po literce z pauzami przy interpunkcji i cichym, fizycznym pulsem. Enter, Spacja i przycisk najpierw pokazują całą kwestię; kolejne naciśnięcie przechodzi dalej. Przytrzymanie klawisza nie pomija wypowiedzi. Podział wierszy jest stały przez całą animację; okno ustawień zatrzymuje pisanie i jego dźwięk.
 
-Ustalenie autora z 2026-10-20:
+Przeredagowano kwestie dowodzenia, naukowca i raporty w locie. Usunięto nieaktualne instrukcje o dostarczaniu surowców, Swifcie i ponownej rozbudowie ukończonego zaplecza. Stan animacji jest wyłącznie prezentacją: nie zmienia zadań, nagród ani formatu zapisu. [Szczegóły wdrożenia](implementation-v0.100.md).
 
-- Tekst wypowiedzi osoby mówiącej podczas składania raportu pojawia się animacją literka po literce, z towarzyszącym dźwiękiem.
-- Przeredagować wypowiadane kwestie na bardziej naturalne i ludzkie, pasujące do rozmówców oraz sytuacji raportowania.
+Kolejny pozostały zakres planu: warianty materiałowe i części II–III oraz ich zastosowanie w konstrukcjach, z zachowaniem priorytetu spójnego początku gry.
 
 ## Wdrożenie 0.98 — wyposażenie Księżyca jako paczka na holu
 
@@ -239,7 +254,7 @@ Cele podejmujemy w świecie, bez wyboru misji przed startem. Odzysk jest trwał�
 8. **Dłuższe misje specjalistyczne**: skradanie, przechwycenia, transport i walka; kilka etapów oraz zmiany sytuacji podczas wyprawy.
 9. **Powierzchnie, anomalie i unikalne zadania sektorów**: 0.68 dodaje odnogę wydobywczą Merkurego z własną osłoną skalną i zadaniem. Dalej odmienne warunki, przeszkody i cele; 0.75 dodaje pierwszą misję ze skażonym terenem, nieregularnymi pasmami i fizycznym odzyskiem sondy przy Jowiszu. Dalsze układy i sektory pozostają do rozbudowy.
 10. **Reżyseria**: animacja śmierci wdrożona w 0.69 — rozpad, utrata sygnału i opóźnione rozliczenie bez dalszego zaliczania celów. Dalej animacje dokowania i wylotu, kamera w świecie gry oraz dialogi reagujące na odkrycia i zagrożenia.
-11. **Grafika i piloci**: na prośbę autora priorytet przesunięty przed animacje dokowania. 0.77 wdraża wspólną paletę, interfejs, planety wszystkich sektorów, stację, pastelową flotę i asteroidy. 0.78 usuwa płyty HUD i obrysy, zaokrągla obiekty, stabilizuje tło oraz poprawia wydobycie i lasery jednostek AI. [Korekta](implementation-v0.78.md). Dalej przeciwnicy, instalacje misji, efekty i różnorodne portrety oraz powierzchnie kolejnych planet. [Pierwszy pakiet](implementation-v0.77.md).
+11. **Grafika i piloci**: na prośbę autora priorytet przesunięty przed animacje dokowania. 0.77 wdraża wspólną paletę, interfejs, planety wszystkich sektorów, stację, pastelową flotę i asteroidy. 0.78 usuwa płyty HUD i obrysy, zaokrągla obiekty, stabilizuje tło oraz poprawia wydobycie i lasery jednostek AI. [Korekta](implementation-v0.78.md). 0.101 dodaje różnorodne portrety i stałe wizerunki rozmówców. Dalej przeciwnicy, instalacje misji, efekty oraz powierzchnie kolejnych planet. [Pierwszy pakiet](implementation-v0.77.md).
 12. **Udźwiękowienie**: 0.76 przegląda sześć paczek (206 nagrań) i wdraża 22 przygotowane efekty z czterech paczek CC0. Zastępuje stare efekty, dodaje hipernapęd i alarm skażenia, wygładzone pętle, rezerwę głosów i przyciszanie maszyn. Dalszy balans odsłuchowy podczas gry pozostaje otwarty. [Zakres](implementation-v0.76.md).
 13. **Pełne przejście i balans**: ciągły nowy zapis, ekonomia, odblokowania, czas wypraw, straty i trudność; przygotowane sektory tylko jako uzupełnienie.
 

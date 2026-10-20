@@ -108,6 +108,7 @@ export class GameSession {
     private interactionRevision = -1;
     private interactionModel: object | null = null;
     private dialogue: DialoguePlayback | null = null;
+    private dialoguePanel: ReturnType<typeof dialogueView> | null = null;
     private launching = false;
     private autosaveSeconds = 0;
     private savedDeliveryRevision = 0;
@@ -331,7 +332,16 @@ export class GameSession {
     private renderDialogue() {
         const playback = this.dialogue;
         if (!playback) return;
+        if (
+            this.dialoguePanel &&
+            !this.dialoguePanel.destroyed &&
+            this.dialoguePanel.lineIndex === playback.index
+        ) {
+            this.dialoguePanel.update(0);
+            return;
+        }
         clear(this.overlay);
+        this.dialoguePanel = null;
         if (playback.complete) {
             if (playback.definition.id !== 'radio-report')
                 completeDialogue(this.campaign, playback.definition.id);
@@ -345,10 +355,10 @@ export class GameSession {
             );
             return;
         }
-        this.overlay.addChild(
+        this.dialoguePanel = this.overlay.addChild(
             dialogueView(playback, () => {
                 if (PopupContainer.hasActivePopup() || this.dialogue !== playback) return;
-                playback.advance();
+                playback.interact();
                 this.renderDialogue();
             }),
         );
@@ -727,6 +737,7 @@ export class GameSession {
         );
     }
     update(deltaMS: number) {
+        if (this.dialogue && !PopupContainer.hasActivePopup()) this.dialoguePanel?.update(deltaMS);
         this.background.setFlight(!!this.mission);
         if (this.mission) {
             this.background.lunarTransfer = this.mission.simulation.transferActive;

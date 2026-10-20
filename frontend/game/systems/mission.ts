@@ -357,12 +357,12 @@ export class MissionSimulation {
             this.deliveryRevision++;
             const confirmation =
                 story.sector === 'pluto' && story.claimed.includes('pluto-boss')
-                    ? 'Cele operacyjne kampanii ukończone. Raport finałowego starcia zabezpieczony.'
+                    ? 'To już koniec walki. Mamy zapis ostatniego starcia. Wracaj do domu.'
                     : inEarthSystem(story.sector) && story.claimed.includes('lunar-attack')
-                      ? 'Stacja księżycowa obroniona. Musimy ustalić skąd nadlecieli napastnicy. Wracaj na rozmowę do Satuk 15 — podejmiemy pościg w stronę Marsa.'
-                      : 'Potwierdzamy odbiór raportu.';
+                      ? 'Placówka księżycowa jest bezpieczna. Dobra robota. Wracaj do Satuk 15 — mamy trop prowadzący w stronę Marsa.'
+                      : 'Mamy Twój raport. Dobra robota.';
             this.radioMessages.push(
-                `${confirmation} Ukończono: ${change.titles.join(', ')}. Raport został zapisany w dzienniku. ${!['earth', 'lunar'].includes(story.sector) ? 'Nowo otwarte miejsca przygotujemy na następny wylot z Satuk 15. ' : ''}${change.overflow ? `Magazyn pełny: nadwyżka nagród ${change.overflow}.` : ''}`,
+                `${confirmation} ${change.titles.join(', ')} — zaliczone. ${!['earth', 'lunar'].includes(story.sector) ? 'Nowe trasy będą gotowe na Twój kolejny wylot z Satuk 15. ' : ''}${change.overflow ? `Nie wszystko zmieściło się w magazynie. Nadwyżka: ${change.overflow}.` : ''}`,
             );
         }
         if (this.earthLogistics && story.claimed.includes('earth-relay')) {
@@ -1923,7 +1923,7 @@ export class MissionSimulation {
                 if (arrival?.titles.length) {
                     this.deliveryRevision++;
                     this.radioMessages.push(
-                        'Dotarliśmy na orbitę Księżyca. Zlokalizuj sondę i zsynchronizuj ją przez E, aby otworzyć lądowanie. Zadania są we wspólnym dzienniku.',
+                        'Jesteś na orbicie Księżyca. Widzimy Cię na radarze. Odszukaj sondę i połącz się z nią, żebyśmy mogli przygotować lądowanie.',
                     );
                     this.unlockLunarSurface();
                 }
@@ -2158,7 +2158,7 @@ export class MissionSimulation {
                 const result = deliverLunarCargo(this.campaign, cargo, false);
                 if (result?.change.titles.length)
                     this.radioMessages.push(
-                        `Budowa potwierdza dostawę Muła. Ukończono: ${result.change.titles.join(', ')}.`,
+                        `Muł dotarł z ładunkiem. Mamy już wszystko do etapu: ${result.change.titles.join(', ')}.`,
                     );
                 e.deliveredOre += result?.accepted.ore ?? 0;
                 e.trips++;
@@ -3461,7 +3461,7 @@ export class MissionSimulation {
         }
         if (this.scanTarget !== site!.siteId) this.scanProgress = 0;
         this.scanTarget = site!.siteId!;
-        this.scanProgress += dt;
+        this.scanProgress += dt * this.pilot.scan;
         if (this.scanProgress + 1e-8 >= SCAN.seconds) this.completeScan(site!);
     }
     private get rescueConnectionValid() {
@@ -5191,7 +5191,7 @@ export class MissionSimulation {
             const change = recordLunarDefense(this.campaign);
             if (change?.titles.length)
                 this.radioMessages.push(
-                    'Osłona budowy potwierdzona. Konstrukcja jest bezpieczna; postęp i nagroda zapisane.',
+                    'Udało się, budowa jest bezpieczna. Ekipa może wrócić do pracy. Dzięki za osłonę.',
                 );
             if (change) {
                 this.deliveryRevision++;

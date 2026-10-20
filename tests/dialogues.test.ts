@@ -13,6 +13,7 @@ import {
 import {
     DIALOGUES,
     DialoguePlayback,
+    DialogueReveal,
     completeDialogue,
     latestDialogue,
     pendingDialogue,
@@ -22,13 +23,16 @@ import {
     storyDiscoveredTasks,
     storyObjectives,
     syncStory,
-    travelStory,
+    recordMoonArrival,
 } from '../frontend/game/state/story';
 
 function expanded() {
     const c = newStoryCampaign();
     c.bank.ore = 24;
     contributeStory(c, 'earth-supply');
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[0]);
+    assert.ok(buyUpgrade(c, 'workshop'));
+    syncStory(c);
     beginRun(c, 1);
     finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', c.activeRun!.repairKits, {
         data: ['relay'],
@@ -44,21 +48,54 @@ function finishSequence(c: ReturnType<typeof newStoryCampaign>) {
     return d.id;
 }
 
-test('an explicit press advances exactly one line and holding a key, unrelated controls or completed playback cannot skip the sequence', () => {
+test('input reveals before advancing and holding a key never skips a line', () => {
     const playback = new DialoguePlayback(DIALOGUES[0]);
-    assert.equal(playback.index, 0);
+    assert.equal(playback.visibleText, '');
     assert.equal(playback.key('e', true), false);
     assert.equal(playback.key('enter', true), true);
+    assert.equal(playback.visibleText, playback.line!.text);
     for (let n = 0; n < 120; n++) playback.key('enter', true);
-    assert.equal(playback.index, 1);
+    assert.equal(playback.index, 0);
     playback.key('enter', false);
     assert.equal(playback.key('enter', true), true);
-    assert.equal(playback.complete, false);
-    playback.key('space', true);
+    assert.equal(playback.index, 1);
+    assert.equal(playback.visibleText, '');
+    assert.equal(playback.typing, true);
+    playback.key('enter', false);
+    for (let n = 0; n < 2; n++) {
+        assert.equal(playback.key('space', true), true);
+        assert.equal(playback.visibleText, playback.line!.text);
+        playback.key('space', false);
+        assert.equal(playback.key('space', true), true);
+        playback.key('space', false);
+    }
     assert.equal(playback.complete, true);
     assert.equal(playback.line, null);
-    assert.equal(playback.advance(), false);
-    assert.equal(playback.index, 3);
+    assert.equal(playback.interact(), false);
+    assert.equal(playback.update(100), false);
+});
+
+test('reveal follows elapsed time, pauses at punctuation and limits stalls without audio bursts', () => {
+    const reveal = new DialogueReveal('Ż. Ą!');
+    assert.equal(reveal.update(0), false);
+    assert.equal(reveal.update(1), true);
+    assert.equal(reveal.text, 'Ż');
+    assert.equal(reveal.update(28), false);
+    assert.equal(reveal.text, 'Ż.');
+    reveal.update(100);
+    reveal.update(100);
+    assert.equal(reveal.text, 'Ż.');
+    assert.equal(reveal.update(60), true);
+    assert.equal(reveal.text, 'Ż. Ą');
+    reveal.finish();
+    assert.equal(reveal.text, 'Ż. Ą!');
+    assert.equal(reveal.update(100), false);
+    const stalled = new DialogueReveal('abcdefghijklmnop');
+    assert.equal(stalled.update(10000), true);
+    assert.ok(stalled.text.length <= 4);
+    const before = stalled.text;
+    for (const delta of [NaN, Infinity, -1, 0]) assert.equal(stalled.update(delta), false);
+    assert.equal(stalled.text, before);
 });
 
 test('Earth briefings follow real mission reports, survive saves and replay without granting rewards or mission progress', () => {
@@ -76,11 +113,10 @@ test('Earth briefings follow real mission reports, survive saves and replay with
     finishSequence(d);
     assert.equal(finishSequence(d), 'earth-open-orbit');
     assert.equal(pendingDialogue(d), null);
-    fundEquipment(d, WORKSHOP_CONSTRUCTION[d.station.workshop]);
-    assert.ok(buyUpgrade(d, 'workshop'));
-    syncStory(d);
+    assert.equal(d.station.workshop, 1);
     assert.equal(pendingDialogue(d), null);
     beginRun(d, 1);
+    assert.ok(recordMoonArrival(d));
     finishRun(d, true, { ore: 0, parts: 0 }, 10, 'dock', d.activeRun!.repairKits, {
         data: ['archive'],
     });
@@ -93,7 +129,7 @@ test('Earth briefings follow real mission reports, survive saves and replay with
     assert.deepEqual(d.bank, bank);
     assert.deepEqual(d.story!.progress, tasks);
     assert.ok(parseCampaign(JSON.stringify(d)));
-    assert.ok(travelStory(d, 'lunar'));
+    assert.ok(beginRun(d, 1));
     assert.equal(pendingDialogue(d), null);
     assert.equal(latestDialogue(d), null);
 });
@@ -131,15 +167,15 @@ test('journal and flight objectives hide future tasks but preserve completed, pa
     const c = newStoryCampaign();
     assert.deepEqual(
         storyDiscoveredTasks(c.story!).map((t) => t.id),
-        ['earth-supply', 'earth-relay', 'earth-reserve'],
+        ['earth-supply', 'earth-relay', 'earth-ship-upgrade'],
     );
     assert.deepEqual(
         storyObjectives(c).map((t) => t.id),
-        ['earth-supply', 'earth-relay', 'earth-reserve'],
+        ['earth-supply', 'earth-relay', 'earth-ship-upgrade'],
     );
     c.bank.ore = 24;
     contributeStory(c, 'earth-supply');
-    assert.equal(storyObjectives(c).find((t) => t.id === 'earth-supply')!.complete, true);
+    assert.equal(storyObjectives(c).find((t) => t.id === 'earth-supply')!.complete, false);
     assert.equal(
         storyObjectives(c).some((t) => t.id === 'earth-workshop'),
         false,
@@ -152,8 +188,15 @@ test('journal and flight objectives hide future tasks but preserve completed, pa
     finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', c.activeRun!.repairKits, {
         data: ['relay'],
     });
-    assert.ok(storyObjectives(c).some((t) => t.id === 'earth-workshop'));
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[0]);
+    assert.ok(buyUpgrade(c, 'workshop'));
+    syncStory(c);
+    assert.ok(storyObjectives(c).find((t) => t.id === 'earth-supply')!.complete);
+    assert.equal(
+        storyObjectives(c).some((t) => t.id === 'earth-workshop'),
+        false,
+    );
     assert.ok(storyObjectives(c).some((t) => t.id === 'earth-route'));
-    assert.ok(storyObjectives(c).some((t) => t.id === 'earth-reserve'));
+    assert.ok(storyObjectives(c).some((t) => t.id === 'earth-ship-upgrade'));
     assert.deepEqual(c.story!.dialogues, []);
 });

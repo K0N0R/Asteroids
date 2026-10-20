@@ -667,8 +667,8 @@ export const PILOT_PROGRESSION = {
     maxXpPerRun: 50,
 } as const;
 export const PILOT_SKILLS = {
-    handling: { title: 'Manewrowanie', detail: 'Obrót i hamowanie +3% / poziom', bonus: 0.03 },
-    mining: { title: 'Wydobycie', detail: 'Moc lasera +5% / poziom', bonus: 0.05 },
+    handling: { title: 'Manewrowanie', detail: 'Obrót i hamowanie +6% / poziom', bonus: 0.06 },
+    mining: { title: 'Wydobycie', detail: 'Moc wydobycia +10% / poziom', bonus: 0.1 },
     survival: {
         title: 'Procedury ewakuacji',
         detail: 'Szansa kapsuły +6 p.p. / poziom',
@@ -679,34 +679,50 @@ export type PilotSkillId = keyof typeof PILOT_SKILLS;
 export const PILOTS = [
     {
         name: 'Mira Voss',
-        role: 'Nawigatorka',
-        trait: 'Obrót +8%',
-        turn: 1.08,
-        brake: 1,
+        role: 'Nawigacja',
+        trait: 'Precyzyjny pilotaż',
+        perkDetail:
+            'Obrót +20% i siła hamowania +10%. Łatwiejsze podejścia do stacji i manewry między skałami.',
+        turn: 1.2,
+        brake: 1.1,
+        mining: 1,
+        scan: 1,
         escape: 0.12,
     },
     {
         name: 'Ivo Kern',
-        role: 'Pilot transportowy',
-        trait: 'Hamowanie +8%',
+        role: 'Eksploatacja złóż',
+        trait: 'Praca w złożu',
+        perkDetail:
+            'Moc wydobycia +20% i siła hamowania +20%. Szybsze rozbijanie skał i pewniejsze zatrzymanie przy złożu.',
         turn: 1,
-        brake: 1.08,
+        brake: 1.2,
+        mining: 1.2,
+        scan: 1,
         escape: 0.08,
     },
     {
         name: 'Nela Rook',
-        role: 'Pilotka zwiadowcza',
-        trait: 'Obrót +5%',
-        turn: 1.05,
+        role: 'Zwiad',
+        trait: 'Rozpoznanie i powrót',
+        perkDetail:
+            'Tempo skanowania +35%. Premia do szansy kapsuły +20 p.p., przydatna podczas ryzykownych wypraw.',
+        turn: 1,
         brake: 1,
+        mining: 1,
+        scan: 1.35,
         escape: 0.2,
     },
     {
         name: 'Kadet Sol',
         role: 'Program ratunkowy',
-        trait: 'Standardowe sterowanie',
+        trait: 'Szkolenie podstawowe',
+        perkDetail:
+            'Bez premii specjalizacji. Zdobywa doświadczenie i rozwija umiejętności jak pozostali piloci.',
         turn: 1,
         brake: 1,
+        mining: 1,
+        scan: 1,
         escape: 0,
     },
 ] as const;

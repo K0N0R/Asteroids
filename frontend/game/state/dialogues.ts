@@ -3,18 +3,14 @@ import type { StoryProgress } from './story';
 
 export const SPEAKERS = {
     guide: {
-        name: 'Pilot instruktor',
+        name: 'Tomas Vale',
         role: 'PROSPECTOR / ESKADRA SZKOLENIOWA',
-        archetype: 0,
-        identity: 43,
     },
     operations: {
-        name: 'Oficer operacyjna',
+        name: 'Ada Serrin',
         role: 'SATUK 15 / DOWODZENIE',
-        archetype: 2,
-        identity: 41,
     },
-    science: { name: 'Oficer naukowy', role: 'SATUK 15 / BADANIA', archetype: 1, identity: 42 },
+    science: { name: 'dr Ivo Nadir', role: 'SATUK 15 / BADANIA' },
 } as const;
 export interface DialogueLine {
     speaker: keyof typeof SPEAKERS;
@@ -38,15 +34,15 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
         lines: [
             {
                 speaker: 'operations',
-                text: 'Admirał, witamy na Satuk 15. Stacja pozostaje na orbicie Ziemi. Dowodzenie i przygotowanie wypraw należą teraz do Ciebie.',
+                text: 'Witaj na Satuk 15, admirale. Dobrze mieć Cię na pokładzie. Stacja jest na orbicie Ziemi, a załoga czeka na Twoje rozkazy.',
             },
             {
                 speaker: 'science',
-                text: 'Obserwujemy narastające anomalie w Układzie Słonecznym. Potrzebujemy danych z przekaźnika orbitalnego, zanim rozszerzymy obszar badań.',
+                text: 'Coś dziwnego dzieje się w Układzie Słonecznym. Odczyty coraz bardziej odbiegają od normy. Przywróć łączność z przekaźnikiem orbitalnym — bez jego danych niewiele ustalimy.',
             },
             {
                 speaker: 'operations',
-                text: 'Najpierw zabezpiecz zaopatrzenie i przywróć łączność. Te cele możesz realizować w dowolnej kolejności. Odczyty potwierdzimy przez radio. Ładunek przekaż klawiszem C w pobliżu stacji, po wyhamowaniu poniżej 35 m/s.',
+                text: 'Przyda nam się też sprawne zaplecze. Zbierz materiały i rozbuduj stację. Ty zdecyduj, od czego zaczniesz. Listę potrzebnych rzeczy znajdziesz w zadaniach.',
             },
         ],
     },
@@ -59,15 +55,15 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
         lines: [
             {
                 speaker: 'science',
-                text: 'Łączność przywrócona. Otworzyliśmy dwie śluzy: na Księżyc i do wraków satelit. Wraki są dodatkową okazją do odzyskania części na Swifta; na Księżyc możesz lecieć Prospectorem.',
+                text: 'Mamy łączność! Śluzy na Księżyc i do wraków satelit są już otwarte. Prospector poradzi sobie z lotem na Księżyc. Wraki mogą poczekać, jeśli wolisz od razu ruszyć dalej.',
             },
             {
                 speaker: 'operations',
-                text: 'Zapasy są zabezpieczone. Przygotuj materiały w Laboratorium, złóż części w Warsztacie, a potem zamontuj zaplecze w Rozbudowie stacji. Potrzebujemy dwóch poszyć, jednej maszynerii i jednej elektroniki.',
+                text: 'Zaplecze działa, zapasy mamy na miejscu. To dobry początek. Teraz możemy zająć się placówką na Księżycu.',
             },
             {
                 speaker: 'science',
-                text: 'Samo żelazo nie wystarczy. W początkowym złożu znajdziesz także Węgiel (C), Miedź (Cu), Krzem (Si) i Tlen (O). Najedź celownikiem na skałę, aby odczytać jej skład. Nie musisz szukać ich w kolejnym sektorze.',
+                text: 'Gdy zabraknie materiałów, zajrzyj do złóż przy Ziemi. Jest tam więcej niż żelazo. Skan skały pokaże Ci, co kryje się w środku.',
             },
         ],
     },
@@ -80,11 +76,11 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
         lines: [
             {
                 speaker: 'operations',
-                text: 'Warsztat działa, a trasa została potwierdzona. Przywieź części przez śluzę do Księżyca i przygotuj budowę placówki.',
+                text: 'Trasa na Księżyc potwierdzona. Skompletuj wyposażenie w Satuk 15, a przygotujemy paczkę do holowania. Dostarcz ją do placówki — na miejscu czekają na sprzęt.',
             },
             {
                 speaker: 'science',
-                text: 'Zsynchronizuj sondę księżycową. Otworzy lądowanie i śluzę do bogatej asteroidy. Wcześniejsze obszary pozostają dostępne — możesz wrócić po zasoby i dokończyć zadania dodatkowe.',
+                text: 'Po drodze połącz się z sondą księżycową. Potrzebujemy jej danych do lądowania i otwarcia śluzy przy bogatej asteroidzie. Do Ziemi zawsze możesz wrócić po więcej zasobów.',
             },
         ],
     },
@@ -97,11 +93,11 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
         lines: [
             {
                 speaker: 'operations',
-                text: 'Odparliśmy atak na stację księżycową. Napastnicy wycofali się w stronę Marsa. Musimy ruszyć ich śladem i ustalić, kto kieruje tymi jednostkami.',
+                text: 'Placówka jest bezpieczna. Dobra robota. Napastnicy uciekają w stronę Marsa — ruszamy za nimi. Chcę wiedzieć, kto ich przysłał.',
             },
             {
                 speaker: 'science',
-                text: 'Ziemia, Księżyc i nasze placówki pozostają dostępne. Przygotuj statek do pościgu; niewykonane zadania dodatkowe możesz dokończyć później.',
+                text: 'Sprawdzę zapis ich sygnałów. Ty przygotuj statek. Nie odcinamy tras do Ziemi ani Księżyca, więc do zaległych spraw będzie można wrócić.',
             },
         ],
     },
@@ -155,11 +151,61 @@ export function validDialogueHistory(p: StoryProgress) {
         })
     );
 }
-/** Each explicit advance consumes one line; repeats after completion do nothing. */
+/** Presentation time is transient; a stalled frame never emits a burst of sounds. */
+export class DialogueReveal {
+    private characters: string[];
+    private cursor = 0;
+    private wait = 0;
+    constructor(text: string) {
+        this.characters = Array.from(text);
+    }
+    get text() {
+        return this.characters.slice(0, this.cursor).join('');
+    }
+    get typing() {
+        return this.cursor < this.characters.length;
+    }
+    finish() {
+        this.cursor = this.characters.length;
+    }
+    update(deltaMS: number) {
+        if (!this.typing || !Number.isFinite(deltaMS) || deltaMS <= 0) return false;
+        this.wait -= Math.min(deltaMS, 100);
+        let audible = false;
+        while (this.typing && this.wait <= 0) {
+            const character = this.characters[this.cursor++];
+            audible ||= /[\p{L}\p{N}]/u.test(character);
+            this.wait += /[.!?…]/u.test(character) ? 230 : /[,;:—]/u.test(character) ? 110 : 28;
+        }
+        return audible;
+    }
+}
+
+/** Explicit input reveals the current line first, then advances on a fresh press. */
 export class DialoguePlayback {
     index = 0;
     private held = new Set<string>();
-    constructor(readonly definition: DialogueDefinition) {}
+    private reveal: DialogueReveal;
+    constructor(readonly definition: DialogueDefinition) {
+        this.reveal = new DialogueReveal(this.line?.text ?? '');
+    }
+    get visibleText() {
+        return this.reveal.text;
+    }
+    get typing() {
+        return this.reveal.typing;
+    }
+    update(deltaMS: number) {
+        return this.reveal.update(deltaMS);
+    }
+    interact() {
+        if (this.complete) return false;
+        if (this.typing) {
+            this.reveal.finish();
+            return true;
+        }
+        return this.advance();
+    }
     get line() {
         return this.definition.lines[this.index] ?? null;
     }
@@ -169,6 +215,7 @@ export class DialoguePlayback {
     advance() {
         if (this.complete) return false;
         this.index++;
+        this.reveal = new DialogueReveal(this.line?.text ?? '');
         return true;
     }
     key(key: string, down: boolean) {
@@ -178,6 +225,6 @@ export class DialoguePlayback {
         }
         if (!['enter', 'space'].includes(key) || this.held.has(key)) return false;
         this.held.add(key);
-        return this.advance();
+        return this.interact();
     }
 }

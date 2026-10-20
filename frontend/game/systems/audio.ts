@@ -42,3 +42,9 @@ export function uiCue(cue: 'click' | 'confirm' | 'error' | 'launch' | 'complete'
     if (SoundManager.getMinDurationFromStart(cuePath(cue)) > CUES[cue].interval * 1000)
         playCue(cue, CUES[cue].volume, false, 'interface');
 }
+
+/** A quiet physical pulse follows speech cadence, respecting the effects settings. */
+export function dialogueTick() {
+    if (SoundManager.getMinDurationFromStart(cuePath('collect')) > 100)
+        playCue('collect', 0.025, false, 'interface');
+}

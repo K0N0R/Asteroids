@@ -1,3 +1,4 @@
+import { pilotScreen } from './pilots';
 import { milkyWayView } from '../graphics/milkyWayView';
 import { solarSystem } from './solarSystem';
 import { lunarShipmentPending } from '../state/lunarShipment';
@@ -29,9 +30,6 @@ import {
     FLEET_LIMIT,
     HULLS,
     HullId,
-    PILOTS,
-    PILOT_PROGRESSION,
-    PILOT_SKILLS,
     PilotSkillId,
     UPGRADES,
     shipUpgradeDefinition,
@@ -50,9 +48,8 @@ import {
     pilotSlots,
 } from '../state/campaign';
 import { RECIPES, RECIPE_IDS, type RecipeId } from '../state/chemistry';
-import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
-import { MAX_PILOT_XP, pilotLevel, pilotPoints, pilotName } from '../state/pilots';
+import { pilotPoints, pilotName } from '../state/pilots';
 import { C } from '../graphics/shapes';
 import { button, clear, label, panel, illustrationInBox, STATION_LAYOUT } from './primitives';
 
@@ -309,7 +306,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.99', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.102', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {
@@ -1415,217 +1412,40 @@ export class LobbyView extends Container {
         );
     }
     private pilots(ui: Container) {
-        const c = this.campaign,
-            pilot = c.pilots.find((entry) => entry.id === this.chosenPilotId);
-        const recruiting = this.pilotMode === 'recruit',
-            profile = recruiting
-                ? {
-                      ...PILOTS[this.recruit],
-                      name: pilotName({ id: c.nextPilotId, archetype: this.recruit }),
-                  }
-                : pilot
-                  ? { ...PILOTS[pilot.archetype], name: pilotName(pilot) }
-                  : null;
-        this.section('Piloci', 'Wybierz pilota, rozwiń umiejętności albo zaproś nową osobę.');
-        button(
-            ui,
-            `Moi piloci · ${c.pilots.length}`,
-            280,
-            220,
-            220,
-            () => {
-                this.pilotMode = 'roster';
-                this.refresh();
-            },
-            !recruiting,
-            true,
-            38,
+        this.section(
+            'Piloci',
+            'Porównaj specjalizacje, wybierz załogę i zaplanuj szkolenie.',
+            false,
         );
-        button(
+        pilotScreen(
             ui,
-            'Nabór',
-            514,
-            220,
-            170,
-            () => {
-                this.pilotMode = 'recruit';
-                this.refresh();
-            },
-            recruiting,
-            true,
-            38,
-        );
-        if (profile)
-            this.art(
-                pilotPortrait(
-                    recruiting ? this.recruit : pilot!.archetype,
-                    false,
-                    recruiting ? c.nextPilotId : pilot!.id,
-                ),
-                625,
-                435,
-            );
-        else {
-            label(ui, 'Potrzebujesz nowego pilota.', 391, 417, 26, C.muted);
-            button(ui, 'Otwórz nabór', 434, 480, 310, () => {
-                this.pilotMode = 'recruit';
-                this.refresh();
-            });
-        }
-        if (recruiting)
-            PILOTS.slice(0, 3).forEach((entry, i) => {
-                const card = choiceCard(
-                    ui,
-                    280 + i * 240,
-                    650,
-                    225,
-                    139,
-                    this.recruit === i,
-                    () => {
-                        this.recruit = i;
-                        this.refresh();
-                    },
-                );
-                label(card, pilotName({ id: c.nextPilotId, archetype: i }), 20, 21, 21);
-                label(card, entry.role, 20, 58, 14, C.muted, 185);
-                label(card, entry.trait, 20, 98, 14, C.mint);
-            });
-        else
-            c.pilots.forEach((entry, i) => {
-                const card = choiceCard(
-                    ui,
-                    280 + (i % 4) * 181,
-                    594 + Math.floor(i / 4) * 109,
-                    167,
-                    91,
-                    this.chosenPilotId === entry.id,
-                    () => {
-                        this.chosenPilotId = entry.id;
-                        this.refresh();
-                    },
-                );
-                const portrait = pilotPortrait(entry.archetype, false, entry.id);
-                portrait.scale.set(0.18);
-                portrait.position.set(29, 42);
-                card.addChild(portrait);
-                label(card, pilotName(entry), 58, 15, 14, C.text, 100);
-                label(
-                    card,
-                    `P${pilotLevel(entry)}${c.selectedPilot === entry.id ? ' · aktywny' : ` · #${entry.id}`}`,
-                    58,
-                    56,
-                    12,
-                    c.selectedPilot === entry.id ? C.mint : C.muted,
-                );
-            });
-        if (!profile) {
-            label(ui, 'Brak pilotów', 1072, 252, 28);
-            label(
-                ui,
-                'Zatrudnij pilota albo odbierz zestaw awaryjny w zakładce Wyprawa.',
-                1072,
-                316,
-                18,
-                C.muted,
-                456,
-            );
-            return;
-        }
-        label(ui, recruiting ? 'NABÓR / PILOT' : 'WYBRANY PILOT', 1072, 244, 13, C.muted);
-        label(ui, recruiting ? profile.name : `${profile.name} #${pilot!.id}`, 1072, 276, 31);
-        label(ui, profile.role, 1072, 325, 16, C.muted);
-        label(ui, profile.trait, 1072, 360, 18, C.mint);
-        if (recruiting) {
-            label(ui, `Miejsca ${pilotSlots(c)} / 8`, 1072, 425, 22);
-            label(ui, 'Piloci w kapsułach też rezerwują miejsce.', 1072, 464, 15, C.muted, 456);
-            label(ui, 'Nowy pilot · poziom 1', 1072, 536, 18, C.muted);
-            label(ui, 'KOSZT ZATRUDNIENIA', 1072, 649, 12, C.muted);
-            cost(ui, 12, 0, 1072, 674);
-            button(
-                ui,
-                pilotSlots(c) >= 8 ? 'ZAŁOGA PEŁNA' : 'ZATRUDNIJ PILOTA →',
-                1072,
-                STATION_LAYOUT.actionY,
-                456,
-                () => {
-                    this.chosenPilotId = null;
-                    this.pilotMode = 'roster';
-                    this.actions.hire(this.recruit);
+            this.campaign,
+            {
+                recruiting: this.pilotMode === 'recruit',
+                chosenId: this.chosenPilotId,
+                recruit: this.recruit,
+                mode: (recruiting) => {
+                    this.pilotMode = recruiting ? 'recruit' : 'roster';
+                    this.refresh();
                 },
-                true,
-                c.bank.ore >= 12 && pilotSlots(c) < 8,
-                STATION_LAYOUT.actionHeight,
-            );
-        } else if (pilot) {
-            const level = pilotLevel(pilot),
-                next = PILOT_PROGRESSION.thresholds[level],
-                start = PILOT_PROGRESSION.thresholds[level - 1],
-                points = pilotPoints(pilot);
-            label(
-                ui,
-                `Poziom ${level} · ${pilot.xp}/${next ?? MAX_PILOT_XP} PD`,
-                1072,
-                403,
-                17,
-                C.muted,
-            );
-            ui.addChild(
-                new Graphics()
-                    .roundRect(1072, 438, 456, 6, 3)
-                    .fill(C.line)
-                    .roundRect(
-                        1072,
-                        438,
-                        Math.max(1, 456 * (next ? (pilot.xp - start) / (next - start) : 1)),
-                        6,
-                        3,
-                    )
-                    .fill(C.mint),
-            );
-            label(ui, `UMIEJĘTNOŚCI · ${points} PKT`, 1072, 472, 12, C.gold);
-            (Object.keys(PILOT_SKILLS) as PilotSkillId[]).forEach((skill, i) => {
-                const y = 502 + i * 55,
-                    def = PILOT_SKILLS[skill];
-                label(ui, def.title, 1072, y, 18);
-                label(ui, def.detail, 1072, y + 25, 13, C.muted);
-                segments(ui, pilot.skills[skill], 2, 1330, y + 6, 59);
-                button(
-                    ui,
-                    pilot.skills[skill] >= 2 ? 'MAX' : '+ 1 pkt',
-                    1410,
-                    y - 3,
-                    118,
-                    () => this.actions.trainPilot(pilot.id, skill),
-                    false,
-                    points > 0 && pilot.skills[skill] < 2,
-                    32,
-                );
-            });
-            if (c.ship) {
-                const chances = recoveryChances(c.ship, pilot);
-                label(
-                    ui,
-                    `Po stracie: kapsuła ${Math.round(chances.pilot * 100)}% · wrak ${Math.round(chances.ship * 100)}%`,
-                    1072,
-                    688,
-                    14,
-                    C.muted,
-                );
-            }
-            if (c.selectedPilot !== pilot.id)
-                button(
-                    ui,
-                    'USTAW AKTYWNEGO PILOTA →',
-                    1072,
-                    STATION_LAYOUT.actionY,
-                    456,
-                    () => this.actions.selectPilot(pilot.id),
-                    true,
-                    true,
-                    48,
-                );
-            else label(ui, '● Aktywny pilot na następną wyprawę', 1072, 754, 15, C.mint);
-        }
+                choose: (id) => {
+                    this.chosenPilotId = id;
+                    this.refresh();
+                },
+                candidate: (archetype) => {
+                    this.recruit = archetype;
+                    this.refresh();
+                },
+            },
+            {
+                ...this.actions,
+                hire: (archetype) => {
+                    this.chosenPilotId = this.campaign.nextPilotId;
+                    this.pilotMode = 'roster';
+                    this.actions.hire(archetype);
+                },
+            },
+        );
     }
     private warehouse(ui: Container) {
         const c = this.campaign;

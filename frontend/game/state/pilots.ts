@@ -87,7 +87,7 @@ export function pilotProfile(pilot: Pilot) {
         level: pilotLevel(pilot),
         turn: base.turn * handling,
         brake: base.brake * handling,
-        mining: 1 + pilot.skills.mining * PILOT_SKILLS.mining.bonus,
+        mining: base.mining * (1 + pilot.skills.mining * PILOT_SKILLS.mining.bonus),
         escape: base.escape + pilot.skills.survival * PILOT_SKILLS.survival.bonus,
     };
 }

@@ -21,6 +21,7 @@ import {
 } from '../frontend/game/state/pilots';
 import { createRecoverySignal, recoveryChances } from '../frontend/game/state/recovery';
 import { GAME, PILOTS } from '../frontend/game/config';
+import { selectContract } from '../frontend/game/state/contracts';
 import { MissionSimulation, FlightInput } from '../frontend/game/systems/mission';
 
 before(async () => {
@@ -213,8 +214,9 @@ test('new recruits and emergency cadets start fresh rather than inheriting anoth
 });
 
 test('trained handling and mining alter actual Rapier flight and asteroid damage without increasing top speed', () => {
-    const measure = (trained: boolean) => {
+    const measure = (trained: boolean, archetype = 0) => {
         const c = newCampaign();
+        c.pilots[0].archetype = archetype;
         if (trained) {
             c.pilots[0].xp = 140;
             trainPilot(c, 1, 'handling');
@@ -262,7 +264,52 @@ test('trained handling and mining alter actual Rapier flight and asteroid damage
     };
     const base = measure(false),
         trained = measure(true);
-    assert.ok(Math.abs(trained.damage - base.damage * 1.1) < 1e-6);
+    assert.ok(Math.abs(trained.damage - base.damage * 1.2) < 1e-6);
     assert.ok(trained.brakingSpeed < base.brakingSpeed);
     assert.ok(trained.turnError < base.turnError);
+    const miner = measure(false, 1);
+    assert.ok(Math.abs(miner.damage - base.damage * 1.2) < 1e-6);
+    assert.ok(miner.brakingSpeed < base.brakingSpeed);
+});
+
+test('scout specialization accelerates a real scan without changing cargo or bypassing interruption', () => {
+    const measure = (archetype: number) => {
+        const c = newCampaign();
+        c.pilots[0].archetype = archetype;
+        c.recovered = 1;
+        assert.ok(selectContract(c, 2));
+        assert.ok(beginRun(c, 19));
+        const sim = new MissionSimulation(c, 19);
+        try {
+            sim.enemies.dispose();
+            for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
+            sim.rocks.clear();
+            const relay = sim.sector.landmarks.find((site) => site.siteId === 'relay')!;
+            sim.ship.setTranslation({ x: relay.x / 100, y: relay.y / 100 }, true);
+            for (let i = 0; i < 60; i++) sim.step({ ...idle, interact: true });
+            const progress = sim.scanProgress;
+            assert.ok(progress > 0);
+            assert.equal(sim.surveyData.size, 0);
+            assert.equal(sim.cargo.ore, 0);
+            sim.step(idle);
+            assert.equal(sim.scanProgress, 0);
+            return progress;
+        } finally {
+            sim.dispose();
+        }
+    };
+    assert.ok(Math.abs(measure(2) / measure(0) - 1.35) < 1e-9);
+});
+
+test('specializations retain their base perks when trained and after a save round trip', () => {
+    const c = newCampaign();
+    c.pilots[0].archetype = 1;
+    c.pilots[0].xp = 50;
+    assert.ok(trainPilot(c, 1, 'mining'));
+    assert.ok(trainPilot(c, 1, 'mining'));
+    const profile = pilotProfile(parseCampaign(JSON.stringify(c))!.pilots[0]);
+    assert.equal(profile.mining, 1.44);
+    assert.equal(profile.brake, 1.2);
+    assert.equal(profile.scan, 1);
+    assert.equal(profile.turn, 1);
 });

@@ -1,4 +1,5 @@
-import { pilotAppearanceId } from '../state/pilots';
+import { genericPortrait, STORY_PORTRAITS } from '../graphics/portraitAppearance';
+import { portraitView } from '../graphics/portraitView';
 import { KineticShield, shieldProfile } from '../systems/kineticShield';
 import { drawKineticShield } from '../graphics/kineticShieldView';
 import { Container, Graphics, Rectangle } from 'pixi.js';
@@ -265,83 +266,7 @@ export function hullPreview(modules: ShipModules & { hull: HullId; weapon?: Weap
 }
 
 export function pilotPortrait(archetype: number, mechanic = false, identity = archetype + 1) {
-    const appearance = pilotAppearanceId({ id: identity, archetype });
-    const root = new Container(),
-        g = new Graphics(),
-        style = mechanic ? 1 : appearance % 4;
-    const accent = mechanic ? 0xbb9560 : [0x6d929e, 0xb68a72, 0x748fa8, 0x91976f][archetype % 4];
-    // Cycle skin tones independently of hairstyle and profession, including fair complexions.
-    const skin = [0xf3d9c4, 0xe9c5a7, 0xd2a080, 0xb17a5b, 0x88563f, 0x644235][(appearance - 1) % 6];
-    const hair = [0x343538, 0x6b493b, 0x9a6547, 0xc8b799][Math.floor(appearance / 3) % 4];
-    g.circle(0, 0, 132).fill(0x132631).stroke({ color: C.line, width: 1 });
-    if (style === 1) g.ellipse(45, -47, 45, 78).fill(hair);
-    g.moveTo(-105, 111)
-        .quadraticCurveTo(-101, 62, -55, 46)
-        .lineTo(55, 46)
-        .quadraticCurveTo(101, 62, 105, 111)
-        .closePath()
-        .fill(0x71828c);
-    g.poly([-50, 45, -25, 39, 25, 39, 50, 45, 23, 112, -23, 112]).fill(0x253642);
-    for (const side of [-1, 1]) {
-        g.poly([side * 49, 45, side * 75, 58, side * 91, 108, side * 59, 117, side * 29, 51]).fill(
-            0xacb4b4,
-        );
-        g.poly([side * 23, 45, side * 52, 35, side * 63, 58, side * 33, 103]).fill(accent);
-        g.roundRect(side < 0 ? -82 : 58, 56, 21, 28, 4).fill(0x3a4c59);
-    }
-    g.roundRect(-20, 19, 40, 44, 12).fill(skin);
-    g.ellipse(-47, -28, 9, 17).ellipse(47, -28, 9, 17).fill(skin);
-    g.moveTo(-45, -56)
-        .quadraticCurveTo(-48, -91, 0, -94)
-        .quadraticCurveTo(48, -91, 45, -56)
-        .lineTo(40, -7)
-        .quadraticCurveTo(32, 32, 0, 39)
-        .quadraticCurveTo(-32, 32, -40, -7)
-        .closePath()
-        .fill(skin);
-    g.moveTo(34, -65)
-        .quadraticCurveTo(48, -25, 34, 9)
-        .quadraticCurveTo(23, 32, 0, 39)
-        .quadraticCurveTo(34, 18, 29, -19)
-        .closePath()
-        .fill({ color: 0x8e5845, alpha: 0.16 });
-    // Hair, visible skin and faceless silhouettes replace the opaque helmet.
-    if (style === 0)
-        g.poly([
-            -50, -44, -54, -80, -37, -102, -20, -96, -9, -112, 16, -103, 34, -105, 51, -77, 49, -43,
-            31, -71, 8, -73, -20, -55, -13, -80,
-        ]).fill(hair);
-    else if (style === 1)
-        g.moveTo(-48, -8)
-            .quadraticCurveTo(-70, -75, -20, -100)
-            .quadraticCurveTo(34, -121, 50, -70)
-            .lineTo(43, -14)
-            .lineTo(31, -66)
-            .quadraticCurveTo(2, -50, -47, -8)
-            .closePath()
-            .fill(hair);
-    else if (style === 2)
-        g.moveTo(-48, -25)
-            .quadraticCurveTo(-65, -92, -12, -106)
-            .quadraticCurveTo(56, -113, 48, -27)
-            .lineTo(26, -75)
-            .lineTo(-32, -49)
-            .closePath()
-            .fill(hair);
-    else {
-        for (let i = 0; i < 7; i++)
-            g.circle(-40 + i * 13, -78 - Math.sin((i / 6) * Math.PI) * 18, 18).fill(hair);
-    }
-    g.ellipse(-50, -28, 10, 22).fill(0x2c3e4b).stroke({ color: 0x7b8b94, width: 2 });
-    g.roundRect(-54, -38, 6, 19, 2).fill(accent);
-    g.beginPath()
-        .moveTo(-50, -8)
-        .quadraticCurveTo(-45, 11, -22, 17)
-        .stroke({ color: 0x283b48, width: 5 });
-    g.roundRect(-27, 13, 17, 7, 3).fill(0x293d4b);
-    g.roundRect(37, 91, 27, 6, 2).fill(accent);
-    root.addChild(g);
-    return root;
+    return portraitView(mechanic ? STORY_PORTRAITS.mechanic : genericPortrait(identity, archetype));
 }
 
 /** Production bay: machines, workbench and material processing unlocked by each tier. */
