@@ -1,25 +1,22 @@
-import { RESOURCES, type ResourceId } from '../state/resources';
 import type { Container } from 'pixi.js';
 import { HULLS } from '../config';
 import { capacity, selectedPilot, shipHealth, type Campaign } from '../state/campaign';
 import {
     STORY_SECTORS,
-    STORY_TASKS,
     EARTH_BRIEFING,
     storyNextStep,
     storyVisibleTasks,
     storyDiscoveredTasks,
     storySectorUnlocked,
-    storyTaskAvailable,
     storyRadius,
     actOneComplete,
     storyAct,
-    storyRewardText,
     type StorySectorId,
 } from '../state/story';
 import { C } from '../graphics/shapes';
-import { button, label, panel } from './primitives';
-import { RECIPES, RECIPE_IDS, type RecipeId } from '../state/chemistry';
+import { button, label } from './primitives';
+import type { RecipeId } from '../state/chemistry';
+import { questCard, questCardLayout, questPages } from './questCard';
 
 export function storyOverview(
     ui: Container,
@@ -91,145 +88,17 @@ export function storyOverview(
             C.muted,
         );
 
-    const pages = Math.max(1, Math.ceil(tasks.length / 2));
-    const page = Math.max(0, Math.min(pages - 1, actions.page ?? 0));
-    tasks.slice(page * 2, page * 2 + 2).forEach((task, i) => {
-        const x = 280,
-            y = 310 + i * 228;
-        const complete = p.claimed.includes(task.id),
-            available = storyTaskAvailable(p, task);
-        const items =
-            task.deliveryItems?.map((item) => ({
-                resource: item.resource,
-                have: p.progress[item.id],
-                need: item.target,
-            })) ??
-            (task.requirements
-                ? Object.entries(task.requirements).map(([id, need]) => ({
-                      resource: id as ResourceId,
-                      have:
-                          task.id === 'earth-supply' && p.claimed.includes('earth-materials')
-                              ? need
-                              : (c.bank[id as ResourceId] ?? 0),
-                      need,
-                  }))
-                : task.kind === 'delivery' && task.resource
-                  ? [{ resource: task.resource, have: p.progress[task.id], need: task.target }]
-                  : []);
-        panel(ui, x, y, 725, 210);
-        label(
-            ui,
-            task.required ? 'GŁÓWNE' : 'DODATKOWE',
-            x + 18,
-            y + 14,
-            12,
-            task.required ? C.cyan : C.gold,
-        );
-        label(
-            ui,
-            complete ? '✓' : items.length ? '' : `${p.progress[task.id]}/${task.target}`,
-            x + 659,
-            y + 14,
-            17,
-            complete ? C.mint : C.muted,
-        );
-        label(
-            ui,
-            task.title,
-            x + 18,
-            y + 39,
-            24,
-            complete ? C.mint : C.text,
-            items.length ? 355 : 670,
-        );
-        label(
-            ui,
-            complete ? 'Zadanie ukończone.' : task.detail,
-            x + 18,
-            y + 83,
-            16,
-            C.muted,
-            items.length ? 340 : 650,
-        );
-        if (!complete)
-            items.forEach((item, row) => {
-                const rowY = y + 85 + row * 26;
-                label(ui, RESOURCES[item.resource].name, x + 390, rowY, 15, C.text, 180);
-                label(
-                    ui,
-                    `${item.have}/${item.need}`,
-                    x + 584,
-                    rowY,
-                    15,
-                    item.have >= item.need ? C.mint : C.gold,
-                );
-                const recipe = RECIPE_IDS.find((id) => RECIPES[id].output === item.resource);
-                if (recipe && actions.openRecipe)
-                    button(
-                        ui,
-                        'STWÓRZ',
-                        x + 636,
-                        rowY - 3,
-                        73,
-                        () => actions.openRecipe?.(recipe),
-                        false,
-                        true,
-                        23,
-                        11,
-                    );
-            });
-        if (!complete && task.id === 'earth-supply')
-            label(ui, 'Zaplecze stacji I · 0/1', x + 18, y + 130, 15, C.gold);
-        const destination =
-            task.id === 'earth-ship-upgrade'
-                ? 'hangar'
-                : ['earth-supply', 'earth-workshop'].includes(task.id) ||
-                    task.kind === 'kineticShield'
-                  ? 'station'
-                  : null;
-        if (!complete && destination && actions.openDestination)
-            button(
-                ui,
-                destination === 'hangar' ? 'OTWÓRZ HANGAR →' : 'ROZBUDOWA STACJI →',
-                x + 18,
-                y + 158,
-                305,
-                () => actions.openDestination?.(destination),
-                false,
-                true,
-                32,
-                14,
-            );
-        else if (!complete && available && (task.kind === 'ore' || task.kind === 'parts'))
-            button(
-                ui,
-                `PRZEKAŻ ${task.kind === 'parts' ? 'KOMPONENTY' : 'RUDĘ'}`,
-                x + 18,
-                y + 158,
-                305,
-                () => actions.contribute?.(task.id),
-                false,
-                (c.bank[task.kind === 'parts' ? 'parts' : 'ore'] ?? 0) > 0 && !!actions.contribute,
-                32,
-                14,
-            );
-        else if (!complete && available && task.kind === 'briefing')
-            button(
-                ui,
-                'ZATWIERDŹ PLAN DO WENUS',
-                x + 18,
-                y + 158,
-                305,
-                () => actions.briefing?.(),
-                false,
-                !!actions.briefing && !c.activeRun,
-                32,
-                14,
-            );
-        const reward = storyRewardText(task);
-        if (reward) label(ui, `Premia: ${reward}`, x + 18, y + 194, 14, C.mint, 365);
-    });
-    if (pages > 1) {
+    const layouts = tasks.map((task) => questCardLayout(c, task, actions));
+    const pages = questPages(layouts.map((layout) => layout.height));
+    const page = Math.max(0, Math.min(pages.length - 1, actions.page ?? 0));
+    let cardY = 310;
+    for (const index of pages[page]) {
+        const card = questCard(c, tasks[index], actions, layouts[index]);
+        card.position.set(280, cardY);
+        ui.addChild(card);
+        cardY += layouts[index].height + 16;
+    }
+    if (pages.length > 1) {
         button(
             ui,
             '← POPRZEDNIE',
@@ -241,7 +110,7 @@ export function storyOverview(
             page > 0,
             27,
         );
-        label(ui, `Zadania · strona ${page + 1}/${pages}`, 495, 770, 14, C.muted);
+        label(ui, `Zadania · strona ${page + 1}/${pages.length}`, 495, 770, 14, C.muted);
         button(
             ui,
             'KOLEJNE →',
@@ -250,7 +119,7 @@ export function storyOverview(
             180,
             () => actions.setPage?.(page + 1),
             false,
-            page < pages - 1,
+            page < pages.length - 1,
             27,
         );
     }

@@ -17,3 +17,11 @@ Wersja aplikacji 0.96.0, kampanii 64, dziennika 29. Starsze zapisy odrzucane bez
 Przy każdej części kosztu ulepszenia statku dodano Stwórz. Skrót otwiera recepturę tej części; historia działa również przez składniki w Laboratorium i wraca do tego samego statku, zakładki Ulepszenia i wybranego modułu. Sprawdzono w przeglądarce przejście Hangar → Elektronika → Oczyszczanie krzemu → Elektronika → Hangar. Format zapisu pozostaje bez zmian.
 
 Rozróżniono również układ zasilania, maszynerię i zespół napędowy: przedstawiają odpowiednio baterię z błyskawicą, parę kół zębatych i dyszę silnika z płomieniem. Podtrzymywanie życia zachowuje zbiorniki. Wspólne ilustracje sprawdzono w przeglądarce w dużym rozmiarze oraz ikonach 32 i 56 px. Zmiana graficzna nie zmienia formatu zapisu.
+
+## Refaktor kart zadań w bazie
+
+Wspólny komponent `questCard` zastępuje stałe boxy 210 px. Wysokość wynika z pomiaru tekstu, listy wymagań, przycisków i nagrody; stronicowanie pakuje całe karty do dostępnych 438 px. Dłuższe dostawy otrzymują własną stronę. Karty mają 24 px marginesów, osobny panel wymagań z ikonami zasobów, większy tekst i stopkę nagrody oddzieloną linią. Skróty do produkcji, rozbudowy oraz Hangaru zachowują historię powrotu.
+
+Typ zadania wskazuje ikona obok tytułu: turkusowy romb oznacza zadanie główne, złota gwiazda dodatkowe. Najechanie pokazuje nazwę typu. Ukończone karty pokazują tytuł, potwierdzenie i nagrodę bez powtórzonego opisu oraz akcji.
+
+W przeglądarce sprawdzono start, dwie krótsze karty na stronie, pięć części dostawy księżycowej, zakładkę ukończonych oraz przejście do receptury i powrót na tę samą stronę. Pomiar wszystkich 81 widocznych definicji zadań wykazał maksymalnie 400 px; żadna nie przekracza obszaru strony. Kontrola typów, lint zmienionych plików i build; bez pełnej regresji. Format kampanii i dziennika bez zmian.

@@ -6,6 +6,8 @@ Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` ora
 
 ## Lifting 0.96 — ukończenie pierwszej rozbudowy i czytelne ulepszenia
 
+Karty zadań mają wysokość dopasowaną do treści i stronicowanie całych kart. Romb/gwiazda przy tytule zastępują etykiety typu, wymagania otrzymały osobny panel z ikonami, a nagroda oddzieloną stopkę. Dłuższe listy części nie dochodzą do krawędzi; ukończone karty są krótsze. Sprawdzono 81 definicji oraz skróty do receptur i powrót.
+
 Dodatkowo rozróżniono ikony układu zasilania (bateria), maszynerii (koła zębate) i zespołu napędowego (dysza silnika); podtrzymywanie życia pozostaje parą zbiorników.
 
 Przy częściach ulepszania statku dostępne są przyciski Stwórz. Powrót z receptur zachowuje wybrany statek i moduł w Hangarze, również po przejściu przez składniki w Laboratorium.
