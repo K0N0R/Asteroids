@@ -15,7 +15,7 @@ Mapowanie i miks: `frontend/game/systems/audioPolicy.ts`. Pliki gry: `frontend/a
 | Trafienie skały | `60-sci-fi-sfx/sfx_03b.ogg` | 0.384 s |
 | Rozpad skały | `sci-fi-sfx/explosion_02.ogg` | 0.868 s |
 | Zniszczenie jednostki | `sci-fi-sfx/explosion_01.ogg` | 1.013 s |
-| Zebranie zasobu | `sci-fi-sfx/beep_03.ogg` | 0.152 s |
+| Zebranie zasobu | `60-sci-fi-sfx/sfx_03b.ogg` — przytłumione uderzenie | 0.177 s |
 | Ukończenie celu | `sci-fi-sfx/retro_beep_06.ogg` | 0.616 s |
 | Tarcza | `Black Lodge / blg_energy_field_01.wav` | 0.747 s |
 | Silnik (pętla) | `sfx_loops/machine_06.ogg` | 3.131 s |
@@ -44,3 +44,7 @@ Dobór opiera się na rolach efektów, analizie parametrów, kontroli zapętleń
 ## Korekta napędu 0.79
 
 Pętla silnika korzysta teraz z `sfx_loops/noise_01.ogg` (ta sama paczka CC0), przyciętego i zapętlonego do 3,96 s, z filtracją 55–420 Hz. Zastępuje `machine_06.ogg`. Aktualny rozmiar całego zestawu: **234 772 bajty**. Bieżące pomiary i SHA-256 w [manifeście](audio-assets.json). Odległość instruktora i Muła wpływa na głośność napędu i wydobycia.
+
+### Korekta zbierania surowców — 0.97
+
+Piskliwy `beep_03` zastąpiono krótkim uderzeniem z `60-sci-fi-sfx/sfx_03b.ogg` (rubberduck, CC0). Wariant zbierania ma obniżoną wysokość (75%), pasmo 80–1400 Hz, łagodny początek i wygaszony koniec; nie zmienia wariantu trafienia w skałę. Długość 0,177 s, szczyt 0,432, RMS 0,0543. Głośność zdarzenia zmniejszona z 0,16 do 0,12. Aktualny zestaw efektów: 234 286 bajtów. Źródła, filtr i SHA-256 zapisano w manifestach; skrypt pozwala przebudować pojedynczy efekt bez ruszania pozostałych nagrań.

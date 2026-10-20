@@ -1,3 +1,4 @@
+import '@pixi/sound';
 import * as PIXI from 'pixi.js';
 import { SoundManager } from '@systems/soundManager';
 import { GameSettings } from '@systems/gameSettings';

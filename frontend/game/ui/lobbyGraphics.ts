@@ -9,6 +9,7 @@ import type { RecoverySignal } from '../state/recovery';
 import { label } from './primitives';
 
 export type LobbyIcon =
+    | 'system'
     | 'flight'
     | 'ship'
     | 'station'
@@ -24,6 +25,10 @@ export type LobbyIcon =
     | 'shield';
 export function lobbyIcon(kind: LobbyIcon, color: number = C.mint) {
     const g = new Graphics();
+    if (kind === 'system') {
+        g.circle(0, 0, 4).fill(color).ellipse(0, 0, 13, 8).stroke({ color, width: 1.5 });
+        g.circle(10, -5, 3).fill(color);
+    }
     if (kind === 'flight')
         g.beginPath()
             .circle(0, 0, 12)

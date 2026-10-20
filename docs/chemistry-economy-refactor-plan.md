@@ -3,6 +3,10 @@
 Status: plan do kolejnych wdrożeń, z ustaleniami autora z 2026-10-19. Dokładne receptury i balans pozostają propozycją. Wersja 0.81 wdraża pierwszy fundament; poniższy plan nadal opisuje także zakres niewdrożony. Aktualny stan i pozostałe prace: `plan-current.md`, sekcja „Wdrożenie 0.81”.
 Zakres autora zastępuje stare ograniczenia magazynu, zatrudnianie pracowników i produkcję podczas wyprawy. Bez migracji starych zapisów.
 
+## Aktualizacja autora — paczka wyposażenia Księżyca (0.98)
+
+Pierwsze wyposażenie placówki dostarczamy jako jeden obiekt fabularny. Zadanie pokazuje stan magazynu Satuk 15 / wymaganie dla pięciu części. Przycisk Zabierz ładunek pobiera pełen komplet, pakuje go i rozpoczyna wyprawę z paczką automatycznie podpiętą do statku. Przewóz odbywa się na holu, poza ładownią. Strata statku lub odświeżenie nie usuwa paczki ani nie wymaga ponownej produkcji: obiekt zachowuje położenie i obszar. Kontakt z bazą księżycową zalicza dostawę; dopiero wtedy pojawia się Muł. To zastępuje wcześniejszy manifest pierwszych pięciu modułów w ładowni oraz ich częściowe przekazywanie. Dalsze dostawy minerałów i inne budowy zachowują dotychczasowe zasady.
+
 ## 1. Docelowa pętla
 
 Eksploracja → rozpoznanie składu skały → wydobycie pierwiastków → transport do bazy → przetwarzanie w laboratorium → produkcja części w warsztacie → budowa statków, ulepszeń i placówek → dalsza eksploracja.
@@ -103,7 +107,7 @@ Przykładowe ścieżki poszycia: stalowe; lekkie ze stopu glinu; zaawansowane wi
 | Magazyn | bezlimitowe pierwiastki, materiały i części, wyszukiwanie, filtry i przypinanie |
 | Tablica pierwiastków / encyklopedia | odkryte pierwiastki, nazwy, symbole, właściwości i zastosowania |
 
-Przebieg produkcji: wybierz produkt → zobacz brakujące składniki i ich źródła → wybierz wariant → ustaw liczbę partii → wykonaj → krótka animacja i wynik. Przyciski 1/5/10/maks. mogą obsługiwać większe zapasy bez męczącego klikania.
+Przebieg produkcji: wybierz produkt → zobacz brakujące składniki i ich źródła → wybierz wariant → wykonaj jedną porcję → wynik. Aktualizacja autora z 2026-10-20 usuwa przyciski masowej produkcji 1/5/10/maks.; koszt i przyrost dotyczą jednej porcji receptury.
 
 Ekran laboratorium: lista procesów z lewej; model, równanie i warunki w środku; wejście, wynik oraz liczba partii z prawej. Ekran warsztatu używa podobnego układu, ale środkiem jest ilustracja części i jej właściwości. Przy braku składnika da się przejść do jego przepisu lub zobaczyć złoże na mapie.
 

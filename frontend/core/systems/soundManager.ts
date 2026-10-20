@@ -1,4 +1,4 @@
-import * as PIXI_SOUND from '@pixi/sound';
+import type * as PIXI_SOUND from '@pixi/sound';
 import * as PIXI from 'pixi.js';
 import { EffectsManager } from './effectManager';
 import { GameSettings } from './gameSettings';
@@ -90,7 +90,7 @@ export class SoundManagerBase {
 
         this.manageMusicSoundVolume();
         this.manageEffectsSoundVolume();
-        if (sound.group === 'music') {
+        if (sound.group === 'music' && !fullConfig.loop) {
             instance.on('progress', (progress: number, duration: number) => {
                 if (
                     !sound.isFading &&
@@ -150,7 +150,7 @@ export class SoundManagerBase {
 
     manageMusicSoundVolume() {
         const music = this.currentSounds.filter((sounds) => sounds.group === 'music');
-        if (GameSettings.musicEnabled) {
+        if (GameSettings.soundEnabled && GameSettings.musicEnabled) {
             music.forEach((sound) => {
                 sound.instance.volume = sound.volume * GameSettings.musicVolume;
             });

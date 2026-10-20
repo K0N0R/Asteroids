@@ -302,7 +302,13 @@ export class MissionHud extends Container {
                 this.trackWreck();
             const item = this.sim.salvage.items.get(this.wreckId!);
             return item
-                ? { ...salvagePosition(item), name: `Wrak #${item.id}` }
+                ? {
+                      ...salvagePosition(item),
+                      name:
+                          item.source === 'shipment'
+                              ? 'Paczka · wyposażenie stacji księżycowej'
+                              : `Wrak #${item.id}`,
+                  }
                 : { x: 0, y: 0, name: 'Aurora / brak wraków' };
         }
         if (this.target === 10)

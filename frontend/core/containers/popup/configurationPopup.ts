@@ -9,6 +9,7 @@ import { SoundSliderOption } from '@components/soundSliderOption';
 
 export class ConfigurationPopup extends BasePopup<undefined> {
     private soundSlider: SoundSliderOption;
+    private musicSlider: SoundSliderOption;
     constructor() {
         super();
         const backdrop = new PIXI.Graphics()
@@ -19,9 +20,9 @@ export class ConfigurationPopup extends BasePopup<undefined> {
         this.addChild(
             new Box({
                 x: 800,
-                y: 450,
+                y: 475,
                 width: 760,
-                height: 640,
+                height: 690,
                 tint: C.panel,
                 outlineWidth: 1,
                 outlineTint: C.line,
@@ -58,7 +59,7 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             text(key, 470, 323 + i * 33, 17, C.mint);
             text(detail, 590, 323 + i * 33, 17);
         });
-        text('Zamknięcie lub odświeżenie gry oznacza utratę wyprawy.', 470, 594, 17, C.gold);
+        text('Zamknięcie lub odświeżenie gry oznacza utratę wyprawy.', 470, 584, 17, C.gold);
         this.soundSlider = new SoundSliderOption(
             'Efekty',
             () => {
@@ -70,12 +71,27 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             () => GameSettings.effectsEnabled,
             () => (GameSettings.effectsEnabled ? GameSettings.effectsVolume : 0),
         );
-        this.soundSlider.position.set(470, 639);
+        this.soundSlider.position.set(470, 635);
         this.addChild(this.soundSlider);
+        this.musicSlider = new SoundSliderOption(
+            'Muzyka',
+            () => {
+                if (!GameSettings.musicEnabled && GameSettings.musicVolume <= 0)
+                    GameSettings.musicVolume = 0.25;
+                else GameSettings.musicEnabled = !GameSettings.musicEnabled;
+            },
+            (value) => {
+                GameSettings.musicVolume = value;
+            },
+            () => GameSettings.musicEnabled,
+            () => (GameSettings.musicEnabled ? GameSettings.musicVolume : 0),
+        );
+        this.musicSlider.position.set(470, 695);
+        this.addChild(this.musicSlider);
         this.addChild(
             new Button({
                 x: 800,
-                y: 707,
+                y: 760,
                 width: 660,
                 height: 52,
                 tint: C.mint,
@@ -94,5 +110,6 @@ export class ConfigurationPopup extends BasePopup<undefined> {
     }
     update(deltaMS: number) {
         this.soundSlider.update(deltaMS);
+        this.musicSlider.update(deltaMS);
     }
 }

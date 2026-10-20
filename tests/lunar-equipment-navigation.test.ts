@@ -7,10 +7,9 @@ import {
     STORY_TASKS,
     storyDiscoveredTasks,
     storyObjectives,
-    deliverLunarCargo,
+    deliverLunarShipment,
 } from '../frontend/game/state/story';
 import { LUNAR_PROCESSING } from '../frontend/game/state/lunarConstruction';
-import { lunarDeliveryTasks } from '../frontend/game/state/story';
 import { MissionSimulation } from '../frontend/game/systems/mission';
 import { earthGuideGoal } from '../frontend/game/systems/earthGuide';
 import { constructionCosts } from '../frontend/game/ui/constructionCosts';
@@ -34,6 +33,7 @@ function ready(probe = true) {
     };
     claim('earth-workshop');
     if (probe) claim('lunar-survey');
+    else claim('earth-relay');
     return c;
 }
 
@@ -68,36 +68,26 @@ test('instructor waiting beside the gate or inside its route cannot block or des
     }
 });
 
-test('one equipment quest tracks partial deliveries of all five components and completes once', () => {
+test('one equipment quest shows warehouse requirements, then transport, and completes once on delivery', () => {
     const c = ready();
     const visible = storyDiscoveredTasks(c.story!);
     assert.equal(visible.filter((task) => task.deliveryItems).length, 1);
     assert.ok(!visible.some((task) => LUNAR_PROCESSING.some((item) => item.id === task.id)));
-    beginRun(c, 1);
-    c.activeRun!.area = 'surface';
-    const first = { ore: 0, parts: 4, electronics: 1 };
-    const partial = deliverLunarCargo(c, first)!;
-    assert.deepEqual(partial.change.titles, []);
-    assert.equal(
-        storyObjectives(c).find((task) => task.id === 'lunar-equipment')!.progress,
-        '5/19',
-    );
+    c.bank.parts = 4;
+    let objective = storyObjectives(c).find((task) => task.id === 'lunar-equipment')!;
+    assert.equal(objective.requirements!.find((row) => row.resource === 'parts')!.have, 4);
+    assert.equal(objective.progress, 'etap 1/2');
+    for (const t of LUNAR_PROCESSING) c.bank[t.resource] = t.target;
+    assert.equal(beginRun(c, 1, null, true), true);
+    objective = storyObjectives(c).find((task) => task.id === 'lunar-equipment')!;
+    assert.equal(objective.progress, 'etap 2/2');
+    assert.equal(objective.requirements, undefined);
     assert.equal(c.story!.claimed.includes('lunar-equipment'), false);
-    const parts = lunarDeliveryTasks(c).find((task) => task.resource === 'parts')!;
-    assert.equal(parts.target - c.story!.progress[parts.id], 4);
-    const rest = {
-        ore: 0,
-        parts: 4,
-        storageFrames: 4,
-        electronics: 2,
-        powerModules: 2,
-        lifeSupport: 2,
-    };
-    const completed = deliverLunarCargo(c, rest)!;
-    assert.deepEqual(completed.change.titles, ['Wyposażenie stacji']);
-    assert.ok(c.story!.claimed.includes('lunar-equipment'));
+    c.activeRun!.area = 'surface';
+    const completed = deliverLunarShipment(c)!;
+    assert.deepEqual(completed.titles, ['Wyposażenie stacji']);
     assert.ok(storyObjectives(c).find((task) => task.id === 'lunar-equipment')!.complete);
-    assert.equal(deliverLunarCargo(c, rest), null);
+    assert.equal(deliverLunarShipment(c), null);
     assert.ok(parseCampaign(JSON.stringify(c)));
 });
 

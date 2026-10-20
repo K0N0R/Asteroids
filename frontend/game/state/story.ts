@@ -1,3 +1,4 @@
+import { lunarShipmentPending, lunarShipmentLock } from './lunarShipment';
 import { STARTER_MATERIALS } from './stationConstruction';
 import { awardPilotXp } from './pilots';
 import { SATELLITES } from '../worlds/earthSystem';
@@ -30,7 +31,7 @@ export const STORY_SECTORS = {
     earth: {
         act: 1,
         shortName: 'Ziemia',
-        name: 'Układ Ziemia–Księżyc',
+        name: 'Sektor Ziemia–Księżyc',
         size: 'S',
         seed: 150071,
         radius: 1450,
@@ -295,7 +296,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Wyposażenie stacji',
-        detail: 'Dostarcz części na stację księżycową.',
+        detail: 'Zdobądź zestaw części do wyposażenia stacji na Księżycu.',
         required: true,
         kind: 'construction',
         deliveryItems: LUNAR_PROCESSING,
@@ -1569,7 +1570,9 @@ export function constructionDeliveryTasks(c: Campaign) {
 }
 export function lunarDeliveryTasks(c: Campaign) {
     return inEarthSystem(c.story?.sector)
-        ? constructionDeliveryTasks(c).filter((t) => t.sector === 'lunar')
+        ? constructionDeliveryTasks(c).filter(
+              (t) => t.sector === 'lunar' && !LUNAR_PROCESSING_TASKS.some((id) => id === t.id),
+          )
         : [];
 }
 export function pendingOrbitalDeliveries(c: Campaign, cargo: Cargo) {
@@ -1609,14 +1612,31 @@ export function pendingLunarDeliveries(c: Campaign, cargo: Cargo) {
         c.activeRun.mission?.aborted
     )
         return [];
-    return lunarDeliveryTasks(c).flatMap((task) => {
-        if (!task.resource) return [];
-        const amount = Math.min(cargo[task.resource] ?? 0, task.target - p.progress[task.id]);
-        return amount > 0 ? [{ task, resource: task.resource, amount }] : [];
-    });
+    return lunarDeliveryTasks(c)
+        .filter((task) => !LUNAR_PROCESSING_TASKS.some((id) => id === task.id))
+        .flatMap((task) => {
+            if (!task.resource) return [];
+            const amount = Math.min(cargo[task.resource] ?? 0, task.target - p.progress[task.id]);
+            return amount > 0 ? [{ task, resource: task.resource, amount }] : [];
+        });
 }
 export function pendingLunarDelivery(c: Campaign, cargo: Cargo) {
     return pendingLunarDeliveries(c, cargo)[0] ?? null;
+}
+/** Only the physical parcel at the lunar site can commission the first equipment. */
+export function deliverLunarShipment(c: Campaign) {
+    if (
+        !c.lunarShipment ||
+        !lunarShipmentPending(c) ||
+        !inEarthSystem(c.activeRun?.sector) ||
+        c.activeRun?.area !== 'surface' ||
+        c.activeRun?.mission?.aborted
+    )
+        return null;
+    for (const task of LUNAR_PROCESSING) c.story!.progress[task.id] = task.target;
+    c.lunarShipment = null;
+    delete c.activeRun.lunarShipment;
+    return settle(c);
 }
 export function deliverLunarCargo(c: Campaign, cargo: Cargo, playerDelivery = true) {
     if (!playerDelivery && (!c.story || !lunarProcessingReady(c.story))) return null;
@@ -1646,6 +1666,7 @@ export function constructionManifest(c: Campaign): Cargo {
     return cargo;
 }
 export function constructionLoadLock(c: Campaign) {
+    if (lunarShipmentPending(c)) return lunarShipmentLock(c);
     const manifest = constructionManifest(c),
         count = Object.values(manifest).reduce((sum, n) => sum + n, 0);
     if (!count) return 'Brak ładunku do dostarczenia.';
@@ -1840,44 +1861,53 @@ export function storyObjectives(
                               ? need
                               : (c.bank[id as ResourceId] ?? 0) + (cargo[id as ResourceId] ?? 0),
                   }))
-                : task.deliveryItems?.map((item) => ({
-                      resource: item.resource,
-                      need: item.target,
-                      have: p.progress[item.id],
-                  })),
-            title: `${c.activeRun?.mission?.task === task.id ? '▶ ' : ''}${task.title}`,
+                : task.id === 'lunar-equipment' && c.lunarShipment
+                  ? undefined
+                  : task.deliveryItems?.map((item) => ({
+                        resource: item.resource,
+                        need: item.target,
+                        have:
+                            task.id === 'lunar-equipment'
+                                ? (c.bank[item.resource] ?? 0)
+                                : p.progress[item.id],
+                    })),
+            title: `${c.activeRun?.mission?.task === task.id ? '▶ ' : ''}${task.title}${task.id === 'lunar-equipment' ? (c.lunarShipment ? ' · dostarcz paczkę' : ' · kompletowanie') : ''}`,
             progress: p.claimed.includes(task.id)
                 ? ''
-                : task.id === 'earth-supply'
-                  ? '0/1'
-                  : task.deliveryItems
-                    ? `${task.deliveryItems.reduce((sum, item) => sum + Math.min(item.target, p.progress[item.id]), 0)}/${task.target}`
-                    : !storyTaskAvailable(p, task)
-                      ? '· później'
-                      : task.kind === 'boss' &&
-                          (task.sector === 'pluto' ? finalBossWon : firstBossWon)
-                        ? '· wysyłanie raportu'
-                        : task.kind === 'gather'
-                          ? `${Math.min(task.target, p.progress[task.id] + (task.resource === 'ore' ? Math.max(0, Math.floor(returnedOre)) : 0))}/${task.target}${task.resource === 'ore' && returnedOre > 0 ? ' · wróć z ładunkiem' : ''}`
-                          : task.kind === 'clearance' &&
-                              clearedBeltRocks.some((i) => task.id === `belt-clear-${i}`)
-                            ? '· wysyłanie raportu'
-                            : task.kind === 'assault' &&
-                                (task.sector === 'mars'
-                                    ? marsDefenseWon
-                                    : task.sector === 'venus'
-                                      ? venusDefenseWon
-                                      : assaultWon)
+                : task.id === 'lunar-equipment'
+                  ? c.lunarShipment
+                      ? 'etap 2/2'
+                      : 'etap 1/2'
+                  : task.id === 'earth-supply'
+                    ? '0/1'
+                    : task.deliveryItems
+                      ? `${task.deliveryItems.reduce((sum, item) => sum + Math.min(item.target, p.progress[item.id]), 0)}/${task.target}`
+                      : !storyTaskAvailable(p, task)
+                        ? '· później'
+                        : task.kind === 'boss' &&
+                            (task.sector === 'pluto' ? finalBossWon : firstBossWon)
+                          ? '· wysyłanie raportu'
+                          : task.kind === 'gather'
+                            ? `${Math.min(task.target, p.progress[task.id] + (task.resource === 'ore' ? Math.max(0, Math.floor(returnedOre)) : 0))}/${task.target}${task.resource === 'ore' && returnedOre > 0 ? ' · wróć z ładunkiem' : ''}`
+                            : task.kind === 'clearance' &&
+                                clearedBeltRocks.some((i) => task.id === `belt-clear-${i}`)
                               ? '· wysyłanie raportu'
-                              : task.kind === 'patrol'
-                                ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wysyłanie raportu' : ''}`
-                                : task.kind === 'ore' ||
-                                    task.kind === 'parts' ||
-                                    task.kind === 'delivery'
-                                  ? `${p.progress[task.id]}/${task.target}`
-                                  : task.site && data.includes(task.site)
-                                    ? '· wysyłanie danych'
-                                    : '',
+                              : task.kind === 'assault' &&
+                                  (task.sector === 'mars'
+                                      ? marsDefenseWon
+                                      : task.sector === 'venus'
+                                        ? venusDefenseWon
+                                        : assaultWon)
+                                ? '· wysyłanie raportu'
+                                : task.kind === 'patrol'
+                                  ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wysyłanie raportu' : ''}`
+                                  : task.kind === 'ore' ||
+                                      task.kind === 'parts' ||
+                                      task.kind === 'delivery'
+                                    ? `${p.progress[task.id]}/${task.target}`
+                                    : task.site && data.includes(task.site)
+                                      ? '· wysyłanie danych'
+                                      : '',
             complete: p.claimed.includes(task.id),
         }));
 }

@@ -11,11 +11,12 @@ import {
     STORY_TASKS,
     constructionManifest,
     deliverLunarCargo,
+    deliverLunarShipment,
     recordStoryReturn,
     lunarBuildStage,
 } from '../frontend/game/state/story';
 import { LUNAR_PROCESSING, lunarProcessingReady } from '../frontend/game/state/lunarConstruction';
-import { RESOURCE_IDS, resourceTotal, type ResourceStore } from '../frontend/game/state/resources';
+import { RESOURCE_IDS, resourceTotal } from '../frontend/game/state/resources';
 import { hullUnlocked } from '../frontend/game/state/fleetUnlocks';
 import { MissionSimulation } from '../frontend/game/systems/mission';
 import { MOON } from '../frontend/game/worlds/moon';
@@ -62,33 +63,29 @@ test('the mixed bootstrap manifest charges each item once, fits the starter carg
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
     assert.equal(parseCampaign(JSON.stringify({ ...c, version: 53 })), null);
 });
-test('partial equipment deliveries persist after loss, and raw minerals cannot substitute for them', () => {
+test('partial equipment and raw minerals cannot replace delivery of the parcel', () => {
     const c = ready();
     beginRun(c, 1);
     c.activeRun!.area = 'surface';
-    assert.equal(deliverLunarCargo(c, { ore: 160, parts: 0, carbon: 2 }), null);
-    assert.equal(deliverLunarCargo(c, { ore: 0, parts: 8 }, false), null);
-    const cargo = { ore: 0, parts: 3, electronics: 2 };
-    const delivered = deliverLunarCargo(c, cargo)!;
-    assert.deepEqual(delivered.accepted, { ore: 0, parts: 3, electronics: 2 });
-    assert.equal(c.story!.progress['lunar-hull'], 3);
-    assert.equal(c.story!.progress['lunar-electronics'], 2);
+    const cargo = { ore: 160, parts: 3, electronics: 2, carbon: 2 };
+    assert.equal(deliverLunarCargo(c, cargo), null);
+    assert.equal(deliverLunarCargo(c, cargo, false), null);
+    assert.equal(c.story!.progress['lunar-hull'], 0);
     assert.equal(lunarProcessingReady(c.story!), false);
     finishRun(c, false, cargo, 1, 'loss');
-    assert.equal(c.story!.progress['lunar-hull'], 3);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
+
 test('delivered equipment starts local processing; freight cannot generate mining XP', () => {
     const c = ready();
     beginRun(c, 1, null, true);
     c.activeRun!.area = 'surface';
-    const cargo = { ...c.activeRun!.freight! };
-    const delivery = deliverLunarCargo(c, cargo)!;
-    assert.equal(delivery.amount, 19);
+    const delivery = deliverLunarShipment(c)!;
+    assert.deepEqual(delivery.titles, ['Wyposażenie stacji']);
     assert.equal(lunarProcessingReady(c.story!), true);
-    assert.equal(deliverLunarCargo(c, cargo), null);
-    assert.ok(Object.values(c.activeRun!.unloaded!).every((n) => n === 0));
-    assert.ok(Object.values(c.activeRun!.freight!).every((n) => n === 0));
+    assert.equal(deliverLunarShipment(c), null);
+    assert.equal(c.activeRun!.unloaded, undefined);
+    assert.equal(c.activeRun!.freight, undefined);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
     assert.equal(hullUnlocked(c, 'mule'), false);
     assert.ok(deliverLunarCargo(c, { ore: 160, parts: 0, carbon: 2 }, false));
@@ -98,9 +95,9 @@ test('delivered equipment starts local processing; freight cannot generate minin
     assert.equal(hullUnlocked(c, 'mule'), true);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
-test('Mule waits for delivered equipment and can start in the same sortie after the last part', () => {
+test('Mule appears after parcel contact and can start in the same sortie', () => {
     const c = ready();
-    beginRun(c, 1);
+    beginRun(c, 1, null, true);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     const idle = {
         target: MOON.construction,
@@ -110,19 +107,22 @@ test('Mule waits for delivered equipment and can start in the same sortie after 
         interact: false,
     };
     try {
+        assert.equal(s.miningEscort, null);
         s.area = 'surface';
         c.activeRun!.area = 'surface';
-        const mule = s.miningEscort!;
-        s.ship.setTranslation({ x: mule.position.x / 100, y: mule.position.y / 100 }, true);
-        for (let i = 0; i < 160; i++) s.step({ ...idle, interact: true });
-        assert.equal(mule.state, 'idle');
-        assert.equal(mule.processingReady, false);
-        const cargo: { ore: number; parts: number } & ResourceStore = { ore: 0, parts: 0 };
-        for (const t of LUNAR_PROCESSING) cargo[t.resource] = t.target;
-        assert.ok(deliverLunarCargo(c, cargo));
+        const parcel = s.salvage.towed!;
+        s.salvage.detach();
+        parcel.body.setTranslation(
+            { x: MOON.construction.x / 100, y: MOON.construction.y / 100 },
+            true,
+        );
+        s.ship.setTranslation({ x: MOON.exit.x / 100, y: MOON.exit.y / 100 }, true);
         s.step(idle);
-        for (let i = 0; i < 140; i++) s.step({ ...idle, interact: true });
+        const mule = s.miningEscort!;
+        assert.ok(mule);
         assert.equal(mule.processingReady, true);
+        s.ship.setTranslation({ x: mule.position.x / 100, y: mule.position.y / 100 }, true);
+        for (let i = 0; i < 140; i++) s.step({ ...idle, interact: true });
         assert.notEqual(mule.state, 'idle');
     } finally {
         s.dispose();

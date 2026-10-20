@@ -16,7 +16,7 @@ export const CUES = {
     rockHit: effect('rockHit', 0.14, 0.14, 2),
     break: effect('break', 0.32, 0.14, 2),
     destroy: effect('destroy', 0.42, 0.3, 2, 3),
-    collect: effect('collect', 0.16, 0.16, 2),
+    collect: effect('collect', 0.12, 0.16, 2),
     complete: effect('complete', 0.32, 0.4, 1, 3),
     shield: effect('shield', 0.22, 0.2, 2, 2),
     engine: effect('engine', 0.12, 0, 1, 0, true),

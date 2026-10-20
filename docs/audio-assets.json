@@ -111,14 +111,15 @@
     },
     {
       "cue": "collect",
-      "source": "sci-fi-sfx/beep_03.ogg",
+      "source": "60-sci-fi-sfx/sfx_03b.ogg",
       "maxSeconds": 0.18,
-      "sourceSha256": "61f8eca45a0ea759a89798e8551b31cf33f101e84907095748ab42501295e94b",
-      "outputSha256": "ce3b56cf93775e9a8af03b8ecb1ed6c8bc5fcc27f14f2236346625b59a060344",
-      "bytes": 5479,
-      "seconds": 0.15164583333333334,
-      "peak": 0.644975483417511,
-      "rms": 0.1400319382188987,
+      "filter": "asetrate=36000,aresample=48000,highpass=f=80,lowpass=f=1400",
+      "peak": 0.4320351779460907,
+      "rms": 0.054289949407398015,
+      "sourceSha256": "20690b0b0236cdf9cf34458b1502f0caec1e39c40336089ce04029a4c234bd21",
+      "outputSha256": "705028364d66c5de9ad1337eb6d734cb8cb060e1b12702b39cb73e0424aa5888",
+      "bytes": 4993,
+      "seconds": 0.17733333333333334,
       "seam": null
     },
     {

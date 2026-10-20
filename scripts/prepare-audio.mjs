@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 // Rebuild imported effects without touching the user's original sound packs.
-// node scripts/prepare-audio.mjs [source-directory] [ffmpeg-executable]
+// node scripts/prepare-audio.mjs [source-directory] [ffmpeg-executable] [cue]
 const sourceRoot = path.resolve(process.argv[2] ?? '../asteroids-sounds');
 const ffmpeg = process.argv[3] ?? 'ffmpeg';
 const config = JSON.parse(await fs.readFile('scripts/audio-assets.json', 'utf8'));
@@ -13,7 +13,12 @@ const expectedOutput = path.resolve('frontend/assets/sounds/cc0/production076');
 if (output !== expectedOutput) throw new Error('Unexpected audio output directory');
 await fs.mkdir(output, { recursive: true });
 const rate = config.sampleRate;
-const metrics = [];
+const selectedCue = process.argv[4];
+if (selectedCue && !config.assets.some((asset) => asset.cue === selectedCue))
+    throw new Error(`Unknown cue: ${selectedCue}`);
+const metrics = selectedCue
+    ? JSON.parse(await fs.readFile('docs/audio-assets.json', 'utf8')).assets
+    : [];
 const digest = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const decode = (input, extra = []) =>
     execFileSync(
@@ -35,7 +40,7 @@ function levels(a) {
     }
     return { peak, rms: Math.sqrt(square / a.length) };
 }
-for (const asset of config.assets) {
+for (const asset of config.assets.filter((asset) => !selectedCue || asset.cue === selectedCue)) {
     if (!/^[a-zA-Z]+$/.test(asset.cue)) throw new Error('Invalid cue name');
     const source = path.resolve(sourceRoot, asset.source);
     if (!source.startsWith(sourceRoot + path.sep)) throw new Error('Source outside supplied packs');
@@ -43,7 +48,8 @@ for (const asset of config.assets) {
     let a = samples(
         decode(source, [
             '-af',
-            asset.cue === 'engine' ? 'highpass=f=55,lowpass=f=420' : 'highpass=f=45',
+            asset.filter ??
+                (asset.cue === 'engine' ? 'highpass=f=55,lowpass=f=420' : 'highpass=f=45'),
         ]),
     );
     if (!a.length || a.some((x) => !Number.isFinite(x)))
@@ -84,7 +90,10 @@ for (const asset of config.assets) {
         for (let i = 0; i < Math.min(96, a.length); i++) a[i] *= i / 96;
     }
     const { peak, rms } = levels(a);
-    const gain = Math.min(0.68 / peak, (asset.loop ? 0.12 : 0.14) / rms);
+    const gain = Math.min(
+        (asset.peak ?? 0.68) / peak,
+        (asset.rms ?? (asset.loop ? 0.12 : 0.14)) / rms,
+    );
     for (let i = 0; i < a.length; i++) a[i] *= gain;
     const pcm = Buffer.alloc(a.length * 4);
     for (let i = 0; i < a.length; i++) pcm.writeFloatLE(a[i], i * 4);
@@ -117,7 +126,7 @@ for (const asset of config.assets) {
     if (result.peak > 0.9) throw new Error(`Encoded peak too high: ${asset.cue}`);
     if (asset.loop && Math.abs(decoded[0] - decoded[decoded.length - 1]) > 0.03)
         throw new Error(`Encoded loop boundary too abrupt: ${asset.cue}`);
-    metrics.push({
+    const metric = {
         ...asset,
         sourceSha256: digest(original),
         outputSha256: digest(encoded),
@@ -126,7 +135,10 @@ for (const asset of config.assets) {
         peak: result.peak,
         rms: result.rms,
         seam: asset.loop ? Math.abs(decoded[0] - decoded[decoded.length - 1]) : null,
-    });
+    };
+    const index = metrics.findIndex((entry) => entry.cue === asset.cue);
+    if (index >= 0) metrics[index] = metric;
+    else metrics.push(metric);
 }
 await fs.writeFile(
     'docs/audio-assets.json',

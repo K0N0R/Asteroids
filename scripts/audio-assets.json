@@ -15,7 +15,14 @@
         { "cue": "rockHit", "source": "60-sci-fi-sfx/sfx_03b.ogg", "maxSeconds": 0.4 },
         { "cue": "break", "source": "sci-fi-sfx/explosion_02.ogg", "maxSeconds": 0.95 },
         { "cue": "destroy", "source": "sci-fi-sfx/explosion_01.ogg", "maxSeconds": 1.45 },
-        { "cue": "collect", "source": "sci-fi-sfx/beep_03.ogg", "maxSeconds": 0.18 },
+        {
+            "cue": "collect",
+            "source": "60-sci-fi-sfx/sfx_03b.ogg",
+            "maxSeconds": 0.18,
+            "filter": "asetrate=36000,aresample=48000,highpass=f=80,lowpass=f=1400",
+            "peak": 0.45,
+            "rms": 0.085
+        },
         { "cue": "complete", "source": "sci-fi-sfx/retro_beep_06.ogg", "maxSeconds": 0.65 },
         {
             "cue": "shield",

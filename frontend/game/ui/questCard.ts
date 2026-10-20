@@ -40,43 +40,64 @@ function textHeight(text: string, width: number, size: number) {
 export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCardActions) {
     const p = c.story!;
     const complete = p.claimed.includes(task.id);
-    const items = complete
-        ? []
-        : (
-              task.deliveryItems?.map((item) => ({
-                  resource: item.resource,
-                  have: p.progress[item.id],
-                  need: item.target,
-              })) ??
-              (task.requirements
-                  ? Object.entries(task.requirements).map(([id, need]) => ({
-                        resource: id as ResourceId,
-                        have:
-                            task.id === 'earth-supply' && p.claimed.includes('earth-materials')
-                                ? need
-                                : (c.bank[id as ResourceId] ?? 0),
-                        need,
-                    }))
-                  : task.kind === 'delivery' && task.resource
-                    ? [{ resource: task.resource, have: p.progress[task.id], need: task.target }]
-                    : [])
-          ).map((item) => {
-              const recipe = actions.openRecipe
-                  ? RECIPE_IDS.find((id) => RECIPES[id].output === item.resource)
-                  : undefined;
-              const nameHeight = textHeight(RESOURCES[item.resource].name, recipe ? 252 : 180, 16);
-              return {
-                  ...item,
-                  recipe,
-                  height: Math.max(24, nameHeight) + (recipe ? 26 : 8),
-              };
-          });
+    const shipping = task.id === 'lunar-equipment' && !!c.lunarShipment;
+    const items =
+        complete || shipping
+            ? []
+            : (
+                  task.deliveryItems?.map((item) => ({
+                      resource: item.resource,
+                      have:
+                          task.id === 'lunar-equipment'
+                              ? (c.bank[item.resource] ?? 0)
+                              : p.progress[item.id],
+                      need: item.target,
+                  })) ??
+                  (task.requirements
+                      ? Object.entries(task.requirements).map(([id, need]) => ({
+                            resource: id as ResourceId,
+                            have:
+                                task.id === 'earth-supply' && p.claimed.includes('earth-materials')
+                                    ? need
+                                    : (c.bank[id as ResourceId] ?? 0),
+                            need,
+                        }))
+                      : task.kind === 'delivery' && task.resource
+                        ? [
+                              {
+                                  resource: task.resource,
+                                  have: p.progress[task.id],
+                                  need: task.target,
+                              },
+                          ]
+                        : [])
+              ).map((item) => {
+                  const recipe = actions.openRecipe
+                      ? RECIPE_IDS.find((id) => RECIPES[id].output === item.resource)
+                      : undefined;
+                  const nameHeight = textHeight(
+                      RESOURCES[item.resource].name,
+                      recipe ? 252 : 180,
+                      16,
+                  );
+                  return {
+                      ...item,
+                      recipe,
+                      height: Math.max(24, nameHeight) + (recipe ? 26 : 8),
+                  };
+              });
     const bodyWidth = items.length
         ? WIDTH - PADDING * 2 - TABLE_WIDTH - COLUMN_GAP
         : WIDTH - PADDING * 2;
     const titleHeight = Math.max(36, textHeight(task.title, WIDTH - PADDING * 2 - 52 - 72, 24));
     const bodyY = PADDING + titleHeight + 20;
-    const description = complete ? '' : task.detail;
+    const description = complete
+        ? ''
+        : shipping
+          ? 'Etap 2 · Odholuj paczkę z wyposażeniem do stacji na Księżycu. Dostawa zostanie przyjęta po zetknięciu paczki z placówką. Paczka pozostaje w świecie po utracie statku.'
+          : task.id === 'lunar-equipment'
+            ? `Etap 1 · ${task.detail}`
+            : task.detail;
     const descriptionHeight = textHeight(description, bodyWidth, 17);
     const stage = !complete && task.id === 'earth-supply';
     const destination =
@@ -211,10 +232,16 @@ export function questCard(
         layout.complete ? C.mint : C.text,
         WIDTH - PADDING * 2 - 52 - 72,
     );
-    if (layout.complete || !layout.items.length)
+    if (layout.complete || !layout.items.length || task.id === 'lunar-equipment')
         label(
             card,
-            layout.complete ? '✓' : `${c.story!.progress[task.id]}/${task.target}`,
+            layout.complete
+                ? '✓'
+                : task.id === 'lunar-equipment'
+                  ? c.lunarShipment
+                      ? '2 / 2'
+                      : '1 / 2'
+                  : `${c.story!.progress[task.id]}/${task.target}`,
             WIDTH - PADDING - 58,
             PADDING + 10,
             18,
@@ -255,7 +282,11 @@ export function questCard(
         );
         label(
             card,
-            task.deliveryItems || task.kind === 'delivery' ? 'DO DOSTARCZENIA' : 'MATERIAŁY',
+            task.id === 'lunar-equipment'
+                ? 'W MAGAZYNIE / WYMAGANE'
+                : task.deliveryItems || task.kind === 'delivery'
+                  ? 'DO DOSTARCZENIA'
+                  : 'MATERIAŁY',
             x + 16,
             layout.bodyY + 12,
             12,

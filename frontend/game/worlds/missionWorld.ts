@@ -1,3 +1,4 @@
+import { lunarShipmentView } from '../graphics/lunarShipmentView';
 import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { itemIllustration } from '../graphics/items';
 import { RESOURCES, RESOURCE_IDS, type ResourceId } from '../state/resources';
@@ -1524,11 +1525,13 @@ export class MissionWorld extends Container {
             let view = this.salvageViews.get(item.id);
             if (!view) {
                 const drone =
-                    item.source === 'satellite'
-                        ? surveySiteView('relay')
-                        : new DroneView(item.source);
+                    item.source === 'shipment'
+                        ? lunarShipmentView()
+                        : item.source === 'satellite'
+                          ? surveySiteView('relay')
+                          : new DroneView(item.source);
                 if (drone instanceof DroneView) drone.flame.visible = false;
-                drone.alpha = 0.75;
+                drone.alpha = item.source === 'shipment' ? 1 : 0.75;
                 const scars = new Graphics()
                     .moveTo(-15, -10)
                     .lineTo(6, 8)
@@ -1537,7 +1540,9 @@ export class MissionWorld extends Container {
                     .circle(-8, 5, 5)
                     .fill(0x25323d);
                 view = new Container();
-                view.addChild(drone, scars);
+                view.addChild(drone);
+                if (item.source !== 'shipment') view.addChild(scars);
+                else destroyDisplayTree(scars);
                 this.effectLayer.addChild(view);
                 this.salvageViews.set(item.id, view);
             }
@@ -1556,7 +1561,8 @@ export class MissionWorld extends Container {
             view.rotation =
                 item.previousAngle +
                 angleDifference(item.body.rotation(), item.previousAngle) * alpha;
-            this.holHealthBar(this.salvageStatus, p, item.health, item.maxHealth, C.gold);
+            if (item.source !== 'shipment')
+                this.holHealthBar(this.salvageStatus, p, item.health, item.maxHealth, C.gold);
             if (s.salvage.towing.has(item.id)) {
                 const anchor = this.shipView.position,
                     a = this.shipView.rotation;

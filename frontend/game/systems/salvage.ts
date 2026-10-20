@@ -8,6 +8,7 @@ export const SALVAGE = {
     range: 160,
     speed: 80,
     seconds: 3,
+    shipment: { health: 100, radius: 34, ore: 0, parts: 0, crystals: 0 },
     satellite: { health: 80, radius: 35, ore: 0, parts: 0, crystals: 0 },
     patrol: { health: 70, radius: 24, ore: 8, parts: 4, crystals: 0 },
     lancer: { health: 120, radius: 34, ore: 12, parts: 7, crystals: 1 },
@@ -17,7 +18,7 @@ export function leavesWreck(seed: number, id: number) {
 }
 export interface SalvageBody {
     id: number;
-    source: 'patrol' | 'lancer' | 'satellite' | 'recovery';
+    source: 'patrol' | 'lancer' | 'satellite' | 'recovery' | 'shipment';
     body: RAPIER.RigidBody;
     collider: RAPIER.Collider;
     radius: number;
@@ -61,6 +62,7 @@ export class SalvageFleet {
         if (
             this.items.has(id) ||
             (source !== 'recovery' &&
+                source !== 'shipment' &&
                 [...this.items.values()].filter((item) => item.source !== 'recovery').length >=
                     SALVAGE.limit)
         )
@@ -162,7 +164,7 @@ export class SalvageFleet {
         }
     }
     damage(item: SalvageBody, amount: number) {
-        if (!this.items.has(item.id)) return false;
+        if (!this.items.has(item.id) || item.source === 'shipment') return false;
         item.health = Math.max(0, item.health - amount);
         if (item.health > 0) return false;
         this.remove(item);

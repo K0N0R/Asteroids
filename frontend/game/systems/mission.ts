@@ -4,7 +4,7 @@ import {
     SATELLITES,
     ASTEROID_FIELD,
 } from '../worlds/earthSystem';
-import { recordMoonArrival } from '../state/story';
+import { deliverLunarShipment, recordMoonArrival } from '../state/story';
 import { inEarthSystem } from '../worlds/moon';
 import {
     pendingOrbitalDeliveries,
@@ -673,7 +673,7 @@ export class MissionSimulation {
         this.aegis?.rebuild(this.position);
         if (
             inEarthSystem(campaign.story?.sector) &&
-            campaign.story.claimed.includes('lunar-survey') &&
+            lunarProcessingReady(campaign.story) &&
             !lunarConstructionReady(campaign.story)
         ) {
             this.prepareMiningField(false);
@@ -721,7 +721,7 @@ export class MissionSimulation {
                 : null;
         this.escort =
             inEarthSystem(campaign.story?.sector) &&
-            campaign.story.claimed.includes('lunar-survey') &&
+            lunarProcessingReady(campaign.story) &&
             !lunarConstructionReady(campaign.story)
                 ? new MiningEscort(this.world)
                 : campaign.activeRun?.contract === 7
@@ -735,6 +735,12 @@ export class MissionSimulation {
             !campaign.story.claimed.includes('earth-route')
                 ? new EarthGuide(this.world, campaign, this.cargo)
                 : null;
+        const shipment = campaign.lunarShipment;
+        if (shipment && inEarthSystem(campaign.activeRun?.sector)) {
+            const item = this.salvage.add(shipment.id, 'shipment', shipment, { x: 0, y: 0 });
+            if (item && campaign.activeRun?.lunarShipment === shipment.id)
+                this.salvage.attach(item, this.ship);
+        }
         this.firstBoss = new FirstBossEncounter(this.campaign.story?.sector === 'pluto');
         if (this.anomalyMission)
             this.radioMessages.push(
@@ -1313,7 +1319,9 @@ export class MissionSimulation {
     }
     get recycledWreck() {
         const item = this.salvage.towed;
-        return item && item.source !== 'recovery' && item.health > 0 ? item.source : undefined;
+        return item && item.source !== 'recovery' && item.source !== 'shipment' && item.health > 0
+            ? item.source
+            : undefined;
     }
     releaseWreck() {
         const held = [...this.salvage.towing.values()];
@@ -1481,7 +1489,9 @@ export class MissionSimulation {
         if (this.nearbyWreck)
             return this.salvageProgress > 0
                 ? 'Podłączanie holu · przytrzymaj H'
-                : `H Holuj wrak · ${this.salvageSeconds} s · poniżej 80 m/s`;
+                : this.nearbyWreck.source === 'shipment'
+                  ? 'H · podejmij paczkę wyposażenia na hol'
+                  : `H Holuj wrak · ${this.salvageSeconds} s · poniżej 80 m/s`;
         if (this.nearbyCache)
             return this.cacheProgress > 0
                 ? `Otwieranie skrytki · ${Math.floor((this.cacheProgress / CACHE.seconds) * 100)}%`
@@ -1614,7 +1624,10 @@ export class MissionSimulation {
                 this.rocks.delete(rock.id);
             }
         }
-        if (!lunarConstructionReady(this.campaign.story!)) {
+        if (
+            lunarProcessingReady(this.campaign.story!) &&
+            !lunarConstructionReady(this.campaign.story!)
+        ) {
             this.prepareMiningField(true);
             this.escort = new MiningEscort(this.world);
             this.miningEscort!.processingReady = lunarProcessingReady(this.campaign.story!);
@@ -1732,7 +1745,9 @@ export class MissionSimulation {
             return 'Wyhamuj poniżej 60 m/s i zerwij ostrzał.';
         if (
             (this.salvage.towing.size > 0 &&
-                [...this.salvage.towing.values()].some((item) => item.source !== 'satellite')) ||
+                [...this.salvage.towing.values()].some(
+                    (item) => !['satellite', 'shipment'].includes(item.source),
+                )) ||
             this.grippers.arms.some((a) => a.held || a.phase !== 'idle')
         )
             return 'Odłącz hol i zakończ pracę chwytaków.';
@@ -1892,6 +1907,7 @@ export class MissionSimulation {
         if (hit) {
             this.statistics.hullDamage += this.hull;
             this.hull = 0;
+            this.selectWorldRecovery();
             this.ended = 'destroyed';
             this.deathReason = 'Zderzenie podczas hiperskoku zniszczyło statek.';
             drive.cancel();
@@ -2370,6 +2386,15 @@ export class MissionSimulation {
         for (const item of [...this.salvage.towing.values()])
             if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < GAME.dockRadius)
                 this.deliverTow(item);
+        for (const item of [...this.salvage.items.values()]) {
+            if (item.source !== 'shipment' || this.area !== 'surface') continue;
+            const p = salvagePosition(item);
+            if (
+                Math.hypot(p.x - MOON.construction.x, p.y - MOON.construction.y) <
+                150 + item.radius
+            )
+                this.deliverTow(item);
+        }
         this.collectLoot(dt);
 
         this.updateSolarExposure(dt);
@@ -2439,6 +2464,7 @@ export class MissionSimulation {
         }
         if (this.hull <= 0) {
             this.hull = 0;
+            this.selectWorldRecovery();
             this.ended = 'destroyed';
         }
         if (!this.ended) {
@@ -3066,6 +3092,7 @@ export class MissionSimulation {
         }
     }
     private damageSalvage(item: SalvageBody, damage: number, point: Point) {
+        if (item.source === 'shipment') return;
         if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < this.stationSafeRadius)
             return;
         damage = this.absorbSupport(`salvage:${item.id}`, damage, point);
@@ -3146,6 +3173,28 @@ export class MissionSimulation {
     private deliverTow(selected?: SalvageBody) {
         if (this.campaign.activeRun?.mission?.aborted) return;
         for (const item of selected ? [selected] : [...this.salvage.towing.values()]) {
+            if (item.source === 'shipment') {
+                const p = salvagePosition(item);
+                if (
+                    this.area !== 'surface' ||
+                    Math.hypot(p.x - MOON.construction.x, p.y - MOON.construction.y) >=
+                        150 + item.radius
+                )
+                    continue;
+                if (!deliverLunarShipment(this.campaign)) continue;
+                this.salvage.remove(item);
+                this.syncTow();
+                if (!this.escort && !lunarConstructionReady(this.campaign.story!)) {
+                    this.prepareMiningField(true);
+                    this.escort = new MiningEscort(this.world);
+                    this.miningEscort!.processingReady = true;
+                }
+                this.deliveryRevision++;
+                this.areaRevision++;
+                this.setNotice('Wyposażenie dostarczone. Muł jest gotowy do rozbudowy stacji.');
+                this.events.push({ ...p, kind: 'collect', sound: 'complete', rich: true });
+                continue;
+            }
             if (item.id === this.rescueOperation?.item.id) {
                 this.rescueOperation.delivered = true;
                 this.rescueOperation.repair = null;
@@ -3201,7 +3250,11 @@ export class MissionSimulation {
         if (this.salvageProgress + 1e-8 < this.salvageSeconds) return;
         if (this.salvage.attach(item, this.ship)) {
             this.syncTow();
-            this.setNotice(`Wrak na holu · wróć do ${this.stationDestination} · J zwolnij hol.`);
+            this.setNotice(
+                item.source === 'shipment'
+                    ? 'Paczka na holu · dostarcz do stacji księżycowej.'
+                    : `Wrak na holu · wróć do ${this.stationDestination} · J zwolnij hol.`,
+            );
             this.events.push({ ...salvagePosition(item), kind: 'collect', sound: 'complete' });
         }
         this.salvageProgress = 0;
@@ -3483,6 +3536,13 @@ export class MissionSimulation {
     }
     private selectWorldRecovery() {
         for (const item of this.salvage.items.values()) {
+            if (item.source === 'shipment' && this.campaign.lunarShipment) {
+                const p = salvagePosition(item);
+                Object.assign(this.campaign.lunarShipment, p);
+                if (moonDistance(p) < MOON.radius + 500)
+                    this.campaign.lunarShipment.area = 'surface';
+                else delete this.campaign.lunarShipment.area;
+            }
             const signal =
                 item.source === 'recovery'
                     ? this.campaign.recoverySignals.find((entry) => entry.id === -item.id)
@@ -5237,6 +5297,7 @@ export class MissionSimulation {
                 this.previous = this.position;
                 this.dashTrail.length = 0;
                 this.area = this.area === 'orbit' ? 'surface' : 'orbit';
+                this.selectWorldRecovery();
                 if (this.campaign.activeRun) {
                     if (this.area === 'surface') this.campaign.activeRun.area = 'surface';
                     else delete this.campaign.activeRun.area;

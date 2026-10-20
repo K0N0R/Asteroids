@@ -55,6 +55,12 @@ function lunarReady() {
     grantLunarProcessing(c);
     return c;
 }
+// Later construction: the Mule has already supplied 120 Fe and all carbon.
+function finalFreight(c: ReturnType<typeof lunarReady>) {
+    c.story!.progress['lunar-foundation'] = 120;
+    c.story!.progress['lunar-installations'] = 2;
+    syncStory(c);
+}
 function at(s: MissionSimulation, p: { x: number; y: number }) {
     s.ship.setTranslation({ x: p.x / 100, y: p.y / 100 }, true);
     s.ship.setLinvel({ x: 0, y: 0 }, true);
@@ -123,6 +129,7 @@ function fly(
 
 test('cargo manifests debit the bank once, respect capacity, and require a reachable construction project', () => {
     const c = lunarReady();
+    finalFreight(c);
     c.bank.ore = 100;
     assert.deepEqual(constructionManifest(c), { ore: 40, parts: 0 });
     assert.ok(beginRun(c, 1, null, true));
@@ -191,6 +198,7 @@ test('passages preserve damage, supplies, cargo, data and a physical tow; held E
 
 test('delivered cargo survives death or refresh, while undelivered freight is lost', () => {
     const c = lunarReady();
+    finalFreight(c);
     c.bank.ore = 60;
     beginRun(c, 1, null, true);
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -199,7 +207,7 @@ test('delivered cargo survives death or refresh, while undelivered freight is lo
         at(s, MOON.construction);
         s.step(idle);
         hold(s);
-        assert.equal(c.story!.progress['lunar-foundation'], 40);
+        assert.equal(c.story!.progress['lunar-foundation'], 160);
         assert.equal(s.cargo.ore, 0);
         assert.equal(c.activeRun!.freight!.ore, 0);
         assert.equal(c.bank.ore, 20);
@@ -207,7 +215,7 @@ test('delivered cargo survives death or refresh, while undelivered freight is lo
         const saved = parseCampaign(JSON.stringify(c))!;
         assert.ok(saved);
         finishRun(saved, false, { ore: 0, parts: 0 }, 0, 'refresh');
-        assert.equal(saved.story!.progress['lunar-foundation'], 40);
+        assert.equal(saved.story!.progress['lunar-foundation'], 160);
         assert.equal(saved.bank.ore, 20);
         for (const signal of saved.recoverySignals) {
             assert.equal(signal.area, 'surface');
@@ -221,10 +229,11 @@ test('delivered cargo survives death or refresh, while undelivered freight is lo
 
 test('construction requires real surface deliveries and radio confirmation; rewards settle once', () => {
     const c = lunarReady();
+    finalFreight(c);
     c.station.storage = 1;
-    c.bank = { ore: 172, parts: 20, carbon: 2 };
+    c.bank = { ore: 52, parts: 20, carbon: 2 };
     assert.equal(deliverLunarCargo(c, { ore: 48, parts: 12 }), null);
-    for (let sortie = 0; sortie < 5; sortie++) {
+    for (let sortie = 0; sortie < 1; sortie++) {
         const manifest = constructionManifest(c);
         assert.ok(beginRun(c, 1, null, true));
         const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -233,10 +242,10 @@ test('construction requires real surface deliveries and radio confirmation; rewa
             s.step(idle);
             fly(s, MOON.entrance, () => s.area === 'surface');
             assert.equal(resourceTotal(s.cargo), resourceTotal(manifest));
-            const targetStage = sortie < 4 ? (sortie < 3 ? 0 : 1) : 2;
+            const targetStage = 2;
             fly(s, MOON.construction, () => resourceTotal(s.cargo) === 0);
             assert.equal(s.buildStage, targetStage);
-            if (sortie === 4) {
+            if (sortie === 0) {
                 hold(s, 190);
                 assert.ok(s.surveyData.has('archive'));
                 assert.equal(c.story!.progress['lunar-commission'], 1);
@@ -362,12 +371,14 @@ test('surface quarry supports actual mining and collection with the starter ship
 
 test('surface journals reject impossible areas and unloaded freight does not generate mining experience', () => {
     const c = lunarReady();
+    finalFreight(c);
     c.bank.ore = 50;
     beginRun(c, 1, null, true);
     const broken = JSON.parse(JSON.stringify(c));
     broken.activeRun.area = 'mars';
     assert.equal(parseCampaign(JSON.stringify(broken)), null);
     const control = lunarReady();
+    finalFreight(control);
     beginRun(control, 1);
     finishRun(c, true, { ore: 40, parts: 0 }, 10, 'dock');
     finishRun(control, true, { ore: 0, parts: 0 }, 10, 'dock');

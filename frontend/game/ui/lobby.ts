@@ -1,3 +1,6 @@
+import { milkyWayView } from '../graphics/milkyWayView';
+import { solarSystem } from './solarSystem';
+import { lunarShipmentPending } from '../state/lunarShipment';
 import { constructionCosts } from './constructionCosts';
 import { WEAPON_PARTS, canAffordEquipment } from '../state/equipmentCosts';
 import { HULL_CONSTRUCTION, HULL_PARTS, hasHullParts } from '../state/fleetConstruction';
@@ -70,6 +73,7 @@ import {
 } from './lobbyGraphics';
 
 export type LobbyTab =
+    | 'solar'
     | 'overview'
     | 'hangar'
     | 'station'
@@ -108,6 +112,7 @@ export interface LobbyActions {
 }
 
 const NAV: { tab: LobbyTab; title: string; icon: Parameters<typeof lobbyIcon>[0] }[] = [
+    { tab: 'solar', title: 'Układ słoneczny', icon: 'system' },
     { tab: 'overview', title: 'Wyprawa', icon: 'flight' },
     { tab: 'hangar', title: 'Hangar', icon: 'ship' },
     { tab: 'station', title: 'Rozbudowa stacji', icon: 'station' },
@@ -120,6 +125,7 @@ const NAV: { tab: LobbyTab; title: string; icon: Parameters<typeof lobbyIcon>[0]
 export class LobbyView extends Container {
     private content = new Container();
     private visual = new Container();
+    private solarScenery: Container | null = null;
     private tab: LobbyTab = 'overview';
     private time = 0;
     private message = '';
@@ -258,17 +264,9 @@ export class LobbyView extends Container {
         logo.position.set(50, 56);
         ui.addChild(logo);
         label(ui, c.story ? 'SATUK 15' : 'AURORA', 75, 43, 23, C.text);
-        ui.addChild(
-            new Graphics()
-                .roundRect(31, 128, 64, 5, 2.5)
-                .fill(C.mint)
-                .roundRect(105, 128, 27, 5, 2.5)
-                .fill(C.coral),
-        );
-        label(ui, 'DOM POŚRÓD GWIAZD', 31, 91, 11, C.muted);
-        NAV.forEach(({ tab, title, icon }, i) => {
+        NAV.filter(({ tab }) => tab !== 'solar' || !!c.story).forEach(({ tab, title, icon }, i) => {
             const active = this.tab === tab;
-            const card = choiceCard(ui, 25, 170 + i * 55, 185, 46, active, () => this.go(tab));
+            const card = choiceCard(ui, 25, 110 + i * 55, 185, 46, active, () => this.go(tab));
             const mark = lobbyIcon(icon, active ? C.mint : C.muted);
             mark.position.set(24, 23);
             card.addChild(mark);
@@ -311,8 +309,31 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.96', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.99', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
+        if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
+        if (this.tab === 'solar') {
+            if (!this.solarScenery) {
+                this.solarScenery = milkyWayView();
+                this.solarScenery.alpha = 0.3;
+                this.addChildAt(this.solarScenery, 1);
+            }
+            this.visual.addChild(new Graphics().rect(236, 0, 1364, 900).fill(C.space));
+            this.section('Układ słoneczny', 'Wybierz sektor następnej wyprawy.', false);
+            solarSystem(ui, c, (sector) => this.actions.travel?.(sector));
+            button(
+                ui,
+                'PRZYGOTUJ WYPRAWĘ →',
+                1150,
+                111,
+                410,
+                () => this.go('overview'),
+                true,
+                true,
+                42,
+                16,
+            );
+        }
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
         if (this.tab === 'station') this.station(ui);
@@ -375,7 +396,7 @@ export class LobbyView extends Container {
                       : 'placówkę Wenus',
             loadLock = constructionLoadLock(c);
         if (this.loadConstruction && loadLock) this.loadConstruction = false;
-        if (ready && delivery) {
+        if (ready && delivery && !(lunarShipmentPending(c) && c.lunarShipment)) {
             button(
                 ui,
                 `Zabierz ładunek na ${cargoPurpose}`,
@@ -383,6 +404,10 @@ export class LobbyView extends Container {
                 650,
                 456,
                 () => {
+                    if (lunarShipmentPending(c)) {
+                        this.actions.launch(null, true);
+                        return;
+                    }
                     this.loadConstruction = !this.loadConstruction;
                     this.refresh();
                 },
@@ -401,6 +426,26 @@ export class LobbyView extends Container {
                 693,
                 13,
                 loadLock ? C.gold : C.mint,
+                456,
+            );
+        }
+        if (lunarShipmentPending(c) && c.lunarShipment) {
+            label(
+                ui,
+                `Paczka czeka na dostawę · ${c.lunarShipment.area === 'surface' ? 'powierzchnia Księżyca' : 'orbita Ziemi i Księżyca'}`,
+                1072,
+                650,
+                16,
+                C.mint,
+                456,
+            );
+            label(
+                ui,
+                'Podejmij istniejącą paczkę na hol. Części zostały już zapakowane.',
+                1072,
+                693,
+                13,
+                C.muted,
                 456,
             );
         }
@@ -495,7 +540,6 @@ export class LobbyView extends Container {
                 openDestination: (tab) => this.openDestination(tab),
                 contribute: this.actions.contribute,
                 briefing: this.actions.briefing,
-                travel: this.actions.travel,
                 station: () => this.go('station'),
                 filter: this.storyFilter,
                 setFilter: (filter) => {

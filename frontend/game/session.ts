@@ -143,7 +143,7 @@ export class GameSession {
             briefing: () =>
                 this.change(
                     () => !!acknowledgeStoryBriefing(this.campaign),
-                    'Akt II ukończony. Trasa do Wenus otwarta. Wybierz Wenus w panelu sektorów.',
+                    'Akt II ukończony. Trasa do Wenus otwarta. Wybierz Wenus w zakładce Układ słoneczny.',
                 ),
             contribute: (id) => {
                 if (this.mission || this.hasOverlay) return;

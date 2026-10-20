@@ -1,3 +1,9 @@
+import {
+    packLunarShipment,
+    lunarShipmentPending,
+    lunarShipmentLock,
+    type LunarShipment,
+} from './lunarShipment';
 import { SATELLITES } from '../worlds/earthSystem';
 import { recordSatelliteDelivery } from './story';
 import { inEarthSystem } from '../worlds/moon';
@@ -88,10 +94,11 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 64;
+    version: 65;
     story: StoryProgress | null;
     bank: Cargo;
     lunarStation: { bank: Cargo };
+    lunarShipment: LunarShipment | null;
     ship: Ship | null;
     reserveShips: Ship[];
     nextShipId: number;
@@ -132,6 +139,7 @@ export interface Campaign {
         area?: 'surface';
         /** Supplies loaded at departure that have not yet been delivered. */
         freight?: Cargo;
+        lunarShipment?: number;
         /** Mined cargo already delivered during this sortie; XP only, never deposit twice. */
         unloaded?: Cargo;
         /** Cumulative patrol kills acknowledged during this sortie. */
@@ -181,10 +189,11 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 64,
+        version: 65,
         story: null,
         bank: { ore: 0, parts: 0 },
         lunarStation: { bank: { ore: 0, parts: 0 } },
+        lunarShipment: null,
         ship: newShip(),
         reserveShips: [],
         nextShipId: 2,
@@ -230,7 +239,7 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 64 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 65 || !cargo(p.bank) || !object(p.station)) return null;
         if (!object(p.lunarStation) || !cargo(p.lunarStation.bank)) return null;
         if (
             !integer(p.station.workshop, 2) ||
@@ -395,6 +404,26 @@ export function parseCampaign(json: string | null): Campaign | null {
                     Number.isFinite(point[key]) &&
                     Math.abs(point[key] as number) <= 1000000,
             );
+        if (
+            p.lunarShipment !== null &&
+            (!object(p.lunarShipment) ||
+                !validPoint(p.lunarShipment) ||
+                !integer(p.lunarShipment.id) ||
+                p.lunarShipment.id < 100000 ||
+                p.lunarShipment.id >= (p.nextSalvageId as number) ||
+                (p.lunarShipment.area !== undefined && p.lunarShipment.area !== 'surface') ||
+                !(p.story as StoryProgress | null)?.claimed.includes('lunar-survey') ||
+                (p.story as StoryProgress | null)?.claimed.includes('lunar-equipment'))
+        )
+            return null;
+        if (
+            object(p.activeRun) &&
+            p.activeRun.lunarShipment !== undefined &&
+            (!integer(p.activeRun.lunarShipment) ||
+                !object(p.lunarShipment) ||
+                p.activeRun.lunarShipment !== p.lunarShipment.id)
+        )
+            return null;
         if (
             !Array.isArray(p.magneticRelays) ||
             !p.magneticRelays.every((id) => integer(id, 2)) ||
@@ -701,16 +730,27 @@ export function beginRun(
     const signal = c.recoverySignals.find((signal) => signal.id === recoveryId);
     if (recoveryId !== null && !signal) return false;
     if (c.story && signal && signal.seed !== STORY_SECTORS[c.story.sector].seed) return false;
+    const packingShipment = loadConstruction && lunarShipmentPending(c);
+    if (packingShipment && lunarShipmentLock(c)) return false;
     const freight: Cargo =
-        loadConstruction && recoveryId === null ? constructionManifest(c) : { ore: 0, parts: 0 };
-    if (loadConstruction && (recoveryId !== null || resourceTotal(freight) <= 0)) return false;
+        !packingShipment && loadConstruction && recoveryId === null
+            ? constructionManifest(c)
+            : { ore: 0, parts: 0 };
+    if (
+        loadConstruction &&
+        (recoveryId !== null || (!packingShipment && resourceTotal(freight) <= 0))
+    )
+        return false;
     if (
         resourceTotal(freight) > capacity(c) ||
         RESOURCE_IDS.some((id) => (freight[id] ?? 0) > (c.bank[id] ?? 0))
     )
         return false;
     for (const id of RESOURCE_IDS) if (freight[id]) c.bank[id] = (c.bank[id] ?? 0) - freight[id]!;
+    const shipment = packingShipment ? packLunarShipment(c) : null;
+    if (packingShipment && !shipment) return false;
     c.activeRun = {
+        ...(shipment ? { lunarShipment: shipment.id } : {}),
         ...(missionTask ? { mission: { task: missionTask, aborted: false } } : {}),
         pilotId: c.selectedPilot,
         seed: signal?.seed ?? (c.story ? STORY_SECTORS[c.story.sector].seed : seed >>> 0),

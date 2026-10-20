@@ -1,10 +1,46 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-20, wersja 0.96.
+Stan: 2026-10-20, wersja 0.99.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
+## Wdrożenie 0.99 — mapa Układu Słonecznego i panel wyprawy
+
+Zakres autora z 2026-10-20 wdrożony w pierwszej kolejności:
+
+- Pas asteroid tworzy ciągły pierścień na mapie; jeden oznaczony korytarz Przejście przez pas wybiera jego grywalny sektor.
+- Mapa ma to samo tło Drogi Mlecznej co pozostałe widoki, przygaszone do 30%, oraz ciepłą poświatę Słońca. Usunięto zbędną dolną wskazówkę o pierścieniu wyboru.
+- Pierwsza zakładka Układ słoneczny wybiera obszar następnej wyprawy. Umowna mapa pokazuje centralne Słońce, planety, Księżyc i pas asteroid; pierścień wyróżnia wybrany sektor. Obowiązują istniejące odblokowania kampanii.
+- Wybór sektorów usunięto z Wyprawy. Filtry i karty zadań przesunięto wyżej, zwiększając miejsce na treść. Usunięto hasło i dekoracyjne paski spod nazwy stacji.
+- Panel stanu sektora pokazuje model aktualnego statku i portret wybranego pilota, z podstawowymi parametrami. Usunięto promień obszaru i rozmiar S/M/L; postęp głównych celów ma własny pasek.
+- Nazwa Sektor Ziemia–Księżyc zastępuje Układ Ziemia–Księżyc we wspólnym katalogu sektorów.
+
+Wersja aplikacji 0.99.0, format kampanii 65 i dziennika 29 bez zmian. Szczegóły: [wdrożenie 0.99](implementation-v0.99.md).
+
+Proponowany kolejny pakiet: prezentacja raportów literka po literce z dźwiękiem i bardziej naturalne kwestie rozmówców, zgodnie z poniższym ustaleniem autora.
+
+## Do wdrożenia — prezentacja kwestii podczas składania raportu
+
+Ustalenie autora z 2026-10-20:
+
+- Tekst wypowiedzi osoby mówiącej podczas składania raportu pojawia się animacją literka po literce, z towarzyszącym dźwiękiem.
+- Przeredagować wypowiadane kwestie na bardziej naturalne i ludzkie, pasujące do rozmówców oraz sytuacji raportowania.
+
+## Wdrożenie 0.98 — wyposażenie Księżyca jako paczka na holu
+
+Wyposażenie stacji ma fazę kompletowania (stan Satuk 15 / wymóg i Stwórz) oraz transportu. Zabierz ładunek pobiera pełen komplet części, tworzy jeden obiekt fabularny i od razu rozpoczyna wyprawę z paczką na holu. Nie zajmuje ona ładowni. Pozostaje w świecie po utracie statku, także na powierzchni Księżyca, bez kolejnej opłaty. Kontakt paczki z placówką automatycznie zamyka zadanie i dopiero wtedy tworzy Muła. Poszczególnych części nie można już oddawać zamiast paczki. Późniejsze dostawy minerałów pozostają bez zmian.
+
+Format kampanii 65, dziennik 29. Starsze zapisy odrzucane bez migracji. Szczegóły: [wdrożenie 0.98](implementation-v0.98.md).
+
+## Wdrożenie 0.97 — zapętlona muzyka
+
+`theme_loop.mp3` jest podłączony jako jedna natywna pętla wspólna dla bazy i lotu. Panel ustawień ma osobną regulację i wyciszenie muzyki; wyłączenie pauzuje tę samą instancję, a wznowienie zachowuje pozycję. Usunięto końcowe wygaszanie dla pętli. Sprawdzono rzeczywistą granicę utworu, 100 zmian widoków i ustawienia głośności. Kampania 64 i dziennik 29 bez zmian. [Zakres i sprawdzenia](implementation-v0.97.md).
+
+Kolejny pozostały zakres gospodarki: warianty materiałowe i części II–III oraz ich zastosowanie w konstrukcjach. Rozbudowę dalszych sektorów i oprawę realizujemy etapami według listy poniżej; dawne opisy wykonanych wersji nie są ponownym zleceniem.
+
 ## Lifting 0.96 — ukończenie pierwszej rozbudowy i czytelne ulepszenia
+
+Laboratorium i Warsztat tworzą jedną porcję receptury; usunięto przyciski 1/5/10/MAKS. zgodnie z ostatnim ustaleniem autora.
 
 Karty zadań mają wysokość dopasowaną do treści i stronicowanie całych kart. Romb/gwiazda przy tytule zastępują etykiety typu, wymagania otrzymały osobny panel z ikonami, a nagroda oddzieloną stopkę. Dłuższe listy części nie dochodzą do krawędzi; ukończone karty są krótsze. Sprawdzono 81 definicji oraz skróty do receptur i powrót.
 
@@ -138,9 +174,9 @@ Zakres i ograniczenia: [wdrożenie 0.83](implementation-v0.83.md). Moduły i uzb
 
 Asteroidy i skały powierzchniowe mają okrągłe, kolorowe kuleczki zamiast nieregularnych oznaczeń zawartości. Kolory pochodzą z katalogu pierwiastków, a obecność kuleczek wynika z rzeczywistego składu skały lub odłamka. Kuleczki wskazują rodzaje pierwiastków, nie procentowy udział masowy. Usunięto barwienie całego obrazu miedzi, które zmieniało też kolory znaczników. Oznaczenia mają płaskie kolory, zaokrąglenia i brak obrysów.
 
-## Do wdrożenia — zapętlona muzyka w tle
+## Wdrożone 0.97 — zapętlona muzyka w tle
 
-Ustalenie autora z 2026-10-19: dodać `frontend/assets/sounds/cc0/music/theme_loop.mp3` jako zapętloną muzykę w tle. Plik jest już w projekcie. Odtwarzanie ma respektować ustawienia włączenia i głośności muzyki, płynnie zapętlać utwór i nie tworzyć równoległych kopii podczas zmian widoków lub powrotów z lotu. Ten punkt pozostaje w planie; muzyka nie jest jeszcze podłączona.
+Ustalenie autora z 2026-10-19 zrealizowane: `frontend/assets/sounds/cc0/music/theme_loop.mp3` jest wspólną pętlą bazy i lotu. Respektuje włączenie i głośność muzyki, ma własny suwak w ustawieniach i nie tworzy równoległych kopii przy zmianie widoku. Szczegóły: [wdrożenie 0.97](implementation-v0.97.md).
 
 ## Wdrożenie 0.82 — rozpoznawanie złóż i zachowanie składu
 
