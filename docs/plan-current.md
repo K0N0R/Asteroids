@@ -1,8 +1,34 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-19, wersja 0.90.
+Stan: 2026-10-20, wersja 0.93.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.93 — kompletne dostawy i wspólny zapas napraw
+
+Ładunek zabierany z Satuk 15 służy aktywnej budowie. Usunięto ręczny wybór 0/1/2/5 poszyć oraz osobny natychmiastowy wylot z częściową dostawą. Przycisk „Zabierz ładunek na stację księżycową” (odpowiednio bazę marsjańską lub placówkę Wenus) wybiera pełen pozostały komplet aktualnego etapu. Jest dostępny tylko przy komplecie w magazynie i pojemności wybranego statku wystarczającej na całość. Zwykły wylot nadal jest dostępny bez ładunku. Przy starcie cały manifest jest sprawdzany i pobierany atomowo. Częściowe dostawy wcześniej przekazane na budowę pozostają zapisane; miejscowe wydobycie i praca Muła nie są ograniczane.
+
+Zadania księżycowe podają nazwę materiału/części oraz dostarczone/wymagane. Pierwsze pięć modułów można wytworzyć w Satuk 15 i przewieźć jako komplet 19 części. Późniejsza rozbudowa z żelaza i węgla nadal korzysta z miejscowego wydobycia z Mułem.
+
+Hakowanie, przekierowanie zasilania i pozostałe interakcje nie wymagają przedmiotów w ładowni. Usunięto koszt poszycia oraz informacje o tym koszcie. Zestawy naprawcze mają jeden wspólny zapas: są dostępne w locie, bez pakowania, limitu pokładowego ani zwracania po wyprawie. Produkcja w Satuk 15 i na Księżycu zasila ten sam zapas; dopiero ukończona naprawa zużywa sztukę. Śmierć statku nie usuwa pozostałych zestawów. Muł zachowuje darmową naprawę. Kampania 61, dziennik 26; bez migracji starszych zapisów.
+
+## Wdrożenie 0.92 — czytelne pierwsze zadania i rzeczywiste nagrody
+
+Pierwsze zaopatrzenie sprawdza pełny komplet w magazynie: 4 Fe, 1 C, 4 Cu, 3 Si i 2 O. Składniki pozostają do wykorzystania w Laboratorium i Warsztacie; zadanie ich nie pobiera. Komplet umożliwia wykonanie dwóch poszyć stalowych I, jednej maszynerii I i jednej elektroniki I na zaplecze I. Karta pokazuje osobny stan/wymaganie dla każdego surowca. Nagroda wynosi 20 PD dla wybranego pilota. Kontakt z satelitą daje jeden system podtrzymywania życia zamiast żelaza i poszyć. Dodatkowe Ulepszenie statku daje 15 PD. Usunięto Rezerwę materiałową.
+
+Karty pokazują cel i nagrodę, bez instrukcji obsługi oraz pustego „Premia: brak”. Większe karty, cztery na stronę, mieszczą checklistę i zostawiają odstępy między tytułem, opisem i nagrodą. Instruktor nadal pomaga w obsłudze, ale prowadzi już do całego kompletu surowców. PD są przyznawane raz; nagrody uzyskane podczas lotu są uwzględniane w raporcie powrotu bez ponownej wypłaty. Format kampanii 60, dziennik 25; stare zapisy odrzucane bez migracji. Weryfikacja obejmuje pierwsze zadania i produkcję, bez pełnej regresji.
+
+## Wdrożenie 0.91 — przebudowany Akt I: Ziemia i Księżyc
+
+Zatwierdzony przez autora przebieg zastępuje dawny osobny sektor księżycowy i dwie śluzy do odległego złoża. Gracz zaczyna na orbicie Ziemi: zbiera pierwsze zaopatrzenie i rozbudowuje Satuk 15. Jeden satelita rozszerza ochronę orbity oraz otwiera dwie dwukierunkowe śluzy: na orbitę Księżyca i do wraków satelit. Prospector może używać ich od razu, bez nowego kadłuba lub modułu napędu.
+
+Odzysk trzech satelitów jest zadaniem dodatkowym. Fizyczne holowanie przez śluzę i przekazanie w Satuk 15 daje komplet części do Swifta; każdy wrak rozlicza się raz. Na orbicie Księżyca osobna sonda wymaga synchronizacji. Dopiero ona powiększa ochronę księżycową, otwiera lądowanie i jedną śluzę do dużej, bogatej asteroidy. Oba główne ciała niebieskie istnieją w tej samej przestrzeni orbitalnej. Nowe śluzy, sonda i złoże pojawiają się w trwającym locie.
+
+Ziemia i Księżyc mają jeden dziennik i jeden wybór obszaru w bazie. Podróż odbywa się statkiem i zachowuje wyprawę, ładunek, uszkodzenia oraz wyposażenie. Na powierzchni pozostają dostawy pięciu modułów, lokalne przetwarzanie i rozbudowa z Mułem. Po odbiorze technicznym atak przeciwników rozpoczyna się automatycznie przy stacji. Nie wymaga opcjonalnej obrony przed asteroidami. Zwycięstwo otwiera Marsa, a powrót do Satuk 15 uruchamia rozmowę o pościgu. Ulepszenie dowolnego statku jest dodatkowym celem; Swift ani odzysk satelitów nie blokują głównej ścieżki.
+
+Ochrona oddzielonych obszarów ma czerwone obrysy w świecie i na minimapie; nakładające się bezpieczne okręgi nie tworzą fałszywych granic. Usunięto dodatkowe przekaźniki południowy i zachodni oraz nakładający się dawny węzeł orbitalny. Instruktor prowadzi do śluzy księżycowej. Powracający fracht budowlany trafia do magazynu, bez zużywania go na dodatkową rezerwę żelaza i bez naliczania wydobycia.
+
+Format kampanii 59, dziennik 24. Starsze zapisy są odrzucane, bez migracji. Szczegóły: [wdrożenie 0.91](implementation-v0.91.md). Weryfikacja jest ograniczona do przebudowanego Aktu I, lotu przez śluzy, granic ochrony oraz istniejącej mechaniki księżycowej; bez pełnej regresji. Backlog grafiki asteroid z kuleczkami surowców oraz zapętlonej muzyki `theme_loop.mp3` pozostaje aktualny.
 
 ## Wdrożenie 0.90 — hipernapęd dla każdego statku
 

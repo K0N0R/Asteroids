@@ -76,7 +76,7 @@ test('Earth data is confirmed in flight, survives loss and cannot pay again afte
     }
 });
 
-test('two remote scans and a supply delivery reveal the next objective in the same sortie', () => {
+test('satellite sync opens two gates live and supplies remain independent of Moon arrival', () => {
     const { c, s } = run();
     try {
         s.surveyData.add('relay');
@@ -93,12 +93,20 @@ test('two remote scans and a supply delivery reveal the next objective in the sa
             0,
             'rewards must not finance the next delivery',
         );
-        assert.ok(s.sector.landmarks.some((l) => l.siteId === 'archive'));
-        assert.equal(s.sectorRadius, 2450);
+        assert.ok(s.sector.landmarks.some((l) => l.siteId === 'lunarProbe'));
+        assert.equal(s.sector.hyperlanes.length, 2);
+        assert.equal(s.sectorRadius, 7500);
         s.surveyData.add('archive');
         s.step(idle);
-        assert.equal(c.story!.progress['earth-route'], 1);
-        assert.ok(!storySectorUnlocked(c.story!, 'lunar'), 'workshop is still required');
+        assert.equal(
+            c.story!.progress['earth-route'],
+            0,
+            'obsolete archive does not credit Moon arrival',
+        );
+        assert.ok(
+            storySectorUnlocked(c.story!, 'lunar'),
+            'satellite unlocks the route without a drive upgrade',
+        );
         assert.ok(parseCampaign(JSON.stringify(c)));
     } finally {
         s.dispose();

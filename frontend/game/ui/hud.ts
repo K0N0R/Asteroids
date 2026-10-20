@@ -1,3 +1,4 @@
+import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { RESOURCE_IDS, RESOURCES, resourceSummary, resourceTotal } from '../state/resources';
 import { salvagePosition } from '../systems/salvage';
 import { RadarTrail } from '../systems/radarTrail';
@@ -618,9 +619,19 @@ export class MissionHud extends Container {
         for (const zone of s.magneticZones) {
             this.map
                 .circle(x + zone.x * scale, y + zone.y * scale, zone.radius * scale)
-                .fill({ color: C.cyan, alpha: 0.06 })
-                .stroke({ color: C.cyan, width: 1, alpha: 0.5 });
+                .fill({ color: C.cyan, alpha: 0.06 });
         }
+        for (const edge of magneticBoundaryArcs(s.magneticZones))
+            this.map
+                .beginPath()
+                .arc(
+                    x + edge.x * scale,
+                    y + edge.y * scale,
+                    edge.radius * scale,
+                    edge.start,
+                    edge.end,
+                )
+                .stroke({ color: C.red, width: 1.5, alpha: 0.8 });
         for (const relay of s.magneticRelays) {
             this.map
                 .circle(x + relay.x * scale, y + relay.y * scale, 2)

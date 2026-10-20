@@ -8,6 +8,7 @@ export const SALVAGE = {
     range: 160,
     speed: 80,
     seconds: 3,
+    satellite: { health: 80, radius: 35, ore: 0, parts: 0, crystals: 0 },
     patrol: { health: 70, radius: 24, ore: 8, parts: 4, crystals: 0 },
     lancer: { health: 120, radius: 34, ore: 12, parts: 7, crystals: 1 },
 } as const;
@@ -16,7 +17,7 @@ export function leavesWreck(seed: number, id: number) {
 }
 export interface SalvageBody {
     id: number;
-    source: 'patrol' | 'lancer' | 'recovery';
+    source: 'patrol' | 'lancer' | 'satellite' | 'recovery';
     body: RAPIER.RigidBody;
     collider: RAPIER.Collider;
     radius: number;

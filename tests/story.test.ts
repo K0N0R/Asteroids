@@ -27,6 +27,7 @@ import {
     STORY_SAVE_KEY,
     STORY_SECTORS,
     storyObjectives,
+    recordMoonArrival,
 } from '../frontend/game/state/story';
 import { generateStorySector } from '../frontend/game/worlds/storySector';
 import { MissionSimulation } from '../frontend/game/systems/mission';
@@ -47,7 +48,9 @@ function earthReady() {
     fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
-    returning(c, ['archive']);
+    beginRun(c, 1);
+    recordMoonArrival(c);
+    finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock');
     return c;
 }
 
@@ -65,7 +68,7 @@ test('parallel tasks support either order, partial contributions and one-time re
         assert.equal(c.bank.ore, 36);
         assert.equal(c.story!.progress['earth-supply'], 24);
         if (!scanFirst) returning(c, ['relay']);
-        assert.equal(storyRadius(c.story!), 2450);
+        assert.equal(storyRadius(c.story!), 7500);
         const bank = { ...c.bank };
         assert.equal(contributeStory(c, 'earth-supply'), null);
         returning(c, ['relay']);
@@ -74,7 +77,7 @@ test('parallel tasks support either order, partial contributions and one-time re
     }
 });
 
-test('required goals gate travel, optional work never blocks it, and backtracking preserves both sectors', () => {
+test('Moon goals share the Earth journal, optional work never blocks them, and loss preserves secured progress', () => {
     const c = newStoryCampaign();
     assert.equal(travelStory(c, 'lunar'), false);
     returning(c, ['archive']);
@@ -82,9 +85,9 @@ test('required goals gate travel, optional work never blocks it, and backtrackin
     const ready = earthReady();
     assert.equal(ready.story!.progress['earth-reserve'], 0);
     assert.ok(storySectorUnlocked(ready.story!, 'lunar'));
-    assert.ok(travelStory(ready, 'lunar'));
-    returning(ready, ['relay']);
-    assert.ok(travelStory(ready, 'earth'));
+    assert.equal(travelStory(ready, 'lunar'), false);
+    returning(ready, ['lunarProbe']);
+    assert.equal(ready.story!.sector, 'earth');
     assert.ok(ready.story!.claimed.includes('lunar-survey'));
     const before = JSON.stringify(ready.story);
     assert.ok(beginRun(ready, 123));
@@ -176,28 +179,25 @@ test('journals reject unknown tasks, impossible dependencies, duplicate rewards 
     assert.equal(parseCampaign(JSON.stringify(active)), null);
 });
 
-test('available regions and wreck interactions use semantic landmarks when the outer orbit appears', () => {
-    const c = earthReady();
-    const sector = generateStorySector(c.story!);
-    assert.ok(sector.landmarks.some((l) => l.siteId === 'archive'));
-    assert.equal(sector.landmarks[2].siteId, 'archive');
-    assert.ok(beginRun(c, 1));
+test('satellite wreck field and lunar probe replace the obsolete overlapping Earth archive', () => {
+    const c = earthReady(),
+        sector = generateStorySector(c.story!);
+    assert.equal(
+        sector.landmarks.some((l) => l.siteId === 'archive'),
+        false,
+    );
+    assert.ok(sector.landmarks.some((l) => l.siteId === 'lunarProbe'));
+    assert.ok(sector.landmarks.some((l) => l.key === 4 && l.kind === 'field'));
+    beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
-        const site = s.sector.landmarks.find((l) => l.kind === 'wreck')!;
-        s.ship.setTranslation({ x: site.x / 100, y: site.y / 100 }, true);
-        s.step({ ...idle, interact: true });
-        assert.ok(s.wreckVisited);
-        assert.ok(s.loot.size > 0);
-        finishRun(c, true, s.cargo, 10, 'dock', s.repairKits, { wreckVisited: true });
-        assert.ok(c.story!.searchedWrecks.includes('earth'));
+        assert.equal(
+            [...s.salvage.items.values()].filter((i) => i.source === 'satellite').length,
+            3,
+        );
     } finally {
         s.dispose();
     }
-    assert.ok(beginRun(c, 1));
-    const next = new MissionSimulation(c, c.activeRun!.seed);
-    assert.ok(next.wreckVisited);
-    next.dispose();
 });
 
 test('recovery signals cannot silently move between campaign sectors', () => {
@@ -210,12 +210,12 @@ test('recovery signals cannot silently move between campaign sectors', () => {
         pilot: null,
         ship: { ...c.ship!, id: c.nextShipId++ },
     });
-    travelStory(c, 'lunar');
+    c.recoverySignals[0].seed = STORY_SECTORS.lunar.seed;
     assert.equal(beginRun(c, 9, 999), false);
-    travelStory(c, 'earth');
+    c.recoverySignals[0].seed = STORY_SECTORS.earth.seed;
     assert.ok(beginRun(c, 9, 999));
     assert.equal(c.activeRun!.seed, STORY_SECTORS.earth.seed);
-    assert.ok(storyObjectives(c).every((task) => task.id.startsWith('earth-')));
+    assert.ok(storyObjectives(c).some((task) => task.id === 'lunar-survey'));
 });
 
 test('losing the starter ship without funds leaves a working emergency route and keeps campaign progress', () => {
@@ -228,7 +228,7 @@ test('losing the starter ship without funds leaves a working emergency route and
     assert.ok(beginRun(c, 4));
 });
 
-test('a fresh starter can mine, scan, dock, build the workshop and unlock the lunar route through normal flight', () => {
+test('a fresh starter can mine, scan, dock, build the workshop and open the Moon gate', () => {
     const c = newStoryCampaign();
     const steer = (s: MissionSimulation, target: { x: number; y: number }, radius: number) => {
         const dx = target.x - s.position.x,
@@ -302,14 +302,11 @@ test('a fresh starter can mine, scan, dock, build the workshop and unlock the lu
     for (let attempt = 0; attempt < 3 && c.bank.ore < 24; attempt++) sortie('relay', true);
     assert.ok(c.bank.ore >= 24);
     contributeStory(c, 'earth-supply');
-    assert.equal(storyRadius(c.story!), 2450);
+    assert.equal(storyRadius(c.story!), 7500);
     fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
-    sortie('archive', false);
-    assert.ok(travelStory(c, 'lunar'));
-    sortie('relay', false);
-    assert.ok(c.story!.claimed.includes('lunar-survey'));
-    assert.ok(travelStory(c, 'earth'));
+    assert.equal(generateStorySector(c.story!).hyperlanes.length, 2);
+    assert.equal(travelStory(c, 'lunar'), false);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });

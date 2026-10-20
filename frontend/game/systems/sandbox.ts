@@ -34,7 +34,7 @@ export const SANDBOX_SCENARIOS = {
     },
     infiltration: {
         name: 'Infiltracja',
-        detail: 'Wykradnij dane z Cerbera i wróć. 0 wskazuje terminal, E pobiera, G sabotuje (3 komponenty na start).',
+        detail: 'Wykradnij dane z Cerbera i wróć. 0 wskazuje terminal, E pobiera, G przekierowuje zasilanie.',
         target: -1,
     },
     escort: {
@@ -226,11 +226,9 @@ export class SandboxRun {
             ];
         if (!beginRun(c, this.config.seed, this.config.scenario === 'salvage' ? 8802 : null))
             throw new Error('Sandbox initialization failed');
-        c.activeRun!.repairKits = 3;
-        c.repairKits = 0;
+        c.repairKits = 3;
         this.simulation = new MissionSimulation(c, this.config.seed, sector);
         const sim = this.simulation;
-        if (this.config.scenario === 'infiltration') sim.cargo.parts = 3;
         sim.ship.setTranslation(
             { x: spawn.x / GAME.pixelsPerMeter, y: spawn.y / GAME.pixelsPerMeter },
             true,

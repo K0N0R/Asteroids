@@ -47,7 +47,9 @@ export class LunarAssault {
             : this.state === 'failed'
               ? `${this.reason} · G przy stacji ponawia obronę`
               : this.state === 'idle'
-                ? 'G przy stacji · rozpocznij finałową obronę'
+                ? this.theatre === 'lunar'
+                    ? 'Nieznane jednostki na podejściu · przygotuj obronę'
+                    : 'G przy stacji · rozpocznij finałową obronę'
                 : `Atak ${this.wave}/3 · stacja ${this.health}/180 · ${this.state === 'warning' ? (this.timer > 0 ? `kontakt za ${Math.ceil(this.timer)} s` : 'napastnicy na podejściu') : `napastnicy ${this.enemies.size}`}`;
     }
     start() {

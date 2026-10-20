@@ -1,3 +1,6 @@
+import { STARTER_MATERIALS } from '../state/stationConstruction';
+import type { ResourceId } from '../state/resources';
+import { EARTH_MOON_LANE } from '../worlds/moon';
 import type RAPIER from '@dimforge/rapier2d-compat';
 import { HULLS } from '../config';
 import type { Campaign, Cargo } from '../state/campaign';
@@ -33,8 +36,14 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
     if (c.activeRun?.mission?.task === 'earth-relay' && !claimed.includes('earth-relay'))
         return relay();
     if (!claimed.includes('earth-supply')) {
-        const remaining = 24 - c.story!.progress['earth-supply'];
-        if (cargo.ore >= Math.min(remaining, capacity(c)) || resourceTotal(cargo) >= capacity(c))
+        const missing = Object.entries(STARTER_MATERIALS).filter(
+            ([id, count]) => (c.bank[id as ResourceId] ?? 0) < count,
+        );
+        const cargoCompletes = missing.every(
+            ([id, count]) =>
+                (c.bank[id as ResourceId] ?? 0) + (cargo[id as ResourceId] ?? 0) >= count,
+        );
+        if (cargoCompletes || resourceTotal(cargo) >= capacity(c))
             return {
                 ...home,
                 id: 'delivery',
@@ -48,7 +57,7 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
             id: 'mining',
             title: 'Wydobycie',
             message:
-                'Lecę na skraj złoża. Celuj myszą w skały i wydobywaj prawym przyciskiem. Potrzebujemy 24 Fe. Zaczekam, jeśli zostaniesz z tyłu.',
+                'Lecę na skraj złoża. Celuj myszą w skały i wydobywaj prawym przyciskiem. Potrzebujemy 4 Fe, 1 C, 4 Cu, 3 Si i 2 O. Zaczekam, jeśli zostaniesz z tyłu.',
         };
     }
     if (!claimed.includes('earth-relay')) return relay();
@@ -58,15 +67,14 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
             id: 'workshop',
             title: 'Warsztat stacji',
             message:
-                'Zaopatrzenie i łączność gotowe. Wróć do pierścienia i przytrzymaj E, potem zbuduj warsztat I w panelu Stacja. Nie wykonam tego za Ciebie.',
+                'Zaopatrzenie i łączność gotowe. Wróć do pierścienia i przytrzymaj E, potem zamontuj zaplecze I w Rozbudowie stacji.',
         };
     return {
-        x: -1550,
-        y: 700,
-        id: 'archive',
-        title: 'Dalszy węzeł',
+        ...EARTH_MOON_LANE.a,
+        id: 'moon-gate',
+        title: 'Śluza na Księżyc',
         message:
-            'Leć do dalszego węzła. Zatrzymaj się przy nim i przytrzymaj E; raport prześle radio. Ja polecę zwykłym napędem. Jeśli użyjesz hipernapędu, nie musisz na mnie czekać.',
+            'Przy śluzie na Księżyc wyhamuj i naciśnij spację. Prospector może wykonać ten skok. Na miejscu odszukaj sondę księżycową i zsynchronizuj ją przez E.',
     };
 }
 function relay(): GuideGoal {
@@ -120,14 +128,7 @@ export class EarthGuide extends ResearchEscort {
         }
         const returning = goal.id === 'return' || goal.id === 'abort';
         super.update(dt, returning || this.rangeReported ? this.position : player, obstacles, true);
-        if (this.waitingReason === 'player' && !this.rangeReported) {
-            this.rangeReported = true;
-            this.once(
-                'lost',
-                'Oddaliliśmy się. Zaczekam przy złożu. Kontynuuj we własnym tempie.',
-                say,
-            );
-        }
+        if (this.waitingReason === 'player') this.rangeReported = true;
         if (this.waitingReason === 'route')
             this.once(
                 `blocked-${goal.id}`,

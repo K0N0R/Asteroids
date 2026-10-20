@@ -1,4 +1,12 @@
 import {
+    earthSystemLanes,
+    earthSystemZones,
+    SATELLITES,
+    ASTEROID_FIELD,
+} from '../worlds/earthSystem';
+import { recordMoonArrival } from '../state/story';
+import { inEarthSystem } from '../worlds/moon';
+import {
     pendingOrbitalDeliveries,
     deliverOrbitalCargo,
     constructionDeliveryTasks,
@@ -15,7 +23,7 @@ import {
     MINERAL_SCAN_RANGE,
     type MineralDeposit,
 } from '../worlds/mineralDeposits';
-import { MAGNETIC_RELAYS, REMOTE_MAGNETIC_ZONE, magneticCoverage } from './magneticZones';
+import { MAGNETIC_RELAYS } from './magneticZones';
 import { type ResourceId, type ResourceStore, RESOURCE_IDS, RESOURCES } from '../state/resources';
 import { ANOMALY, AnomalyExposure } from './anomalyField';
 import { EarthGuide } from './earthGuide';
@@ -197,6 +205,7 @@ export class MissionSimulation {
     readonly guide: EarthGuide | null;
     cargoTransferRemaining = 0;
     private unloadHeld = false;
+    private spawnedSatellites = new Set<number>();
     get earthLogistics() {
         return (
             this.campaign.story?.sector === 'earth' && this.campaign.activeRun?.sector === 'earth'
@@ -352,27 +361,63 @@ export class MissionSimulation {
             const confirmation =
                 story.sector === 'pluto' && story.claimed.includes('pluto-boss')
                     ? 'Cele operacyjne kampanii ukończone. Raport finałowego starcia zabezpieczony.'
-                    : story.sector === 'lunar' && story.claimed.includes('lunar-attack')
-                      ? 'Stacja księżycowa obroniona. Akt I ukończony. Następny kierunek: Mars.'
+                    : inEarthSystem(story.sector) && story.claimed.includes('lunar-attack')
+                      ? 'Stacja księżycowa obroniona. Musimy ustalić skąd nadlecieli napastnicy. Wracaj na rozmowę do Satuk 15 — podejmiemy pościg w stronę Marsa.'
                       : 'Potwierdzamy odbiór raportu.';
             this.radioMessages.push(
                 `${confirmation} Ukończono: ${change.titles.join(', ')}. Raport został zapisany w dzienniku. ${!['earth', 'lunar'].includes(story.sector) ? 'Nowo otwarte miejsca przygotujemy na następny wylot z Satuk 15. ' : ''}${change.overflow ? `Magazyn pełny: nadwyżka nagród ${change.overflow}.` : ''}`,
             );
         }
-        if (
-            this.earthLogistics &&
-            storyRadius(this.campaign.story!) > 1450 &&
-            !this.sector.landmarks.some((l) => l.siteId === 'archive')
-        )
-            this.sector.landmarks.push({
-                x: -1750,
-                y: 700,
-                name: 'Węzeł dalszej orbity',
-                key: 8,
-                kind: 'archive',
-                siteId: 'archive',
-                radius: 180,
-            });
+        if (this.earthLogistics && story.claimed.includes('earth-relay')) {
+            this.spawnEarthSatellites();
+            const lanes = earthSystemLanes(story);
+            if (this.sector.hyperlanes.length !== lanes.length) {
+                const generated = generateStorySector(story);
+                this.sector.hyperlanes = lanes;
+                this.sector.regions = earthSystemZones(story);
+                for (const landmark of generated.landmarks.filter(
+                    (l) => !l.area && (l.siteId === 'lunarProbe' || l.key === 4 || l.key === 5),
+                ))
+                    if (!this.sector.landmarks.some((l) => l.key === landmark.key && !l.area))
+                        this.sector.landmarks.push(landmark);
+                if (story.claimed.includes('lunar-survey')) {
+                    for (const spec of generated.rocks.filter(
+                        (r) =>
+                            Math.hypot(r.x - ASTEROID_FIELD.x, r.y - ASTEROID_FIELD.y) <
+                            ASTEROID_FIELD.radius,
+                    )) {
+                        this.sector.rocks.push(spec);
+                        this.addRock(spec);
+                    }
+                }
+                for (const rock of [...this.rocks.values()]) {
+                    const p = rock.body.translation();
+                    if (
+                        lanes.some(
+                            (l) =>
+                                segmentDistance({ x: p.x * P, y: p.y * P }, l.a, l.b) <
+                                rock.radius + 150,
+                        )
+                    ) {
+                        this.world.removeRigidBody(rock.body);
+                        this.asteroidColliders.delete(rock.collider.handle);
+                        this.rocks.delete(rock.id);
+                    }
+                }
+            }
+        }
+    }
+    private spawnEarthSatellites() {
+        if (!this.earthLogistics || !this.campaign.story?.claimed.includes('earth-relay')) return;
+        for (const sat of SATELLITES) {
+            if (
+                this.spawnedSatellites.has(sat.id) ||
+                this.campaign.story.claimed.includes(sat.task)
+            )
+                continue;
+            if (this.salvage.add(sat.id, 'satellite', sat, { x: 0, y: 0 }))
+                this.spawnedSatellites.add(sat.id);
+        }
     }
     readonly queue = new RAPIER.EventQueue(true);
     readonly ship: RAPIER.RigidBody;
@@ -451,7 +496,12 @@ export class MissionSimulation {
     dockProgress = 0;
     engineFault = false;
     repairProgress = 0;
-    repairKits: number;
+    get repairKits() {
+        return this.campaign.repairKits;
+    }
+    set repairKits(value: number) {
+        this.campaign.repairKits = value;
+    }
     wreckVisited = false;
     area: 'orbit' | 'surface' = 'orbit';
     areaRevision = 0;
@@ -555,7 +605,7 @@ export class MissionSimulation {
         this.hullConfig = HULLS[this.modules.hull];
         this.salvage = new SalvageFleet(this.world, this.modules.hull === 'tug' ? 2 : 1);
         this.rescueOperation =
-            campaign.story?.sector === 'lunar' &&
+            inEarthSystem(campaign.story?.sector) &&
             !campaign.story.claimed.includes('lunar-rescue') &&
             storyTaskAvailable(campaign.story, STORY_TASKS.find((t) => t.id === 'lunar-rescue')!)
                 ? new RescueOperation(this.salvage)
@@ -585,6 +635,7 @@ export class MissionSimulation {
             (entry) => entry.seed === campaign.activeRun?.seed,
         ))
             this.salvage.add(item.id, item.source, item, { x: 0, y: 0 });
+        this.spawnEarthSatellites();
         this.harpoonArms =
             this.modules.hull === 'harpoon'
                 ? new HarpoonArms(this.modules.handling, this.modules.drill)
@@ -598,7 +649,6 @@ export class MissionSimulation {
             shieldProfile(this.modules.hull, this.modules.shield),
         );
         this.hull = this.maxHull;
-        this.repairKits = campaign.activeRun?.repairKits ?? 0;
         this.world.timestep = GAME.step;
         this.ship = this.world.createRigidBody(
             RAPIER.RigidBodyDesc.dynamic()
@@ -626,7 +676,7 @@ export class MissionSimulation {
                 : null;
         this.aegis?.rebuild(this.position);
         if (
-            campaign.story?.sector === 'lunar' &&
+            inEarthSystem(campaign.story?.sector) &&
             campaign.story.claimed.includes('lunar-survey') &&
             !lunarConstructionReady(campaign.story)
         ) {
@@ -690,7 +740,7 @@ export class MissionSimulation {
                 ? new EnemyFactory(this.world, campaign.story.claimed.includes('mars-factory'))
                 : null;
         this.escort =
-            campaign.story?.sector === 'lunar' &&
+            inEarthSystem(campaign.story?.sector) &&
             campaign.story.claimed.includes('lunar-survey') &&
             !lunarConstructionReady(campaign.story)
                 ? new MiningEscort(this.world)
@@ -807,8 +857,8 @@ export class MissionSimulation {
         if (this.outpost.alarm > 0)
             return `Baza · alarm ${Math.ceil(this.outpost.alarm)} s · terminal zablokowany`;
         return p.sector === 'pluto'
-            ? '0 terminal bazy · E dane / G skaner: 1 komponent · F osłona · 8 dodatkowe odczyty'
-            : '0 terminal bazy · E dane / G skaner: 1 komponent · F kontakty · 8 dalszy odczyt po raportach';
+            ? '0 terminal bazy · E dane / G skaner · F osłona · 8 dodatkowe odczyty'
+            : '0 terminal bazy · E dane / G skaner · F kontakty · 8 dalszy odczyt po raportach';
     }
     get saturnSector() {
         return this.campaign.story?.sector === 'saturn';
@@ -842,7 +892,7 @@ export class MissionSimulation {
             return `Węzeł · alarm ${Math.ceil(this.outpost.alarm)} s · terminal zablokowany`;
         if (this.outpost.disabledTime > 0)
             return `Węzeł · skaner wyłączony ${Math.ceil(this.outpost.disabledTime)} s · E otwórz obwód`;
-        return '0 terminal · E dane bez alarmu · G wyłącza skaner: 1 komponent / 20 s · F patrole';
+        return '0 terminal · E dane bez alarmu · G wyłącza skaner na 20 s · F patrole';
     }
     get beltSector() {
         return this.campaign.story?.sector === 'belt';
@@ -994,7 +1044,7 @@ export class MissionSimulation {
     }
     get surfaceUnlocked() {
         return (
-            this.campaign.story?.sector === 'lunar' &&
+            inEarthSystem(this.campaign.story?.sector) &&
             this.campaign.story.claimed.includes('lunar-survey')
         );
     }
@@ -1006,7 +1056,7 @@ export class MissionSimulation {
     }
     get defenseAvailable() {
         return (
-            this.campaign.story?.sector === 'lunar' &&
+            inEarthSystem(this.campaign.story?.sector) &&
             this.campaign.story.claimed.includes('lunar-foundation') &&
             !this.campaign.story.claimed.includes('lunar-defense')
         );
@@ -1035,8 +1085,8 @@ export class MissionSimulation {
             );
         const p = this.campaign.story;
         return (
-            p?.sector === 'lunar' &&
-            ['lunar-commission', 'lunar-defense'].every((id) => p.claimed.includes(id)) &&
+            inEarthSystem(p?.sector) &&
+            p.claimed.includes('lunar-commission') &&
             !p.claimed.includes('lunar-attack')
         );
     }
@@ -1078,7 +1128,7 @@ export class MissionSimulation {
     get canUseLunarStation() {
         return (
             !!this.campaign.activeRun &&
-            this.campaign.story?.sector === 'lunar' &&
+            inEarthSystem(this.campaign.story?.sector) &&
             this.area === 'surface' &&
             this.nearbyConstruction &&
             lunarProcessingReady(this.campaign.story) &&
@@ -1429,8 +1479,8 @@ export class MissionSimulation {
                 : 'Sabotaż · przekieruj zasilanie skanera';
         if (this.nearbyOutpost && !this.outpost.secured)
             return this.outpost.alarm > 0
-                ? 'Alarm · G przekieruj zasilanie (1 komponent)'
-                : 'E włamanie · G przekieruj zasilanie (1 komponent)';
+                ? 'Alarm · G przekieruj zasilanie'
+                : 'E włamanie · G przekieruj zasilanie';
         if (this.relayTuning) return 'Strojenie przekaźnika · dopasuj fazy sygnału';
         if (this.relayRequired && !this.surveyData.has('relay'))
             return 'E · otwórz strojenie łączności · poniżej 60 m/s';
@@ -1677,7 +1727,7 @@ export class MissionSimulation {
         return (
             this.campaign.story?.sector === 'earth' &&
             this.area === 'orbit' &&
-            this.campaign.story.claimed.includes('earth-workshop')
+            this.campaign.story.claimed.includes('earth-relay')
         );
     }
     get magneticRelays() {
@@ -1690,39 +1740,7 @@ export class MissionSimulation {
         return active;
     }
     get magneticZones() {
-        return this.magneticNetwork
-            ? [
-                  { x: 0, y: 0, radius: 1450, name: 'Satuk 15 · osłona magnetyczna' },
-                  ...MAGNETIC_RELAYS.filter((r) => this.activeMagneticRelays.includes(r.id)),
-                  REMOTE_MAGNETIC_ZONE,
-              ]
-            : [];
-    }
-    private updateMagneticRelay(input: FlightInput) {
-        if (
-            !this.magneticNetwork ||
-            !input.interact ||
-            this.speed > 60 ||
-            this.thrusting ||
-            input.fire ||
-            input.mine
-        )
-            return;
-        const relay = this.magneticRelays.find(
-            (r) =>
-                r.id !== 0 &&
-                !this.activeMagneticRelays.includes(r.id) &&
-                Math.hypot(this.position.x - r.x, this.position.y - r.y) < 150,
-        );
-        if (!relay) return;
-        if (relay.id === 2 && this.campaign.station.workshop < 2) {
-            this.setNotice('Przekaźnik południowy wymaga warsztatu II · rozbuduj stację.');
-            return;
-        }
-        this.campaign.magneticRelays.push(relay.id);
-        this.deliveryRevision++;
-        this.setNotice(`${relay.name} zsynchronizowany · osłona sektora rozszerzona`);
-        this.events.push({ ...relay, kind: 'collect', sound: 'complete' });
+        return this.magneticNetwork ? earthSystemZones(this.campaign.story!) : [];
     }
     get nearestHypergate() {
         return this.area === 'orbit' ? nearestGate(this.sector.hyperlanes, this.position) : null;
@@ -1733,7 +1751,8 @@ export class MissionSimulation {
         if (this.speed > 60 || this.damageCooldown > 0)
             return 'Wyhamuj poniżej 60 m/s i zerwij ostrzał.';
         if (
-            this.salvage.towing.size ||
+            (this.salvage.towing.size > 0 &&
+                [...this.salvage.towing.values()].some((item) => item.source !== 'satellite')) ||
             this.grippers.arms.some((a) => a.held || a.phase !== 'idle')
         )
             return 'Odłącz hol i zakończ pracę chwytaków.';
@@ -1818,7 +1837,9 @@ export class MissionSimulation {
             undefined,
             this.shipCollider,
             this.ship,
-            (c) => !c.isSensor(),
+            (c) =>
+                !c.isSensor() &&
+                !this.salvage.towing.has(this.salvage.colliders.get(c.handle) ?? -1),
         );
     }
     private advanceHyperdrive(dt: number) {
@@ -1850,6 +1871,16 @@ export class MissionSimulation {
             { x: (from.x + dx * fraction) / P, y: (from.y + dy * fraction) / P },
             true,
         );
+        for (const item of this.salvage.towing.values()) {
+            const p = item.body.translation();
+            item.body.setTranslation(
+                { x: p.x + (dx * fraction) / P, y: p.y + (dy * fraction) / P },
+                true,
+            );
+            item.body.setLinvel({ x: 0, y: 0 }, true);
+            item.previous = salvagePosition(item);
+        }
+
         if (hit) {
             this.statistics.hullDamage += this.hull;
             this.hull = 0;
@@ -1859,6 +1890,20 @@ export class MissionSimulation {
             return;
         }
         if (next.complete) {
+            if (
+                this.earthLogistics &&
+                Math.hypot(this.position.x - MOON.entrance.x, this.position.y - MOON.entrance.y) <
+                    1000
+            ) {
+                const arrival = recordMoonArrival(this.campaign);
+                if (arrival?.titles.length) {
+                    this.deliveryRevision++;
+                    this.radioMessages.push(
+                        'Dotarliśmy na orbitę Księżyca. Zlokalizuj sondę i zsynchronizuj ją przez E, aby otworzyć lądowanie. Zadania są we wspólnym dzienniku.',
+                    );
+                    this.unlockLunarSurface();
+                }
+            }
             drive.cancel();
             this.setNotice('Hiperskok zakończony · odzyskano sterowanie.');
         }
@@ -2317,7 +2362,6 @@ export class MissionSimulation {
             if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < GAME.dockRadius)
                 this.deliverTow(item);
         this.collectLoot(dt);
-        this.updateMagneticRelay(input);
 
         this.updateSolarExposure(dt);
         this.updateRepair(input, dt);
@@ -2367,7 +2411,10 @@ export class MissionSimulation {
         const unprotected =
             this.magneticNetwork &&
             !this.hyperdrive.active &&
-            !magneticCoverage(this.position, this.activeMagneticRelays);
+            !this.magneticZones.some(
+                (zone) =>
+                    Math.hypot(this.position.x - zone.x, this.position.y - zone.y) <= zone.radius,
+            );
         if (distance > this.sectorRadius || unprotected) {
             this.statistics.hullDamage += Math.min(this.hull, dt * 10);
             this.hull -= dt * 10;
@@ -2828,7 +2875,7 @@ export class MissionSimulation {
             !this.nearbyCache &&
             (mode === 'breach'
                 ? !this.outpost.secured && this.outpost.alarm <= 0
-                : !this.outpost.sabotaged && this.cargo.parts >= 1)
+                : !this.outpost.sabotaged)
         );
     }
     private deployOutpostGuards() {
@@ -2863,7 +2910,6 @@ export class MissionSimulation {
         const spec = this.sector.outpost;
         if (puzzle.mode === 'power') {
             if (!this.outpost.disable()) return false;
-            this.cargo.parts--;
             this.setNotice('Zasilanie przekierowane · skaner wyłączony na 20 s.');
         } else {
             this.outpost.secured = true;
@@ -3273,13 +3319,13 @@ export class MissionSimulation {
         return (
             this.campaign.story?.sector === 'earth' &&
             this.area === 'orbit' &&
-            this.nearbyScanSite?.siteId === 'relay'
+            ['relay', 'lunarProbe'].includes(this.nearbyScanSite?.siteId ?? '')
         );
     }
     private get relayConnectionValid() {
         return (
             this.relayRequired &&
-            !this.surveyData.has('relay') &&
+            !this.surveyData.has(this.nearbyScanSite!.siteId!) &&
             !this.ended &&
             !this.thrusting &&
             this.speed <= SCAN.speed &&
@@ -3429,7 +3475,7 @@ export class MissionSimulation {
     private selectWorldRecovery() {
         if (
             !this.rescueOperation &&
-            this.campaign.story?.sector === 'lunar' &&
+            inEarthSystem(this.campaign.story?.sector) &&
             !this.campaign.story.claimed.includes('lunar-rescue') &&
             storyTaskAvailable(
                 this.campaign.story,
@@ -3589,7 +3635,6 @@ export class MissionSimulation {
                 this.repairKits--;
                 this.statistics.repairKitsUsed++;
             }
-            if (this.campaign.activeRun) this.campaign.activeRun.repairKits = this.repairKits;
             this.engineFault = false;
             this.repairProgress = 0;
             this.hull = Math.min(this.maxHull, this.hull + GAME.repairHull);
@@ -5011,7 +5056,7 @@ export class MissionSimulation {
                 ? this.nearbyOrbitalBase
                 : this.area === 'surface' && this.nearbyConstruction) &&
             this.defenseArmed &&
-            input.sabotage &&
+            (input.sabotage || (!this.orbitalBaseSector && a.state === 'idle')) &&
             !input.interact &&
             !input.fire &&
             !input.mine &&

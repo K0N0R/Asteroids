@@ -30,8 +30,8 @@ test('remote magnetic coverage has a real gap and relays expand local coverage w
     assert.equal(magneticCoverage({ x: 0, y: 0 }, []), true);
     assert.equal(magneticCoverage({ x: 0, y: -2800 }, [0, 1, 2]), false);
     assert.equal(magneticCoverage(REMOTE_MAGNETIC_ZONE, []), true);
-    assert.equal(magneticCoverage(MAGNETIC_RELAYS[1], []), false);
-    assert.equal(magneticCoverage(MAGNETIC_RELAYS[1], [1]), true);
+    assert.equal(magneticCoverage({ x: -2100, y: 100 }, []), false);
+    assert.equal(magneticCoverage({ x: 1700, y: 650 }, [0]), true);
 });
 test('jettison conserves selected cargo, disables new collection and rejects absent cargo', () => {
     const c = newStoryCampaign();
@@ -70,65 +70,62 @@ test('mining beam ends at cursor and cannot damage a rock behind it', () => {
     }
 });
 
-test('relay activation expands coverage, persists on loss and requires the southern station upgrade', () => {
+test('only the synchronized Earth satellite expands protection; old south and west relays are absent', () => {
     const c = newStoryCampaign();
     for (const id of ['earth-supply', 'earth-relay', 'earth-workshop']) {
-        c.story!.claimed.push(STORY_TASKS.find((t) => t.id === id)!.id);
-        const task = STORY_TASKS.find((t) => t.id === id)!;
-        c.story!.progress[task.id] = task.target;
+        const t = STORY_TASKS.find((t) => t.id === id)!;
+        c.story!.progress[id] = t.target;
+        c.story!.claimed.push(id);
     }
     c.station.workshop = 1;
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
-        s.ship.setTranslation(
-            { x: MAGNETIC_RELAYS[1].x / 100, y: MAGNETIC_RELAYS[1].y / 100 },
-            true,
+        assert.deepEqual(
+            s.magneticRelays.map((r) => r.id),
+            [0],
         );
-        s.step({ ...idle, interact: true });
-        assert.ok(c.magneticRelays.includes(1));
+        assert.deepEqual(s.activeMagneticRelays, [0]);
+        assert.ok(s.magneticZones.some((z) => z.name === 'Orbita Księżyca'));
         assert.ok(parseCampaign(JSON.stringify(c)));
-        s.ship.setTranslation({ x: 15, y: -15 }, true);
-        s.ship.setLinvel({ x: 0, y: 0 }, true);
-        s.step({ ...idle, interact: true });
-        assert.equal(c.magneticRelays.includes(2), false);
-        c.station.workshop = 2;
-        s.step({ ...idle, interact: true });
-        assert.ok(c.magneticRelays.includes(2));
     } finally {
         s.dispose();
     }
 });
 
-test('the first hydrogen batch can be mined inside local magnetic coverage before owning a hyperdrive', () => {
+test('the first hydrogen batch can be mined inside local magnetic coverage before expanding the station', () => {
     const c = newStoryCampaign();
-    c.story!.claimed.push('earth-workshop');
+    c.story!.claimed.push('earth-relay');
     const rocks = generateStorySector(c.story!).rocks.filter(
-        (r) => r.crystal && Math.hypot(r.x, r.y) < 1450 && r.radius <= 44,
+        (r) => r.crystal && Math.hypot(r.x, r.y) < 1450,
     );
     assert.ok(rocks.length >= 2);
 });
 
 test('every Earth hyperlane reaches the remote island outside all station relay coverage', () => {
     const c = newStoryCampaign();
-    c.story!.claimed.push('earth-workshop');
+    c.story!.claimed.push('earth-relay');
     for (const lane of generateStorySector(c.story!).hyperlanes) {
         assert.ok(Math.hypot(lane.b.x, lane.b.y) > 1450);
         assert.ok(
             MAGNETIC_RELAYS.every((r) => Math.hypot(lane.b.x - r.x, lane.b.y - r.y) > r.radius),
         );
-        assert.ok(magneticCoverage(lane.b, []));
+        assert.ok(
+            generateStorySector(c.story!).regions.some(
+                (z) => Math.hypot(lane.b.x - z.x, lane.b.y - z.y) < z.radius,
+            ),
+        );
     }
 });
 
-test('Earth magnetic relays are separated from survey objects', () => {
+test('Earth has one physical satellite and no overlapping archive object', () => {
     const c = newStoryCampaign();
-    c.story!.claimed.push('earth-workshop');
+    c.story!.claimed.push('earth-relay');
     const sites = generateStorySector(c.story!).landmarks.filter((l) => l.siteId);
-    for (const relay of MAGNETIC_RELAYS.filter((r) => r.id !== 0))
-        for (const site of sites)
-            assert.ok(
-                Math.hypot(relay.x - site.x, relay.y - site.y) > site.radius + 160,
-                `${relay.name} overlaps ${site.name}`,
-            );
+    assert.equal(MAGNETIC_RELAYS.length, 1);
+    assert.equal(sites.filter((l) => l.siteId === 'relay').length, 1);
+    assert.equal(
+        sites.some((l) => l.siteId === 'archive' && !l.area),
+        false,
+    );
 });

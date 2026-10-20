@@ -1,3 +1,4 @@
+import { inEarthSystem } from '../worlds/moon';
 import type { Campaign } from './campaign';
 import { STORY_TASKS, storyTaskAvailable } from './story';
 import type { ScanSiteId } from '../config';
@@ -18,7 +19,7 @@ export function selectableMission(c: Campaign, id: string, allowReported = false
         task = STORY_TASKS.find((t) => t.id === id);
     return p &&
         task &&
-        task.sector === p.sector &&
+        (task.sector === p.sector || (inEarthSystem(task.sector) && inEarthSystem(p.sector))) &&
         ['scan', 'patrol', 'boss', 'rescue', 'factory'].includes(task.kind) &&
         (!p.claimed.includes(task.id) || allowReported) &&
         storyTaskAvailable(p, task)

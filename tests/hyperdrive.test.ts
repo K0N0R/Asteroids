@@ -84,18 +84,21 @@ function fly(s: MissionSimulation, target: { x: number; y: number }) {
     assert.fail(`navigation failed: ${JSON.stringify(s.position)}, hull ${s.hull}`);
 }
 
-test('expanded Earth has three distinct regions, two bidirectional cleared lanes and a useful distant mining field', () => {
+test('Earth satellite opens distinct Moon and satellite regions with two cleared lanes', () => {
     const c = ready(),
         sector = generateStorySector(c.story!);
-    assert.equal(storyRadius(c.story!), 5500);
-    assert.equal(sector.regions.length, 3);
+    assert.equal(storyRadius(c.story!), 7500);
+    assert.equal(sector.regions.length, 4);
     assert.equal(sector.hyperlanes.length, 2);
-    assert.ok(sector.landmarks.some((l) => l.y === -4500 && l.key === 5));
+    assert.ok(sector.landmarks.some((l) => l.siteId === 'lunarProbe'));
     for (const lane of sector.hyperlanes) {
         assert.ok(Math.hypot(lane.a.x - lane.b.x, lane.a.y - lane.b.y) <= HYPERDRIVE.range);
         assert.ok(sector.rocks.every((r) => segmentDistance(r, lane.a, lane.b) > r.radius + 110));
     }
-    assert.ok(sector.rocks.filter((r) => r.y < -4000 && r.copper).length >= 4);
+    assert.equal(
+        sector.landmarks.some((l) => l.key === 5),
+        false,
+    );
     const fresh = newStoryCampaign();
     assert.equal(generateStorySector(fresh.story!).hyperlanes.length, 0);
 });
@@ -110,13 +113,13 @@ test('stock Prospector flies to a gate, crosses the full lane and returns repeat
         advance(s, 120, true);
         assert.equal(s.ended, null);
         assert.equal(s.hyperdrive.state, 'idle');
-        assert.ok(Math.hypot(s.position.x, s.position.y + 4100) < 1);
+        assert.ok(Math.hypot(s.position.x, s.position.y + 3900) < 1);
         assert.equal(s.speed, 0);
         advance(s, 120, true);
         s.step(idle);
         s.step({ ...idle, hyperdrive: true });
         advance(s, 120);
-        assert.ok(Math.hypot(s.position.x, s.position.y + 1300) < 1);
+        assert.ok(Math.hypot(s.position.x, s.position.y + 1200) < 1);
         assert.ok(parseCampaign(JSON.stringify(s.campaign)));
     } finally {
         s.dispose();

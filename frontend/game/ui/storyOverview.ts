@@ -1,6 +1,6 @@
-import { resourceSummary } from '../state/resources';
+import { RESOURCES, type ResourceId } from '../state/resources';
 import type { Container } from 'pixi.js';
-import { HULLS, REPAIR_KITS } from '../config';
+import { HULLS } from '../config';
 import { capacity, selectedPilot, shipHealth, type Campaign } from '../state/campaign';
 import {
     STORY_SECTORS,
@@ -14,6 +14,7 @@ import {
     storyRadius,
     actOneComplete,
     storyAct,
+    storyRewardText,
     type StorySectorId,
 } from '../state/story';
 import { C } from '../graphics/shapes';
@@ -34,7 +35,9 @@ export function storyOverview(
     },
 ) {
     const p = c.story!;
-    const sectorIds = Object.keys(STORY_SECTORS) as StorySectorId[];
+    const sectorIds = (Object.keys(STORY_SECTORS) as StorySectorId[]).filter(
+        (id) => id !== 'lunar',
+    );
     const tabGap = sectorIds.length > 8 ? 6 : 12;
     const tabWidth = (725 - (sectorIds.length - 1) * tabGap) / sectorIds.length;
     sectorIds.forEach((id, i) => {
@@ -55,14 +58,14 @@ export function storyOverview(
     });
     const allTasks = storyVisibleTasks(p);
     const tasks = storyDiscoveredTasks(p);
-    const pages = Math.ceil(tasks.length / 6);
+    const pages = Math.ceil(tasks.length / 4);
     const page = Math.max(0, Math.min(pages - 1, actions.page ?? 0));
-    tasks.slice(page * 6, page * 6 + 6).forEach((task, i) => {
+    tasks.slice(page * 4, page * 4 + 4).forEach((task, i) => {
         const x = 280 + (i % 2) * 370,
-            y = 283 + Math.floor(i / 2) * 160;
+            y = 267 + Math.floor(i / 2) * 248;
         const complete = p.claimed.includes(task.id),
             available = storyTaskAvailable(p, task);
-        panel(ui, x, y, 355, 150);
+        panel(ui, x, y, 355, 232);
         label(
             ui,
             task.required ? 'GŁÓWNE' : 'DODATKOWE',
@@ -73,13 +76,17 @@ export function storyOverview(
         );
         label(
             ui,
-            complete ? '✓' : `${p.progress[task.id]}/${task.target}`,
+            complete
+                ? '✓'
+                : task.requirements || task.kind === 'delivery'
+                  ? ''
+                  : `${p.progress[task.id]}/${task.target}`,
             x + 294,
             y + 10,
             16,
             complete ? C.mint : C.muted,
         );
-        label(ui, task.title, x + 15, y + 33, 20, complete ? C.mint : C.text, 325);
+        label(ui, task.title, x + 15, y + 36, 21, complete ? C.mint : C.text, 325);
         label(
             ui,
             complete
@@ -88,56 +95,55 @@ export function storyOverview(
                   ? task.detail
                   : `Wymaga: ${task.dependencies.map((id) => STORY_TASKS.find((t) => t.id === id)!.title).join(' i ')}.`,
             x + 15,
-            y + 63,
-            14,
+            y + 72,
+            15,
             C.muted,
             325,
         );
-        if (!complete && available && task.sector === 'earth' && task.kind === 'ore')
-            label(ui, 'C przy Satuk 15 · dostawy automatyczne', x + 15, y + 126, 13, C.mint, 325);
-        else if (!complete && available && (task.kind === 'ore' || task.kind === 'parts'))
+        if (!complete && task.requirements) {
+            Object.entries(task.requirements).forEach(([id, needed], row) => {
+                const resource = id as ResourceId,
+                    have = c.bank[resource] ?? 0;
+                label(ui, RESOURCES[resource].name, x + 16, y + 110 + row * 20, 15, C.text);
+                label(
+                    ui,
+                    `${have}/${needed}`,
+                    x + 277,
+                    y + 110 + row * 20,
+                    15,
+                    have >= needed ? C.mint : C.gold,
+                );
+            });
+        }
+        if (!complete && task.kind === 'delivery' && task.resource) {
+            label(ui, RESOURCES[task.resource].name, x + 16, y + 150, 15, C.text, 245);
+            label(ui, `${p.progress[task.id]}/${task.target}`, x + 277, y + 150, 15, C.gold);
+        }
+        const reward = storyRewardText(task);
+        if (reward) label(ui, `Premia: ${reward}`, x + 16, y + 212, 13, C.mint, 325);
+        if (!complete && available && (task.kind === 'ore' || task.kind === 'parts'))
             button(
                 ui,
-                `PRZEKAŻ ${task.kind === 'parts' ? 'KOMPONENTY' : 'RUDĘ'} · ${Math.min(c.bank[task.kind === 'parts' ? 'parts' : 'ore'], task.target - p.progress[task.id])}`,
-                x + 15,
-                y + 120,
-                325,
+                `PRZEKAŻ ${task.kind === 'parts' ? 'KOMPONENTY' : 'RUDĘ'}`,
+                x + 16,
+                y + 164,
+                323,
                 () => actions.contribute?.(task.id),
                 false,
                 c.bank[task.kind === 'parts' ? 'parts' : 'ore'] > 0 && !!actions.contribute,
-                27,
+                28,
             );
         else if (!complete && available && task.kind === 'briefing')
             button(
                 ui,
                 'ZATWIERDŹ PLAN DO WENUS',
-                x + 15,
-                y + 120,
-                325,
+                x + 16,
+                y + 164,
+                323,
                 () => actions.briefing?.(),
                 false,
                 !!actions.briefing && !c.activeRun,
-                27,
-            );
-        else if (!complete && available && task.kind === 'workshop')
-            button(ui, 'OTWÓRZ STACJĘ', x + 15, y + 120, 325, actions.station, false, true, 27);
-        else if (!complete)
-            label(
-                ui,
-                available && task.kind === 'delivery'
-                    ? p.sector === 'lunar'
-                        ? 'C / E przy budowie na Księżycu'
-                        : `C / E przy ${p.sector === 'mars' ? 'bazie marsjańskiej' : 'placówce Wenus'}`
-                    : available && task.kind === 'construction'
-                      ? `${p.sector === 'mars' ? '7 baza' : '8 placówka'} · E przez 2 s · budowa podczas wyprawy`
-                      : available
-                        ? `Premia: ${resourceSummary(task.reward)}`
-                        : 'Zadanie zostanie udostępnione później.',
-                x + 15,
-                y + 126,
-                12,
-                C.muted,
-                325,
+                28,
             );
     });
     if (pages > 1) {
@@ -171,8 +177,8 @@ export function storyOverview(
         storyNextStep(p) ||
             (complete
                 ? p.sector === 'earth'
-                    ? 'Główne cele Ziemi ukończone. Możesz wybrać trasę księżycową; zadania dodatkowe pozostają dostępne.'
-                    : 'Stacja paliw odebrana. Zachowujesz dostęp do Ziemi i powierzchni Księżyca.'
+                    ? 'Akt I ukończony. Podejmij pościg ku Marsowi; zadania dodatkowe pozostają dostępne.'
+                    : 'Stacja księżycowa odebrana. Zachowujesz dostęp do Ziemi i powierzchni Księżyca.'
                 : p.sector === 'lunar'
                   ? 'Powierzchnia: E lub C dostarcza materiały, G rozpoczyna obronę. Raporty przyjmuje radio.'
                   : p.sector === 'earth'
@@ -211,9 +217,13 @@ export function storyOverview(
                         ? storyNextStep(p)
                         : 'Podejmij pościg w stronę Marsa. Rozpoznaj przekaźnik i zabezpiecz podejście, aby dotrzeć do pasa asteroid. Dalszy przelot wymaga nowej technologii.'
                     : actOneComplete(p)
-                      ? 'Stacja paliw działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
+                      ? 'Stacja księżycowa działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
                       : p.sector === 'earth'
-                        ? 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
+                        ? p.claimed.includes('lunar-survey')
+                            ? 'Sonda księżycowa zsynchronizowana. Rozbuduj placówkę na powierzchni; zasoby możesz przywozić z orbity Ziemi i bogatej asteroidy.'
+                            : p.claimed.includes('earth-relay')
+                              ? 'Trasy na Księżyc i do wraków satelit są otwarte. Przygotuj zaplecze Satuk 15 i nawiąż kontakt z sondą księżycową.'
+                              : 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
                         : storyNextStep(p),
         1072,
         320,
@@ -267,7 +277,7 @@ export function storyOverview(
         ui,
         c.ship?.hull === 'mule'
             ? 'Muł · darmowa samonaprawa, bez zestawów'
-            : `${Math.min(c.repairKits, REPAIR_KITS.embarkKits)} zest. naprawczych na pokład`,
+            : `Zestawy naprawcze: ${c.repairKits}`,
         1072,
         619,
         15,

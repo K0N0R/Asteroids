@@ -14,7 +14,7 @@ import {
     maxProduction,
     type ProductionScope,
 } from '../frontend/game/state/production';
-import { transferLunarResource, takeLunarRepairKit } from '../frontend/game/state/lunarIndustry';
+import { transferLunarResource } from '../frontend/game/state/lunarIndustry';
 import { MissionSimulation } from '../frontend/game/systems/mission';
 import { MOON } from '../frontend/game/worlds/moon';
 before(async () => RAPIER.init());
@@ -28,6 +28,7 @@ const idle = {
 function ready(hull: 'prospector' | 'mule' = 'prospector') {
     const c = newStoryCampaign();
     c.station.workshop = 1;
+    c.repairKits = 0;
     c.ship!.hull = hull;
     for (const t of STORY_TASKS.filter(
         (t) =>
@@ -68,8 +69,8 @@ test('local laboratory and workshop spend and store only the lunar inventory', (
         assert.equal(c.lunarStation.bank.water, 2);
         assert.ok(manufacture(c, 'plating', 1, scope));
         assert.ok(manufacture(c, 'kit', 1, scope));
-        assert.equal(c.lunarStation.repairKits, 1);
-        assert.equal(c.repairKits, 0);
+        assert.equal(c.repairKits, 1);
+        assert.equal(sim.repairKits, 1);
         assert.deepEqual(c.bank, remote);
         const before = structuredClone(c);
         assert.equal(manufacture(c, 'water'), false);
@@ -169,29 +170,31 @@ test('withdrawals cannot overfill a ship or overflow a station quantity', () => 
         sim.dispose();
     }
 });
-test('locally manufactured repair kits embark within the ship limit and Mule cannot spend them', () => {
+test('locally manufactured repair kits are immediately shared and Mule repair does not spend them', () => {
     const { c, sim, scope } = ready();
     try {
         c.lunarStation.bank.parts = 3;
         c.lunarStation.bank.conductors = 3;
         assert.ok(manufacture(c, 'kit', 3, scope));
-        assert.ok(takeLunarRepairKit(c, sim));
-        assert.equal(takeLunarRepairKit(c, sim), false);
-        assert.equal(c.activeRun!.repairKits, 2);
-        assert.equal(c.lunarStation.repairKits, 2);
-        assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
+        assert.equal(c.repairKits, 3);
+        assert.equal(sim.repairKits, 3);
+        assert.equal(Object.hasOwn(c.activeRun!, 'repairKits'), false);
+        assert.ok(parseCampaign(JSON.stringify(c)));
     } finally {
         sim.dispose();
     }
     const mule = ready('mule');
     try {
-        mule.c.lunarStation.repairKits = 1;
-        assert.equal(takeLunarRepairKit(mule.c, mule.sim), false);
-        assert.equal(mule.c.lunarStation.repairKits, 1);
+        mule.c.repairKits = 1;
+        mule.sim.hull = mule.sim.maxHull - 5;
+        for (let i = 0; i < 330; i++) mule.sim.step({ ...idle, repair: true });
+        assert.equal(mule.c.repairKits, 1);
+        assert.equal(mule.sim.hull, mule.sim.maxHull);
     } finally {
         mule.sim.dispose();
     }
 });
+
 test('holding E requests the local station once and rejects access during movement or before modules', () => {
     const { c, sim } = ready();
     try {

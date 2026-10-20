@@ -5,7 +5,7 @@ import type { Point } from '../worlds/sector';
 
 export const RESCUE_OPERATION = {
     id: -90001,
-    site: { x: 1450, y: -1100 },
+    site: { x: 1050, y: -700 },
     range: 170,
     attachSeconds: 3,
 } as const;

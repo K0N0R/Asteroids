@@ -33,3 +33,12 @@ export function droneReplacementBill(count: number): ResourceStore {
         Object.entries(DRONE_REPLACEMENT).map(([id, amount]) => [id, amount * count]),
     );
 }
+
+/** Raw stock that makes the complete first upgrade through the level-zero recipes. */
+export const STARTER_MATERIALS = {
+    ore: 4,
+    carbon: 1,
+    copperOre: 4,
+    crystals: 3,
+    oxygen: 2,
+} as const satisfies ResourceStore;

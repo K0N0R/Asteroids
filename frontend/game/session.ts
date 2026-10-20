@@ -1,5 +1,4 @@
 import { LunarStationView } from './ui/lunarStation';
-import type { ResourceStore } from './state/resources';
 import { RESOURCE_IDS, RESOURCES } from './state/resources';
 import { manufacture } from './state/production';
 import { installKineticUpgrade } from './state/kineticIndustry';
@@ -155,8 +154,8 @@ export class GameSession {
                         : 'Brak materiałów lub zadanie niedostępne.',
                 );
             },
-            launch: (recoveryId, loadConstruction, missionTask, supplies) =>
-                this.launch(recoveryId, loadConstruction, missionTask, supplies),
+            launch: (recoveryId, loadConstruction, missionTask) =>
+                this.launch(recoveryId, loadConstruction, missionTask),
             equipWeapon: (weapon) =>
                 this.change(() => equipWeapon(this.campaign, weapon), 'Uzbrojenie zamontowane.'),
             upgrade: (upgrade) =>
@@ -626,21 +625,11 @@ export class GameSession {
         recoveryId: number | null = null,
         loadConstruction = false,
         missionTask: string | null = null,
-        supplies: ResourceStore = {},
     ) {
         if (this.launching || this.mission || this.hasOverlay) return;
         this.launching = true;
         const randomSeed = crypto.getRandomValues(new Uint32Array(1))[0];
-        if (
-            !beginRun(
-                this.campaign,
-                randomSeed,
-                recoveryId,
-                loadConstruction,
-                missionTask,
-                supplies,
-            )
-        ) {
+        if (!beginRun(this.campaign, randomSeed, recoveryId, loadConstruction, missionTask)) {
             this.launching = false;
             return;
         }
@@ -697,7 +686,6 @@ export class GameSession {
             uiCue('launch');
         } catch (error) {
             // Initialization failures are not gameplay deaths.
-            this.campaign.repairKits += this.campaign.activeRun!.repairKits;
             const freight = this.campaign.activeRun!.freight;
             if (freight) {
                 for (const id of RESOURCE_IDS)
@@ -901,7 +889,8 @@ export class GameSession {
                     data: [...sim.surveyData],
                     kills: sim.enemyKills,
                     equipment: sim.stolenEquipment,
-                    recycledWreck: sim.recycledWreck,
+                    recycledWreck:
+                        sim.recycledWreck === 'satellite' ? undefined : sim.recycledWreck,
                     destroyedRecoveryId: sim.recoveryDestroyed ? sim.recoverySignal?.id : undefined,
                 },
             );

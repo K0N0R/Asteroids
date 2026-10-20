@@ -177,6 +177,7 @@ export const OUTPOST = {
     alarmSeconds: 8,
 } as const;
 export const SCAN_SITES = {
+    lunarProbe: { name: 'Sonda księżycowa', key: 8 },
     relay: { name: 'Przekaźnik Lumen', key: 7 },
     archive: { name: 'Obserwatorium Mnemos', key: 8 },
     outpost: { name: 'Dane placówki Cerber', key: 0 },
@@ -659,7 +660,7 @@ export const STINGER_AMMO = {
     armor: { damage: 12, interval: 0.4, speed: 1500, life: 1, patrol: 0.45, lancer: 1.5 },
 } as const;
 
-export const REPAIR_KITS = { kitLimit: 10, embarkKits: 2 } as const;
+export const REPAIR_KITS = { kitLimit: 10 } as const;
 export const PILOT_PROGRESSION = {
     thresholds: [0, 20, 50, 90, 140],
     skillLimit: 2,

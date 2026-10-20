@@ -197,7 +197,7 @@ export class MoonSurfaceView extends Container {
                     : 'Budowa · dostarcz części modułów',
                 'Rozbudowa · Żelazo (Fe) i Węgiel (C)',
                 'Instalacje gotowe · E odbiór',
-                'Stacja paliw · odbiór zakończony',
+                'Stacja księżycowa · odbiór zakończony',
             ][stage],
         );
     }

@@ -474,7 +474,7 @@ export function wreckView() {
 export function surveySiteView(site: ScanSiteId) {
     const view = new Container(),
         g = new Graphics();
-    if (site === 'relay') {
+    if (site === 'relay' || site === 'lunarProbe') {
         g.roundRect(-35, -30, 70, 60, 14).fill(0x9cacc7);
         g.roundRect(-53, -4, 106, 8, 4).fill(C.cyan);
         for (const x of [-110, 50]) {
@@ -513,7 +513,7 @@ export function surveySiteView(site: ScanSiteId) {
         g.rect(-4, -6, 8, 12).fill(C.gold);
     }
     // Glazed instruments and inset service panels share the fleet material language.
-    if (site === 'relay') {
+    if (site === 'relay' || site === 'lunarProbe') {
         visor(g, 0, 0, 16, 12);
         for (const y of [-21, 21]) g.roundRect(-27, y - 2, 18, 4, 1).fill(0xa1afb4);
     } else {

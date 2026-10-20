@@ -16,7 +16,7 @@ import {
 import {
     contributeStory,
     syncStory,
-    travelStory,
+    recordMoonArrival,
     constructionManifest,
     lunarBuildStage,
     deliverLunarCargo,
@@ -50,10 +50,8 @@ function lunarReady() {
     buyUpgrade(c, 'workshop');
     syncStory(c);
     beginRun(c, 1);
-    finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 1, { data: ['archive'] });
-    travelStory(c, 'lunar');
-    beginRun(c, 1);
-    finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 1, { data: ['relay'] });
+    recordMoonArrival(c);
+    finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 1, { data: ['lunarProbe'] });
     grantLunarProcessing(c);
     return c;
 }
@@ -85,11 +83,34 @@ function steer(s: MissionSimulation, target: { x: number; y: number }, radius = 
         brake: s.speed > 20 && (distance < radius + stop || Math.abs(error) > 0.6),
     };
 }
-function fly(s: MissionSimulation, target: { x: number; y: number }, action: () => boolean) {
+function fly(
+    s: MissionSimulation,
+    target: { x: number; y: number },
+    action: () => boolean,
+    minePath = false,
+) {
+    // The Moon is now an island reached by a gate, not a normal-flight corridor.
+    if (
+        s.area === 'orbit' &&
+        ((target === MOON.entrance && s.position.y > -2500) ||
+            (target.x === 0 && target.y === 0 && s.position.y < -2500))
+    ) {
+        const lane = s.sector.hyperlanes[0];
+        const from = target === MOON.entrance ? lane.a : lane.b;
+        fly(
+            s,
+            from,
+            () => Math.hypot(s.position.x - from.x, s.position.y - from.y) < 100 && s.speed < 30,
+        );
+        s.step({ ...idle, hyperdrive: true });
+        for (let i = 0; i < 150; i++) s.step(idle);
+        assert.equal(s.ended, null);
+    }
     s.step(idle);
     for (let frame = 0; frame < 60 * 100 && !s.ended && !action(); frame++) {
         s.step({
             ...steer(s, target),
+            mine: minePath,
             interact: Math.hypot(target.x - s.position.x, target.y - s.position.y) < 160,
         });
         s.events.length = 0;
@@ -208,7 +229,7 @@ test('construction requires real surface deliveries and radio confirmation; rewa
         assert.ok(beginRun(c, 1, null, true));
         const s = new MissionSimulation(c, c.activeRun!.seed);
         try {
-            // Fly normally from Satuk 15 through both approaches and back.
+            // Fly to the gate, cross by hyperdrive, land and bring the same ship back.
             s.step(idle);
             fly(s, MOON.entrance, () => s.area === 'surface');
             assert.equal(resourceTotal(s.cargo), resourceTotal(manifest));
@@ -326,11 +347,12 @@ test('surface quarry supports actual mining and collection with the starter ship
         assert.ok(s.cargo.ore > 0);
         assert.equal(s.cargo.parts, 0, 'natural rocks do not contain manufactured parts');
         assert.ok(s.statistics.rocksDestroyed > 0);
-        // Leave the solid quarry around its northern edge before approaching construction.
+        // Clear a route out of the quarry before approaching construction.
         fly(
             s,
             { x: s.position.x, y: MOON.construction.y - 150 },
             () => Math.abs(s.position.y - (MOON.construction.y - 150)) < 120,
+            true,
         );
         fly(s, MOON.construction, () => c.story!.progress['lunar-foundation'] > 0);
     } finally {

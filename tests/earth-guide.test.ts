@@ -68,7 +68,7 @@ test('goals follow the real task, carried resources and selected mission without
     assert.equal(earthGuideGoal(c, empty).id, 'workshop');
     grant(c, 'earth-workshop');
     c.station.workshop = 1;
-    assert.equal(earthGuideGoal(c, empty).id, 'archive');
+    assert.equal(earthGuideGoal(c, empty).id, 'moon-gate');
     grant(c, 'earth-route');
     assert.equal(earthGuideGoal(c, empty).id, 'return');
     const selected = newStoryCampaign();
@@ -166,7 +166,7 @@ test('physical route planning avoids a large asteroid, reaches the approach and 
     }
 });
 
-test('instructor warns once then ignores player range without teleporting', () => {
+test('instructor silently ignores player range without teleporting', () => {
     const world = new RAPIER.World({ x: 0, y: 0 }),
         c = newStoryCampaign(),
         cargo = { ore: 0, parts: 0 };
@@ -180,7 +180,7 @@ test('instructor warns once then ignores player range without teleporting', () =
         }
         assert.notEqual(g.waitingReason, 'player');
         assert.ok(Math.hypot(g.position.x - start.x, g.position.y - start.y) > 100);
-        assert.equal(messages.filter((t) => t.includes('Oddaliliśmy')).length, 1);
+        assert.equal(messages.filter((t) => t.includes('Oddaliliśmy')).length, 0);
         for (let i = 0; i < 300; i++) {
             g.guide(1 / 60, c, cargo, g.position, [], (t) => messages.push(t));
             world.step();

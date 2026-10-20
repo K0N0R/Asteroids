@@ -1,5 +1,12 @@
-import { segmentDistance } from '../systems/hyperdrive';
+import {
+    earthSystemLanes,
+    earthSystemZones,
+    LUNAR_PROBE,
+    SATELLITE_FIELD,
+    ASTEROID_FIELD,
+} from './earthSystem';
 import { driftingField } from './asteroidFields';
+import { segmentDistance } from '../systems/hyperdrive';
 import { MERCURY_VEINS } from './mercuryVeins';
 import { generateSector, random, type RockSpec, type EnemySpec } from './sector';
 import {
@@ -22,7 +29,7 @@ import {
 } from '../state/story';
 import { MERCURY_SHELTERS } from '../systems/solarExposure';
 import { ENEMY_FACTORY } from '../systems/enemyFactory';
-import { MOON } from './moon';
+import { MOON, inEarthSystem } from './moon';
 
 const MARS_CORRIDOR_POINTS = [
     { x: 1400, y: -1500 },
@@ -78,22 +85,20 @@ export function generateStorySector(progress: StoryProgress) {
             siteId: 'relay',
             radius: 180,
         },
-        ...(earth && radius > 1450
+        ...(!earth
             ? [
                   {
-                      x: -1750,
-                      y: 700,
-                      name: 'Węzeł dalszej orbity',
-                      key: 8,
-                      kind: 'archive' as const,
-                      siteId: 'archive' as const,
-                      radius: 180,
+                      x: 850,
+                      y: -550,
+                      name: 'Pozostałości konstrukcji',
+                      key: 4,
+                      kind: 'wreck' as const,
+                      radius: 100,
                   },
               ]
             : []),
-        { x: 850, y: -550, name: 'Pozostałości konstrukcji', key: 4, kind: 'wreck', radius: 100 },
     ];
-    if (progress.sector === 'lunar' && progress.claimed.includes('lunar-survey')) {
+    if (inEarthSystem(progress.sector) && progress.claimed.includes('lunar-survey')) {
         sector.landmarks.push(
             {
                 ...MOON.entrance,
@@ -116,7 +121,7 @@ export function generateStorySector(progress: StoryProgress) {
                 key: 7,
                 kind: 'construction',
                 siteId: 'archive',
-                name: 'Budowa stacji paliw',
+                name: 'Budowa stacji księżycowej',
                 radius: 180,
             },
             {
@@ -139,7 +144,7 @@ export function generateStorySector(progress: StoryProgress) {
     }
     sector.rocks = Array.from({ length: earth ? 23 : 48 }, (_, i): RockSpec => {
         const angle = rng() * Math.PI * 2,
-            distance = 880 + rng() * (radius - 1050);
+            distance = 880 + rng() * ((earth ? 1450 : radius) - 1050);
         return {
             x: i < 9 ? 1100 + (fieldRng() - 0.5) * 440 : Math.cos(angle) * distance,
             y: i < 9 ? (fieldRng() - 0.5) * 540 : Math.sin(angle) * distance,
@@ -155,7 +160,7 @@ export function generateStorySector(progress: StoryProgress) {
             .filter((l) => l.siteId || l.kind === 'wreck' || l.kind === 'passage')
             .every((l) => Math.hypot(r.x - l.x, r.y - l.y) > r.radius + 220),
     );
-    if (progress.sector === 'lunar' && progress.claimed.includes('lunar-survey')) {
+    if (inEarthSystem(progress.sector) && progress.claimed.includes('lunar-survey')) {
         // Keep the introductory approach clear; mining fields remain outside this corridor.
         sector.rocks = sector.rocks.filter((r) => {
             const end = MOON.entrance;
@@ -195,7 +200,7 @@ export function generateStorySector(progress: StoryProgress) {
             });
         }
     }
-    if (progress.sector === 'lunar' && progress.claimed.includes('lunar-survey')) {
+    if (inEarthSystem(progress.sector) && progress.claimed.includes('lunar-survey')) {
         // Irregular, attached outcrops; broken fragments become loose bodies.
         for (let i = 0; i < 12; i++) {
             const angle = rng() * Math.PI * 2;
@@ -915,42 +920,40 @@ export function generateStorySector(progress: StoryProgress) {
         const field = sector.landmarks.find((l) => l.key === 2);
         if (field) field.name = 'Złoże pierwiastków';
     }
-    if (earth && progress.claimed.includes('earth-workshop')) {
-        sector.rocks.push({
-            x: 130,
-            y: -4500,
-            radius: 125,
-            rich: true,
-            variant: 777,
-            vx: 0.7,
-            vy: 0.4,
-        });
-        sector.hyperlanes = [
-            { name: 'Zewnętrzne złoża', a: { x: 0, y: -1300 }, b: { x: 0, y: -4100 } },
+    if (earth && progress.claimed.includes('earth-relay')) {
+        sector.hyperlanes = earthSystemLanes(progress);
+        sector.regions = earthSystemZones(progress);
+        sector.landmarks = sector.landmarks.filter((l) => l.kind !== 'wreck');
+        sector.landmarks.push(
+            { ...SATELLITE_FIELD, key: 4, kind: 'field' },
             {
-                name: 'Zewnętrzne złoża · śluza zachodnia',
-                a: { x: -1100, y: -400 },
-                b: { x: -450, y: -4100 },
+                ...LUNAR_PROBE,
+                key: 8,
+                kind: 'relay',
+                siteId: 'lunarProbe',
+                radius: 120,
+                name: 'Sonda księżycowa',
             },
-        ];
-        sector.regions = [
-            { x: 0, y: 0, name: 'Satuk 15 / bliska orbita', radius: 1400 },
-            { x: -1750, y: 700, name: 'Węzeł łączności', radius: 600 },
-            { x: 0, y: -4500, name: 'Metaliczne złoże', radius: 700 },
-        ];
+        );
+        if (progress.claimed.includes('lunar-survey')) {
+            sector.landmarks.push({ ...ASTEROID_FIELD, key: 5, kind: 'field' });
+            sector.rocks.push(
+                {
+                    x: ASTEROID_FIELD.x,
+                    y: ASTEROID_FIELD.y,
+                    radius: 180,
+                    rich: true,
+                    copper: true,
+                    variant: 777,
+                    vx: 0.6,
+                    vy: 0.3,
+                    anchored: true,
+                },
+                ...driftingField(def.seed ^ 0x7070, ASTEROID_FIELD, sector.hyperlanes),
+            );
+        }
         sector.rocks = sector.rocks.filter((r) =>
             sector.hyperlanes.every((l) => segmentDistance(r, l.a, l.b) > r.radius + 150),
-        );
-        sector.landmarks.push({
-            x: 0,
-            y: -4500,
-            name: 'Dryfujące złoża Fe / Cu',
-            key: 5,
-            kind: 'field',
-            radius: 450,
-        });
-        sector.rocks.push(
-            ...driftingField(def.seed ^ 0x7070, { x: 0, y: -4500 }, sector.hyperlanes),
         );
     }
     // Seeded rejection sampling removes rows, rings and overlapping orbital deposits.

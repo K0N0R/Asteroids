@@ -1,3 +1,4 @@
+import { inEarthSystem } from '../worlds/moon';
 import { lunarProcessingReady, lunarConstructionReady } from './lunarConstruction';
 import type { Campaign } from './campaign';
 import { REPAIR_KITS } from '../config';
@@ -13,18 +14,16 @@ function productionContext(c: Campaign, scope: ProductionScope) {
     if (scope.site === 'satuk')
         return {
             bank: c.bank,
-            owner: c,
             level: c.station.workshop,
             blocked: c.activeRun ? 'Produkcja dostępna po powrocie do bazy.' : null,
         };
     const ready =
-        c.story?.sector === 'lunar' &&
-        c.activeRun?.sector === 'lunar' &&
+        inEarthSystem(c.story?.sector) &&
+        inEarthSystem(c.activeRun?.sector) &&
         lunarProcessingReady(c.story) &&
         scope.canAccess?.();
     return {
         bank: c.lunarStation.bank,
-        owner: c.lunarStation,
         level: c.story && lunarConstructionReady(c.story) ? 1 : 0,
         blocked: ready ? null : 'Produkcja wymaga postoju przy działającej bazie księżycowej.',
     };
@@ -38,8 +37,7 @@ export function productionPreview(
 ) {
     const context = productionContext(c, scope);
     const recipe: ProcessRecipe = RECIPES[id];
-    const outputHave =
-        recipe.output === 'kit' ? context.owner.repairKits : (context.bank[recipe.output] ?? 0);
+    const outputHave = recipe.output === 'kit' ? c.repairKits : (context.bank[recipe.output] ?? 0);
     return {
         ingredients: RESOURCE_IDS.filter((r) => (recipe.inputs[r] ?? 0) > 0).map((resource) => ({
             resource,
@@ -69,17 +67,12 @@ export function productionLock(
         !c.story.claimed.includes('mercury-survey')
     )
         return 'Najpierw badania na Merkurym.';
-    if (
-        recipe.output === 'kit' &&
-        context.owner.repairKits + recipe.amount * batches > REPAIR_KITS.kitLimit
-    )
+    if (recipe.output === 'kit' && c.repairKits + recipe.amount * batches > REPAIR_KITS.kitLimit)
         return 'Osiągnięto limit zestawów naprawczych.';
     if (
         !Number.isSafeInteger(
             recipe.amount * batches +
-                (recipe.output === 'kit'
-                    ? context.owner.repairKits
-                    : (context.bank[recipe.output] ?? 0)),
+                (recipe.output === 'kit' ? c.repairKits : (context.bank[recipe.output] ?? 0)),
         )
     )
         return 'Zbyt duża partia.';
@@ -103,8 +96,7 @@ export function maxProduction(
             Math.floor((context.bank[r] ?? 0) / recipe.inputs[r]!),
         ),
     );
-    const existing =
-        recipe.output === 'kit' ? context.owner.repairKits : (context.bank[recipe.output] ?? 0);
+    const existing = recipe.output === 'kit' ? c.repairKits : (context.bank[recipe.output] ?? 0);
     count = Math.min(
         count,
         Math.floor(
@@ -131,7 +123,7 @@ export function manufacture(
         const amount = (recipe.inputs[resource] ?? 0) * batches;
         if (amount) context.bank[resource] = (context.bank[resource] ?? 0) - amount;
     }
-    if (recipe.output === 'kit') context.owner.repairKits += recipe.amount * batches;
+    if (recipe.output === 'kit') c.repairKits += recipe.amount * batches;
     else context.bank[recipe.output] = (context.bank[recipe.output] ?? 0) + recipe.amount * batches;
     return true;
 }

@@ -233,9 +233,9 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                                   ? '8 placówka · E budowa · G obrona. Osłonę przygotujesz w stacji.'
                                   : c.story?.sector === 'mars'
                                     ? 'Raporty walk i odczyty zabezpieczysz po powrocie. Pas wymaga nowej technologii.'
-                                    : c.story?.sector === 'lunar'
-                                      ? 'Dostawy zostają na budowie. Raport odbioru dowieź do Satuk 15.'
-                                      : 'Dane zabezpieczysz po powrocie. Rudę przekażesz w stacji.'
+                                    : s.area === 'surface'
+                                      ? 'Dostawy zostają na budowie. Odbiór techniczny potwierdzi radio.'
+                                      : 'Odczyty potwierdza radio. C przy Satuk 15 przekazuje ładunek do magazynu.'
                               : objectives
                                 ? 'Próba lokalna · bez nagród i strat w kampanii'
                                 : `Premia po powrocie: ${contract.rewardOre} rudy · ${contract.rewardParts} komponentów`,
@@ -287,7 +287,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                         : `Cerber: E magazyn · ${WEAPONS[s.outpostEquipment].name} / 3 miejsca`
                     : s.outpost.alarm > 0
                       ? `Cerber: alarm · ${Math.ceil(s.outpost.alarm)} s`
-                      : 'Cerber: E dane · G sabotaż: 3 s / 1 komponent',
+                      : 'Cerber: E dane · G przekierowanie zasilania',
             860,
             697,
             13,

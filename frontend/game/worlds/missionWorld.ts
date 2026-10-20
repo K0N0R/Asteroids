@@ -1,3 +1,4 @@
+import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { itemIllustration } from '../graphics/items';
 import { RESOURCES, RESOURCE_IDS, type ResourceId } from '../state/resources';
 import { anomalyFieldView, recoveryProbeView } from '../graphics/anomalyFieldView';
@@ -185,32 +186,7 @@ export class MissionWorld extends Container {
         this.camera.addChild(this.moon, this.venusOutpost, this.solarShadows);
         if (simulation.anomalyMission) this.camera.addChild(anomalyFieldView());
         this.camera.addChild(this.navigation, this.routes, this.shield, this.home);
-        for (const region of simulation.sector.regions)
-            this.routes
-                .circle(region.x, region.y, region.radius)
-                .stroke({ color: C.cyan, width: 2, alpha: 0.1 });
-        for (const lane of simulation.sector.hyperlanes) {
-            this.routes
-                .moveTo(lane.a.x, lane.a.y)
-                .lineTo(lane.b.x, lane.b.y)
-                .stroke({ color: 0xa3a9f2, width: 3, alpha: 0.18 });
-            for (const point of [lane.a, lane.b]) {
-                this.routes
-                    .circle(point.x, point.y, 110)
-                    .stroke({ color: 0xa3a9f2, width: 4, alpha: 0.8 })
-                    .circle(point.x, point.y, 85)
-                    .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
-                const view = worldLabel(
-                    this.camera,
-                    `K · Śluza / ${lane.name}`,
-                    point.x,
-                    point.y + 135,
-                    16,
-                    0xb5baff,
-                );
-                this.gateLabels.push({ view, origin: point });
-            }
-        }
+        this.syncRoutes();
         this.homeTitle = worldLabel(this.home, simulation.stationName, 0, 165, 18, C.mint);
         const wreck = wreckView(),
             w = simulation.sector.landmarks.find((l) => l.kind === 'wreck');
@@ -344,7 +320,46 @@ export class MissionWorld extends Container {
         this.addChild(this.camera, this.solarGlare, this.transfer, this.journeyOverlay);
         this.render(1);
     }
+    private routeSignature = '';
+    private syncRoutes() {
+        const signature = JSON.stringify([
+            this.simulation.sector.hyperlanes,
+            this.simulation.sector.regions,
+        ]);
+        if (signature === this.routeSignature) return;
+        this.routeSignature = signature;
+        this.routes.clear();
+        for (const item of this.gateLabels) destroyDisplayTree(item.view);
+        this.gateLabels = [];
+        for (const region of this.simulation.sector.regions)
+            this.routes
+                .circle(region.x, region.y, region.radius)
+                .stroke({ color: C.cyan, width: 2, alpha: 0.1 });
+        for (const lane of this.simulation.sector.hyperlanes) {
+            this.routes
+                .moveTo(lane.a.x, lane.a.y)
+                .lineTo(lane.b.x, lane.b.y)
+                .stroke({ color: 0xa3a9f2, width: 3, alpha: 0.18 });
+            for (const point of [lane.a, lane.b]) {
+                this.routes
+                    .circle(point.x, point.y, 110)
+                    .stroke({ color: 0xa3a9f2, width: 4, alpha: 0.8 })
+                    .circle(point.x, point.y, 85)
+                    .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
+                const view = worldLabel(
+                    this.camera,
+                    `K · Śluza / ${lane.name}`,
+                    point.x,
+                    point.y + 135,
+                    16,
+                    0xb5baff,
+                );
+                this.gateLabels.push({ view, origin: point });
+            }
+        }
+    }
     private updateJourney(dt: number) {
+        this.syncRoutes();
         const s = this.simulation,
             g = this.journeyInk.clear(),
             dead = s.ended === 'destroyed';
@@ -1218,7 +1233,8 @@ export class MissionWorld extends Container {
         for (const site of s.sector.landmarks) {
             if (!site.siteId) continue;
             if (!this.surveyViews.has(site.siteId)) {
-                const added = surveySiteView(site.siteId);
+                const added =
+                    site.kind === 'construction' ? new Container() : surveySiteView(site.siteId);
                 added.position.set(site.x, site.y);
                 this.surveyLabels.set(
                     site.siteId,
@@ -1507,8 +1523,11 @@ export class MissionWorld extends Container {
             if (item.source === 'recovery') continue;
             let view = this.salvageViews.get(item.id);
             if (!view) {
-                const drone = new DroneView(item.source);
-                drone.flame.visible = false;
+                const drone =
+                    item.source === 'satellite'
+                        ? surveySiteView('relay')
+                        : new DroneView(item.source);
+                if (drone instanceof DroneView) drone.flame.visible = false;
                 drone.alpha = 0.75;
                 const scars = new Graphics()
                     .moveTo(-15, -10)
@@ -1731,10 +1750,11 @@ export class MissionWorld extends Container {
             view.alpha = 0.8 + Math.sin(this.clock * 3 + item.id) * 0.2;
         }
         this.navigation.clear();
-        for (const zone of s.magneticZones) {
+        for (const edge of magneticBoundaryArcs(s.magneticZones)) {
             this.navigation
-                .circle(zone.x, zone.y, zone.radius)
-                .stroke({ color: C.cyan, width: 2, alpha: 0.16 });
+                .beginPath()
+                .arc(edge.x, edge.y, edge.radius, edge.start, edge.end)
+                .stroke({ color: C.red, width: 10, alpha: 0.5 });
         }
         for (const relay of s.magneticRelays.filter((r) => r.id !== 0)) {
             let view = this.magneticRelayViews.get(relay.id);

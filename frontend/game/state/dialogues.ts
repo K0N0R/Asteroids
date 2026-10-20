@@ -59,7 +59,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
         lines: [
             {
                 speaker: 'science',
-                text: 'Łączność przywrócona. Mamy współrzędne węzła na dalszej orbicie. Jego odczyt pozwoli przygotować trasę ku Księżycowi.',
+                text: 'Łączność przywrócona. Otworzyliśmy dwie śluzy: na Księżyc i do wraków satelit. Wraki są dodatkową okazją do odzyskania części na Swifta; na Księżyc możesz lecieć Prospectorem.',
             },
             {
                 speaker: 'operations',
@@ -80,11 +80,28 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
         lines: [
             {
                 speaker: 'operations',
-                text: 'Warsztat działa, a trasa została potwierdzona. Możemy skierować Satuk 15 do rejonu Księżyca i przygotować budowę stacji paliw.',
+                text: 'Warsztat działa, a trasa została potwierdzona. Przywieź części przez śluzę do Księżyca i przygotuj budowę placówki.',
             },
             {
                 speaker: 'science',
-                text: 'Zacznij od rozpoznania trasy księżycowej. Wcześniejsze obszary pozostają dostępne — możesz wrócić po zasoby i dokończyć zadania dodatkowe.',
+                text: 'Zsynchronizuj sondę księżycową. Otworzy lądowanie i śluzę do bogatej asteroidy. Wcześniejsze obszary pozostają dostępne — możesz wrócić po zasoby i dokończyć zadania dodatkowe.',
+            },
+        ],
+    },
+    {
+        id: 'earth-act-one-finale',
+        title: 'Pościg ku Marsowi',
+        sector: 'earth',
+        after: ['earth-lunar-route'],
+        tasks: ['lunar-attack'],
+        lines: [
+            {
+                speaker: 'operations',
+                text: 'Odparliśmy atak na stację księżycową. Napastnicy wycofali się w stronę Marsa. Musimy ruszyć ich śladem i ustalić, kto kieruje tymi jednostkami.',
+            },
+            {
+                speaker: 'science',
+                text: 'Ziemia, Księżyc i nasze placówki pozostają dostępne. Przygotuj statek do pościgu; niewykonane zadania dodatkowe możesz dokończyć później.',
             },
         ],
     },

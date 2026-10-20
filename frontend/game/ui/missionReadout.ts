@@ -170,11 +170,7 @@ export function flightHint(s: MissionSimulation) {
             : 'E  Otwórz skrytkę · przytrzymaj 2,5 s';
     if (s.nearbyOutpost) {
         if (s.speed > OUTPOST.interactSpeed) return 'S  Wyhamuj przy terminalu · <60 m/s';
-        const sabotage = s.outpost.sabotaged
-            ? ''
-            : s.cargo.parts >= 1
-              ? ' · G  Zasilanie: minigra / 1 komponent'
-              : ' · Sabotaż wymaga 1 komponentu w ładowni';
+        const sabotage = s.outpost.sabotaged ? '' : ' · G  Zasilanie: minigra';
         const action =
             s.storyMode && s.outpost.secured
                 ? 'Dane zabezpieczone · raport przez radio · Satuk 15'

@@ -1,10 +1,9 @@
-import { REPAIR_KITS } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { capacity } from '../state/campaign';
 import type { MissionSimulation } from '../systems/mission';
 import { manufacture, type ProductionScope } from '../state/production';
-import { transferLunarResource, takeLunarRepairKit } from '../state/lunarIndustry';
+import { transferLunarResource } from '../state/lunarIndustry';
 import { RESOURCE_IDS, RESOURCES, resourceTotal, type ResourceId } from '../state/resources';
 import { RECIPES, type RecipeId } from '../state/chemistry';
 import { itemIllustration } from '../graphics/items';
@@ -179,28 +178,7 @@ export class LunarStationView extends Container {
                 30,
             );
         }
-        label(
-            this,
-            `Zestawy naprawcze w bazie: ${c.lunarStation.repairKits}`,
-            304,
-            752,
-            16,
-            C.muted,
-        );
-        button(
-            this,
-            'ZABIERZ ZESTAW',
-            660,
-            742,
-            326,
-            () => this.change(() => takeLunarRepairKit(c, sim)),
-            false,
-            c.lunarStation.repairKits > 0 &&
-                sim.hullId !== 'mule' &&
-                sim.repairKits < REPAIR_KITS.embarkKits,
-            38,
-            14,
-        );
+        label(this, `Dostępne zestawy naprawcze: ${c.repairKits}`, 304, 752, 16, C.muted);
         const id = this.item,
             held = sim.cargo[id] ?? 0,
             stored = bank[id] ?? 0;

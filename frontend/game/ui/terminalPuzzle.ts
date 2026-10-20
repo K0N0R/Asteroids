@@ -140,7 +140,7 @@ export function terminalPuzzlePanel(
     );
     label(
         ui,
-        'Świat działa. Trafienie, ruch, utrata zasięgu lub przerwanie nie wydają nagrody ani nie zużywają komponentu.',
+        'Ruch, trafienie lub utrata zasięgu przerywają połączenie.',
         360,
         766,
         12,

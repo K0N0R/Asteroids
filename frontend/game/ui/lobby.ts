@@ -4,19 +4,14 @@ import { HULL_CONSTRUCTION, HULL_PARTS, hasHullParts } from '../state/fleetConst
 import { itemIllustration } from '../graphics/items';
 import { stationShieldContent, stationDronesContent } from './stationShield';
 import { laboratoryOverview, workshopOverview } from './production';
-import {
-    RESOURCE_IDS,
-    RESOURCES,
-    resourceTotal,
-    resourceSummary,
-    type ResourceStore,
-} from '../state/resources';
+import { RESOURCE_IDS, RESOURCES, resourceTotal, resourceSummary } from '../state/resources';
 import { hullUnlockReason } from '../state/fleetUnlocks';
 import { latestDialogue } from '../state/dialogues';
 import { storyOverview } from './storyOverview';
 import {
     STORY_SECTORS,
-    constructionManifest,
+    constructionLoadLock,
+    constructionDeliveryTasks,
     actOneComplete,
     actTwoComplete,
     storyAct,
@@ -28,7 +23,6 @@ import { ATLAS_WEAPONS, GAME, PHOENIX, STINGER_AMMO, WEAPONS, type WeaponId } fr
 import { Container, Graphics } from 'pixi.js';
 import {
     CONTRACTS,
-    REPAIR_KITS,
     FLEET_LIMIT,
     HULLS,
     HullId,
@@ -95,7 +89,6 @@ export interface LobbyActions {
         recoveryId: number | null,
         loadConstruction?: boolean,
         missionTask?: string | null,
-        supplies?: ResourceStore,
     ) => void;
     equipWeapon: (weapon: WeaponId) => void;
     upgrade: (upgrade: Upgrade) => void;
@@ -148,7 +141,7 @@ export class LobbyView extends Container {
     private laboratoryRecipe: RecipeId = 'water';
     private workshopRecipe: RecipeId = 'plating';
     private inventoryPage = 0;
-    private supplyParts = 0;
+    private loadConstruction = false;
     private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield' = 'engine';
     private scrapCandidate: number | null = null;
     private recoveryId: number | null = null;
@@ -166,7 +159,7 @@ export class LobbyView extends Container {
     resetProfile() {
         this.recipeHistory = [];
         this.tab = 'overview';
-        this.supplyParts = 0;
+        this.loadConstruction = false;
         this.storyPage = 0;
         this.storyPageSector = null;
         this.scrapCandidate = null;
@@ -287,7 +280,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.90', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.93', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
@@ -341,25 +334,45 @@ export class LobbyView extends Container {
     }
     private departure(ui: Container) {
         const c = this.campaign,
-            ready = !!c.ship && !!selectedPilot(c);
-        if (ready)
+            ready = !!c.ship && !!selectedPilot(c),
+            delivery = constructionDeliveryTasks(c)[0],
+            cargoPurpose =
+                delivery?.sector === 'lunar'
+                    ? 'stację księżycową'
+                    : delivery?.sector === 'mars'
+                      ? 'bazę marsjańską'
+                      : 'placówkę Wenus',
+            loadLock = constructionLoadLock(c);
+        if (this.loadConstruction && loadLock) this.loadConstruction = false;
+        if (ready && delivery) {
             button(
                 ui,
-                `Zabierz poszycie I: ${this.supplyParts} · zmień`,
+                `Zabierz ładunek na ${cargoPurpose}`,
                 1072,
-                670,
+                650,
                 456,
                 () => {
-                    const choices = [0, 1, 2, 5];
-                    this.supplyParts =
-                        choices[(choices.indexOf(this.supplyParts) + 1) % choices.length];
+                    this.loadConstruction = !this.loadConstruction;
                     this.refresh();
                 },
-                false,
-                !c.activeRun,
-                30,
-                14,
+                this.loadConstruction,
+                !c.activeRun && !loadLock,
+                36,
+                15,
             );
+            label(
+                ui,
+                loadLock ??
+                    (this.loadConstruction
+                        ? 'Kompletny ładunek wybrany do transportu.'
+                        : 'Kompletny ładunek gotowy do transportu.'),
+                1072,
+                693,
+                13,
+                loadLock ? C.gold : C.mint,
+                456,
+            );
+        }
         button(
             ui,
             ready ? 'WYLOT DO SEKTORA →' : !c.ship ? 'PRZYGOTUJ STATEK →' : 'ZATRUDNIJ PILOTA →',
@@ -367,11 +380,11 @@ export class LobbyView extends Container {
             STATION_LAYOUT.actionY,
             456,
             () => {
-                if (ready) this.actions.launch(null, false, null, { parts: this.supplyParts });
+                if (ready) this.actions.launch(null, this.loadConstruction);
                 else this.go(!c.ship ? 'hangar' : 'pilots');
             },
             true,
-            !c.activeRun && this.supplyParts <= c.bank.parts,
+            !c.activeRun,
             STATION_LAYOUT.actionHeight,
         );
         if (
@@ -389,19 +402,6 @@ export class LobbyView extends Container {
                 false,
                 true,
                 27,
-            );
-        const manifest = constructionManifest(c);
-        if (ready && resourceTotal(manifest) > 0)
-            button(
-                ui,
-                `WYLOT Z DOSTAWĄ · ${resourceTotal(manifest)} części / porcji`,
-                1072,
-                775,
-                456,
-                () => this.actions.launch(null, true),
-                false,
-                !c.activeRun,
-                30,
             );
     }
     private overview(ui: Container) {
@@ -456,8 +456,8 @@ export class LobbyView extends Container {
                                       : p.sector === 'mars'
                                         ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'
                                         : actOneComplete(p)
-                                          ? 'Atak odparty. Stacja paliw działa. Następny kierunek: Mars.'
-                                          : 'Akt I · Pierwsze sygnały. Wybierz sektor i przygotuj wyprawę.',
+                                          ? 'Atak odparty. Stacja księżycowa działa. Następny kierunek: Mars.'
+                                          : 'Akt I · Rozbuduj Satuk 15, nawiąż łączność i przygotuj stację na Księżycu.',
             );
             storyOverview(ui, this.campaign, {
                 contribute: this.actions.contribute,
@@ -558,7 +558,7 @@ export class LobbyView extends Container {
             ui,
             c.ship?.hull === 'mule'
                 ? 'Muł · darmowa samonaprawa, bez zestawów'
-                : `${Math.min(c.repairKits, REPAIR_KITS.embarkKits)} zest. naprawczych na pokład`,
+                : `Zestawy naprawcze: ${c.repairKits}`,
             1072,
             623,
             15,
