@@ -1,4 +1,5 @@
 import { selectableMission } from '../frontend/game/state/missionOrders';
+import { createRecoverySignal } from '../frontend/game/state/recovery';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -134,6 +135,8 @@ test('actual Earth satellite tuning opens gates live; stock Prospector arrives a
     const s = new MissionSimulation(c, c.activeRun!.seed),
         run = c.activeRun;
     try {
+        assert.equal(s.rescueOperation, null);
+        assert.equal(s.enemies.enemies.size, 0);
         clear(s);
         tune(s, { x: 750, y: 650 });
         assert.ok(c.story!.claimed.includes('earth-relay'));
@@ -153,6 +156,8 @@ test('actual Earth satellite tuning opens gates live; stock Prospector arrives a
         assert.equal(c.story!.claimed.includes('lunar-survey'), false);
         assert.equal(s.surfaceUnlocked, false);
         tune(s, LUNAR_PROBE);
+        assert.equal(s.rescueOperation, null);
+        assert.equal(s.enemies.enemies.size, 0);
         assert.ok(c.story!.claimed.includes('lunar-survey'));
         assert.ok(s.surfaceUnlocked);
         assert.equal(s.sector.hyperlanes.length, 3);
@@ -182,7 +187,21 @@ test('satellite tow crosses gate safely and is physically delivered at Satuk 15 
         step(s);
         assert.equal(s.hyperdriveLock, null);
         step(s, 1, { ...idle, hyperdrive: true });
-        step(s, 150);
+        for (let frame = 0; frame < 150; frame++) {
+            const transit = s.hyperdrive.state === 'transit';
+            step(s);
+            if (transit) {
+                const cargo = item.body.translation();
+                // Both renderers must interpolate the same fixed-step displacement.
+                assert.ok(
+                    Math.abs(cargo.x * 100 - item.previous.x - (s.position.x - s.previous.x)) < 0.1,
+                );
+                assert.ok(
+                    Math.abs(cargo.y * 100 - item.previous.y - (s.position.y - s.previous.y)) < 0.1,
+                );
+                assert.ok(Math.hypot(item.body.linvel().x, item.body.linvel().y) < 0.01);
+            }
+        }
         assert.equal(s.ended, null);
         assert.ok(Math.hypot(s.position.x - lane.a.x, s.position.y - lane.a.y) < 1);
         assert.ok(s.salvage.towing.has(item.id));
@@ -219,10 +238,41 @@ test('three optional satellite deliveries fund Swift with no duplicate or missin
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
+        assert.equal(s.rescueOperation, null);
+        assert.equal(s.enemies.enemies.size, 0);
         assert.equal(
             [...s.salvage.items.values()].filter((i) => i.source === 'satellite').length,
             0,
         );
+    } finally {
+        s.dispose();
+    }
+});
+
+test('wreck field has independent wreck poses and lunar orbit is beyond the old world radius', () => {
+    const c = ready(true);
+    beginRun(c, 1);
+    const s = new MissionSimulation(c, c.activeRun!.seed);
+    try {
+        assert.ok(Math.hypot(MOON.entrance.x, MOON.entrance.y) >= 8500);
+        assert.equal(new Set(SATELLITES.map((sat) => sat.angle)).size, 3);
+        assert.ok(SATELLITES.some((sat) => sat.spin < 0));
+        for (const sat of SATELLITES) {
+            const item = s.salvage.items.get(sat.id)!;
+            assert.ok(Math.abs(item.body.rotation() - sat.angle) < 1e-5);
+            assert.ok(Math.abs(item.body.angvel() - sat.spin) < 1e-5);
+        }
+        assert.equal(s.rescueOperation, null);
+        assert.equal(s.enemies.enemies.size, 0);
+        let signal = null;
+        for (let seed = 0; seed < 20 && !signal; seed++)
+            signal = createRecoverySignal(c.ship!, c.pilots[0], seed, ASTEROID_FIELD, 12000);
+        assert.ok(signal);
+        assert.ok(Math.hypot(signal.x - ASTEROID_FIELD.x, signal.y - ASTEROID_FIELD.y) < 1e-6);
+        at(s, LUNAR_PROBE);
+        step(s, 120);
+        assert.equal(s.ended, null);
+        assert.equal(s.enemies.enemies.size, 0);
     } finally {
         s.dispose();
     }

@@ -51,9 +51,9 @@ export function mineralDeposit(spec: MineralSpec): MineralDeposit {
         if (spec.rich) loose[TRACES[trace]] = 1;
         loose.ore = count - (spec.rich ? 1 : 0);
         if (spec.radius <= 44) {
-            if (copper) loose.copperOre = 1;
+            if (copper) loose.copperOre = 3;
             if (spec.crystal) {
-                loose.crystals = 1;
+                loose.crystals = 3;
                 loose.hydrogen = 3;
             }
         } else

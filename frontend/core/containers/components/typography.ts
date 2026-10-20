@@ -37,6 +37,8 @@ export class Typography extends PIXI.Container {
         };
 
         this.text = new PIXI.Text({
+            // Font size is already doubled below; do not multiply texture memory by DPR again.
+            resolution: 1,
             text: config.text,
             style: {
                 fontFamily: this.config.fontFamily,

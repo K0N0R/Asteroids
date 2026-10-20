@@ -534,7 +534,7 @@ test('lunar approach grows the actual map continuously from globe LOD to the lan
     const zoom = 1.15;
     const start = lunarTransferPose(0, true, zoom);
     const end = lunarTransferPose(1, true, zoom);
-    assert.equal(start.zoom * MOON.radius, 126 * 0.95);
+    assert.equal(start.zoom * MOON.radius, 126 * 0.56);
     assert.deepEqual(start.pivot, MOON.center);
     assert.equal(start.detail, 0);
     assert.equal(start.pitch, 0);

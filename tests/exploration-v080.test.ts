@@ -39,10 +39,9 @@ test('jettison conserves selected cargo, disables new collection and rejects abs
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
         s.cargo.copperOre = 7;
-        s.selectedCargo = 'copperOre';
-        assert.ok(s.jettisonCargo());
-        assert.equal(s.cargo.copperOre, 2);
-        assert.equal([...s.loot.values()].filter((l) => l.kind === 'copperOre').length, 5);
+        assert.ok(s.jettisonCargo('copperOre'));
+        assert.equal(s.cargo.copperOre, 6);
+        assert.equal([...s.loot.values()].filter((l) => l.kind === 'copperOre').length, 1);
         assert.equal(s.grippers.enabled, false);
         s.toggleCollection();
         assert.equal(s.grippers.enabled, true);

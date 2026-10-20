@@ -99,7 +99,7 @@ import { generateSector, Point, random, RockSpec } from '../worlds/sector';
 import { RecoverySignal } from '../state/recovery';
 import { pilotProfile } from '../state/pilots';
 import { Enemy, EnemyFleet, enemyPosition } from './enemies';
-import { aimAngle, mountPosition, rotateVector } from './flight';
+import { aimAngle, angleDifference, mountPosition, rotateVector } from './flight';
 import { TowBody } from './tow';
 import { GripperSystem } from './grippers';
 import { OutpostSecurity } from './outpost';
@@ -319,9 +319,6 @@ export class MissionSimulation {
                             : receiveStationCargo(this.campaign, this.cargo);
                     if (delivery) {
                         this.deliveryRevision++;
-                        this.radioMessages.push(
-                            `Ładunek przyjęty: ${resourceSummary(delivery.accepted)}. ${delivery.titles.length ? `Ukończono: ${delivery.titles.join(', ')}. ` : ''}${delivery.overflow ? `Nagrody ponad pojemność magazynu: ${delivery.overflow}. ` : ''}Możesz kontynuować lot.`,
-                        );
                         this.events.push({ ...this.position, kind: 'collect', sound: 'complete' });
                     } else
                         this.setNotice(
@@ -415,8 +412,11 @@ export class MissionSimulation {
                 this.campaign.story.claimed.includes(sat.task)
             )
                 continue;
-            if (this.salvage.add(sat.id, 'satellite', sat, { x: 0, y: 0 }))
+            const item = this.salvage.add(sat.id, 'satellite', sat, { x: 0, y: 0 }, sat.angle);
+            if (item) {
+                item.body.setAngvel(sat.spin, true);
                 this.spawnedSatellites.add(sat.id);
+            }
         }
     }
     readonly queue = new RAPIER.EventQueue(true);
@@ -605,18 +605,14 @@ export class MissionSimulation {
         this.hullConfig = HULLS[this.modules.hull];
         this.salvage = new SalvageFleet(this.world, this.modules.hull === 'tug' ? 2 : 1);
         this.rescueOperation =
-            inEarthSystem(campaign.story?.sector) &&
-            !campaign.story.claimed.includes('lunar-rescue') &&
-            storyTaskAvailable(campaign.story, STORY_TASKS.find((t) => t.id === 'lunar-rescue')!)
-                ? new RescueOperation(this.salvage)
-                : campaign.story?.sector === 'jupiter' &&
-                    !campaign.story.claimed.includes('jupiter-recovery') &&
-                    storyTaskAvailable(
-                        campaign.story,
-                        STORY_TASKS.find((t) => t.id === 'jupiter-recovery')!,
-                    )
-                  ? new RescueOperation(this.salvage, true)
-                  : null;
+            campaign.story?.sector === 'jupiter' &&
+            !campaign.story.claimed.includes('jupiter-recovery') &&
+            storyTaskAvailable(
+                campaign.story,
+                STORY_TASKS.find((t) => t.id === 'jupiter-recovery')!,
+            )
+                ? new RescueOperation(this.salvage, true)
+                : null;
         if (this.rescueOperation) {
             const saved =
                 campaign.rescueSites[
@@ -695,22 +691,6 @@ export class MissionSimulation {
             // Keep the entire corridor free of random rocks, including the towing clearance.
             this.sector.rocks = this.sector.rocks.filter(
                 (r) => Math.hypot(r.x - ANOMALY.center.x, r.y - ANOMALY.center.y) > 1700 + r.radius,
-            );
-        }
-        if (this.rescueOperation && !this.anomalyMission) {
-            const p = RESCUE_OPERATION.site;
-            this.sector.rocks = this.sector.rocks.filter(
-                (r) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 270,
-            );
-            this.sector.enemies.push(
-                ...[-1, 1].map((side, i) => ({
-                    id: 941 + i,
-                    x: p.x + side * 380,
-                    y: p.y + side * 140,
-                    home: { x: p.x + side * 380, y: p.y + side * 140 },
-                    phase: 0,
-                    kind: 'patrol' as const,
-                })),
             );
         }
         for (const rock of this.sector.rocks) {
@@ -1621,7 +1601,7 @@ export class MissionSimulation {
         this.sector.landmarks.push(
             ...generated.landmarks.filter((l) => l.area === 'surface' || l.kind === 'passage'),
         );
-        for (const spec of generated.rocks.filter((r) => Math.hypot(r.x, r.y) > 10000)) {
+        for (const spec of generated.rocks.filter((r) => moonDistance(r) < MOON.radius + 500)) {
             this.sector.rocks.push(spec);
             this.addRock(spec);
         }
@@ -1802,7 +1782,7 @@ export class MissionSimulation {
             target = { ...gate.to };
             guided = true;
         } else {
-            this.setNotice('Podejdź do śluzy hipernapędu. K prowadzi do najbliższej śluzy.');
+            this.setNotice('Podejdź do śluzy hipernapędu.');
             return;
         }
 
@@ -1839,6 +1819,7 @@ export class MissionSimulation {
             this.ship,
             (c) =>
                 !c.isSensor() &&
+                c.handle !== this.guide?.collider.handle &&
                 !this.salvage.towing.has(this.salvage.colliders.get(c.handle) ?? -1),
         );
     }
@@ -1851,7 +1832,35 @@ export class MissionSimulation {
         }
         this.ship.setLinvel({ x: 0, y: 0 }, true);
         this.ship.setAngvel(0, true);
+        for (const item of this.salvage.towing.values()) {
+            item.previous = salvagePosition(item);
+            item.previousAngle = item.body.rotation();
+            item.body.setLinvel({ x: 0, y: 0 }, true);
+            item.body.setAngvel(0, true);
+        }
         if (drive.state === 'charging') {
+            const p = this.position;
+            const heading = Math.atan2(drive.target.y - p.y, drive.target.x - p.x);
+            const easing = 1 - Math.exp(-dt * 8);
+            this.ship.setRotation(
+                this.ship.rotation() + angleDifference(heading, this.ship.rotation()) * easing,
+                true,
+            );
+            for (const item of this.salvage.towing.values()) {
+                const old = salvagePosition(item);
+                const offset = this.salvage.towAnchor(item).y;
+                const target = {
+                    x: p.x - Math.cos(heading) * 140 - Math.sin(heading) * offset,
+                    y: p.y - Math.sin(heading) * 140 + Math.cos(heading) * offset,
+                };
+                item.body.setTranslation(
+                    {
+                        x: (old.x + (target.x - old.x) * easing) / P,
+                        y: (old.y + (target.y - old.y) * easing) / P,
+                    },
+                    true,
+                );
+            }
             if (!drive.charge(dt)) return;
             if (drive.guided && this.hyperPathHit(this.position, drive.target)) {
                 drive.cancel();
@@ -1878,7 +1887,6 @@ export class MissionSimulation {
                 true,
             );
             item.body.setLinvel({ x: 0, y: 0 }, true);
-            item.previous = salvagePosition(item);
         }
 
         if (hit) {
@@ -2106,6 +2114,7 @@ export class MissionSimulation {
                 y: anchor.y - Math.sin(shipAngle) * 28,
             },
             shipAngle,
+            hyperFrame,
         );
         if (this.escort && (!this.miningEscort || this.area === 'surface')) {
             const obstacles = [...this.rocks.values()]
@@ -3473,27 +3482,6 @@ export class MissionSimulation {
         );
     }
     private selectWorldRecovery() {
-        if (
-            !this.rescueOperation &&
-            inEarthSystem(this.campaign.story?.sector) &&
-            !this.campaign.story.claimed.includes('lunar-rescue') &&
-            storyTaskAvailable(
-                this.campaign.story,
-                STORY_TASKS.find((t) => t.id === 'lunar-rescue')!,
-            )
-        ) {
-            this.rescueOperation = new RescueOperation(this.salvage);
-            const saved = this.campaign.rescueSites['lunar-rescue'];
-            if (saved) {
-                this.rescueOperation.item.body.setTranslation(
-                    { x: saved.x / P, y: saved.y / P },
-                    true,
-                );
-                this.rescueOperation.stabilized = saved.stabilized;
-                this.rescueOperation.item.health = saved.health;
-            }
-        }
-
         for (const item of this.salvage.items.values()) {
             const signal =
                 item.source === 'recovery'
@@ -4814,20 +4802,11 @@ export class MissionSimulation {
             });
         }
     }
-    selectedCargo: ResourceId = 'ore';
-    cycleCargo() {
-        const available = RESOURCE_IDS.filter((id) => (this.cargo[id] ?? 0) > 0);
-        this.selectedCargo =
-            available[(available.indexOf(this.selectedCargo) + 1) % available.length] ?? 'ore';
-        this.setNotice(`Ładunek: ${RESOURCES[this.selectedCargo].name} · X wyrzuć do 5 szt.`);
-    }
     toggleCollection() {
         this.grippers.enabled = !this.grippers.enabled;
-        this.setNotice(
-            `Autozbieranie ${this.grippers.enabled ? 'włączone' : 'wyłączone'} · O przełącz`,
-        );
+        this.setNotice(`Autozbieranie ${this.grippers.enabled ? 'włączone' : 'wyłączone'}.`);
     }
-    jettisonCargo(kind: ResourceId = this.selectedCargo) {
+    jettisonCargo(kind: ResourceId = 'ore') {
         if (
             this.ended ||
             this.hyperdrive.active ||
@@ -4835,7 +4814,7 @@ export class MissionSimulation {
             this.cargoTransferRemaining > 0
         )
             return false;
-        const amount = Math.min(5, this.cargo[kind] ?? 0);
+        const amount = Math.min(1, this.cargo[kind] ?? 0);
         if (!amount || this.loot.size + amount > 400) return false;
         this.cargo[kind] = (this.cargo[kind] ?? 0) - amount;
         // Disable new pickup so ejected ore is not immediately collected again.
@@ -4847,9 +4826,7 @@ export class MissionSimulation {
             kind,
             amount,
         );
-        this.setNotice(
-            `Wyrzucono ${amount} ${RESOURCES[kind].short} · autozbieranie wyłączone (O)`,
-        );
+        this.setNotice(`Wyrzucono ${amount} ${RESOURCES[kind].short}.`);
         return true;
     }
     private collectLoot(dt: number) {

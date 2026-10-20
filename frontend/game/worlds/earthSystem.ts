@@ -1,28 +1,39 @@
 import { MOON, EARTH_MOON_LANE } from './moon';
 import type { ResourceStore } from '../state/resources';
 export const SATELLITE_FIELD = { x: 4200, y: 0, radius: 700, name: 'Wraki satelit' };
-export const ASTEROID_FIELD = { x: 4200, y: -4500, radius: 800, name: 'Bogata asteroida' };
-export const LUNAR_PROBE = { x: 650, y: -4800 };
+export const ASTEROID_FIELD = {
+    x: 4200,
+    y: MOON.entrance.y,
+    radius: 800,
+    name: 'Bogata asteroida',
+};
+export const LUNAR_PROBE = { x: 650, y: MOON.entrance.y - 300 };
 export const SATELLITES = [
     {
         id: 61001,
         task: 'earth-satellite-0',
         x: 4020,
-        y: -120,
+        y: -160,
+        angle: -0.64,
+        spin: 0.025,
         parts: { parts: 3, storageFrames: 1 },
     },
     {
         id: 61002,
         task: 'earth-satellite-1',
         x: 4380,
-        y: -80,
+        y: 35,
+        angle: 1.12,
+        spin: -0.018,
         parts: { electronics: 2, powerModules: 1 },
     },
     {
         id: 61003,
         task: 'earth-satellite-2',
         x: 4220,
-        y: 180,
+        y: 245,
+        angle: -2.4,
+        spin: 0.035,
         parts: { lifeSupport: 1, propulsion: 2 },
     },
 ] as const satisfies readonly {
@@ -30,6 +41,8 @@ export const SATELLITES = [
     task: string;
     x: number;
     y: number;
+    angle: number;
+    spin: number;
     parts: ResourceStore;
 }[];
 type Progress = { claimed: readonly string[] };
@@ -42,8 +55,8 @@ export function earthSystemLanes(p: Progress) {
             ? [
                   {
                       name: 'Księżyc — bogata asteroida',
-                      a: { x: 750, y: -4500 },
-                      b: { x: 3550, y: -4500 },
+                      a: { x: 750, y: MOON.entrance.y },
+                      b: { x: 3550, y: MOON.entrance.y },
                   },
               ]
             : []),

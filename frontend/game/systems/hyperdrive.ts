@@ -2,6 +2,7 @@ import type { Point } from '../worlds/sector';
 
 export const HYPERDRIVE = {
     range: 4000,
+    gateRange: 8000,
     speed: 4000,
     charge: 0.7,
     minimum: 600,
@@ -51,7 +52,8 @@ export class Hyperdrive {
             this.active ||
             ![from.x, from.y, to.x, to.y].every(Number.isFinite) ||
             Math.hypot(to.x - from.x, to.y - from.y) < HYPERDRIVE.minimum ||
-            Math.hypot(to.x - from.x, to.y - from.y) > HYPERDRIVE.range + 1
+            Math.hypot(to.x - from.x, to.y - from.y) >
+                (guided ? HYPERDRIVE.gateRange : HYPERDRIVE.range) + 1
         )
             return false;
         this.origin = { ...from };

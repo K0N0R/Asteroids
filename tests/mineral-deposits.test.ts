@@ -59,7 +59,7 @@ test('every generated rock has a deterministic elemental budget matching all fra
 });
 test('silicon and hydrogen appear in silicon deposits; defensive threats produce no resources', () => {
     const d = mineralDeposit({ radius: 32, variant: 12, rich: true, crystal: true });
-    assert.equal(d.total.crystals, 1);
+    assert.equal(d.total.crystals, 3);
     assert.equal(d.total.hydrogen, 3);
     assert.equal(d.total.parts, undefined);
     assert.equal(

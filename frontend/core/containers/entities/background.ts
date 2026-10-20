@@ -6,18 +6,19 @@ import { planetView } from '../../../game/graphics/planetView';
 import { C } from '../../../game/graphics/theme';
 import { destroyDisplayTree } from '../../systems/destroyDisplayTree';
 import { parallaxPoint } from '../../../game/graphics/parallax';
-import { MOON } from '../../../game/worlds/moon';
+import { celestialBodiesFor } from '../../../game/worlds/celestialBodies';
+import { CelestialLayer } from '../../../game/graphics/celestialLayer';
 
 export class Background extends Container {
     camera = { x: 0, y: 0 };
     cameraAngle = 0;
     cameraZoom = 1;
     surface = false;
+    lunarTransfer = false;
     private flight = false;
-    private region: StorySectorId | null = null;
     private clouds = new Container();
     private scenery = new Container();
-    private moonScenery = new Container();
+    private celestialLayer = new CelestialLayer();
     private stars: { view: Graphics; x: number; y: number; depth: number; phase: number }[] = [];
     private time = 0;
     private illustration: Container;
@@ -69,8 +70,8 @@ export class Background extends Container {
         this.scenery.label = 'world-planet';
         this.scenery.addChild(this.illustration);
         this.addChild(this.scenery);
-        this.moonScenery.addChild(planetView('lunar'));
-        this.addChild(this.moonScenery);
+        this.celestialLayer.setBodies(celestialBodiesFor(null));
+        this.addChild(this.celestialLayer);
         const viewportMask = new Graphics().rect(0, 0, 1600, 900).fill(0xffffff);
         this.addChild(viewportMask);
         this.mask = viewportMask;
@@ -78,7 +79,7 @@ export class Background extends Container {
         this.update(0);
     }
     setRegion(region: StorySectorId | null) {
-        this.region = region;
+        this.celestialLayer.setBodies(celestialBodiesFor(region));
         destroyDisplayTree(this.illustration);
         this.illustration = planetView(region);
         this.scenery.addChild(this.illustration);
@@ -91,30 +92,15 @@ export class Background extends Container {
     }
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
-        this.scenery.visible = !this.flight || !this.surface;
-        this.moonScenery.visible = this.flight && !this.surface && this.region === 'earth';
-        if (this.moonScenery.visible) {
-            this.moonScenery.position.copyFrom(
-                parallaxPoint(MOON.entrance, this.camera, this.cameraAngle, 1, this.cameraZoom),
-            );
-            this.moonScenery.rotation = this.cameraAngle;
-            this.moonScenery.scale.set(1.4 * this.cameraZoom);
-        }
+        this.scenery.visible = !this.flight;
+        this.celestialLayer.visible = this.flight && (!this.surface || this.lunarTransfer);
         if (this.flight) {
-            const position = parallaxPoint(
-                this.region === 'lunar'
-                    ? MOON.entrance
-                    : this.region === 'earth'
-                      ? { x: 0, y: 850 }
-                      : { x: 12000, y: 6000 },
+            this.celestialLayer.update(
                 this.camera,
                 this.cameraAngle,
-                this.region === 'earth' ? 1 : this.region === 'lunar' ? 0.2 : 0.035,
                 this.cameraZoom,
+                this.lunarTransfer ? ['moon'] : [],
             );
-            this.scenery.position.copyFrom(position);
-            this.scenery.rotation = this.cameraAngle;
-            this.scenery.scale.set(0.95 * this.cameraZoom);
             this.clouds.pivot.set(800, 450);
             this.clouds.position.copyFrom(
                 parallaxPoint(

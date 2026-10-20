@@ -1,3 +1,4 @@
+import { cargoReceipt } from './ui/cargoReceipt';
 import { LunarStationView } from './ui/lunarStation';
 import { RESOURCE_IDS, RESOURCES } from './state/resources';
 import { manufacture } from './state/production';
@@ -278,16 +279,6 @@ export class GameSession {
                     (message.name === 'keydown' && ['escape', 'tab'].includes(message.data))
                 )
                     this.mission?.audio.pause();
-                if (
-                    message.name === 'keydown' &&
-                    this.mission &&
-                    !this.hasOverlay &&
-                    !PopupContainer.hasActivePopup()
-                ) {
-                    if (message.data === 'o') this.mission.simulation.toggleCollection();
-                    if (message.data === 'b') this.mission.simulation.cycleCargo();
-                    if (message.data === 'x') this.mission.simulation.jettisonCargo();
-                }
                 if (message.name === 'keydown' && message.data === 'tab') this.toggleMissionInfo();
                 if (
                     message.name === 'keydown' &&
@@ -485,6 +476,7 @@ export class GameSession {
                               !this.mission.simulation.firstBoss.finale,
                           this.mission.simulation.firstBoss.complete &&
                               this.mission.simulation.firstBoss.finale,
+                          this.mission.simulation.cargo,
                       )
                     : undefined),
             objectivesTitle:
@@ -657,6 +649,7 @@ export class GameSession {
                               simulation.cargo.ore,
                               simulation.firstBoss.complete && !simulation.firstBoss.finale,
                               simulation.firstBoss.complete && simulation.firstBoss.finale,
+                              simulation.cargo,
                           )
                     : undefined,
                 this.campaign.story
@@ -736,6 +729,7 @@ export class GameSession {
     update(deltaMS: number) {
         this.background.setFlight(!!this.mission);
         if (this.mission) {
+            this.background.lunarTransfer = this.mission.simulation.transferActive;
             this.background.camera = this.mission.backgroundCamera;
             this.background.cameraAngle = this.mission.camera.rotation;
             this.background.cameraZoom = this.mission.backgroundZoom;
@@ -796,6 +790,7 @@ export class GameSession {
             this.openLunarStation();
             if (this.lunarStationOpen) return;
         }
+        this.background.lunarTransfer = this.mission.simulation.transferActive;
         this.background.camera = this.mission.backgroundCamera;
         this.background.cameraAngle = this.mission.camera.rotation;
         this.background.cameraZoom = this.mission.backgroundZoom;
@@ -1111,24 +1106,16 @@ export class GameSession {
         label(this.overlay, `${result.pilotName} / ${result.shipName}`, 450, 345, 23, C.muted);
         if (result.success) {
             const resources = RESOURCE_IDS.filter((id) => (result.cargo[id] ?? 0) > 0);
-            const pages = Math.max(1, Math.ceil(resources.length / 7));
+            const pages = Math.max(1, Math.ceil(resources.length / 8));
             page = Math.max(0, Math.min(page, pages - 1));
-            label(this.overlay, 'ZEBRANO', 450, 389, 13, C.muted);
-            label(this.overlay, 'W MAGAZYNIE', 1000, 389, 13, C.muted);
+            label(this.overlay, 'ZEBRANO → W MAGAZYNIE', 450, 389, 13, C.muted);
             if (!resources.length) label(this.overlay, 'Ładownia pusta.', 450, 422, 19, C.muted);
-            resources.slice(page * 7, page * 7 + 7).forEach((id, i) => {
-                const y = 420 + i * 26;
-                label(
-                    this.overlay,
-                    `+${result.cargo[id]} ${RESOURCES[id].name}`,
-                    450,
-                    y,
-                    19,
-                    C.mint,
-                    530,
-                );
-                label(this.overlay, `→ ${this.campaign.bank[id] ?? 0}`, 1000, y, 19, C.cyan, 150);
-            });
+            cargoReceipt(
+                this.overlay,
+                resources.slice(page * 8, page * 8 + 8),
+                result.cargo,
+                this.campaign.bank,
+            );
             if (pages > 1) {
                 button(
                     this.overlay,

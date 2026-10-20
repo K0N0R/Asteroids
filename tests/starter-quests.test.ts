@@ -26,10 +26,11 @@ test('first supply asks for the complete level-zero raw bill and preserves every
     assert.equal(c.story!.claimed.includes('earth-supply'), false);
     assert.equal(c.pilots[0].xp, 0);
     receiveEarthCargo(c, { ore: 0, parts: 0, oxygen: 1 });
-    assert.ok(c.story!.claimed.includes('earth-supply'));
+    assert.equal(c.story!.claimed.includes('earth-supply'), false);
+    assert.ok(c.story!.claimed.includes('earth-materials'));
     for (const [id, count] of Object.entries(STARTER_MATERIALS))
         assert.equal(c.bank[id as keyof typeof c.bank], count);
-    assert.equal(c.pilots[0].xp, 20);
+    assert.equal(c.pilots[0].xp, 0);
     assert.ok(parseCampaign(JSON.stringify(c)));
     finishRun(c, true, { ore: 0, parts: 0 }, 0, 'dock');
     for (const [recipe, batches] of [
@@ -43,10 +44,15 @@ test('first supply asks for the complete level-zero raw bill and preserves every
         ['electronics', 1],
     ] as const)
         assert.ok(manufacture(c, recipe, batches), recipe);
+    const beforeUpgradeXp = c.pilots[0].xp;
     assert.ok(buyUpgrade(c, 'workshop'));
     assert.equal(c.station.workshop, 1);
     syncStory(c);
-    assert.equal(c.pilots[0].xp, 40, '20 quest PD plus 20 ordinary expedition PD');
+    assert.ok(c.story!.claimed.includes('earth-supply'));
+    assert.equal(c.pilots[0].xp, beforeUpgradeXp + 40);
+    syncStory(c);
+    assert.equal(c.pilots[0].xp, beforeUpgradeXp + 40);
+    assert.ok(parseCampaign(JSON.stringify(c)));
 });
 
 test('iron alone cannot complete supply and no resources are donated or rewarded as iron', () => {
@@ -100,7 +106,7 @@ test('optional ship upgrade grants 15 PD once to the selected pilot and survives
     assert.equal(restored.pilots[0].xp, 15);
 });
 
-test('quest PD earned in flight is included in the return report without being paid twice', () => {
+test('raw cargo delivery awards ordinary expedition PD without completing the station quest', () => {
     const c = newStoryCampaign();
     beginRun(c, 1);
     receiveEarthCargo(c, { ore: 4, parts: 0, carbon: 1, copperOre: 4, crystals: 3, oxygen: 2 });
@@ -108,7 +114,7 @@ test('quest PD earned in flight is included in the return report without being p
     assert.ok(restored);
     const result = finishRun(restored, true, { ore: 0, parts: 0 }, 0, 'dock')!;
     assert.equal(result.pilotProgress!.gainedXp, restored.pilots[0].xp);
-    assert.equal(result.pilotProgress!.gainedXp, 40);
+    assert.equal(result.pilotProgress!.gainedXp, 20);
     assert.equal(result.pilotProgress!.levelBefore, 1);
     assert.equal(result.pilotProgress!.levelAfter, pilotLevel(restored.pilots[0]));
     const xp = restored.pilots[0].xp;

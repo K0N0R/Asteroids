@@ -51,19 +51,56 @@ export function itemIllustration(id: ResourceId | 'kit') {
         const element = id === 'pureCopper' ? 'copperOre' : 'crystals';
         atom(0, 0, RESOURCES[element].short, RESOURCES[element].color, 43);
         g.roundRect(18, -29, 12, 5, 2.5).fill(0xf5fafb);
-    } else if (id === 'electronics' || id === 'conductors') {
+    } else if (id === 'conductors') {
+        // Exposed copper cable coil, distinct from an assembled circuit board.
+        g.roundRect(-62, -32, 20, 64, 7).fill(0x596c88);
+        g.roundRect(42, -32, 20, 64, 7).fill(0x596c88);
+        for (let i = 0; i < 5; i++)
+            g.ellipse(-32 + i * 16, 0, 13, 34).stroke({ color: 0xe6a16d, width: 9 });
+        g.moveTo(56, 0).lineTo(76, 0).lineTo(76, 27).stroke({ color: 0xe6a16d, width: 7 });
+    } else if (id === 'electronics') {
         g.roundRect(-60, -43, 120, 86, 17).fill(0x328b88);
         for (let i = 0; i < 4; i++) {
             g.roundRect(-47, -28 + i * 17, 94, 7, 3).fill(0xe8bf80);
         }
         g.roundRect(-20, -22, 40, 44, 8).fill(0x263654);
         g.circle(39, 27, 7).fill(0x8ee7d3);
-    } else if (id === 'storageFrames' || id === 'propulsion') {
-        g.roundRect(-60, -28, 95, 56, 19).fill(color);
-        for (let i = 0; i < 5; i++) g.roundRect(-45 + i * 16, -35, 9, 70, 4).fill(0x718ba2);
-        g.roundRect(23, -38, 38, 76, 15).fill(0x384d70);
-        g.roundRect(39, -25, 19, 50, 9).fill(id === 'propulsion' ? 0x7ee3f4 : 0xeac28b);
-    } else if (id === 'lifeSupport' || id === 'powerModules' || id === 'kineticModules') {
+    } else if (id === 'storageFrames') {
+        const gear = (x: number, y: number, radius: number, teeth: number) => {
+            const points = Array.from({ length: teeth * 4 }, (_, i) => {
+                const angle = (i * Math.PI * 2) / (teeth * 4);
+                const r = radius * (i % 4 === 1 || i % 4 === 2 ? 1 : 0.76);
+                return [x + Math.cos(angle) * r, y + Math.sin(angle) * r];
+            }).flat();
+            g.poly(points).fill(color).stroke({ color: 0x536985, width: 4 });
+            g.circle(x, y, radius * 0.35).fill(0x263654);
+            g.circle(x, y, radius * 0.15).fill(0xeac28b);
+        };
+        gear(-20, 14, 42, 8);
+        gear(34, -24, 28, 6);
+    } else if (id === 'propulsion') {
+        g.poly([-25, 30, 0, 76, 25, 30]).fill(0x63d7ef);
+        g.poly([-12, 30, 0, 58, 12, 30]).fill(0xffe6a3);
+        g.roundRect(-30, -55, 60, 43, 12).fill(0x718ba2);
+        for (const y of [-46, -34, -22]) g.roundRect(-35, y, 70, 6, 3).fill(0xb6c8d5);
+        g.rect(-17, -14, 34, 14).fill(0xeac28b);
+        g.poly([-18, -6, 18, -6, 40, 32, -40, 32])
+            .fill(0x384d70)
+            .stroke({ color: 0x9eb6cc, width: 6 });
+        g.ellipse(0, 32, 37, 9).fill(0x172139).stroke({ color: 0x83dbea, width: 5 });
+    } else if (id === 'kineticModules') {
+        // Shield generator: armored hexagon with a central energy core.
+        g.poly([-55, -25, 0, -55, 55, -25, 55, 25, 0, 55, -55, 25])
+            .fill(0x455d85)
+            .stroke({ color: 0x91b8f6, width: 7 });
+        g.circle(0, 0, 27).fill(0x172139).stroke({ color: 0x7fdef1, width: 6 });
+        g.circle(0, 0, 13).fill(0xc1eff7);
+        for (const x of [-43, 43]) g.roundRect(x - 7, -15, 14, 30, 5).fill(0xe5bd6d);
+    } else if (id === 'powerModules') {
+        for (const x of [-25, 13]) g.roundRect(x, -55, 15, 16, 4).fill(0xe8bf80);
+        g.roundRect(-43, -42, 86, 94, 14).fill(0x263654).stroke({ color, width: 7 });
+        g.poly([-1, -27, -24, 7, -6, 7, -15, 35, 25, -7, 7, -7, 18, -27]).fill(0xffce78);
+    } else if (id === 'lifeSupport') {
         for (const x of [-30, 30]) {
             g.roundRect(x - 21, -49, 42, 98, 20).fill(color);
             g.roundRect(x - 15, -25, 30, 38, 12).fill(0x344765);

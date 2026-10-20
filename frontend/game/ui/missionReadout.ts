@@ -18,6 +18,11 @@ export interface MissionObjective {
     title: string;
     progress: string;
     complete: boolean;
+    requirements?: {
+        resource: import('../state/resources').ResourceId;
+        have: number;
+        need: number;
+    }[];
 }
 
 export function missionObjectives(

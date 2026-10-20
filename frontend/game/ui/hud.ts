@@ -22,11 +22,8 @@ export class MissionHud extends Container {
     private mineralTitle: Typography;
     private mineralContents: Typography;
     private mineralHint: Typography;
-    private cargoControls: Typography;
     private health: Typography;
     private shieldValue: Typography;
-    private cargo: Typography;
-    private hyperStatus: Typography;
     private context: Typography;
     private direction: Typography;
     private goals: Typography[] = [];
@@ -74,10 +71,7 @@ export class MissionHud extends Container {
         for (const graphic of [this.selection, this.meters, this.map, this.checks, this.arrow])
             graphic.eventMode = 'none';
         this.health = label(this, '', 80, 41, 20);
-        this.shieldValue = label(this, '', 288, 43, 17, 0x86bded);
-        this.cargo = label(this, '', 80, 93, 18);
-        this.cargoControls = label(this, '', 80, 146, 13, C.muted, 560);
-        this.hyperStatus = label(this, '', 560, 40, 14, C.cyan, 650);
+        this.shieldValue = label(this, '', 342, 43, 17, 0x86bded);
         if (
             sim.surfaceUnlocked ||
             sim.orbitalBaseSector ||
@@ -159,7 +153,7 @@ export class MissionHud extends Container {
         keyHint(this, 'H', 'hol', 654, 845, 30);
         keyHint(this, sim.stationLogistics ? 'E/C' : 'E', 'akcja', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
-        keyHint(this, 'SPACE', 'hiper/śluza', 970, 845, 65);
+        keyHint(this, 'SPACE', 'śluza', 970, 845, 65);
 
         const details = keyHint(this, 'TAB', 'pokład', 1170, 845, 40);
         details.eventMode = 'static';
@@ -399,12 +393,11 @@ export class MissionHud extends Container {
         const s = this.sim,
             p = s.position,
             v = s.velocity;
-        const lowHull = s.hull / s.maxHull < 0.3;
         this.shieldValue.setText(
             `${Math.ceil(s.kineticShield.charge)}/${s.kineticShield.profile.capacity}`,
         );
         this.health.setText(`${Math.ceil(s.hull)} / ${s.maxHull}`);
-        this.health.setColor(lowHull ? C.red : C.text);
+        this.health.setColor(C.red);
         if (s.aegis)
             this.supportStatus?.setText(
                 `Impuls ${s.aegis.cooldown > 0 ? `${Math.ceil(s.aegis.cooldown)} s` : 'gotowy'} · dron ${s.aegis.drone ? `${Math.ceil(s.aegis.drone.hull)}/${Math.round(s.aegis.droneHull)}` : 'zniszczony'}${!s.aegis.drone ? ` · zestawy ${s.repairKits}` : ''}`,
@@ -416,22 +409,10 @@ export class MissionHud extends Container {
                     : `Kamuflaż ${s.opticalCloakCooldown > 1e-8 ? `odnowienie ${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy'}`,
             );
         else if (s.hullId === 'mule') this.supportStatus?.setText('Muł · R: darmowa samonaprawa');
-        const cargoKinds = RESOURCE_IDS.filter((id) => (s.cargo[id] ?? 0) > 0);
-        this.cargo.setText(
-            `${s.cargoUsed} / ${s.cargoCapacity}${
-                cargoKinds.length
-                    ? ` · ${cargoKinds
-                          .slice(0, 2)
-                          .map((id) => `${RESOURCES[id].name} ${s.cargo[id]}`)
-                          .join(' · ')}${cargoKinds.length > 2 ? ' …' : ''}`
-                    : ''
-            }`,
-        );
-        this.cargo.setColor(s.cargoUsed >= s.cargoCapacity ? C.gold : C.text);
         this.meters
             .clear()
             .poly([47, 43, 65, 43, 65, 55, 56, 65, 47, 55])
-            .stroke({ color: lowHull ? C.red : C.cyan, width: 2 })
+            .stroke({ color: C.red, width: 2 })
             .poly([47, 99, 56, 94, 65, 99, 65, 111, 56, 116, 47, 111])
             .stroke({ color: C.gold, width: 2 })
             .moveTo(47, 99)
@@ -442,19 +423,17 @@ export class MissionHud extends Container {
             .stroke({ color: C.gold, width: 1 });
         this.meters.rect(80, 72, 190, 5).fill({ color: C.line, alpha: 0.65 });
         if (s.hull > 0)
-            this.meters
-                .rect(80, 72, 190 * Math.min(1, s.hull / s.maxHull), 5)
-                .fill(lowHull ? C.red : C.cyan);
+            this.meters.rect(80, 72, 190 * Math.min(1, s.hull / s.maxHull), 5).fill(C.red);
         const shield = s.kineticShield,
             alpha = shield.charge > 0 ? 0.8 : 0.25;
         this.meters
-            .poly([265, 43, 274, 48, 274, 58, 265, 63, 256, 58, 256, 48])
+            .poly([318, 43, 327, 48, 327, 58, 318, 63, 309, 58, 309, 48])
             .stroke({ color: 0x86bded, width: 2, alpha })
-            .rect(288, 72, 100, 5)
+            .rect(342, 72, 100, 5)
             .fill({ color: C.line, alpha: 0.65 })
-            .rect(288, 72, (100 * shield.charge) / shield.profile.capacity, 5)
+            .rect(342, 72, (100 * shield.charge) / shield.profile.capacity, 5)
             .fill(0x86bded);
-        this.meters.rect(80, 124, 190, 5).fill({ color: C.line, alpha: 0.65 });
+        this.meters.rect(80, 104, 190, 7).fill({ color: C.line, alpha: 0.65 });
         let cargoOffset = 0;
         for (const id of RESOURCE_IDS) {
             const width =
@@ -462,14 +441,10 @@ export class MissionHud extends Container {
                 s.cargoCapacity;
             if (width > 0)
                 this.meters
-                    .rect(80 + (190 * cargoOffset) / s.cargoCapacity, 124, width, 7)
+                    .rect(80 + (190 * cargoOffset) / s.cargoCapacity, 104, width, 7)
                     .fill(RESOURCES[id].color);
             cargoOffset += s.cargo[id] ?? 0;
         }
-        this.hyperStatus.visible = true;
-        this.hyperStatus.setText(
-            `HIPERNAPĘD · ${s.hyperdrive.active ? (s.hyperdrive.state === 'charging' ? 'ładowanie · spacja anuluje' : 'PRZELOT') : 'SPACJA: śluza · kolizja = utrata'}`,
-        );
         const mineral = s.mineralTarget;
         this.mineralTitle.setText(mineral ? `SKAN · ${mineral.deposit.name}` : '');
         this.mineralContents.setText(
@@ -484,15 +459,22 @@ export class MissionHud extends Container {
                     : mineral.defense
                       ? 'Zagrożenie obrony stacji nie dostarcza zasobów.'
                       : mineral.deposit.fragments.length
-                        ? 'Pełny urobek wymaga rozbicia wszystkich odłamków. Ilości oznaczają porcje gry.'
-                        : 'Ilości oznaczają porcje gry, nie masę ani procentowy skład chemiczny.'
+                        ? 'Pełny urobek wymaga rozbicia wszystkich odłamków.'
+                        : ''
                 : '',
         );
         this.context.setText(flightHint(s));
-        this.cargoControls.setText(
-            `O zbieranie: ${s.grippers.enabled ? 'ON' : 'OFF'} · B: ${RESOURCES[s.selectedCargo].short} ${s.cargo[s.selectedCargo] ?? 0} · X wyrzuć`,
-        );
         this.orderStatus?.setText(s.missionStatus);
+        for (const status of [
+            this.guideStatus,
+            this.supportStatus,
+            this.defenseStatus,
+            this.convoyStatus,
+            this.rescueStatus,
+            this.anomalyStatus,
+            this.orderStatus,
+        ])
+            if (status) status.visible = false;
         const towedIds = [...s.salvage.towing.keys()].join(',');
         if (this.towedIds !== towedIds) {
             this.towedIds = towedIds;
@@ -537,16 +519,20 @@ export class MissionHud extends Container {
         this.checks.clear();
         this.selection.clear();
         let matches = false;
+        let goalY = 320;
         objectives.forEach((goal, i) => {
             const selected = this.matchesObjective(goal);
+            const rows = !goal.complete ? (goal.requirements ?? []) : [];
+            const height = this.goalStep + rows.length * 18;
+            this.goals[i].y = goalY;
             matches ||= selected;
             if (selected)
                 this.selection
                     .beginPath()
-                    .rect(1313, 315 + i * this.goalStep, 280, this.goalStep)
+                    .rect(1313, goalY - 5, 280, height)
                     .fill({ color: C.cyan, alpha: 0.12 })
                     .beginPath()
-                    .rect(1313, 315 + i * this.goalStep, 3, this.goalStep)
+                    .rect(1313, goalY - 5, 3, height)
                     .fill(C.cyan);
             const text =
                 goal.id === 'rescue' && s.recoveryDestroyed
@@ -568,7 +554,18 @@ export class MissionHud extends Container {
                                   ? `Badania ${Math.floor(s.escort.researchProgress)}/12 s`
                                   : `Kepler · ${Math.ceil(s.escort.health)} HP`
                           : `${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`;
-            this.goals[i].setText(text);
+            this.goals[i].setText(
+                text +
+                    (rows.length
+                        ? '\n' +
+                          rows
+                              .map(
+                                  (row) =>
+                                      `${RESOURCES[row.resource].name}  ${row.have}/${row.need}`,
+                              )
+                              .join('\n')
+                        : ''),
+            );
             this.goals[i].setColor(
                 (goal.id === 'rescue' && s.recoveryDestroyed) ||
                     (goal.id === 'escort' && s.escort?.state === 'destroyed')
@@ -579,12 +576,13 @@ export class MissionHud extends Container {
                         ? C.mint
                         : C.muted,
             );
-            objectiveMark(this.checks, 1325, 328 + i * this.goalStep, goal.complete);
+            objectiveMark(this.checks, 1325, goalY + 8, goal.complete);
+            goalY += height;
         });
         const waypoint = this.waypoint,
             distance = Math.hypot(waypoint.x - p.x, waypoint.y - p.y);
         this.selectedGoal.visible = !matches;
-        this.selectedGoal.y = 320 + objectives.length * this.goalStep;
+        this.selectedGoal.y = goalY;
         this.selectedGoal.setText(matches ? '' : `Wybrany cel: ${waypoint.name}`);
         this.direction.setText(`${waypoint.name} · ${(distance / 1000).toFixed(1)} km`);
         if (s.area === 'surface') {

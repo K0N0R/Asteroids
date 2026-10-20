@@ -104,7 +104,7 @@ test('lunar rescue coexists with construction escort without selecting a mission
 });
 
 test('distant planet follows camera projection and repeated flight updates cannot pin it back to a corner', () => {
-    const anchor = { x: -1800, y: -1300 };
+    const anchor = MOON.entrance;
     const p = parallaxPoint(anchor, { x: 0, y: 0 }, 0, 0.2);
     const turned = parallaxPoint(anchor, { x: 0, y: 0 }, Math.PI / 2, 0.2);
     assert.ok(Math.hypot(p.x - turned.x, p.y - turned.y) > 100);
@@ -116,7 +116,7 @@ test('distant planet follows camera projection and repeated flight updates canno
         bg.camera = { ...anchor };
         bg.cameraAngle = 0;
         bg.update(16);
-        const planet = bg.getChildByLabel('world-planet')!;
+        const planet = bg.getChildByLabel('celestial-moon', true)!;
         assert.equal(planet.x, 800);
         assert.equal(planet.y, 450);
         bg.cameraAngle = 1;
@@ -128,7 +128,7 @@ test('distant planet follows camera projection and repeated flight updates canno
         assert.equal(planet.y, 450);
         bg.setFlight(false);
         bg.update(16);
-        assert.equal(planet.rotation, 0);
+        assert.equal(bg.getChildByLabel('world-planet')!.rotation, 0);
     } finally {
         destroyDisplayTree(bg);
     }
@@ -139,9 +139,9 @@ test('opaque planets cover the Milky Way and move on a distinctly nearer paralla
     try {
         bg.setFlight(true);
         bg.update(0);
-        const planet = bg.getChildByLabel('world-planet')!;
+        const planet = bg.getChildByLabel('celestial-distant', true)!;
         const galaxy = bg.getChildByLabel('milky-way', true)!.parent!;
-        assert.ok(bg.getChildIndex(galaxy) < bg.getChildIndex(planet));
+        assert.ok(bg.getChildIndex(galaxy) < bg.getChildIndex(planet.parent!));
         assert.equal(planet.alpha, 1);
         const planetX = planet.x,
             galaxyX = galaxy.x;
@@ -158,7 +158,7 @@ test('opaque planets cover the Milky Way and move on a distinctly nearer paralla
         assert.equal(planet.scale.x, 0.95 * bg.cameraZoom);
         bg.surface = true;
         bg.update(16);
-        assert.equal(planet.visible, false);
+        assert.equal(planet.parent!.visible, false);
     } finally {
         destroyDisplayTree(bg);
     }

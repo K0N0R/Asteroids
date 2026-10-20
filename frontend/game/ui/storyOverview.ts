@@ -19,6 +19,7 @@ import {
 } from '../state/story';
 import { C } from '../graphics/shapes';
 import { button, label, panel } from './primitives';
+import { RECIPES, RECIPE_IDS, type RecipeId } from '../state/chemistry';
 
 export function storyOverview(
     ui: Container,
@@ -31,7 +32,11 @@ export function storyOverview(
         travel?: (id: StorySectorId) => void;
         station: () => void;
         page?: number;
+        filter?: 'active' | 'completed';
+        setFilter?: (filter: 'active' | 'completed') => void;
         setPage?: (page: number) => void;
+        openRecipe?: (id: RecipeId) => void;
+        openDestination?: (tab: 'station' | 'hangar') => void;
     },
 ) {
     const p = c.story!;
@@ -57,94 +62,172 @@ export function storyOverview(
         );
     });
     const allTasks = storyVisibleTasks(p);
-    const tasks = storyDiscoveredTasks(p);
-    const pages = Math.ceil(tasks.length / 4);
+    const discovered = storyDiscoveredTasks(p);
+    const filter = actions.filter ?? 'active';
+    const tasks = discovered.filter(
+        (task) => p.claimed.includes(task.id) === (filter === 'completed'),
+    );
+    (['active', 'completed'] as const).forEach((id, i) =>
+        button(
+            ui,
+            `${id === 'active' ? 'Aktywne' : 'Ukończone'} (${discovered.filter((task) => p.claimed.includes(task.id) === (id === 'completed')).length})`,
+            280 + i * 370,
+            266,
+            355,
+            () => actions.setFilter?.(id),
+            id === filter,
+            true,
+            32,
+            15,
+        ),
+    );
+    if (!tasks.length)
+        label(
+            ui,
+            filter === 'active' ? 'Brak aktywnych zadań.' : 'Brak ukończonych zadań.',
+            300,
+            340,
+            22,
+            C.muted,
+        );
+
+    const pages = Math.max(1, Math.ceil(tasks.length / 2));
     const page = Math.max(0, Math.min(pages - 1, actions.page ?? 0));
-    tasks.slice(page * 4, page * 4 + 4).forEach((task, i) => {
-        const x = 280 + (i % 2) * 370,
-            y = 267 + Math.floor(i / 2) * 248;
+    tasks.slice(page * 2, page * 2 + 2).forEach((task, i) => {
+        const x = 280,
+            y = 310 + i * 228;
         const complete = p.claimed.includes(task.id),
             available = storyTaskAvailable(p, task);
-        panel(ui, x, y, 355, 232);
+        const items =
+            task.deliveryItems?.map((item) => ({
+                resource: item.resource,
+                have: p.progress[item.id],
+                need: item.target,
+            })) ??
+            (task.requirements
+                ? Object.entries(task.requirements).map(([id, need]) => ({
+                      resource: id as ResourceId,
+                      have:
+                          task.id === 'earth-supply' && p.claimed.includes('earth-materials')
+                              ? need
+                              : (c.bank[id as ResourceId] ?? 0),
+                      need,
+                  }))
+                : task.kind === 'delivery' && task.resource
+                  ? [{ resource: task.resource, have: p.progress[task.id], need: task.target }]
+                  : []);
+        panel(ui, x, y, 725, 210);
         label(
             ui,
             task.required ? 'GŁÓWNE' : 'DODATKOWE',
-            x + 15,
-            y + 12,
-            11,
+            x + 18,
+            y + 14,
+            12,
             task.required ? C.cyan : C.gold,
         );
         label(
             ui,
-            complete
-                ? '✓'
-                : task.requirements || task.kind === 'delivery'
-                  ? ''
-                  : `${p.progress[task.id]}/${task.target}`,
-            x + 294,
-            y + 10,
-            16,
+            complete ? '✓' : items.length ? '' : `${p.progress[task.id]}/${task.target}`,
+            x + 659,
+            y + 14,
+            17,
             complete ? C.mint : C.muted,
         );
-        label(ui, task.title, x + 15, y + 36, 21, complete ? C.mint : C.text, 325);
         label(
             ui,
-            complete
-                ? 'Zadanie ukończone · postęp zapisany.'
-                : available
-                  ? task.detail
-                  : `Wymaga: ${task.dependencies.map((id) => STORY_TASKS.find((t) => t.id === id)!.title).join(' i ')}.`,
-            x + 15,
-            y + 72,
-            15,
-            C.muted,
-            325,
+            task.title,
+            x + 18,
+            y + 39,
+            24,
+            complete ? C.mint : C.text,
+            items.length ? 355 : 670,
         );
-        if (!complete && task.requirements) {
-            Object.entries(task.requirements).forEach(([id, needed], row) => {
-                const resource = id as ResourceId,
-                    have = c.bank[resource] ?? 0;
-                label(ui, RESOURCES[resource].name, x + 16, y + 110 + row * 20, 15, C.text);
+        label(
+            ui,
+            complete ? 'Zadanie ukończone.' : task.detail,
+            x + 18,
+            y + 83,
+            16,
+            C.muted,
+            items.length ? 340 : 650,
+        );
+        if (!complete)
+            items.forEach((item, row) => {
+                const rowY = y + 85 + row * 26;
+                label(ui, RESOURCES[item.resource].name, x + 390, rowY, 15, C.text, 180);
                 label(
                     ui,
-                    `${have}/${needed}`,
-                    x + 277,
-                    y + 110 + row * 20,
+                    `${item.have}/${item.need}`,
+                    x + 584,
+                    rowY,
                     15,
-                    have >= needed ? C.mint : C.gold,
+                    item.have >= item.need ? C.mint : C.gold,
                 );
+                const recipe = RECIPE_IDS.find((id) => RECIPES[id].output === item.resource);
+                if (recipe && actions.openRecipe)
+                    button(
+                        ui,
+                        'STWÓRZ',
+                        x + 636,
+                        rowY - 3,
+                        73,
+                        () => actions.openRecipe?.(recipe),
+                        false,
+                        true,
+                        23,
+                        11,
+                    );
             });
-        }
-        if (!complete && task.kind === 'delivery' && task.resource) {
-            label(ui, RESOURCES[task.resource].name, x + 16, y + 150, 15, C.text, 245);
-            label(ui, `${p.progress[task.id]}/${task.target}`, x + 277, y + 150, 15, C.gold);
-        }
-        const reward = storyRewardText(task);
-        if (reward) label(ui, `Premia: ${reward}`, x + 16, y + 212, 13, C.mint, 325);
-        if (!complete && available && (task.kind === 'ore' || task.kind === 'parts'))
+        if (!complete && task.id === 'earth-supply')
+            label(ui, 'Zaplecze stacji I · 0/1', x + 18, y + 130, 15, C.gold);
+        const destination =
+            task.id === 'earth-ship-upgrade'
+                ? 'hangar'
+                : ['earth-supply', 'earth-workshop'].includes(task.id) ||
+                    task.kind === 'kineticShield'
+                  ? 'station'
+                  : null;
+        if (!complete && destination && actions.openDestination)
+            button(
+                ui,
+                destination === 'hangar' ? 'OTWÓRZ HANGAR →' : 'ROZBUDOWA STACJI →',
+                x + 18,
+                y + 158,
+                305,
+                () => actions.openDestination?.(destination),
+                false,
+                true,
+                32,
+                14,
+            );
+        else if (!complete && available && (task.kind === 'ore' || task.kind === 'parts'))
             button(
                 ui,
                 `PRZEKAŻ ${task.kind === 'parts' ? 'KOMPONENTY' : 'RUDĘ'}`,
-                x + 16,
-                y + 164,
-                323,
+                x + 18,
+                y + 158,
+                305,
                 () => actions.contribute?.(task.id),
                 false,
-                c.bank[task.kind === 'parts' ? 'parts' : 'ore'] > 0 && !!actions.contribute,
-                28,
+                (c.bank[task.kind === 'parts' ? 'parts' : 'ore'] ?? 0) > 0 && !!actions.contribute,
+                32,
+                14,
             );
         else if (!complete && available && task.kind === 'briefing')
             button(
                 ui,
                 'ZATWIERDŹ PLAN DO WENUS',
-                x + 16,
-                y + 164,
-                323,
+                x + 18,
+                y + 158,
+                305,
                 () => actions.briefing?.(),
                 false,
                 !!actions.briefing && !c.activeRun,
-                28,
+                32,
+                14,
             );
+        const reward = storyRewardText(task);
+        if (reward) label(ui, `Premia: ${reward}`, x + 18, y + 194, 14, C.mint, 365);
     });
     if (pages > 1) {
         button(
@@ -172,24 +255,6 @@ export function storyOverview(
         );
     }
     const complete = allTasks.filter((t) => t.required).every((t) => p.claimed.includes(t.id));
-    label(
-        ui,
-        storyNextStep(p) ||
-            (complete
-                ? p.sector === 'earth'
-                    ? 'Akt I ukończony. Podejmij pościg ku Marsowi; zadania dodatkowe pozostają dostępne.'
-                    : 'Stacja księżycowa odebrana. Zachowujesz dostęp do Ziemi i powierzchni Księżyca.'
-                : p.sector === 'lunar'
-                  ? 'Powierzchnia: E lub C dostarcza materiały, G rozpoczyna obronę. Raporty przyjmuje radio.'
-                  : p.sector === 'earth'
-                    ? 'Raporty przyjmuje radio. C przy Satuk 15: dostawy do zadań, nadmiar do magazynu.'
-                    : 'Przygotuj części w Laboratorium i Warsztacie, a następnie dostarcz je do budowy.'),
-        280,
-        808,
-        15,
-        complete ? C.mint : C.muted,
-        720,
-    );
     const def = STORY_SECTORS[p.sector],
         pilot = selectedPilot(c);
     label(ui, `SATUK 15 / ${storyAct(p)}`, 1072, 244, 13, C.mint);

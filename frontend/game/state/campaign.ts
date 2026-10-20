@@ -88,7 +88,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 61;
+    version: 64;
     story: StoryProgress | null;
     bank: Cargo;
     lunarStation: { bank: Cargo };
@@ -181,7 +181,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 61,
+        version: 64,
         story: null,
         bank: { ore: 0, parts: 0 },
         lunarStation: { bank: { ore: 0, parts: 0 } },
@@ -230,7 +230,7 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 61 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 64 || !cargo(p.bank) || !object(p.station)) return null;
         if (!object(p.lunarStation) || !cargo(p.lunarStation.bank)) return null;
         if (
             !integer(p.station.workshop, 2) ||
@@ -429,9 +429,17 @@ export function parseCampaign(json: string | null): Campaign | null {
             return null;
         if (!Array.isArray(p.recoverySignals) || p.recoverySignals.length > RECOVERY.signalLimit)
             return null;
+        if (p.story !== null && !validStory(p.story)) return null;
         const allShipIds = ships.map((ship) => ship.id);
         const allPilotIds = [...ids];
         for (const signal of p.recoverySignals) {
+            const sectorId = (Object.keys(STORY_SECTORS) as StorySectorId[]).find(
+                (id) => STORY_SECTORS[id].seed === signal?.seed,
+            );
+            const signalRadius =
+                p.story && sectorId
+                    ? Math.max(GAME.sectorRadius, storyRadius({ ...p.story, sector: sectorId }))
+                    : GAME.sectorRadius;
             if (
                 !object(signal) ||
                 !integer(signal.id) ||
@@ -444,7 +452,7 @@ export function parseCampaign(json: string | null): Campaign | null {
                     ? (signal.seed !== STORY_SECTORS.lunar.seed &&
                           signal.seed !== STORY_SECTORS.earth.seed) ||
                       moonDistance(signal) > MOON.radius - 200
-                    : Math.hypot(signal.x, signal.y) > GAME.sectorRadius - 299) ||
+                    : Math.hypot(signal.x, signal.y) > signalRadius - 200) ||
                 (signal.ship === null && signal.pilot === null) ||
                 (signal.ship !== null && (!validShip(signal.ship) || signal.ship.id !== signal.id))
             )
@@ -490,7 +498,6 @@ export function parseCampaign(json: string | null): Campaign | null {
             )
                 return null;
         }
-        if (p.story !== null && !validStory(p.story)) return null;
         if (
             object(p.activeRun) &&
             p.activeRun.area !== undefined &&
@@ -1057,6 +1064,7 @@ export function finishRun(
             active.area === 'surface'
                 ? { x: loss.x - MOON.center.x, y: loss.y - MOON.center.y }
                 : loss,
+            c.story ? storyRadius(c.story) : GAME.sectorRadius,
         );
         if (signal) {
             if (active.area === 'surface') {

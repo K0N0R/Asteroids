@@ -1,8 +1,44 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-20, wersja 0.93.
+Stan: 2026-10-20, wersja 0.96.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Lifting 0.96 — ukończenie pierwszej rozbudowy i czytelne ulepszenia
+
+Dodatkowo rozróżniono ikony układu zasilania (bateria), maszynerii (koła zębate) i zespołu napędowego (dysza silnika); podtrzymywanie życia pozostaje parą zbiorników.
+
+Przy częściach ulepszania statku dostępne są przyciski Stwórz. Powrót z receptur zachowuje wybrany statek i moduł w Hangarze, również po przejściu przez składniki w Laboratorium.
+
+Pierwsze zaopatrzenie obejmuje zebranie materiałów i ukończenie zaplecza I. Samo oddanie surowców nie zamyka zadania i nie daje questowego PD. Po rozbudowie pilot otrzymuje raz 40 PD. Zebranie surowców jest zachowanym wewnętrznym krokiem, więc przetworzenie ich w części nie zeruje checklisty. Dawne osobne Zaplecze stacji stało się wewnętrznym krokiem tego zadania.
+
+Dziennik ma zakładki Aktywne i Ukończone z licznikami. Ukończone karty nie mają przycisków wykonywania zadania. Usunięto tekst pod listą zadań, wzmiankę o Swifcie w opisie odzysku wraków oraz wskazówkę K do śluzy. W Hangarze efekt ma duże porównanie przed/po i pełny opis, a koszt pokazuje ikony oraz stan/wymaganie części. HUD ma czerwone zdrowie i odsuniętą niebieską tarczę. Raport powrotu ma kafelki surowców z ikoną, przyrostem i stanem magazynu. Usunięto radio potwierdzające zwykłe przekazanie ładunku i wiadomość instruktora o szukaniu drogi.
+
+Przewodniki przedstawia zwój miedzianego kabla, elektronika pozostaje płytką z układem, a moduł osłonowy ma sześciokątny generator zamiast bliźniaczych zbiorników. Ilustracje są wspólne dla receptur, kosztów i magazynu. Kampania 64, dziennik 29; bez migracji starszych zapisów. Weryfikacja obejmuje zmienione początkowe zadanie i podgląd poprawionych ekranów, bez pełnej regresji.
+
+## Lifting 0.95 — zadania, ładownia i nawigacja do produkcji
+
+Pierwsza dostawa na Księżyc to jedno zadanie „Wyposażenie stacji” z listą pięciu części i licznikami dostaw. Dotychczasowe liczniki modułów są wewnętrznymi krokami, bez osobnych kart, celów HUD i powiadomień o pięciu ukończonych zadaniach. Przy częściach znajdują się skróty „Stwórz”. Takie same skróty dodano do kosztów zaplecza, tarcz i hangaru dronów. Historia nawigacji prowadzi z powrotem przez receptury do wcześniejszej zakładki i tej samej strony zadań. Karty w bazie zajmują całą szerokość lewej kolumny, po dwie na stronę. Zadania rozbudowy i ulepszeń mają przyciski do odpowiednich paneli oraz Powrót.
+
+HUD zachowuje podstawowe paski, w tym kolorowy udział zawartości ładowni. Usunięto opis ładunku, przełączników, instruktorów i stały komunikat hipernapędu z lewego górnego obszaru. Lista materiałów zebranych do pierwszego zaopatrzenia pokazuje stan magazynu plus ładowni oraz wymaganie. Szczegóły ładowni są w przebudowanym Tab: kafelki zasobów, liczniki i „Wyrzuć 1”. Zbieranie przełącza się w Tab; X, O i zbędny wybór ładunku B nie sterują już statkiem. Wyrzucenie wyłącza zbieranie, by statek nie podnosił od razu wyrzuconej sztuki; można je wznowić w Tab.
+
+Początkowy obszar ma więcej złóż Cu i Si, a małe fragmenty tych złóż dostarczają po trzy porcje zamiast jednej. Instruktor czeka obok śluzy i nie jest uznawany za przeszkodę przy sprawdzaniu trasy hiperskoku. Kampania 63, dziennik 28, bez migracji wcześniejszych zapisów. Weryfikacja ograniczona do tych zmian; bez pełnej regresji.
+
+## Poprawka 0.94 — stabilność i porządek w pierwszym układzie
+
+Usunięto dawny ratunek promu Swift i powiązane patrole z Aktu I. Pierwszy atak pozostaje po ukończeniu budowy stacji księżycowej. Wraki satelitów mają niezależne pozycje, kąty i kierunki powolnego obrotu. Księżyc odsunięto z 4,5 do 8,5 km od środka obszaru Ziemi; śluza, sonda, złoże, granica świata i sygnały ratunkowe korzystają z nowego zasięgu.
+
+Podejście ukrywa wyłącznie odległą ilustrację Księżyca, którą zastępuje powierzchnia; Ziemia nie jest wyłączana wraz z całą warstwą. Podczas skoku z satelitą hol i statek korzystają z zgodnej interpolacji. Ładowanie płynnie ustawia zestaw do lotu, a naprężanie liny nie konkuruje z przesuwaniem całego zestawu.
+
+Zmniejszono nadmiarową rozdzielczość tekstur napisów na ekranach o wysokim DPR. Utrata kontekstu WebGL zatrzymuje symulację; odzyskanie odtwarza napisy, geometrię i buforowane globy. W przeglądarce wymuszono utratę i odzyskanie GPU: napisy i Ziemia wróciły, animacja ruszyła. Nie odtworzono spontanicznego zawieszenia, więc ta poprawka nie potwierdza jeszcze usunięcia każdej jego możliwej przyczyny. Weryfikacja celowana, bez pełnej regresji. Kampania 62, dziennik 27; starsze zapisy bez migracji. Szczegóły: [wdrożenie 0.94](implementation-v0.94.md).
+
+## Poprawka 0.93 — proporcje Ziemi i Księżyca
+
+Ziemię powiększono, a Księżyc zmniejszono: widoczna średnica Ziemi jest około 3,7 razy większa. Obie skale są zdefiniowane wspólnie dla układu; początkowy rozmiar globu w animacji lądowania korzysta z tej samej skali Księżyca. Głębokości paralaksy pozostają bez zmian. Zapis kampanii bez zmian.
+
+## Poprawka 0.93 — głębia ciał niebieskich
+
+Ziemia i Księżyc nie korzystają już z głębokości 1, czyli płaszczyzny statków i stacji. Ruch względem kamery wynosi odpowiednio 12% i 18% ruchu pierwszego planu. Wspólna warstwa `CelestialLayer` renderuje listę ciał przypisaną do sektora (`SECTOR_CELESTIAL_BODIES`): każde ma własny identyfikator, wygląd, kotwicę, skalę i głębokość. Obsługuje dowolną liczbę ciał i porządkuje je od najdalszego do najbliższego. Kolejne planety lub księżyce nie wymagają wyjątków w `Background`. Grafika menu pozostaje osobna, a dalekie ciała znikają podczas pobytu na powierzchni. Poprawka 0.94 pozostawia Ziemię widoczną w animacji podejścia. Zapis kampanii bez zmian. Celowane sprawdzenie: ruch obu globów przy translacji, obrocie i zoomie, trzy niezależne ciała, zmiana sektora i ukrywanie warstwy; pięć scenariuszy bez pełnej regresji.
 
 ## Wdrożenie 0.93 — kompletne dostawy i wspólny zapas napraw
 

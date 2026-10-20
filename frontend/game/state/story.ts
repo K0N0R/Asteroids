@@ -124,6 +124,9 @@ export interface StoryTask {
     title: string;
     detail: string;
     required: boolean;
+    /** Delivery counters are internal steps of their parent quest. */
+    internal?: boolean;
+    deliveryItems?: readonly { id: string; resource: ResourceId; target: number }[];
     requirements?: ResourceStore;
     rewardXp?: number;
     kind:
@@ -157,18 +160,32 @@ export const BELT_BARRIERS = [
 ] as const;
 export const STORY_TASKS: readonly StoryTask[] = [
     {
-        id: 'earth-supply',
+        id: 'earth-materials',
         sector: 'earth',
         act: 1,
-        title: 'Pierwsze zaopatrzenie',
-        detail: 'Wydobądź materiały potrzebne do rozbudowy stacji:',
-        required: true,
+        title: 'Materiały do zaplecza',
+        detail: '',
+        internal: true,
+        required: false,
         kind: 'supplies',
         requirements: STARTER_MATERIALS,
         target: 1,
         dependencies: [],
         reward: { ore: 0, parts: 0 },
-        rewardXp: 20,
+    },
+    {
+        id: 'earth-supply',
+        sector: 'earth',
+        act: 1,
+        title: 'Pierwsze zaopatrzenie',
+        detail: 'Zbierz materiały i rozbuduj zaplecze stacji do poziomu I.',
+        required: true,
+        kind: 'workshop',
+        requirements: STARTER_MATERIALS,
+        target: 1,
+        dependencies: [],
+        reward: { ore: 0, parts: 0 },
+        rewardXp: 40,
     },
     {
         id: 'earth-relay',
@@ -189,10 +206,11 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 1,
         title: 'Zaplecze stacji',
         detail: 'Rozbuduj zaplecze stacji do poziomu I.',
-        required: true,
+        required: false,
+        internal: true,
         kind: 'workshop',
         target: 1,
-        dependencies: ['earth-supply', 'earth-relay'],
+        dependencies: ['earth-supply'],
         reward: { ore: 0, parts: 0 },
     },
     {
@@ -239,7 +257,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 1,
         title: 'Odzysk wraków satelit',
-        detail: 'Odzyskaj trzy wraki satelit. Ich części umożliwią budowę Swifta.',
+        detail: 'Odzyskaj trzy wraki satelit.',
         required: false,
         kind: 'gather',
         target: 3,
@@ -264,13 +282,27 @@ export const STORY_TASKS: readonly StoryTask[] = [
             ...module,
             sector: 'lunar',
             act: 1,
-            required: true,
+            required: false,
+            internal: true,
             kind: 'delivery',
             detail: 'Dostarcz wyposażenie na stację księżycową.',
             dependencies: ['lunar-survey'],
             reward: { ore: 0, parts: 0 },
         }),
     ),
+    {
+        id: 'lunar-equipment',
+        sector: 'lunar',
+        act: 1,
+        title: 'Wyposażenie stacji',
+        detail: 'Dostarcz części na stację księżycową.',
+        required: true,
+        kind: 'construction',
+        deliveryItems: LUNAR_PROCESSING,
+        target: LUNAR_PROCESSING.reduce((sum, item) => sum + item.target, 0),
+        dependencies: ['lunar-survey'],
+        reward: { ore: 0, parts: 0 },
+    },
     {
         id: 'lunar-foundation',
         sector: 'lunar',
@@ -333,19 +365,6 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['lunar-commission'],
         reward: { ore: 40, parts: 8 },
-    },
-    {
-        id: 'lunar-rescue',
-        sector: 'lunar',
-        act: 1,
-        title: 'Sygnał ratunkowy',
-        detail: 'Przy promie: E zabezpiecza obwody, H podłącza hol. Odprowadź prom do Satuk 15; radio potwierdzi ratunek po fizycznym przekazaniu.',
-        required: false,
-        kind: 'rescue',
-        site: 'rescue',
-        target: 1,
-        dependencies: ['lunar-survey'],
-        reward: { ore: 12, parts: 5 },
     },
     {
         id: 'mars-trail',
@@ -1044,7 +1063,7 @@ export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 26;
+    version: 29;
     dialogues: string[];
     sector: StorySectorId;
     progress: Record<string, number>;
@@ -1052,7 +1071,7 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 26,
+    version: 29,
     dialogues: [],
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
@@ -1123,6 +1142,7 @@ export function storyVisibleTasks(p: StoryProgress) {
         (t) =>
             (t.sector === p.sector || (inEarthSystem(t.sector) && inEarthSystem(p.sector))) &&
             !t.id.startsWith('earth-satellite-') &&
+            !t.internal &&
             (t.id !== 'earth-debrief' || p.claimed.includes('mars-belt')) &&
             (t.act !== 5 || beltTechnologyReady(p)),
     );
@@ -1161,7 +1181,7 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('lunar-survey'))
             return p.claimed.includes('earth-route')
                 ? 'Zsynchronizuj sondę księżycową przez E. Otworzy lądowanie i śluzę do bogatej asteroidy.'
-                : 'Przeleć śluzą Ziemia–Księżyc. K prowadzi do najbliższej śluzy.';
+                : 'Przeleć śluzą Ziemia–Księżyc.';
         if (!lunarProcessingReady(p))
             return 'Przygotuj części w Satuk 15. Załaduj manifest dostawy i przekaż wyposażenie na powierzchni. Każda dostawa uruchamia odpowiedni moduł stacji.';
         if (!p.claimed.includes('lunar-foundation') || !p.claimed.includes('lunar-installations'))
@@ -1294,7 +1314,7 @@ export function plutoFinaleReady(p: StoryProgress) {
     return ['pluto-base', 'pluto-patrol'].every((id) => p.claimed.includes(id));
 }
 export function storyRadius(p: StoryProgress) {
-    if (p.sector === 'earth' && p.claimed.includes('earth-relay')) return 7500;
+    if (p.sector === 'earth' && p.claimed.includes('earth-relay')) return 12000;
     if (p.sector === 'pluto')
         return plutoFinaleReady(p) ? 6000 : p.claimed.includes('pluto-survey') ? 4800 : 2800;
     if (p.sector === 'uranus')
@@ -1334,7 +1354,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 26 ||
+        p.version !== 29 ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -1393,8 +1413,14 @@ function settle(c: Campaign): StoryChange {
     const pilot = c.pilots.find((pilot) => pilot.id === (c.activeRun?.pilotId ?? c.selectedPilot));
     for (const task of STORY_TASKS) {
         if (!storyTaskAvailable(p, task) || p.claimed.includes(task.id)) continue;
+        if (task.deliveryItems)
+            p.progress[task.id] = task.deliveryItems.reduce(
+                (sum, item) => sum + Math.min(item.target, p.progress[item.id]),
+                0,
+            );
         if (
             task.requirements &&
+            task.kind !== 'workshop' &&
             Object.entries(task.requirements).every(
                 ([id, count]) => (c.bank[id as ResourceId] ?? 0) >= count,
             )
@@ -1417,7 +1443,7 @@ function settle(c: Campaign): StoryChange {
         if (task.kind === 'kineticShield' && c.station.shieldLevel > 0) p.progress[task.id] = 1;
         if (p.progress[task.id] < task.target) continue;
         p.claimed.push(task.id);
-        result.titles.push(task.title);
+        if (!task.internal) result.titles.push(task.title);
         for (const id of RESOURCE_IDS)
             if (task.reward[id]) result.reward[id] = (result.reward[id] ?? 0) + task.reward[id]!;
         if (pilot && task.rewardXp) {
@@ -1778,6 +1804,7 @@ export function storyObjectives(
     returnedOre = 0,
     firstBossWon = false,
     finalBossWon = false,
+    cargo: ResourceStore = {},
 ) {
     const p = c.story!;
     patrolKills = Math.max(0, patrolKills - (c.activeRun?.reportedPatrolKills ?? 0));
@@ -1804,34 +1831,53 @@ export function storyObjectives(
         )
         .map((task) => ({
             id: task.id,
+            requirements: task.requirements
+                ? Object.entries(task.requirements).map(([id, need]) => ({
+                      resource: id as ResourceId,
+                      need,
+                      have:
+                          task.id === 'earth-supply' && p.claimed.includes('earth-materials')
+                              ? need
+                              : (c.bank[id as ResourceId] ?? 0) + (cargo[id as ResourceId] ?? 0),
+                  }))
+                : task.deliveryItems?.map((item) => ({
+                      resource: item.resource,
+                      need: item.target,
+                      have: p.progress[item.id],
+                  })),
             title: `${c.activeRun?.mission?.task === task.id ? '▶ ' : ''}${task.title}`,
             progress: p.claimed.includes(task.id)
                 ? ''
-                : !storyTaskAvailable(p, task)
-                  ? '· później'
-                  : task.kind === 'boss' && (task.sector === 'pluto' ? finalBossWon : firstBossWon)
-                    ? '· wysyłanie raportu'
-                    : task.kind === 'gather'
-                      ? `${Math.min(task.target, p.progress[task.id] + (task.resource === 'ore' ? Math.max(0, Math.floor(returnedOre)) : 0))}/${task.target}${task.resource === 'ore' && returnedOre > 0 ? ' · wróć z ładunkiem' : ''}`
-                      : task.kind === 'clearance' &&
-                          clearedBeltRocks.some((i) => task.id === `belt-clear-${i}`)
+                : task.id === 'earth-supply'
+                  ? '0/1'
+                  : task.deliveryItems
+                    ? `${task.deliveryItems.reduce((sum, item) => sum + Math.min(item.target, p.progress[item.id]), 0)}/${task.target}`
+                    : !storyTaskAvailable(p, task)
+                      ? '· później'
+                      : task.kind === 'boss' &&
+                          (task.sector === 'pluto' ? finalBossWon : firstBossWon)
                         ? '· wysyłanie raportu'
-                        : task.kind === 'assault' &&
-                            (task.sector === 'mars'
-                                ? marsDefenseWon
-                                : task.sector === 'venus'
-                                  ? venusDefenseWon
-                                  : assaultWon)
-                          ? '· wysyłanie raportu'
-                          : task.kind === 'patrol'
-                            ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wysyłanie raportu' : ''}`
-                            : task.kind === 'ore' ||
-                                task.kind === 'parts' ||
-                                task.kind === 'delivery'
-                              ? `${p.progress[task.id]}/${task.target}`
-                              : task.site && data.includes(task.site)
-                                ? '· wysyłanie danych'
-                                : '',
+                        : task.kind === 'gather'
+                          ? `${Math.min(task.target, p.progress[task.id] + (task.resource === 'ore' ? Math.max(0, Math.floor(returnedOre)) : 0))}/${task.target}${task.resource === 'ore' && returnedOre > 0 ? ' · wróć z ładunkiem' : ''}`
+                          : task.kind === 'clearance' &&
+                              clearedBeltRocks.some((i) => task.id === `belt-clear-${i}`)
+                            ? '· wysyłanie raportu'
+                            : task.kind === 'assault' &&
+                                (task.sector === 'mars'
+                                    ? marsDefenseWon
+                                    : task.sector === 'venus'
+                                      ? venusDefenseWon
+                                      : assaultWon)
+                              ? '· wysyłanie raportu'
+                              : task.kind === 'patrol'
+                                ? `${Math.min(task.target, p.progress[task.id] + patrolKills)}/${task.target}${patrolKills ? ' · wysyłanie raportu' : ''}`
+                                : task.kind === 'ore' ||
+                                    task.kind === 'parts' ||
+                                    task.kind === 'delivery'
+                                  ? `${p.progress[task.id]}/${task.target}`
+                                  : task.site && data.includes(task.site)
+                                    ? '· wysyłanie danych'
+                                    : '',
             complete: p.claimed.includes(task.id),
         }));
 }

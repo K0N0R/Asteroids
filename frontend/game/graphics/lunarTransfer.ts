@@ -1,3 +1,4 @@
+import { EARTH_SYSTEM_BODY_SCALE } from '../worlds/celestialBodies';
 import { Container, Graphics } from 'pixi.js';
 import { label } from '../ui/primitives';
 import { C } from './shapes';
@@ -22,7 +23,7 @@ export function lunarTransferPose(progress: number, surface: boolean, zoom: numb
     const t = Math.max(0, Math.min(1, progress));
     const ease = t * t * (3 - 2 * t);
     const approach = surface ? ease : 1 - ease;
-    const globeZoom = (126 * 0.95) / MOON.radius;
+    const globeZoom = (126 * EARTH_SYSTEM_BODY_SCALE.moon) / MOON.radius;
     return {
         zoom: globeZoom * (zoom / globeZoom) ** approach,
         pivot: {

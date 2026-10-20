@@ -1,15 +1,16 @@
-import { resourceSummary } from '../state/resources';
-import { AEGIS, ATLAS_WEAPONS, PHOENIX, STINGER_AMMO, WEAPONS } from '../config';
+import { RESOURCE_IDS, RESOURCES } from '../state/resources';
 import { Container, Graphics } from 'pixi.js';
 import { BasePopup } from '../../core/containers/popup/basePopup';
-import { Campaign } from '../state/campaign';
-import { MissionSimulation } from '../systems/mission';
-import { CONTRACTS, GAME } from '../config';
+import type { Campaign } from '../state/campaign';
+import type { MissionSimulation } from '../systems/mission';
+import { CONTRACTS } from '../config';
 import { C, ShipView } from '../graphics/shapes';
 import { PROTOTYPES } from '../systems/prototypes';
-import { button, clear, label, panel } from './primitives';
+import { itemIllustration } from '../graphics/items';
+import { button, clear, label, panel, illustrationInBox } from './primitives';
 import { missionObjectives } from './missionReadout';
 import { objectiveMark } from './hudIcons';
+import { STORY_TASKS } from '../state/story';
 
 export interface MissionInfoData {
     simulation: MissionSimulation;
@@ -22,168 +23,157 @@ export interface MissionInfoData {
 
 export class MissionInfoPopup extends BasePopup<MissionInfoData> {
     private content = new Container();
+    private cargoPage = 0;
+    private goalPage = 0;
     constructor() {
         super();
         this.addChild(this.content);
     }
-    show({
-        simulation: s,
-        campaign: c,
-        contract: contractId,
-        objectives,
-        objectivesTitle,
-        abortMission,
-    }: MissionInfoData) {
+    show(data: MissionInfoData) {
+        const {
+            simulation: s,
+            campaign: c,
+            contract,
+            objectives,
+            objectivesTitle,
+            abortMission,
+        } = data;
         clear(this.content);
         const root = this.content;
         const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.82 });
         shade.eventMode = 'static';
         root.addChild(shade);
-        panel(root, 240, 104, 1120, 720);
-        label(root, 'POKŁAD / INFORMACJE O WYPRAWIE', 280, 141, 14, C.mint);
-        label(root, s.hullConfig.name, 280, 176, 36);
-        label(root, 'PAUZA · TAB / ESC', 1125, 143, 14, C.muted);
+        panel(root, 130, 80, 1340, 750);
+        label(root, 'POKŁAD', 170, 112, 14, C.mint);
+        label(root, s.hullConfig.name, 170, 143, 34);
+        label(root, 'PAUZA · TAB / ESC', 1250, 114, 14, C.muted);
         const minutes = Math.floor(s.elapsed / 60),
             seconds = Math.floor(s.elapsed % 60)
                 .toString()
                 .padStart(2, '0');
-        label(
-            root,
-            `${minutes}:${seconds} lotu · zniszczone drony ${s.enemyKills}`,
-            975,
-            188,
-            16,
-            C.muted,
-        );
-        root.addChild(
-            new Graphics()
-                .moveTo(280, 229)
-                .lineTo(1320, 229)
-                .moveTo(820, 251)
-                .lineTo(820, 714)
-                .moveTo(280, 737)
-                .lineTo(1320, 737)
-                .stroke({ color: C.line, width: 1 }),
-        );
-        label(
-            root,
-            `HIPERNAPĘD · SPACJA: śluza / anuluj ładowanie · kolizja = utrata`,
-            280,
-            208,
-            13,
-            C.cyan,
-            650,
-        );
-        label(root, 'STATEK / SYSTEMY', 280, 251, 13, C.muted);
-        label(
-            root,
+        label(root, `${minutes}:${seconds} lotu`, 1250, 153, 16, C.muted);
+        panel(root, 170, 215, 300, 530);
+        panel(root, 490, 215, 560, 530);
+        panel(root, 1070, 215, 360, 530);
+        label(root, 'STATEK I PILOT', 190, 238, 14, C.mint);
+        const pilot = c.pilots.find((pilot) => pilot.id === c.activeRun?.pilotId);
+        const stats = [
+            ['Kadłub', `${Math.ceil(s.hull)} / ${s.maxHull}`],
             [
-                `Kadłub ${Math.ceil(s.hull)}/${s.maxHull} · ładunek ${s.cargoUsed}/${s.cargoCapacity}`,
-                `Tarcza ${Math.ceil(s.kineticShield.charge)}/${s.kineticShield.profile.capacity} · ${s.kineticShield.profile.regen.toFixed(1)}/s · przerwa ${Math.ceil(s.kineticShield.cooldown)} s`,
-                `${resourceSummary(s.cargo)}${s.stolenEquipment ? ` · sprzęt ${WEAPONS[s.stolenEquipment].name}` : ''}`,
-                `Prędkość ${Math.round(s.speed)} / ${Math.round(s.hullConfig.maxSpeed * s.driveMultiplier * (s.engineFault ? GAME.damagedThrust : 1))} m/s`,
-                `Skręt ${s.turnSpeed.toFixed(2)} rad/s · ${s.harpoonArms ? `ramiona ${Math.round(s.harpoonArms.reach * s.hullConfig.size)} m` : s.isAtlas ? `rakieta ${ATLAS_WEAPONS.rocket.speed * ATLAS_WEAPONS.rocket.life} m` : s.aegis ? `energia ${AEGIS.speed * AEGIS.life} m` : s.hullId === 'stinger' ? `LPM ${STINGER_AMMO.light.speed * STINGER_AMMO.light.life} / PPM ${STINGER_AMMO.armor.speed * STINGER_AMMO.armor.life} m` : s.hullConfig.lasers.length ? `laser ${Math.round(s.laserRange)} m` : `broń ${Math.round(s.weaponConfig.speed * s.weaponConfig.life)} m`}`,
-                s.harpoonArms
-                    ? `Szczęki · mnożnik siły ${s.harpoonArms.damageMultiplier.toFixed(2)} · zestawy ${s.repairKits}`
-                    : s.isAtlas
-                      ? `Rakieta ${s.rocketDamage} · granaty ${s.grenadeCount} × ${ATLAS_WEAPONS.grenade.damage} · zestawy ${s.repairKits}`
-                      : s.aegis
-                        ? `Energia ${s.energyDamage} · dron ${s.aegis.drone ? Math.ceil(s.aegis.drone.hull) : 0} HP · impuls ${Math.ceil(s.aegis.cooldown)} s`
-                        : s.hullId === 'mule'
-                          ? 'Lasery ×2 · R: darmowa samonaprawa'
-                          : s.hullId === 'stinger'
-                            ? `4 działa · LPM ${(STINGER_AMMO.light.damage * s.stingerDamageMultiplier).toFixed(1)} / PPM ${(STINGER_AMMO.armor.damage * s.stingerDamageMultiplier).toFixed(1)} · zestawy ${s.repairKits}`
-                            : s.hullId === 'phoenix'
-                              ? `Laser ${(PHOENIX.laserDamage * s.phoenixLaserMultiplier).toFixed(0)}/s · ogień ${(PHOENIX.burnDamage * s.phoenixLaserMultiplier).toFixed(0)}/s · rakieta ${s.rocketDamage}`
-                              : s.hullId === 'widmo'
-                                ? `Dash ${s.dashDamage.toFixed(0)} obrażeń · odnowienie ${Math.ceil(s.dashCooldown)} s`
-                                : `${s.weaponConfig.name} · ${s.gunDamage.toFixed(1)} obrażeń${s.hullId === 'fighter' ? ` · granaty ×${s.grenadeCount}` : ''} · zestawy ${s.repairKits}`,
-                `Zakłócanie radarów: ${Math.round(s.hullConfig.radarJamming * 100)}%${s.hullId === 'widmo' ? ` · kamuflaż ${s.opticalCloak ? 'aktywny' : `${Math.ceil(s.opticalCloakCooldown)} s`} · dash ${Math.ceil(s.dashCooldown)} s` : ''}`,
-            ].join('\n'),
-            280,
-            282,
-            17,
-            C.text,
-            390,
-        );
-        label(
-            root,
-            s.engineFault ? 'AWARIA NAPĘDU · ciąg 45%' : 'Napęd sprawny',
-            280,
-            406,
-            15,
-            s.engineFault ? C.red : C.mint,
-        );
-        if (c.ship) {
-            const view = new ShipView(c.ship);
-            view.scale.set(s.hullConfig.size * 1.7);
-            view.rotation = -Math.PI / 2;
-            view.position.set(729, 348);
-            root.addChild(view);
-        }
-        label(root, 'PILOT', 280, 450, 13, C.muted);
-        const pilot = c.pilots.find((p) => p.id === c.activeRun?.pilotId);
-        label(
-            root,
-            `${s.pilot.name} · ${s.pilot.role} · P${s.pilot.level}${pilot ? ` · ${pilot.xp} PD` : ''}`,
-            280,
-            476,
-            17,
-            C.text,
-            500,
-        );
-        if (pilot)
-            label(
-                root,
-                `Manewrowanie ${pilot.skills.handling} · wydobycie ${pilot.skills.mining} · ewakuacja ${pilot.skills.survival}`,
-                280,
-                502,
-                15,
-                C.muted,
-                500,
-            );
-        label(root, 'PROTOTYPY / DO KOŃCA WYPRAWY', 280, 553, 13, C.muted);
-        if (!s.prototypes.length)
-            label(
-                root,
-                `Brak modułów · pozostałe skrytki: ${s.sector.caches.length - s.openedCaches.size}`,
-                280,
-                585,
-                17,
-                C.muted,
-            );
-        s.prototypes.forEach((id, i) => {
-            label(root, PROTOTYPES[id].name, 280, 582 + i * 66, 17, C.mint);
-            label(root, PROTOTYPES[id].detail, 280, 606 + i * 66, 14, C.muted, 500);
+                'Tarcza',
+                `${Math.ceil(s.kineticShield.charge)} / ${s.kineticShield.profile.capacity}`,
+            ],
+            ['Ładownia', `${s.cargoUsed} / ${s.cargoCapacity}`],
+            ['Prędkość', `${Math.round(s.speed)} m/s`],
+            ['Naprawy', s.hullId === 'mule' ? 'Bezpłatne' : `${s.repairKits}`],
+        ];
+        stats.forEach(([title, value], i) => {
+            const x = 190 + (i % 2) * 135,
+                y = 281 + Math.floor(i / 2) * 63;
+            label(root, title, x, y, 13, C.muted);
+            label(root, value, x, y + 22, 21, C.text, 130);
         });
-        const contract = CONTRACTS[contractId];
-        label(
+        label(root, s.pilot.name, 190, 493, 21, C.text, 260);
+        label(root, `${s.pilot.role} · poziom ${s.pilot.level}`, 190, 526, 15, C.muted, 260);
+        if (pilot) label(root, `${pilot.xp} PD`, 190, 551, 16, C.mint);
+        if (s.engineFault) label(root, 'Awaria napędu', 190, 586, 16, C.coral);
+        if (s.prototypes.length) {
+            label(root, 'MODUŁY WYPRAWY', 190, 626, 12, C.muted);
+            s.prototypes
+                .slice(0, 3)
+                .forEach((id, i) =>
+                    label(root, PROTOTYPES[id].name, 190, 653 + i * 24, 15, C.mint, 260),
+                );
+        } else if (c.ship) {
+            const ship = new ShipView(c.ship);
+            ship.rotation = -Math.PI / 2;
+            ship.scale.set(1.1);
+            ship.position.set(360, 650);
+            root.addChild(ship);
+        }
+        label(root, `ŁADOWNIA · ${s.cargoUsed} / ${s.cargoCapacity}`, 510, 238, 17, C.mint);
+        button(
             root,
-            objectivesTitle
-                ? 'KAMPANIA / CELE SEKTORA'
-                : objectives
-                  ? 'SANDBOX / CELE'
-                  : 'KONTRAKT / CELE',
-            860,
-            251,
-            13,
-            C.muted,
+            `ZBIERANIE: ${s.grippers.enabled ? 'WŁ.' : 'WYŁ.'}`,
+            844,
+            233,
+            186,
+            () => {
+                s.toggleCollection();
+                this.show(data);
+            },
+            false,
+            true,
+            29,
+            12,
         );
-        label(
-            root,
-            objectivesTitle ?? (objectives ? 'Próba mechanik' : contract.title),
-            860,
-            277,
-            22,
-            C.text,
-            460,
-        );
-        const checks = new Graphics();
-        root.addChild(checks);
-        const goalRows =
+        const resources = RESOURCE_IDS.filter((id) => (s.cargo[id] ?? 0) > 0);
+        const pages = Math.max(1, Math.ceil(resources.length / 8));
+        this.cargoPage = Math.max(0, Math.min(this.cargoPage, pages - 1));
+        if (!resources.length) {
+            illustrationInBox(root, itemIllustration('parts'), 685, 355, 150, 140);
+            label(root, 'Ładownia jest pusta', 650, 527, 22, C.muted, 300);
+        }
+        resources.slice(this.cargoPage * 8, this.cargoPage * 8 + 8).forEach((id, i) => {
+            const x = 510 + (i % 2) * 260,
+                y = 282 + Math.floor(i / 2) * 101;
+            panel(root, x, y, 250, 88);
+            illustrationInBox(root, itemIllustration(id), x + 12, y + 12, 28, 28);
+            label(root, RESOURCES[id].name, x + 48, y + 12, 15, C.text, 190);
+            label(root, `${s.cargo[id]}`, x + 16, y + 53, 23, RESOURCES[id].color);
+            button(
+                root,
+                'WYRZUĆ 1',
+                x + 140,
+                y + 51,
+                96,
+                () => {
+                    s.jettisonCargo(id);
+                    this.show(data);
+                },
+                false,
+                !s.hyperdrive.active && !s.transferActive && s.cargoTransferRemaining <= 0,
+                26,
+                11,
+            );
+        });
+        if (pages > 1) {
+            button(
+                root,
+                '←',
+                510,
+                708,
+                54,
+                () => {
+                    this.cargoPage--;
+                    this.show(data);
+                },
+                false,
+                this.cargoPage > 0,
+                25,
+            );
+            label(root, `${this.cargoPage + 1} / ${pages}`, 742, 712, 14, C.muted);
+            button(
+                root,
+                '→',
+                976,
+                708,
+                54,
+                () => {
+                    this.cargoPage++;
+                    this.show(data);
+                },
+                false,
+                this.cargoPage < pages - 1,
+                25,
+            );
+        }
+        label(root, 'CELE WYPRAWY', 1090, 238, 14, C.mint);
+        label(root, objectivesTitle ?? CONTRACTS[contract].title, 1090, 267, 16, C.muted, 320);
+        const goals =
             objectives ??
             missionObjectives(
-                contractId,
+                contract,
                 s.cargo,
                 [...s.surveyData],
                 !!s.recoverySignal,
@@ -191,132 +181,73 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
                 false,
                 s.enemyKills,
             );
-        const goalSpacing = goalRows.length > 6 ? 20 : goalRows.length > 5 ? 24 : 30;
-        goalRows.forEach((goal, i) => {
-            objectiveMark(checks, 867, 322 + i * goalSpacing, goal.complete);
+        const goalPages = Math.max(1, Math.ceil(goals.length / 3));
+        this.goalPage = Math.min(this.goalPage, goalPages - 1);
+        const checks = root.addChild(new Graphics());
+        goals.slice(this.goalPage * 3, this.goalPage * 3 + 3).forEach((goal, i) => {
+            const y = 318 + i * 125;
+            objectiveMark(checks, 1098, y + 8, goal.complete);
             label(
                 root,
-                goal.id === 'escort' && s.escort?.state === 'destroyed'
-                    ? 'Kepler utracony'
-                    : goal.id === 'rescue' && s.recoveryDestroyed
-                      ? 'Cel ratunkowy utracony'
-                      : `${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`,
-                888,
-                313 + i * goalSpacing,
+                `${goal.title}${goal.progress ? `  ${goal.progress}` : ''}`,
+                1118,
+                y,
                 17,
-                goal.id === 'rescue' && s.recoveryDestroyed
-                    ? C.red
-                    : goal.complete
-                      ? C.mint
-                      : C.muted,
-                430,
+                goal.complete ? C.mint : C.text,
+                285,
             );
+            if (!goal.complete)
+                goal.requirements?.forEach((row, index) => {
+                    const have =
+                        goal.id === 'earth-supply' && c.story?.claimed.includes('earth-materials')
+                            ? row.need
+                            : STORY_TASKS.find((task) => task.id === goal.id)?.requirements
+                              ? (c.bank[row.resource] ?? 0) + (s.cargo[row.resource] ?? 0)
+                              : row.have;
+                    label(
+                        root,
+                        `${RESOURCES[row.resource].name}  ${have}/${row.need}`,
+                        1118,
+                        y + 29 + index * 17,
+                        14,
+                        have >= row.need ? C.mint : C.muted,
+                        285,
+                    );
+                });
         });
-        label(
-            root,
-            s.missionStatus
-                ? s.missionStatus
-                : s.outerSector
-                  ? s.outerStatus
-                  : s.saturnSector
-                    ? s.saturnStatus
-                    : s.jupiterSector
-                      ? s.jupiterStatus
-                      : s.beltSector
-                        ? s.beltStatus
-                        : s.mercurySector
-                          ? s.solar.summary
-                          : (s.area === 'surface' || s.orbitalBaseSector) && s.defenseSummary
-                            ? s.defenseSummary
-                            : objectivesTitle
-                              ? c.story?.sector === 'venus'
-                                  ? '8 placówka · E budowa · G obrona. Osłonę przygotujesz w stacji.'
-                                  : c.story?.sector === 'mars'
-                                    ? 'Raporty walk i odczyty zabezpieczysz po powrocie. Pas wymaga nowej technologii.'
-                                    : s.area === 'surface'
-                                      ? 'Dostawy zostają na budowie. Odbiór techniczny potwierdzi radio.'
-                                      : 'Odczyty potwierdza radio. C przy Satuk 15 przekazuje ładunek do magazynu.'
-                              : objectives
-                                ? 'Próba lokalna · bez nagród i strat w kampanii'
-                                : `Premia po powrocie: ${contract.rewardOre} rudy · ${contract.rewardParts} komponentów`,
-            860,
-            456,
-            15,
-            C.gold,
-            460,
-        );
-        label(root, 'PRZETWARZANIE', 860, 503, 13, C.muted);
-        label(
-            root,
-            'Laboratorium i warsztat obsługujesz ręcznie w bazie.\nPodczas lotu nie trwa produkcja.',
-            860,
-            532,
-            16,
-            C.muted,
-            460,
-        );
-        label(root, 'ODZYSK', 860, 635, 13, C.muted);
-        label(
-            root,
-            !s.recoverySignal
-                ? s.salvage.towed
-                    ? `Hol ${s.salvage.towing.size}/${s.salvage.capacity} · ${[...s.salvage.towing.values()].map((item) => `${Math.ceil(item.health)}/${item.maxHealth} HP`).join(' · ')}`
-                    : 'Brak akcji ratunkowej'
-                : s.recoveryDelivered
-                  ? `Cel ratunkowy przekazany ${s.stationRecipient}`
-                  : s.recoveryDestroyed
-                    ? 'Cel ratunkowy zniszczony'
-                    : s.recoverySecured
-                      ? 'Cel na holu · zabezpieczysz go po dokowaniu'
-                      : `Sygnał #${s.recoverySignal.id} · ${s.recoverySignal.pilot ? 'kapsuła pilota' : 'bez kapsuły'} · ${s.recoverySignal.ship ? 'wrak statku' : 'bez wraku'}`,
-            860,
-            660,
-            16,
-            C.text,
-            460,
-        );
-        label(
-            root,
-            c.story
-                ? 'Wykonuj dostępne cele. Postęp zadań pozostaje między wyprawami.'
-                : s.outpost.disabledTime > 0
-                  ? `Cerber: skaner wyłączony · ${Math.ceil(s.outpost.disabledTime)} s`
-                  : s.outpost.secured
-                    ? s.stolenEquipment
-                        ? 'Cerber: sprzęt i dane na pokładzie'
-                        : `Cerber: E magazyn · ${WEAPONS[s.outpostEquipment].name} / 3 miejsca`
-                    : s.outpost.alarm > 0
-                      ? `Cerber: alarm · ${Math.ceil(s.outpost.alarm)} s`
-                      : 'Cerber: E dane · G przekierowanie zasilania',
-            860,
-            697,
-            13,
-            s.outpost.alarm > 0 ? C.red : C.muted,
-            460,
-        );
-        label(
-            root,
-            ', / . Poprzedni / następny cel · H Podłącz hol · J Zwolnij hol',
-            280,
-            753,
-            13,
-            C.muted,
-        );
-        label(
-            root,
-            c.story
-                ? s.miningEscort
-                    ? s.miningEscort.status
-                    : 'W / S Lot i hamowanie · A / D Skręt · PPM Wydobycie · E Skan / dokowanie · TAB Pokład'
-                : 'W / S Lot i hamowanie · A / D Skręt · PPM Wydobycie · E Interakcja · TAB Pokład',
-            280,
-            772,
-            13,
-            C.muted,
-        );
-        label(root, 'Lot i praca załogi są zatrzymane.', 280, 792, 14, C.muted);
+        if (goalPages > 1) {
+            button(
+                root,
+                '←',
+                1090,
+                708,
+                54,
+                () => {
+                    this.goalPage--;
+                    this.show(data);
+                },
+                false,
+                this.goalPage > 0,
+                25,
+            );
+            label(root, `${this.goalPage + 1} / ${goalPages}`, 1230, 712, 14, C.muted);
+            button(
+                root,
+                '→',
+                1356,
+                708,
+                54,
+                () => {
+                    this.goalPage++;
+                    this.show(data);
+                },
+                false,
+                this.goalPage < goalPages - 1,
+                25,
+            );
+        }
         if (abortMission && s.canAbortMission)
-            button(root, 'PRZERWIJ MISJĘ…', 825, 773, 270, abortMission, false, true, 36, 14);
-        button(root, 'WRÓĆ DO LOTU', 1120, 773, 200, () => this.promise.resolve(), true, true, 36);
+            button(root, 'PRZERWIJ MISJĘ…', 170, 770, 230, abortMission, false, true, 36, 14);
+        button(root, 'WRÓĆ DO LOTU', 1220, 770, 210, () => this.promise.resolve(), true, true, 36);
     }
 }

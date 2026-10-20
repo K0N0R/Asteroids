@@ -25,6 +25,7 @@ export function createRecoverySignal(
     pilot: Pilot,
     seed: number,
     position: Point,
+    sectorRadius: number = GAME.sectorRadius,
 ): RecoverySignal | null {
     const rng = random(seed ^ Math.imul(ship.id, 0x45d9f3b) ^ Math.imul(pilot.id, 0x119de1f3));
     const chances = recoveryChances(ship, pilot);
@@ -33,7 +34,7 @@ export function createRecoverySignal(
     if (!rescuedPilot && !salvagedShip) return null;
     // Keep beacons reachable even when the loss happened in the radiation zone or the dock.
     const distance = Math.hypot(position.x, position.y);
-    const radius = Math.max(650, Math.min(GAME.sectorRadius - 300, distance));
+    const radius = Math.max(650, Math.min(sectorRadius - 300, distance));
     const angle = distance > 0 ? Math.atan2(position.y, position.x) : 0;
     return {
         id: ship.id,

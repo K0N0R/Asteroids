@@ -9,6 +9,7 @@ import { EffectsManager } from '@systems/effectManager';
 import { Bus } from '@systems/bus';
 import { Background } from '@entities/background';
 import { FrameDiagnostics } from './systems/frameDiagnostics';
+import { bindRenderContextRecovery } from './systems/renderContextRecovery';
 
 export class Core {
     app!: PIXI.Application;
@@ -63,6 +64,7 @@ export class Core {
         });
 
         this.app.canvas.addEventListener('contextmenu', (evt) => evt.preventDefault());
+        bindRenderContextRecovery(this.app);
         document.body.appendChild(this.app.canvas);
     }
 

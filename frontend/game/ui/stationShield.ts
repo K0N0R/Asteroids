@@ -8,12 +8,14 @@ import { C } from '../graphics/shapes';
 import { button, label, STATION_LAYOUT } from './primitives';
 import { STATION_DRONES as D, stationDronesLock } from '../state/stationDrones';
 import { StationSentryView } from '../graphics/stationSentryView';
+import type { RecipeId } from '../state/chemistry';
 
 export function stationShieldContent(
     ui: Container,
     c: Campaign,
     install?: () => void,
     upgrade?: () => void,
+    openRecipe?: (id: RecipeId) => void,
 ) {
     const active = !c.story || c.station.shield;
     const upgradeMode = c.station.shield;
@@ -75,7 +77,13 @@ export function stationShieldContent(
         456,
     );
     if (!upgradeMode || nextCost)
-        constructionCosts(ui, c.bank, upgradeMode ? nextCost : STATION_SHIELD.cost);
+        constructionCosts(
+            ui,
+            c.bank,
+            upgradeMode ? nextCost : STATION_SHIELD.cost,
+            570,
+            openRecipe,
+        );
     else label(ui, 'Poziom II · maksymalny zasięg 1150 m', 1072, 597, 19, C.gold, 456);
     const lock = upgradeMode ? kineticInstallationLock(c, 'shield') : stationShieldLock(c);
     label(
@@ -111,7 +119,12 @@ export function stationShieldContent(
     );
 }
 
-export function stationDronesContent(ui: Container, c: Campaign, install?: () => void) {
+export function stationDronesContent(
+    ui: Container,
+    c: Campaign,
+    install?: () => void,
+    openRecipe?: (id: RecipeId) => void,
+) {
     const diagram = new Graphics();
     const x = 640,
         y = 515;
@@ -197,6 +210,7 @@ export function stationDronesContent(ui: Container, c: Campaign, install?: () =>
             c.bank,
             c.station.sentries ? droneReplacementBill(lost) : D.cost,
             565,
+            openRecipe,
         );
     else label(ui, 'Wszystkie drony są sprawne.', 1072, 600, 17, C.mint, 456);
     const lock = stationDronesLock(c);

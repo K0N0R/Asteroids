@@ -35,7 +35,7 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
         };
     if (c.activeRun?.mission?.task === 'earth-relay' && !claimed.includes('earth-relay'))
         return relay();
-    if (!claimed.includes('earth-supply')) {
+    if (!claimed.includes('earth-supply') && !claimed.includes('earth-materials')) {
         const missing = Object.entries(STARTER_MATERIALS).filter(
             ([id, count]) => (c.bank[id as ResourceId] ?? 0) < count,
         );
@@ -70,7 +70,8 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
                 'Zaopatrzenie i łączność gotowe. Wróć do pierścienia i przytrzymaj E, potem zamontuj zaplecze I w Rozbudowie stacji.',
         };
     return {
-        ...EARTH_MOON_LANE.a,
+        x: EARTH_MOON_LANE.a.x + 240,
+        y: EARTH_MOON_LANE.a.y + 100,
         id: 'moon-gate',
         title: 'Śluza na Księżyc',
         message:
@@ -129,12 +130,6 @@ export class EarthGuide extends ResearchEscort {
         const returning = goal.id === 'return' || goal.id === 'abort';
         super.update(dt, returning || this.rangeReported ? this.position : player, obstacles, true);
         if (this.waitingReason === 'player') this.rangeReported = true;
-        if (this.waitingReason === 'route')
-            this.once(
-                `blocked-${goal.id}`,
-                'Szukam drogi wokół skał. Jeśli przejście pozostanie zablokowane, nie musisz na mnie czekać — zadania wykonujesz niezależnie.',
-                say,
-            );
         if (returning && this.state === 'research') {
             this.state = 'complete';
             this.collider.setSensor(true);

@@ -88,7 +88,7 @@ export class MissionWorld extends Container {
     get backgroundCamera() {
         return this.simulation.area === 'surface'
             ? moonOrbitPoint(this.simulation.position)
-            : this.simulation.position;
+            : this.shipView.position;
     }
     get backgroundZoom() {
         return this.camera.scale.x / this.transferZoom;

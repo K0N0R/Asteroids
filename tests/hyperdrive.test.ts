@@ -87,12 +87,12 @@ function fly(s: MissionSimulation, target: { x: number; y: number }) {
 test('Earth satellite opens distinct Moon and satellite regions with two cleared lanes', () => {
     const c = ready(),
         sector = generateStorySector(c.story!);
-    assert.equal(storyRadius(c.story!), 7500);
+    assert.equal(storyRadius(c.story!), 12000);
     assert.equal(sector.regions.length, 4);
     assert.equal(sector.hyperlanes.length, 2);
     assert.ok(sector.landmarks.some((l) => l.siteId === 'lunarProbe'));
     for (const lane of sector.hyperlanes) {
-        assert.ok(Math.hypot(lane.a.x - lane.b.x, lane.a.y - lane.b.y) <= HYPERDRIVE.range);
+        assert.ok(Math.hypot(lane.a.x - lane.b.x, lane.a.y - lane.b.y) <= HYPERDRIVE.gateRange);
         assert.ok(sector.rocks.every((r) => segmentDistance(r, lane.a, lane.b) > r.radius + 110));
     }
     assert.equal(
@@ -110,15 +110,20 @@ test('stock Prospector flies to a gate, crosses the full lane and returns repeat
         clear(s); // Moving hazards are exercised separately; this checks gate navigation.
         s.step({ ...idle, hyperdrive: true });
         assert.equal(s.hyperdrive.state, 'charging');
-        advance(s, 120, true);
+        advance(s, 180, true);
         assert.equal(s.ended, null);
         assert.equal(s.hyperdrive.state, 'idle');
-        assert.ok(Math.hypot(s.position.x, s.position.y + 3900) < 1);
+        assert.ok(
+            Math.hypot(
+                s.position.x - s.sector.hyperlanes[0].b.x,
+                s.position.y - s.sector.hyperlanes[0].b.y,
+            ) < 1,
+        );
         assert.equal(s.speed, 0);
         advance(s, 120, true);
         s.step(idle);
         s.step({ ...idle, hyperdrive: true });
-        advance(s, 120);
+        advance(s, 180);
         assert.ok(Math.hypot(s.position.x, s.position.y + 1200) < 1);
         assert.ok(parseCampaign(JSON.stringify(s.campaign)));
     } finally {
@@ -165,7 +170,7 @@ test('swept hyperflight collision with a thin off-axis physical obstacle destroy
     }
 });
 
-test('hyperflight refuses towing, surface transitions, excess speed and unfinished terminal work', () => {
+test('hyperflight accepts satellite towing but refuses surface transitions, excess speed and unfinished terminal work', () => {
     const s = run();
     try {
         clear(s);
@@ -179,9 +184,9 @@ test('hyperflight refuses towing, surface transitions, excess speed and unfinish
         s.step({ ...idle, hyperdrive: true });
         assert.equal(s.hyperdrive.state, 'idle');
         s.ship.setLinvel({ x: 0, y: 0 }, true);
-        const item = s.salvage.add(90001, 'patrol', { x: 100, y: 0 }, { x: 0, y: 0 })!;
+        const item = s.salvage.add(90001, 'satellite', { x: 100, y: 0 }, { x: 0, y: 0 })!;
         assert.ok(s.salvage.attach(item, s.ship));
-        assert.match(s.hyperdriveLock!, /hol/);
+        assert.equal(s.hyperdriveLock, null);
         s.salvage.detach();
         s.terminalPuzzle = new TerminalPuzzle('breach', 'prospector', 1);
         assert.match(s.hyperdriveLock!, /interakcję/);

@@ -4,7 +4,7 @@ import type { Point } from './sector';
 export const MOON = {
     center: { x: 24000, y: 24000 },
     radius: 2600,
-    entrance: { x: 0, y: -4500 },
+    entrance: { x: 0, y: -8500 },
     exit: { x: 23100, y: 24000 },
     construction: { x: 24300, y: 24000 },
     quarry: { x: 23900, y: 24650 },
@@ -29,5 +29,5 @@ export function inEarthSystem(sector: string | undefined) {
 export const EARTH_MOON_LANE = {
     name: 'Ziemia — Księżyc',
     a: { x: 0, y: -1200 },
-    b: { x: 0, y: -3900 },
+    b: { x: MOON.entrance.x, y: MOON.entrance.y + 600 },
 };

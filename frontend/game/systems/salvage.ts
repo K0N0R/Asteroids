@@ -135,12 +135,15 @@ export class SalvageFleet {
             this.towing.delete(id);
         }
     }
-    beforeStep(dt: number, anchor: Point, angle = 0) {
+    beforeStep(dt: number, anchor: Point, angle = 0, transporting = false) {
         for (const item of this.items.values()) {
-            item.previous = salvagePosition(item);
-            item.previousAngle = item.body.rotation();
+            if (!transporting || !this.towing.has(item.id)) {
+                item.previous = salvagePosition(item);
+                item.previousAngle = item.body.rotation();
+            }
             item.cooldown = Math.max(0, item.cooldown - dt);
         }
+        if (transporting) return;
         for (const item of this.towing.values()) {
             const offset = this.towAnchor(item).y,
                 p = salvagePosition(item),

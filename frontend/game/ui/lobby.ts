@@ -46,7 +46,7 @@ import {
     canScrapShip,
     pilotSlots,
 } from '../state/campaign';
-import { RECIPES, type RecipeId } from '../state/chemistry';
+import { RECIPES, RECIPE_IDS, type RecipeId } from '../state/chemistry';
 import { recoveryChances } from '../state/recovery';
 import { contractLockReason } from '../state/contracts';
 import { MAX_PILOT_XP, pilotLevel, pilotPoints, pilotName } from '../state/pilots';
@@ -137,7 +137,7 @@ export class LobbyView extends Container {
     private chosenPilotId: number | null = null;
     private recruit = 0;
     private stationSection: 'facilities' | 'shield' | 'drones' = 'facilities';
-    private recipeHistory: RecipeId[] = [];
+    private recipeHistory: { tab: LobbyTab; recipe?: RecipeId }[] = [];
     private laboratoryRecipe: RecipeId = 'water';
     private workshopRecipe: RecipeId = 'plating';
     private inventoryPage = 0;
@@ -147,6 +147,7 @@ export class LobbyView extends Container {
     private recoveryId: number | null = null;
     private recoveryPage = 0;
     private storyPage = 0;
+    private storyFilter: 'active' | 'completed' = 'active';
     private storyPageSector: StorySectorId | null = null;
     constructor(
         private campaign: Campaign,
@@ -162,6 +163,7 @@ export class LobbyView extends Container {
         this.loadConstruction = false;
         this.storyPage = 0;
         this.storyPageSector = null;
+        this.storyFilter = 'active';
         this.scrapCandidate = null;
         this.recoveryId = null;
     }
@@ -176,16 +178,43 @@ export class LobbyView extends Container {
         else this.workshopRecipe = id;
         this.refresh();
     }
+    private backToPrevious() {
+        const destination = this.recipeHistory.pop();
+        if (!destination) return;
+        if (destination.recipe) this.showRecipe(destination.recipe);
+        else {
+            this.tab = destination.tab;
+            this.refresh();
+        }
+    }
+    private openDestination(tab: 'station' | 'hangar') {
+        this.recipeHistory.push({ tab: this.tab });
+        this.tab = tab;
+        if (tab === 'station') this.stationSection = 'facilities';
+        else {
+            this.hangarMode = 'owned';
+            this.hullDetailMode = 'upgrades';
+        }
+        this.refresh();
+    }
     private get productionNavigation() {
         return {
             openRecipe: (id: RecipeId) => {
-                this.recipeHistory.push(
-                    this.tab === 'laboratory' ? this.laboratoryRecipe : this.workshopRecipe,
-                );
+                this.recipeHistory.push({
+                    tab: this.tab,
+                    recipe:
+                        this.tab === 'laboratory'
+                            ? this.laboratoryRecipe
+                            : this.tab === 'workshop'
+                              ? this.workshopRecipe
+                              : undefined,
+                });
                 this.showRecipe(id);
             },
             back: this.recipeHistory.length
-                ? () => this.showRecipe(this.recipeHistory.pop()!)
+                ? () => {
+                      this.backToPrevious();
+                  }
                 : undefined,
         };
     }
@@ -197,6 +226,8 @@ export class LobbyView extends Container {
         const ui = this.content;
         label(ui, title, 280, 111, 39);
         label(ui, subtitle, 282, 166, 16, C.muted);
+        if (this.recipeHistory.length && this.tab !== 'laboratory' && this.tab !== 'workshop')
+            button(ui, '← POWRÓT', 870, 114, 135, () => this.backToPrevious(), false, true, 32, 13);
         if (detailPanel) panel(ui, 1040, STATION_LAYOUT.top, 520, 591);
     }
     refresh(message?: string) {
@@ -280,7 +311,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.93', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.96', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.tab === 'overview') this.overview(ui);
         if (this.tab === 'hangar') this.hangar(ui);
@@ -460,10 +491,18 @@ export class LobbyView extends Container {
                                           : 'Akt I · Rozbuduj Satuk 15, nawiąż łączność i przygotuj stację na Księżycu.',
             );
             storyOverview(ui, this.campaign, {
+                openRecipe: this.productionNavigation.openRecipe,
+                openDestination: (tab) => this.openDestination(tab),
                 contribute: this.actions.contribute,
                 briefing: this.actions.briefing,
                 travel: this.actions.travel,
                 station: () => this.go('station'),
+                filter: this.storyFilter,
+                setFilter: (filter) => {
+                    this.storyFilter = filter;
+                    this.storyPage = 0;
+                    this.refresh();
+                },
                 page: this.storyPage,
                 setPage: (page) => {
                     this.storyPage = page;
@@ -1123,12 +1162,63 @@ export class LobbyView extends Container {
             12,
             C.muted,
         );
-        const describe = (key: typeof this.moduleFocus) => {
+        const detailCard = ui.addChild(new Container());
+        const renderDetail = (key: typeof this.moduleFocus) => {
+            clear(detailCard);
+            panel(detailCard, 1060, 572, 480, 147);
             const level = preview ? 0 : ship[key];
-            const detail = shipUpgradeDefinition(ship.hull, key).detail;
-            return `${detail}\n${!preview && level >= limit ? 'Osiągnięto limit zaplecza.' : `Koszt: ${resourceSummary(upgradePrice({ ...c, ship: { ...ship, [key]: level } }, key))}`}`;
+            const definition = shipUpgradeDefinition(ship.hull, key);
+            const comparison = moduleComparison(ship, key, Math.min(3, level + 1));
+            label(detailCard, definition.title, 1076, 580, 19, C.mint, 440);
+            label(
+                detailCard,
+                `${comparison.title}: ${comparison.before} → ${comparison.after}`,
+                1076,
+                607,
+                22,
+                C.cyan,
+                440,
+            );
+            label(detailCard, definition.detail, 1076, 635, 14, C.muted, 440);
+            if (!preview && level >= limit) {
+                label(detailCard, 'Osiągnięto limit zaplecza.', 1076, 670, 17, C.muted);
+                return;
+            }
+            label(detailCard, 'KOSZT ULEPSZENIA', 1076, 667, 12, C.muted);
+            const price = upgradePrice({ ...c, ship: { ...ship, [key]: level } }, key);
+            RESOURCE_IDS.filter((id) => (price[id] ?? 0) > 0).forEach((id, i) => {
+                const x = 1076 + (i % 2) * 228,
+                    y = 681 + Math.floor(i / 2) * 40;
+                illustrationInBox(detailCard, itemIllustration(id), x, y, 24, 24);
+                label(detailCard, RESOURCES[id].name, x + 26, y, 15, C.text, 196);
+                label(
+                    detailCard,
+                    `${c.bank[id] ?? 0}/${price[id]}`,
+                    x + 26,
+                    y + 19,
+                    14,
+                    (c.bank[id] ?? 0) >= price[id]! ? C.mint : C.coral,
+                );
+                const recipe = RECIPE_IDS.find((recipe) => RECIPES[recipe].output === id);
+                if (recipe)
+                    button(
+                        detailCard,
+                        'STWÓRZ',
+                        x + 134,
+                        y + 17,
+                        82,
+                        () => {
+                            this.moduleFocus = key;
+                            this.productionNavigation.openRecipe(recipe);
+                        },
+                        false,
+                        true,
+                        20,
+                        10,
+                    );
+            });
         };
-        const hint = label(ui, describe(this.moduleFocus), 1072, 610, 13, C.muted, 456);
+        renderDetail(this.moduleFocus);
         (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).forEach((key, i) => {
             const level = ship[key],
                 price = upgradePrice(
@@ -1149,7 +1239,7 @@ export class LobbyView extends Container {
                     key,
                 ),
                 definition = shipUpgradeDefinition(ship.hull, key),
-                y = 427 + i * 30;
+                y = 421 + i * 25;
             const title = label(
                 ui,
                 definition.title,
@@ -1167,9 +1257,9 @@ export class LobbyView extends Container {
                 this.refresh();
             });
             title.on('pointerenter', () => {
-                hint.setText(describe(key));
+                renderDetail(key);
             });
-            title.on('pointerleave', () => hint.setText(describe(this.moduleFocus)));
+            title.on('pointerleave', () => renderDetail(this.moduleFocus));
             segments(ui, level, 3, 1288, y + 5, 69);
             const buy = button(
                 ui,
@@ -1191,10 +1281,10 @@ export class LobbyView extends Container {
                 false,
                 preview ||
                     (active && !c.activeRun && level < limit && canAffordEquipment(c.bank, price)),
-                26,
+                24,
             );
             buy.config.onHover = () => {
-                hint.setText(describe(key));
+                renderDetail(key);
             };
         });
     }
@@ -1232,11 +1322,17 @@ export class LobbyView extends Container {
                 c,
                 this.actions.installStationShield,
                 this.actions.installKineticShield,
+                this.productionNavigation.openRecipe,
             );
             return;
         }
         if (this.stationSection === 'drones') {
-            stationDronesContent(ui, c, this.actions.installStationDrones);
+            stationDronesContent(
+                ui,
+                c,
+                this.actions.installStationDrones,
+                this.productionNavigation.openRecipe,
+            );
             return;
         }
         this.art(fittedScene(productionBayScene(level), 650, 350), 640, 520);
@@ -1259,7 +1355,8 @@ export class LobbyView extends Container {
             C.muted,
             456,
         );
-        if (level < limit) constructionCosts(ui, c.bank, price);
+        if (level < limit)
+            constructionCosts(ui, c.bank, price, 570, this.productionNavigation.openRecipe);
         else label(ui, 'MAKSYMALNY POZIOM', 1072, 649, 12, C.muted);
         button(
             ui,
