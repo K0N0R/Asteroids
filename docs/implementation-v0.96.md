@@ -25,3 +25,5 @@ Wspólny komponent `questCard` zastępuje stałe boxy 210 px. Wysokość wynika 
 Typ zadania wskazuje ikona obok tytułu: turkusowy romb oznacza zadanie główne, złota gwiazda dodatkowe. Najechanie pokazuje nazwę typu. Ukończone karty pokazują tytuł, potwierdzenie i nagrodę bez powtórzonego opisu oraz akcji.
 
 W przeglądarce sprawdzono start, dwie krótsze karty na stronie, pięć części dostawy księżycowej, zakładkę ukończonych oraz przejście do receptury i powrót na tę samą stronę. Pomiar wszystkich 81 widocznych definicji zadań wykazał maksymalnie 400 px; żadna nie przekracza obszaru strony. Kontrola typów, lint zmienionych plików i build; bez pełnej regresji. Format kampanii i dziennika bez zmian.
+
+Usunięto wybór 1 / 5 / 10 / MAKS. z Laboratorium i Warsztatu. Podgląd kosztów, wynik oraz przycisk Wytwórz dotyczą jednej porcji receptury. Sprawdzono oba widoki i wywołanie produkcji z jedną porcją; typecheck, lint pliku i build przeszły.
