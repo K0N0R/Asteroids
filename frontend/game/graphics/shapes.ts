@@ -1,3 +1,4 @@
+import { enemyHull } from './enemyHull';
 import { drawMineralMarkers, mineralMarkerKey } from './mineralMarkers';
 import type { ResourceStore } from '../state/resources';
 import { Container, Graphics, GraphicsContext } from 'pixi.js';
@@ -258,122 +259,10 @@ export class DroneView extends Container {
     readonly flame = new Graphics();
     constructor(kind: EnemyKind = 'patrol') {
         super();
-        if (kind !== 'patrol' && kind !== 'lancer') {
-            const hulls = {
-                interceptor: [-25, -6, -12, -18, 1, -11, 32, 0, 1, 11, -12, 18, -25, 6],
-                heavy: [
-                    -37, -25, -24, -38, 15, -38, 34, -23, 38, 0, 34, 23, 15, 38, -24, 38, -37, 25,
-                ],
-                support: [
-                    -27, -21, -9, -27, 9, -18, 24, -11, 24, 11, 9, 18, -9, 27, -27, 21, -17, 0,
-                ],
-                minelayer: [-31, -25, 10, -28, 29, -14, 31, 14, 10, 28, -31, 25, -20, 0],
-            };
-            const accent =
-                kind === 'support'
-                    ? 0xd6c38a
-                    : kind === 'interceptor'
-                      ? 0xd2988a
-                      : kind === 'minelayer'
-                        ? 0xd0a575
-                        : 0xbda09a;
-            this.flame
-                .poly([-27, -6, -49, 0, -27, 6])
-                .fill({ color: SHIP_COLORS.flame, alpha: 0.8 });
-            this.addChild(this.flame);
-            const guns = new Graphics();
-            for (const offset of kind === 'heavy' ? [-17, 0, 17] : [0])
-                guns.rect(17, offset - 3, kind === 'heavy' ? 29 : 19, 6).fill(SHIP_COLORS.gun);
-            this.addChild(guns);
-            const body = new Graphics();
-            roundedPanel(body, hulls[kind], 3, kind === 'heavy' ? 0x5c5e62 : 0x59686e, 0xa4adb0);
-            for (const side of [-1, 1]) {
-                body.beginPath()
-                    .rect(-20, side * (kind === 'heavy' ? 27 : 15) - 3, 20, 6)
-                    .fill(accent);
-                body.beginPath()
-                    .rect(-28, side * 12 - 3, 7, 6)
-                    .fill(SHIP_COLORS.engine);
-            }
-            if (kind === 'heavy') {
-                roundedPanel(
-                    body,
-                    [-21, -23, 16, -23, 25, 0, 16, 23, -21, 23],
-                    3,
-                    0x7c7e7d,
-                    0xafb1ab,
-                );
-                body.beginPath().rect(-11, -21, 7, 42).fill(0x494e54);
-            }
-            if (kind === 'support') {
-                body.beginPath().rect(-3, -11, 6, 22).rect(-11, -3, 22, 6).fill(accent);
-                body.beginPath().circle(20, -14, 4).circle(20, 14, 4).fill(0xc4d9db);
-            }
-            if (kind === 'minelayer')
-                for (const side of [-1, 1])
-                    for (let index = 0; index < 3; index++) {
-                        const x = -22 + index * 10,
-                            y = side * 19;
-                        body.beginPath()
-                            .poly([x - 4, y, x, y - 4, x + 4, y, x, y + 4])
-                            .fill(0x373c43);
-                    }
-            if (kind !== 'support') visor(body, kind === 'heavy' ? 13 : 7, 0, 6, 5);
-            this.addChild(body);
-            return;
-        }
-        const heavy = kind === 'lancer',
-            g = new Graphics();
-        this.flame.poly([-29, -7, -54, 0, -29, 7]).fill({ color: SHIP_COLORS.flame, alpha: 0.8 });
-        this.addChild(this.flame, engineHousing(-24, heavy ? -17 : 0));
-        if (heavy) this.addChild(engineHousing(-24, 17));
-        // Weapon sits below the armoured deck, like the player fleet.
-        const gun = new Graphics()
-            .circle(2, 0, 8)
-            .fill(SHIP_COLORS.engine)
-            .roundRect(-2, -5, heavy ? 49 : 38, 10, 3)
-            .fill(SHIP_COLORS.gun)
-            .roundRect(13, -2, heavy ? 30 : 20, 4, 1)
-            .fill(SHIP_COLORS.gunInset)
-            .roundRect(heavy ? 42 : 32, -4, 5, 8, 1)
-            .fill(0x394650);
-        this.addChild(gun);
-        const hull = heavy ? 0x615b66 : 0x646b73,
-            edge = heavy ? 0xa49ba6 : 0xa0adb4;
-        roundedPanel(
-            g,
-            heavy
-                ? [
-                      -29, -15, -15, -35, 10, -32, 29, -16, 21, -8, 21, 8, 29, 16, 10, 32, -15, 35,
-                      -29, 15,
-                  ]
-                : [-26, -12, -12, -28, 10, -20, 28, -8, 28, 8, 10, 20, -12, 28, -26, 12],
-            4,
-            hull,
-            edge,
-        );
-        for (const side of [-1, 1]) {
-            roundedPanel(
-                g,
-                [-15, side * 12, -9, side * (heavy ? 28 : 22), 12, side * 19, 18, side * 11],
-                2,
-                heavy ? 0x7f7481 : 0x7b8790,
-                edge,
-            );
-            g.roundRect(-18, side * 11 - 2, 12, 4, 1).fill(SHIP_COLORS.engine);
-            g.roundRect(1, side * 16 - 1.5, 10, 3, 1).fill(0xb7887e);
-            g.circle(-9, side * 18, 1.2).fill(0xc6c6c3);
-        }
-        g.roundRect(-18, -9, 26, 18, 5).fill(0x414b55);
-        visor(g, -6, 0, 9, 7);
-        g.roundRect(12, -4, 7, 8, 2).fill(0x423e43);
-        g.circle(15, 0, 2).fill(0xd39b87);
-        for (let i = 0; i < 3; i++)
-            g.roundRect(-22 + i * 3, -4, 1.3, 8, 0.5).fill(SHIP_COLORS.engine);
-        this.addChild(g);
+        this.flame.poly([-29, -6, -55, 0, -29, 6]).fill({ color: SHIP_COLORS.flame, alpha: 0.8 });
+        this.addChild(this.flame, enemyHull(kind));
     }
 }
-
 export function stationView(level = 0) {
     const view = new Container(),
         ring = new Graphics();
@@ -516,12 +405,36 @@ export function surveySiteView(site: ScanSiteId) {
     if (site === 'relay' || site === 'lunarProbe') {
         visor(g, 0, 0, 16, 12);
         for (const y of [-21, 21]) g.roundRect(-27, y - 2, 18, 4, 1).fill(0xa1afb4);
+        g.roundRect(-25, 33, 50, 9, 3).fill(0x536581);
+        for (const x of [-18, -6, 6, 18]) g.roundRect(x, 36, 6, 3, 1).fill(0xd8b688);
+        if (site === 'lunarProbe') {
+            // Separate probe silhouette: offset dish, landing legs and a sampling arm.
+            g.moveTo(-25, 28)
+                .lineTo(-48, 56)
+                .lineTo(-63, 56)
+                .moveTo(25, 28)
+                .lineTo(48, 56)
+                .lineTo(63, 56)
+                .stroke({ color: 0xb4c4d7, width: 6, cap: 'round', join: 'round' });
+            g.moveTo(23, -20).lineTo(46, -61).stroke({ color: 0x647d9e, width: 7 });
+            g.ellipse(48, -65, 27, 13).fill(0xd8e0e5);
+            g.ellipse(48, -68, 20, 7).fill(0x7f9eaf);
+            g.circle(48, -68, 4).fill(C.mint);
+        }
     } else {
         visor(g, 0, 0, 20, 20);
         for (let i = 0; i < 6; i++) {
             const a = (i * Math.PI) / 3;
             g.circle(Math.cos(a) * 52, Math.sin(a) * 52, 2).fill(0xc5c7bf);
         }
+        // Data canisters and a radiator distinguish the archive from a relay.
+        for (const x of [-22, 0, 22]) {
+            g.roundRect(x - 7, 27, 14, 29, 4).fill(0xa6b6cc);
+            g.roundRect(x - 4, 32, 8, 13, 2).fill(0x394c6d);
+            g.roundRect(x - 4, 48, 8, 3, 1).fill(C.gold);
+        }
+        g.roundRect(-34, -52, 68, 15, 4).fill(0x8a9cb6);
+        for (let x = -26; x <= 26; x += 9) g.roundRect(x, -49, 4, 9, 1).fill(0x394b6a);
     }
     view.addChild(g);
     return view;

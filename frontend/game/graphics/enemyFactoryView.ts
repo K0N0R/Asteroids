@@ -46,6 +46,16 @@ export class EnemyFactoryView extends Container {
                         .fill(0x657b84);
                 }
                 h.rect(-13, -46, 26, 92).fill(0x314a57);
+                h.roundRect(-54, -37, 108, 74, 12).fill(0x667a96);
+                h.roundRect(-43, -28, 86, 56, 8).fill(0x202d47);
+                for (const side of [-1, 1]) {
+                    h.roundRect(-61, side * 55 - 7, 122, 14, 4).fill(0xa99db3);
+                    for (let x = -48; x <= 48; x += 16)
+                        h.roundRect(x, side * 55 - 3, 8, 6, 2).fill(0xe3b681);
+                    h.roundRect(side * 72 - 8, -35, 16, 70, 5).fill(0x8d9cb2);
+                }
+                h.roundRect(-24, -18, 48, 36, 6).fill(0x3e5270);
+                h.roundRect(-18, -12, 36, 24, 4).fill(0xafcdd7);
             }
         }
         if (factory.destroyed) {

@@ -522,7 +522,7 @@ export class GameSession {
             this.sandboxConfig = { ...run.config };
             this.sandboxRun = run;
             this.background.setRegion(null);
-            this.mission = new MissionWorld(run.simulation, run.campaign.ship!);
+            this.mission = new MissionWorld(run.simulation, run.campaign.ship!, false);
             this.hud = new MissionHud(
                 run.simulation,
                 run.campaign.contract,
@@ -764,13 +764,14 @@ export class GameSession {
         }
         const simInput = this.mission.simulation;
         const tuning =
+            this.mission.direction.active ||
             !!simInput.terminalPuzzle ||
             !!simInput.relayTuning ||
             !!simInput.rescueOperation?.repair ||
             simInput.transferActive ||
             simInput.hyperdrive.active ||
             !!simInput.ended;
-        if (simInput.transferActive) InputHandler.clear();
+        if (simInput.transferActive || this.mission.direction.active) InputHandler.clear();
         const local = this.mission.camera.toLocal(InputHandler.pointer);
         const elapsedBefore = simInput.elapsed;
         this.mission.update(deltaMS, {
@@ -811,14 +812,19 @@ export class GameSession {
         if (this.hud)
             this.hud.visible =
                 !this.mission.simulation.transferActive &&
+                !this.mission.direction.active &&
                 this.mission.simulation.ended !== 'destroyed';
         if (this.sandboxRun) {
             const sim = this.mission.simulation;
-            this.background.camera = sim.position;
+            this.background.camera = this.mission.backgroundCamera;
             if (this.hud) this.hud.cameraAngle = this.mission.camera.rotation;
             this.hud?.update(deltaMS);
             if (sim.pendingChoice && !sim.ended) this.showPrototypeChoice();
-            if (sim.ended && (sim.ended !== 'destroyed' || this.mission.deathFinished))
+            if (
+                sim.ended &&
+                (sim.ended !== 'destroyed' || this.mission.deathFinished) &&
+                (sim.ended !== 'returned' || this.mission.returnFinished)
+            )
                 this.finishSandbox(sim.ended);
             return;
         }
@@ -836,7 +842,7 @@ export class GameSession {
                 this.campaign.activeRun.lastPosition = this.mission.simulation.position;
             this.saves.save(this.campaign);
         }
-        this.background.camera = this.mission.simulation.position;
+        this.background.camera = this.mission.backgroundCamera;
         if (this.hud) this.hud.cameraAngle = this.mission.camera.rotation;
         this.hud?.update(deltaMS);
         const sim = this.mission.simulation;
@@ -871,6 +877,7 @@ export class GameSession {
         }
         if (sim.pendingChoice && !sim.ended) this.showPrototypeChoice();
         if (sim.ended === 'destroyed' && !this.mission.deathFinished) return;
+        if (sim.ended === 'returned' && !this.mission.returnFinished) return;
         if (sim.ended) {
             const result = finishRun(
                 this.campaign,

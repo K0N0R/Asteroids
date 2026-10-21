@@ -1,8 +1,56 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-21, wersja 0.106.
+Stan: 2026-10-21, wersja 0.117.1.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.117 — wygląd obszarów anomalii
+
+Skażone pasma otrzymały rdzawopomarańczową sieć nieregularnych włókien, jasne węzły, ciemne zagłębienia i delikatne chłodne drobiny, inspirowane lewą górną częścią referencji autora. Zielone oznaczenia wskazują istniejące bezpieczne korytarze. Poprawka 0.117.1 usuwa twarde wielokątne granice i nakładanie osobnych ilustracji: cały obszar ma jedną wspólną sieć, rysowaną raz na krawędź włókna, z miękkim zanikaniem w kosmosie. [Zakres](implementation-v0.117.md).
+
+**Docelowa mechanika, do wdrożenia:** anomalie są specyficznymi obszarami, przez które gracz będzie mógł „przekopać się” po zdobyciu odpowiedniej technologii. Do ustalenia pozostają technologia i jej odblokowanie, sposób oraz szerokość wycinania przejścia, koszt, trwałość zmian i ich zapis, a także odwzorowanie zmian w kolizjach, obrażeniach, radarze i misjach. Obecny pakiet zmienia grafikę; nie dodaje jeszcze usuwania fragmentów anomalii. Ciemne zagłębienia wewnątrz skażonego pasma są jego teksturą, nie nowymi bezpiecznymi przejściami.
+
+## Wdrożenie 0.116 — grafika Ceres
+
+Ceres jest przygotowana jako osobna ilustracja planety karłowatej: szara powierzchnia z większymi i drobnymi kraterami, niskokontrastowymi formacjami i charakterystycznymi jasnymi plamami w jednym z basenów. `planetView('ceres')` udostępnia ją do późniejszego użycia. Nie ustalono jeszcze pozycji, obszaru misji ani zasad obecności w pasie asteroid. [Zakres](implementation-v0.116.md).
+
+## Wdrożenie 0.115 — Pluton
+
+Pluton ma nową ilustrację lodowych równin i rdzawoczerwonych obszarów, asymetryczne jasne „serce” z delikatnym podziałem powierzchni, wyspy szronu, kratery i zakrzywiony cień. Osłabiona poświata odróżnia skalisty glob od gazowych planet. Grafika jest wspólna dla mapy, bazy i lotu. [Zakres](implementation-v0.115.md).
+
+## Wdrożenie 0.114 — Neptun
+
+Neptun ma głęboką kobaltową atmosferę, jasne pofalowane smugi chmur, mniejszy wir na północy i duży kompleks burzowy z ciemnym środkiem oraz nieregularnym śladem chmur. Zakrzywiony cień zastępuje prostą granicę półkul. Ilustracja nawiązuje do referencji autora i działa we wszystkich widokach planety. [Zakres](implementation-v0.114.md).
+
+## Wdrożenie 0.113 — Uran
+
+Uran ma turkusowo-cyjanową atmosferę, jasny obszar polarny, szerokie zakrzywione pasma i delikatne smugi. Dawne grube pierścienie zastąpiono trzema cienkimi ukośnymi pasmami z poprawnym zasłanianiem przez glob. Wygląd łączy obie referencje autora i jest wspólny dla mapy, bazy oraz lotu. [Zakres](implementation-v0.113.md).
+
+## Wdrożenie 0.112 — Saturn
+
+Saturn ma subtelne kremowo-złote pasma chmur i drobne wiry, zakrzywiony cień oraz nachylone, warstwowe pierścienie z przejrzystą przerwą i cienkimi bruzdami. Przednia i tylna połowa pierścieni korzystają z tej samej geometrii, z globem pomiędzy nimi. Nowa ilustracja działa we wszystkich widokach wspólnego renderera planet. [Zakres](implementation-v0.112.md).
+
+## Wdrożenie 0.111 — Jowisz
+
+Jowisz ma falujące kremowe, ochrowe i rdzawe pasy chmur, pofałdowane smugi, drobne białe owale i wiry oraz wyraźną Wielką Czerwoną Plamę z wyginającym się wokół niej strumieniem chmur. Zakrzywiony cień zastępuje prostą granicę półkul. Nowa ilustracja jest wspólna dla mapy, bazy i lotu. [Zakres](implementation-v0.111.md).
+
+## Wdrożenie 0.110 — Merkury
+
+Merkury ma nową ilustrację inspirowaną kolorystyką referencji autora: złotawe wyżyny, chłodne niebieskoszare równiny, duży basen uderzeniowy, zróżnicowane kratery i jasne promienie wyrzutowe wokół trzech uderzeń. Zakrzywiony cień zastępuje prosty podział półkul; osłabiono dekoracyjną poświatę. Nowy wygląd jest wspólny dla mapy, bazy i lotu. [Zakres](implementation-v0.110.md).
+
+## Wdrożenie 0.109 — Wenus
+
+Wenus ma nową kremowo-złotą atmosferę: szerokie zakrzywione fronty, drobne smugi chmur i trzy wiry, zakrzywiony cień oraz cienką chłodną obwódkę atmosfery. Ilustracja zastępuje proste poziome pasy we wszystkich widokach korzystających ze wspólnego renderera planet. [Zakres](implementation-v0.109.md).
+
+## Wdrożenie 0.108 — Mars, Fobos i Deimos
+
+Odświeżony Mars ma zaokrąglone równiny, większe ciemne obszary, rozgałęziony kanion, formacje wulkaniczne, kratery i czapy polarne. Fobos i Deimos są osobnymi ilustracjami o nieregularnych sylwetkach, różnych barwach i układach kraterów. Trzy obiekty korzystają ze wspólnego renderera paralaksy w sektorze Marsa. Pozycje i skale księżyców są tymczasowym kadrem graficznym, nie projektem sektora: dokładny układ, odległości i obszary misji określi później autor. [Zakres](implementation-v0.108.md).
+
+## Wdrożenie 0.107 — reżyseria lotu i dalsza oprawa
+
+Wylot ma krótką sekwencję odejścia od Satuk 15, a poprawnie zakończony powrót — animację podejścia do doku przed ekranem rozliczenia. Odkrywanie pobliskich instalacji otrzymało krótkie ujęcia kamery i niemodalne komentarze naukowca. Kontakt z przeciwnikiem, wysoka temperatura i krytyczny kadłub wywołują ostrzeżenia; manewr lub zagrożenie oddaje kamerę pilotowi. Odświeżono sześć ról przeciwników, sondę, przekaźnik, archiwum, chronioną instalację i stocznię polową, efekty osłony i wybuchu oraz kratery i podejście do placówki księżycowej. [Zakres, testy i ograniczenia](implementation-v0.107.md).
+
+To pierwszy pakiet obu punktów: nadal pozostają reżyserowane sceny kluczowych wydarzeń, autorskie dialogi dalszych aktów oraz oprawa grywalnych powierzchni kolejnych planet, gdy powstaną ich instancje misji.
 
 ## Wdrożenie 0.106 — Hangar i Stocznia
 
@@ -277,8 +325,8 @@ Cele podejmujemy w świecie, bez wyboru misji przed startem. Odzysk jest trwał�
 7. **Gospodarka i Satuk 15**: 0.68 wdraża spiek, płyty kinetyczne, moduły osłonowe, dwie receptury, dwa poziomy tarczy i dwa wzmocnione segmenty magazynu po +400. Dalsze rudy, konstrukcje i moduły rozwijać wraz z zadaniami sektorów; ten kierunek pozostaje otwarty.
 8. **Dłuższe misje specjalistyczne**: skradanie, przechwycenia, transport i walka; kilka etapów oraz zmiany sytuacji podczas wyprawy.
 9. **Powierzchnie, anomalie i unikalne zadania sektorów**: 0.68 dodaje odnogę wydobywczą Merkurego z własną osłoną skalną i zadaniem. Dalej odmienne warunki, przeszkody i cele; 0.75 dodaje pierwszą misję ze skażonym terenem, nieregularnymi pasmami i fizycznym odzyskiem sondy przy Jowiszu. Dalsze układy i sektory pozostają do rozbudowy.
-10. **Reżyseria**: animacja śmierci wdrożona w 0.69 — rozpad, utrata sygnału i opóźnione rozliczenie bez dalszego zaliczania celów. Dalej animacje dokowania i wylotu, kamera w świecie gry oraz dialogi reagujące na odkrycia i zagrożenia.
-11. **Grafika i piloci**: na prośbę autora priorytet przesunięty przed animacje dokowania. 0.77 wdraża wspólną paletę, interfejs, planety wszystkich sektorów, stację, pastelową flotę i asteroidy. 0.78 usuwa płyty HUD i obrysy, zaokrągla obiekty, stabilizuje tło oraz poprawia wydobycie i lasery jednostek AI. [Korekta](implementation-v0.78.md). 0.101 dodaje różnorodne portrety i stałe wizerunki rozmówców. Dalej przeciwnicy, instalacje misji, efekty oraz powierzchnie kolejnych planet. [Pierwszy pakiet](implementation-v0.77.md).
+10. **Reżyseria**: animacja śmierci wdrożona w 0.69 — rozpad, utrata sygnału i opóźnione rozliczenie bez dalszego zaliczania celów. 0.107 dodaje wylot, dokowanie, krótkie ujęcia odkryć i niemodalne komentarze oraz ostrzeżenia. Dalej reżyserowane sceny wydarzeń i dialogi właściwe dalszym aktom, po ustaleniu ich treści.
+11. **Grafika i piloci**: na prośbę autora priorytet przesunięty przed animacje dokowania. 0.77 wdraża wspólną paletę, interfejs, planety wszystkich sektorów, stację, pastelową flotę i asteroidy. 0.78 usuwa płyty HUD i obrysy, zaokrągla obiekty, stabilizuje tło oraz poprawia wydobycie i lasery jednostek AI. [Korekta](implementation-v0.78.md). 0.101 dodaje różnorodne portrety i stałe wizerunki rozmówców. 0.107 odświeża przeciwników, pierwszą grupę instalacji misji, reakcje trafień oraz teren Księżyca. Dalej kolejne instalacje, oprawa bossów i powierzchnie dalszych planet wraz z ich instancjami. [Pierwszy pakiet](implementation-v0.77.md).
 12. **Udźwiękowienie**: 0.76 przegląda sześć paczek (206 nagrań) i wdraża 22 przygotowane efekty z czterech paczek CC0. Zastępuje stare efekty, dodaje hipernapęd i alarm skażenia, wygładzone pętle, rezerwę głosów i przyciszanie maszyn. Dalszy balans odsłuchowy podczas gry pozostaje otwarty. [Zakres](implementation-v0.76.md).
 13. **Pełne przejście i balans**: ciągły nowy zapis, ekonomia, odblokowania, czas wypraw, straty i trudność; przygotowane sektory tylko jako uzupełnienie.
 

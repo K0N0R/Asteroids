@@ -63,9 +63,17 @@ import {
 } from '../graphics/lunarTransfer';
 import { MOON, moonOrbitPoint } from './moon';
 import { MoonSurfaceView } from '../graphics/moonSurface';
+import { FlightDirection } from '../systems/flightDirection';
+import { FlightDirectionView } from '../graphics/flightDirectionView';
+import { impactBurst } from '../graphics/impactBurst';
 
 const interpolate = (a: number, b: number, t: number) => a + (b - a) * t;
 export class MissionWorld extends Container {
+    readonly direction: FlightDirection;
+    private directionView = new FlightDirectionView();
+    get returnFinished() {
+        return this.direction.returnFinished;
+    }
     private moon: MoonSurfaceView;
     private moonPrepared = false;
     private transfer = new LunarTransferView();
@@ -168,8 +176,10 @@ export class MissionWorld extends Container {
     constructor(
         readonly simulation: MissionSimulation,
         private readonly modules: Ship,
+        directed = true,
     ) {
         super();
+        this.direction = new FlightDirection(directed);
         this.eventMode = 'none';
         const viewportMask = new Graphics().rect(0, 0, 1600, 900).fill(0xffffff);
         this.addChild(viewportMask);
@@ -319,8 +329,15 @@ export class MissionWorld extends Container {
         this.journeyOverlay.addChildAt(this.journeyInk, 0);
         this.journeyOverlay.eventMode = 'none';
         this.lossTitle.visible = this.lossDetail.visible = false;
-        this.addChild(this.camera, this.solarGlare, this.transfer, this.journeyOverlay);
+        this.addChild(
+            this.camera,
+            this.solarGlare,
+            this.transfer,
+            this.journeyOverlay,
+            this.directionView,
+        );
         this.render(1);
+        this.applyDirection();
     }
     private routeSignature = '';
     private syncRoutes() {
@@ -480,6 +497,14 @@ export class MissionWorld extends Container {
     }
     update(deltaMS: number, input: FlightInput) {
         if (this.simulation.pendingChoice) return;
+        if (this.direction.phase === 'launch') {
+            this.clock += Math.min(deltaMS / 1000, 0.1);
+            this.updateDirection(deltaMS, input);
+            this.render(1, Math.min(deltaMS / 1000, 0.1));
+            this.updateJourney(0);
+            this.applyDirection();
+            return;
+        }
         this.simulation.setCombatCamera(this.camera.rotation, this.camera.scale.x);
         this.accumulator += Math.min(deltaMS / 1000, 0.1);
         this.clock += deltaMS / 1000;
@@ -502,18 +527,19 @@ export class MissionWorld extends Container {
             Math.min(deltaMS / 1000, 0.1),
         );
         this.updateJourney(Math.min(deltaMS / 1000, 0.1));
+        this.updateDirection(deltaMS, input);
+        this.applyDirection();
         this.audio.update(this.simulation);
         for (const event of this.simulation.events.splice(0)) {
             this.audio.event(event, this.simulation.position, this.simulation.elapsed);
             if (event.kind === 'shot' || !this.inView(event)) continue;
-            if (event.kind === 'explosion') {
-                const radius = event.strength ?? ATLAS_WEAPONS.grenade.radius;
-                const ring = new Graphics()
-                    .circle(0, 0, radius)
-                    .fill({ color: 0xf0a64e, alpha: 0.08 })
-                    .stroke({ color: 0xffcc76, width: 3 })
-                    .circle(0, 0, radius * 0.6)
-                    .stroke({ color: 0xffefbc, width: 2, alpha: 0.6 });
+            if (
+                (event.kind === 'explosion' || event.kind === 'shield') &&
+                this.particles.length < 800
+            ) {
+                const radius =
+                    event.kind === 'shield' ? 24 : (event.strength ?? ATLAS_WEAPONS.grenade.radius);
+                const ring = impactBurst(event.kind === 'shield', radius);
                 ring.position.set(event.x, event.y);
                 ring.scale.set(0.2);
                 ring.blendMode = 'add';
@@ -522,8 +548,8 @@ export class MissionWorld extends Container {
                     view: ring,
                     vx: 0,
                     vy: 0,
-                    life: 0.45,
-                    duration: 0.45,
+                    life: event.kind === 'shield' ? 0.25 : 0.45,
+                    duration: event.kind === 'shield' ? 0.25 : 0.45,
                     spin: 0,
                     dust: false,
                     blast: true,
@@ -611,6 +637,102 @@ export class MissionWorld extends Container {
             if (p.life <= 0) {
                 p.view.destroy();
                 this.particles.splice(i, 1);
+            }
+        }
+    }
+    private updateDirection(deltaMS: number, input: FlightInput) {
+        const s = this.simulation;
+        const threat = [...s.enemies.enemies.values()].some(
+            (enemy) =>
+                enemy.health > 0 &&
+                Math.hypot(
+                    enemyPosition(enemy).x - s.position.x,
+                    enemyPosition(enemy).y - s.position.y,
+                ) < 850,
+        );
+        this.direction.advance(deltaMS / 1000, {
+            returned: s.ended === 'returned',
+            destroyed: s.ended === 'destroyed',
+            interrupted: !!(
+                input.thrust ||
+                input.brake ||
+                input.boost ||
+                input.fire ||
+                input.mine ||
+                input.turn ||
+                input.interact ||
+                input.repair ||
+                input.tow ||
+                input.unload ||
+                input.sabotage ||
+                s.transferActive ||
+                s.hyperdrive.active ||
+                s.terminalPuzzle ||
+                s.relayTuning ||
+                s.speed > 90
+            ),
+            threat,
+            hullFraction: s.hull / s.maxHull,
+            heat: s.mercurySector ? s.solar.heat : 0,
+            discoveries:
+                s.transferActive || s.area === 'surface'
+                    ? []
+                    : s.sector.landmarks
+                          .filter(
+                              (site) =>
+                                  ['relay', 'archive', 'factory'].includes(site.kind) &&
+                                  Math.hypot(site.x - s.position.x, site.y - s.position.y) < 650,
+                          )
+                          .map((site) => {
+                              const scanned = !!site.siteId && s.surveyData.has(site.siteId);
+                              return {
+                                  id: `${scanned ? 'read' : 'site'}:${site.key}`,
+                                  name: site.name,
+                                  position: { x: site.x, y: site.y },
+                                  text: scanned
+                                      ? `Odczyt z obiektu ${site.name} jest kompletny. Sprawdzę dane, a Ty rozejrzyj się za bezpieczną drogą.`
+                                      : site.kind === 'factory'
+                                        ? 'To stocznia polowa. Dopóki działa jej rdzeń, może wysyłać kolejne jednostki. Podejście na wprost będzie ryzykowne.'
+                                        : undefined,
+                              };
+                          }),
+        });
+    }
+    private applyDirection() {
+        const d = this.direction,
+            s = this.simulation;
+        this.directionView.update(d);
+        if (d.active) {
+            const t = d.eased;
+            const travel = d.phase === 'launch' ? t : 1 - t;
+            this.shipView.position.set(s.position.x * travel, s.position.y * travel);
+            this.shipView.scale.set(s.hullConfig.size * (0.45 + travel * 0.55));
+            this.shipView.alpha = 0.2 + travel * 0.8;
+            this.shipView.updateDrive(
+                d.phase === 'launch',
+                d.phase === 'dock',
+                false,
+                false,
+                this.clock,
+                0,
+            );
+            this.kineticView.visible = false;
+            this.grabberLines.visible = false;
+            const framing = 0.65 + travel * 0.35;
+            this.camera.pivot.set(this.shipView.x * framing, this.shipView.y * framing);
+            this.camera.scale.set(1 + (1 - travel) * 0.35);
+        } else {
+            this.shipView.alpha = 1;
+            if (
+                d.cue?.focus &&
+                d.focusWeight > 0.001 &&
+                !s.transferActive &&
+                !s.hyperdrive.active
+            ) {
+                this.camera.pivot.set(
+                    interpolate(this.shipView.x, d.cue.focus.x, d.focusWeight),
+                    interpolate(this.shipView.y, d.cue.focus.y, d.focusWeight),
+                );
             }
         }
     }

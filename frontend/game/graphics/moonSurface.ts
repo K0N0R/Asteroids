@@ -40,11 +40,14 @@ export class MoonSurfaceView extends Container {
                 r = 24 + rng() * 140;
             terrain
                 .ellipse(x + 4, y + 9, r, r * 0.82)
-                .fill(0xd9d8e7)
+                .fill(0x444e6c)
                 .ellipse(x, y, r, r * 0.82)
-                .fill(0x8588aa)
+                .fill(0x929bb1)
                 .ellipse(x - r * 0.13, y - r * 0.13, r * 0.65, r * 0.52)
-                .fill(0x999dbb);
+                .fill(0x65718c)
+                .ellipse(x + r * 0.08, y + r * 0.08, r * 0.47, r * 0.36)
+                .fill(0x78839b);
+            if (r > 100) terrain.circle(x + r * 0.12, y + r * 0.02, r * 0.12).fill(0x929bb1);
         }
         for (let i = 0; i < 220; i++)
             terrain
@@ -94,6 +97,20 @@ export class MoonSurfaceView extends Container {
             MOON.construction.x - MOON.center.x,
             MOON.construction.y - MOON.center.y,
         );
+        const landing = new Graphics();
+        const landingX = this.site.x,
+            landingY = this.site.y;
+        // Low-contrast regolith tracks and inset approach lights; no extra colliders.
+        landing
+            .roundRect(landingX - 95, landingY - 280, 190, 500, 45)
+            .fill({ color: 0x444f69, alpha: 0.28 });
+        for (let y = -230; y < 230; y += 65) {
+            for (const side of [-1, 1])
+                landing
+                    .roundRect(landingX + side * 80 - 3, landingY + y, 6, 21, 3)
+                    .fill({ color: 0xbcdcd6, alpha: 0.6 });
+        }
+        this.ground.addChild(landing);
         this.ground.addChild(this.site, this.defenseMarkers);
         this.status = this.addTitle(
             this.ground,

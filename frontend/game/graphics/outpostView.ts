@@ -45,5 +45,14 @@ export function outpostView() {
     g.roundRect(OUTPOST.terminalDistance - 16, -12, 32, 24, 3).fill(0x283b49);
     g.roundRect(OUTPOST.terminalDistance - 10, -7, 20, 8, 2).fill(0x9ccfe3);
     g.circle(OUTPOST.terminalDistance, 8, 2).fill(C.mint);
+    // Concentric decks, radiator banks and a visibly exposed data terminal.
+    for (const side of [-1, 1]) {
+        g.roundRect(-42, side * 57 - 8, 84, 16, 5).fill(0x9c99b6);
+        for (let x = -32; x <= 32; x += 12) g.roundRect(x, side * 57 - 5, 6, 10, 2).fill(0x42506b);
+    }
+    g.circle(0, 0, 33).stroke({ color: 0xc8adc0, width: 4, alpha: 0.65 });
+    g.roundRect(OUTPOST.terminalDistance - 20, 25, 40, 5, 2).fill(0x3a4a63);
+    for (let x = -15; x <= 15; x += 10)
+        g.circle(OUTPOST.terminalDistance + x, 27, 1.5).fill(C.gold);
     return view;
 }

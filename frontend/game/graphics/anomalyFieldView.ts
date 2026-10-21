@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
+import { anomalyCloudView } from './anomalyCloudView';
 import { ANOMALY, ANOMALY_BANDS } from '../systems/anomalyField';
 import { hudLabel as label } from '../ui/hudIcons';
 
@@ -6,21 +7,9 @@ export function anomalyFieldView() {
     const view = new Container(),
         ink = new Graphics();
     view.eventMode = 'none';
+    view.addChild(anomalyCloudView(ANOMALY_BANDS));
+    // Navigation stays above the cloud texture, including at band overlaps.
     view.addChild(ink);
-    for (const band of ANOMALY_BANDS) {
-        const coordinates = band.flatMap((p) => [p.x, p.y]);
-        ink.poly(coordinates)
-            .fill({ color: 0x4a225f, alpha: 0.65 })
-            .stroke({ color: 0xce6ddd, width: 5, alpha: 0.85 });
-        const center = band.reduce(
-            (sum, p) => ({ x: sum.x + p.x / band.length, y: sum.y + p.y / band.length }),
-            { x: 0, y: 0 },
-        );
-        for (const point of band)
-            ink.moveTo(center.x, center.y)
-                .lineTo(point.x, point.y)
-                .stroke({ color: 0xad55c6, width: 2, alpha: 0.16 });
-    }
     const points = [...ANOMALY.waypoints, ANOMALY.probe];
     for (let i = 0; i < points.length - 1; i++) {
         const a = points[i],
