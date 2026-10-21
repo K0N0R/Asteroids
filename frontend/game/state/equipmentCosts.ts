@@ -1,8 +1,9 @@
+import { tieredBill, type PartTier } from './partTiers';
 import type { Upgrade, WeaponId } from '../config';
 import { RESOURCE_IDS, type ResourceStore } from './resources';
 
 export type ShipModule = Exclude<Upgrade, 'workshop' | 'storage'>;
-/** Parts required for the first level; subsequent levels multiply the whole bill. */
+/** Each installed module level uses parts of that exact technology tier. */
 export const MODULE_PARTS = {
     engine: { propulsion: 2, storageFrames: 1 },
     handling: { propulsion: 1, electronics: 1 },
@@ -17,11 +18,9 @@ export const WEAPON_PARTS = {
     rail: { parts: 3, storageFrames: 2, powerModules: 2 },
 } as const satisfies Record<WeaponId, ResourceStore>;
 export function moduleParts(module: ShipModule, installedLevel: number): ResourceStore {
-    return Object.fromEntries(
-        Object.entries(MODULE_PARTS[module]).map(([id, count]) => [
-            id,
-            count * (installedLevel + 1),
-        ]),
+    return tieredBill(
+        MODULE_PARTS[module],
+        Math.min(3, Math.max(1, installedLevel + 1)) as PartTier,
     );
 }
 export function canAffordEquipment(bank: ResourceStore, bill: ResourceStore): boolean {

@@ -46,7 +46,7 @@ test('a maximum preview never changes the price or level of a real upgrade', () 
     assert.equal(c.ship!.armor, 2);
     assert.equal(c.bank.ore, 1000 - price.ore);
     assert.equal(c.bank.parts, 1000);
-    assert.equal(c.bank.storageFrames, 0);
+    assert.equal(c.bank.storageFramesII, 0);
 });
 
 test('comparison uses the selected hull specialization including cooldown reductions', () => {

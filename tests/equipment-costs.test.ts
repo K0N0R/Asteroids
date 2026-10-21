@@ -50,6 +50,7 @@ test('equipment refunds sum investment before rounding and never refund raw elem
         propulsion: 100,
         powerModules: 100,
     };
+    for (const id of RESOURCE_IDS) if (RESOURCES[id].category === 'CZĘŚCI') c.bank[id] = 100;
     const initial = { ...c.bank };
     for (const module of Object.keys(MODULE_PARTS) as (keyof typeof MODULE_PARTS)[])
         for (let level = 0; level < 3; level++) assert.ok(buyUpgrade(c, module));

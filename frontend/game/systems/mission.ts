@@ -1809,34 +1809,8 @@ export class MissionSimulation {
             this.setNotice('Za mało miejsca na skok wewnątrz sektora.');
             return;
         }
-        if (guided && this.hyperPathHit(from, target)) {
-            this.setNotice('Śluza zablokowana · poczekaj na wolny korytarz.');
-            return;
-        }
         if (this.hyperdrive.start(from, target, guided))
-            this.setNotice(
-                'Ładowanie · ponowna spacja anuluje · kolizja w przelocie niszczy statek.',
-            );
-    }
-    private hyperPathHit(from: Point, to: Point) {
-        const radius = (Math.hypot(...this.hullConfig.hitbox) + 4) * this.hullConfig.size;
-        return this.world.castShape(
-            { x: from.x / P, y: from.y / P },
-            0,
-            { x: (to.x - from.x) / P, y: (to.y - from.y) / P },
-            new RAPIER.Ball(radius / P),
-            0,
-            1,
-            true,
-            undefined,
-            undefined,
-            this.shipCollider,
-            this.ship,
-            (c) =>
-                !c.isSensor() &&
-                c.handle !== this.guide?.collider.handle &&
-                !this.salvage.towing.has(this.salvage.colliders.get(c.handle) ?? -1),
-        );
+            this.setNotice('Ładowanie hipernapędu · ponowna spacja anuluje.');
     }
     private advanceHyperdrive(dt: number) {
         const drive = this.hyperdrive;
@@ -1877,11 +1851,6 @@ export class MissionSimulation {
                 );
             }
             if (!drive.charge(dt)) return;
-            if (drive.guided && this.hyperPathHit(this.position, drive.target)) {
-                drive.cancel();
-                this.setNotice('Śluza zablokowana podczas ładowania.');
-                return;
-            }
             this.deliveryRevision++;
         }
         const from = this.position,
@@ -1889,29 +1858,11 @@ export class MissionSimulation {
             dx = next.point.x - from.x,
             dy = next.point.y - from.y;
         this.ship.setRotation(Math.atan2(dy, dx), true);
-        const hit = this.hyperPathHit(from, next.point);
-        const fraction = hit ? Math.max(0, hit.time_of_impact) : 1;
-        this.ship.setTranslation(
-            { x: (from.x + dx * fraction) / P, y: (from.y + dy * fraction) / P },
-            true,
-        );
+        this.ship.setTranslation({ x: next.point.x / P, y: next.point.y / P }, true);
         for (const item of this.salvage.towing.values()) {
             const p = item.body.translation();
-            item.body.setTranslation(
-                { x: p.x + (dx * fraction) / P, y: p.y + (dy * fraction) / P },
-                true,
-            );
+            item.body.setTranslation({ x: p.x + dx / P, y: p.y + dy / P }, true);
             item.body.setLinvel({ x: 0, y: 0 }, true);
-        }
-
-        if (hit) {
-            this.statistics.hullDamage += this.hull;
-            this.hull = 0;
-            this.selectWorldRecovery();
-            this.ended = 'destroyed';
-            this.deathReason = 'Zderzenie podczas hiperskoku zniszczyło statek.';
-            drive.cancel();
-            return;
         }
         if (next.complete) {
             if (
@@ -1942,6 +1893,8 @@ export class MissionSimulation {
         }
         this.hyperInput(input);
         const hyperFrame = this.hyperdrive.active;
+        this.shipCollider.setEnabled(!hyperFrame);
+        for (const item of this.salvage.towing.values()) item.collider.setEnabled(!hyperFrame);
         if (hyperFrame)
             input = {
                 ...input,
@@ -1955,6 +1908,8 @@ export class MissionSimulation {
                 repair: false,
                 sabotage: false,
                 interact: false,
+                tow: false,
+                unload: false,
             };
         this.elapsed += dt;
         if (this.mineAreaRevision !== this.areaRevision) {
@@ -2274,6 +2229,14 @@ export class MissionSimulation {
         );
         this.queue.drainCollisionEvents((a, b, started) => {
             if (!started) return;
+            if (
+                hyperFrame &&
+                (a === this.shipCollider.handle ||
+                    b === this.shipCollider.handle ||
+                    this.salvage.towing.has(this.salvage.colliders.get(a) ?? -1) ||
+                    this.salvage.towing.has(this.salvage.colliders.get(b) ?? -1))
+            )
+                return;
             if (
                 this.dashTime > 0 &&
                 (a === this.shipCollider.handle || b === this.shipCollider.handle)

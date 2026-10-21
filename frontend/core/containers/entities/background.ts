@@ -21,7 +21,7 @@ export class Background extends Container {
     private celestialLayer = new CelestialLayer();
     private stars: { view: Graphics; x: number; y: number; depth: number; phase: number }[] = [];
     private time = 0;
-    private illustration: Container;
+    private illustration: ReturnType<typeof planetView>;
     constructor() {
         super();
         this.eventMode = 'none';
@@ -92,6 +92,7 @@ export class Background extends Container {
     }
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
+        this.illustration.updateAppearance(this.time);
         this.scenery.visible = !this.flight;
         this.celestialLayer.visible = this.flight && (!this.surface || this.lunarTransfer);
         if (this.flight) {
@@ -100,6 +101,7 @@ export class Background extends Container {
                 this.cameraAngle,
                 this.cameraZoom,
                 this.lunarTransfer ? ['moon'] : [],
+                this.time,
             );
             this.clouds.pivot.set(800, 450);
             this.clouds.position.copyFrom(

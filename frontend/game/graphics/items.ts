@@ -1,9 +1,14 @@
+import { partInfo } from '../state/partTiers';
+import { advancedPartIllustration } from './tierParts';
 import { Container, Graphics } from 'pixi.js';
 import { ELEMENT_IDS, RESOURCES, type ResourceId } from '../state/resources';
 import { label } from '../ui/primitives';
 
 /** Shared, code-native artwork for inventory, recipes and world transfers. */
 export function itemIllustration(id: ResourceId | 'kit') {
+    const info = partInfo(id);
+    if (id !== 'kit' && info && info.tier > 1)
+        return advancedPartIllustration(id, info.family, info.tier);
     const root = new Container(),
         g = new Graphics();
     root.addChild(g);

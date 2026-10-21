@@ -1,3 +1,4 @@
+import { drawEarthTerrain, earthClouds } from './earthTerrain';
 import { Container, Graphics } from 'pixi.js';
 import type { StorySectorId } from '../state/story';
 import { C } from './theme';
@@ -17,9 +18,19 @@ const PLANETS = {
     pluto: { radius: 104, body: 0xb69ca0, light: 0xe6c5b2 },
 } as const;
 
+export class PlanetIllustration extends Container {
+    cloudDrift: Container | null = null;
+    cloudPeriod = 288;
+    updateAppearance(seconds: number) {
+        if (this.cloudDrift && Number.isFinite(seconds))
+            this.cloudDrift.x =
+                (((seconds * 0.8) % this.cloudPeriod) + this.cloudPeriod) % this.cloudPeriod;
+    }
+}
+
 /** Flat, clipped atlas illustration: geography and bands never extend outside the globe. */
 export function planetView(region: StorySectorId | null) {
-    const root = new Container();
+    const root = new PlanetIllustration();
     root.eventMode = 'none';
     if (region === 'belt') {
         const g = new Graphics(),
@@ -64,42 +75,7 @@ export function planetView(region: StorySectorId | null) {
     const band = (y: number, height: number, color: number, x = -r * 1.1, width = r * 2.2) =>
         ink.roundRect(x, y, width, height, height / 2).fill(color);
     if (id === 'earth') {
-        const land = (points: number[], color: number) =>
-            ink
-                .roundShape(
-                    Array.from({ length: points.length / 2 }, (_, i) => ({
-                        x: points[i * 2],
-                        y: points[i * 2 + 1],
-                    })),
-                    20,
-                    true,
-                    0.85,
-                )
-                .fill(color);
-        land(
-            [
-                -111, -60, -86, -91, -45, -98, -25, -75, -42, -53, -29, -25, -57, -10, -87, -27,
-                -107, -16,
-            ],
-            0x64c68d,
-        );
-        land([-62, 5, -27, 17, -20, 53, -40, 101, -57, 75, -68, 33], 0x79d099);
-        land(
-            [9, -81, 44, -100, 85, -79, 111, -42, 81, -25, 60, -43, 32, -18, 8, -32, -7, -55],
-            0x79d099,
-        );
-        land([8, -14, 45, -14, 55, 25, 33, 66, 11, 44, -1, 9], 0x64c68d);
-        land([79, 53, 109, 46, 123, 68, 105, 87, 82, 80], 0x85d0a0);
-        for (const [x, y, w] of [
-            [-125, -54, 79],
-            [-51, -8, 54],
-            [42, 5, 83],
-            [-103, 60, 60],
-            [22, -103, 73],
-            [55, 94, 72],
-        ])
-            band(y, 12, 0xe4f4e7, x, w);
-        band(-143, 18, 0xdcf5ee, -45, 96);
+        drawEarthTerrain(ink, r);
     } else if (id === 'jupiter' || id === 'saturn') {
         for (let i = -6; i <= 6; i++)
             band(
@@ -140,12 +116,22 @@ export function planetView(region: StorySectorId | null) {
         }
         if (id === 'pluto') ink.ellipse(18, 10, 25, 34).ellipse(49, 5, 28, 31).fill(0xf2d6c0);
     }
-    const shade = new Graphics()
-        .moveTo(0, -r)
-        .arc(0, 0, r, -Math.PI / 2, Math.PI / 2)
-        .lineTo(0, -r)
-        .closePath()
-        .fill({ color: 0x202b61, alpha: 0.24 });
+    if (id === 'earth') {
+        // Cache only the terrain; the separately clipped cloud layer must keep moving.
+        const surface = new Container();
+        globe.removeChild(ink);
+        surface.addChild(ink);
+        globe.addChildAt(surface, 0);
+        surface.cacheAsTexture({ resolution: 2, antialias: true });
+        root.cloudDrift = earthClouds(r);
+        root.cloudPeriod = r * 2;
+        globe.addChild(root.cloudDrift);
+    }
+    const shade = new Graphics().moveTo(0, -r).arc(0, 0, r, -Math.PI / 2, Math.PI / 2);
+    if (id === 'earth' || id === 'lunar')
+        shade.bezierCurveTo(r * 0.76, r * 0.43, r * 0.83, -r * 0.43, 0, -r);
+    else shade.lineTo(0, -r);
+    shade.closePath().fill({ color: 0x202b61, alpha: 0.24 });
     globe.addChild(shade);
     root.addChild(globe);
     if (id === 'saturn')
@@ -173,6 +159,6 @@ export function planetView(region: StorySectorId | null) {
     }
     // Composite the static illustration before fading it behind the flight HUD.
     // Fading individual overlapping fills otherwise exposes their triangulation edges.
-    root.cacheAsTexture({ resolution: 2, antialias: true });
+    if (id !== 'earth') root.cacheAsTexture({ resolution: 2, antialias: true });
     return root;
 }

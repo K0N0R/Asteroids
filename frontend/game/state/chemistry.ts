@@ -1,3 +1,4 @@
+import { ADVANCED_RECIPES } from './advancedRecipes';
 import type { ElementId, ResourceId, ResourceStore } from './resources';
 
 export interface ProcessRecipe {
@@ -186,6 +187,7 @@ export const RECIPES = {
         level: 2,
         explanation: 'Zestaw osłon i zasilania dla ochrony stacji.',
     },
+    ...ADVANCED_RECIPES,
 } as const satisfies Record<string, ProcessRecipe>;
 export type RecipeId = keyof typeof RECIPES;
 export const RECIPE_IDS = Object.keys(RECIPES) as RecipeId[];

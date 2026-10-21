@@ -66,6 +66,75 @@ export const RESOURCES = {
     },
     propulsion: { name: 'Zespół napędowy I', short: 'N I', category: 'CZĘŚCI', color: 0xf3be7b },
     lightPlating: { name: 'Poszycie lekkie I', short: 'PL I', category: 'CZĘŚCI', color: 0xb7ddda },
+    partsII: { name: 'Poszycie stalowe II', short: 'PS II', category: 'CZĘŚCI', color: 0xe5bd6d },
+    partsIII: {
+        name: 'Poszycie stalowe III',
+        short: 'PS III',
+        category: 'CZĘŚCI',
+        color: 0xe5bd6d,
+    },
+    lightPlatingII: {
+        name: 'Poszycie lekkie II',
+        short: 'PL II',
+        category: 'CZĘŚCI',
+        color: 0xb7ddda,
+    },
+    lightPlatingIII: {
+        name: 'Poszycie lekkie III',
+        short: 'PL III',
+        category: 'CZĘŚCI',
+        color: 0xb7ddda,
+    },
+    electronicsII: { name: 'Elektronika II', short: 'E II', category: 'CZĘŚCI', color: 0x8edabc },
+    electronicsIII: {
+        name: 'Elektronika III',
+        short: 'E III',
+        category: 'CZĘŚCI',
+        color: 0x8edabc,
+    },
+    storageFramesII: { name: 'Maszyneria II', short: 'M II', category: 'CZĘŚCI', color: 0xb6c8d5 },
+    storageFramesIII: {
+        name: 'Maszyneria III',
+        short: 'M III',
+        category: 'CZĘŚCI',
+        color: 0xb6c8d5,
+    },
+    lifeSupportII: {
+        name: 'Podtrzymywanie życia II',
+        short: 'Ż II',
+        category: 'CZĘŚCI',
+        color: 0x81d9ed,
+    },
+    lifeSupportIII: {
+        name: 'Podtrzymywanie życia III',
+        short: 'Ż III',
+        category: 'CZĘŚCI',
+        color: 0x81d9ed,
+    },
+    propulsionII: {
+        name: 'Zespół napędowy II',
+        short: 'N II',
+        category: 'CZĘŚCI',
+        color: 0xf3be7b,
+    },
+    propulsionIII: {
+        name: 'Zespół napędowy III',
+        short: 'N III',
+        category: 'CZĘŚCI',
+        color: 0xf3be7b,
+    },
+    powerModulesII: {
+        name: 'Układ zasilania II',
+        short: 'Z II',
+        category: 'CZĘŚCI',
+        color: 0x83c9ef,
+    },
+    powerModulesIII: {
+        name: 'Układ zasilania III',
+        short: 'Z III',
+        category: 'CZĘŚCI',
+        color: 0x83c9ef,
+    },
 } as const;
 export type ResourceId = keyof typeof RESOURCES;
 export const STORAGE_PRIORITY: readonly ResourceId[] = [
@@ -96,6 +165,20 @@ export const STORAGE_PRIORITY: readonly ResourceId[] = [
     'lifeSupport',
     'propulsion',
     'lightPlating',
+    'partsII',
+    'partsIII',
+    'lightPlatingII',
+    'lightPlatingIII',
+    'electronicsII',
+    'electronicsIII',
+    'storageFramesII',
+    'storageFramesIII',
+    'lifeSupportII',
+    'lifeSupportIII',
+    'propulsionII',
+    'propulsionIII',
+    'powerModulesII',
+    'powerModulesIII',
 ];
 export type ResourceStore = Partial<Record<ResourceId, number>>;
 export const RESOURCE_IDS = Object.keys(RESOURCES) as ResourceId[];

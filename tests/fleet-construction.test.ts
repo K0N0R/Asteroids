@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { HULLS, FLEET_LIMIT, type HullId } from '../frontend/game/config';
 import {
     HULL_CONSTRUCTION,
-    HULL_PARTS,
+    hullPartIds,
     hasHullParts,
 } from '../frontend/game/state/fleetConstruction';
 import {
@@ -24,8 +24,8 @@ import { fundHull } from './fleet-fixtures';
 
 test('each hull bill consists of six real part families, with no raw elements', () => {
     assert.deepEqual(Object.keys(HULL_CONSTRUCTION).sort(), Object.keys(HULLS).sort());
-    for (const bill of Object.values(HULL_CONSTRUCTION)) {
-        assert.deepEqual(Object.keys(bill).sort(), [...HULL_PARTS].sort());
+    for (const [hull, bill] of Object.entries(HULL_CONSTRUCTION)) {
+        assert.deepEqual(Object.keys(bill).sort(), [...hullPartIds(hull as HullId)].sort());
         for (const amount of Object.values(bill))
             assert.ok(Number.isSafeInteger(amount) && amount > 0);
     }
@@ -141,8 +141,8 @@ test('a rescued hull with a full hangar credits every family once and survives s
     assert.ok(delivery);
     assert.deepEqual(delivery.materials, refund);
     assert.deepEqual(c.bank, refund);
-    assert.ok((c.bank.storageFrames ?? 0) > 0);
-    assert.ok((c.bank.electronics ?? 0) > 0);
+    assert.ok((c.bank.storageFramesII ?? 0) > 0);
+    assert.ok((c.bank.electronicsII ?? 0) > 0);
     const before = structuredClone(c);
     assert.equal(deliverSalvage(c, -20, 'recovery'), null);
     assert.deepEqual(c, before);

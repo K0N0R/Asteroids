@@ -214,35 +214,42 @@ test('repair kit production respects whole-batch limits, including max selection
     assert.equal(maxProduction(c, 'kit'), 0);
 });
 
-test('prepared supplies load atomically, persist and earn no mining XP when returned', () => {
+test('manufactured parts remain in the station warehouse during an ordinary departure and return', () => {
     const c = newStoryCampaign();
     c.bank = { ore: 99, parts: 0, carbon: 1 };
     assert.ok(manufacture(c, 'steel'));
     assert.ok(manufacture(c, 'plating'));
-    const before = structuredClone(c);
-    assert.equal(beginRun(c, 1, null, false, null, { parts: 2 }), false);
-    assert.deepEqual(c, before);
-    assert.ok(beginRun(c, 1, null, false, null, { parts: 1 }));
-    assert.equal(c.bank.parts, 0);
-    assert.equal(c.activeRun!.freight!.parts, 1);
+    assert.ok(beginRun(c, 1));
+    assert.equal(c.bank.parts, 1);
+    assert.equal(c.activeRun!.freight, undefined);
     assert.ok(parseCampaign(JSON.stringify(c)));
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {
-        assert.equal(s.cargo.parts, 1);
+        assert.equal(s.cargo.parts, 0);
     } finally {
         s.dispose();
     }
-    const result = finishRun(c, true, { ore: 0, parts: 1 }, 0, 'dock', c.activeRun!.repairKits)!;
+    const result = finishRun(c, true, { ore: 0, parts: 0 }, 0, 'dock', 0)!;
     assert.equal(c.bank.parts, 1);
     assert.equal(result.pilotProgress!.gainedXp, 0);
 });
 
-test('Mule departure leaves repair kits at the station because its unique repair is free', () => {
+test('Mule self-repair leaves prepared repair kits untouched', () => {
     const c = newCampaign();
     c.ship!.hull = 'mule';
     c.repairKits = 5;
     assert.ok(beginRun(c, 8));
     assert.equal(c.repairKits, 5);
-    assert.equal(c.activeRun!.repairKits, 0);
+    const simulation = new MissionSimulation(c, c.activeRun!.seed);
+    try {
+        simulation.hull = simulation.maxHull - 20;
+        const damaged = simulation.hull;
+        for (let i = 0; i <= Math.ceil(simulation.repairSeconds * 60); i++)
+            simulation.step({ ...idle, repair: true });
+        assert.ok(simulation.hull > damaged);
+        assert.equal(simulation.repairKits, 5);
+    } finally {
+        simulation.dispose();
+    }
     assert.ok(parseCampaign(JSON.stringify(c)));
 });

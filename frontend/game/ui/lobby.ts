@@ -1,15 +1,15 @@
+import { hangarScreen, newHangarState, type HangarState } from './hangar';
 import { pilotScreen } from './pilots';
 import { milkyWayView } from '../graphics/milkyWayView';
 import { solarSystem } from './solarSystem';
 import { lunarShipmentPending } from '../state/lunarShipment';
 import { constructionCosts } from './constructionCosts';
-import { WEAPON_PARTS, canAffordEquipment } from '../state/equipmentCosts';
-import { HULL_CONSTRUCTION, HULL_PARTS, hasHullParts } from '../state/fleetConstruction';
+import { canAffordEquipment } from '../state/equipmentCosts';
+import { hasHullParts } from '../state/fleetConstruction';
 import { itemIllustration } from '../graphics/items';
 import { stationShieldContent, stationDronesContent } from './stationShield';
 import { laboratoryOverview, workshopOverview } from './production';
 import { RESOURCE_IDS, RESOURCES, resourceTotal, resourceSummary } from '../state/resources';
-import { hullUnlockReason } from '../state/fleetUnlocks';
 import { latestDialogue } from '../state/dialogues';
 import { storyOverview } from './storyOverview';
 import {
@@ -21,20 +21,9 @@ import {
     storyAct,
     type StorySectorId,
 } from '../state/story';
-import { previewModules, moduleComparison, type ModulePreviewMode } from './modulePreview';
-import { ARMAMENT_KITS, armamentName } from '../config';
-import { ATLAS_WEAPONS, GAME, PHOENIX, STINGER_AMMO, WEAPONS, type WeaponId } from '../config';
+import { type WeaponId } from '../config';
 import { Container, Graphics } from 'pixi.js';
-import {
-    CONTRACTS,
-    FLEET_LIMIT,
-    HULLS,
-    HullId,
-    PilotSkillId,
-    UPGRADES,
-    shipUpgradeDefinition,
-    Upgrade,
-} from '../config';
+import { CONTRACTS, FLEET_LIMIT, HULLS, HullId, PilotSkillId, Upgrade } from '../config';
 import {
     Campaign,
     capacity,
@@ -54,18 +43,15 @@ import { C } from '../graphics/shapes';
 import { button, clear, label, panel, illustrationInBox, STATION_LAYOUT } from './primitives';
 
 import {
-    bareModules,
     choiceCard,
     cost,
     fittedShip,
     fittedScene,
-    hullPreview,
     lobbyIcon,
     operationScene,
     pilotPortrait,
     segments,
     signalScene,
-    stat,
     productionBayScene,
 } from './lobbyGraphics';
 
@@ -73,6 +59,7 @@ export type LobbyTab =
     | 'solar'
     | 'overview'
     | 'hangar'
+    | 'shipyard'
     | 'station'
     | 'pilots'
     | 'warehouse'
@@ -112,6 +99,7 @@ const NAV: { tab: LobbyTab; title: string; icon: Parameters<typeof lobbyIcon>[0]
     { tab: 'solar', title: 'Układ słoneczny', icon: 'system' },
     { tab: 'overview', title: 'Wyprawa', icon: 'flight' },
     { tab: 'hangar', title: 'Hangar', icon: 'ship' },
+    { tab: 'shipyard', title: 'Stocznia', icon: 'shipyard' },
     { tab: 'station', title: 'Rozbudowa stacji', icon: 'station' },
     { tab: 'laboratory', title: 'Laboratorium', icon: 'laboratory' },
     { tab: 'workshop', title: 'Warsztat', icon: 'crew' },
@@ -123,19 +111,14 @@ export class LobbyView extends Container {
     private content = new Container();
     private visual = new Container();
     private solarScenery: Container | null = null;
+    private solarPlanets: ReturnType<typeof solarSystem> = [];
     private tab: LobbyTab = 'overview';
     private time = 0;
     private message = '';
     private messageUntil = 0;
     private toast: ReturnType<typeof label> | null = null;
-    private hangarMode: 'owned' | 'shop' | 'weapons' = 'owned';
-    private chosenShipId: number | null = null;
-    private weaponFocus: WeaponId = 'standard';
-    private shopHull: HullId = 'swift';
-    private shopPage = 0;
-    private hullDetailMode: 'stats' | 'construction' | 'upgrades' = 'stats';
-    private modulePreviewMode: ModulePreviewMode = 'current';
-    private modulePreviewLevel = 1;
+    private hangarState = newHangarState();
+    private shipyardState: HangarState = { ...newHangarState(), tab: 'construction' };
     private pilotMode: 'roster' | 'recruit' = 'roster';
     private chosenPilotId: number | null = null;
     private recruit = 0;
@@ -145,8 +128,8 @@ export class LobbyView extends Container {
     private workshopRecipe: RecipeId = 'plating';
     private inventoryPage = 0;
     private loadConstruction = false;
-    private moduleFocus: 'engine' | 'handling' | 'cargo' | 'drill' | 'armor' | 'shield' = 'engine';
     private scrapCandidate: number | null = null;
+    private scrapPage = 0;
     private recoveryId: number | null = null;
     private recoveryPage = 0;
     private storyPage = 0;
@@ -161,6 +144,8 @@ export class LobbyView extends Container {
         this.refresh();
     }
     resetProfile() {
+        this.hangarState = newHangarState();
+        this.shipyardState = { ...newHangarState(), tab: 'construction' };
         this.recipeHistory = [];
         this.tab = 'overview';
         this.loadConstruction = false;
@@ -195,8 +180,7 @@ export class LobbyView extends Container {
         this.tab = tab;
         if (tab === 'station') this.stationSection = 'facilities';
         else {
-            this.hangarMode = 'owned';
-            this.hullDetailMode = 'upgrades';
+            this.hangarState.tab = 'upgrades';
         }
         this.refresh();
     }
@@ -240,11 +224,12 @@ export class LobbyView extends Container {
         }
         clear(this.content);
         clear(this.visual);
+        this.solarPlanets = [];
         this.visual.y = 0;
         const c = this.campaign,
             ui = this.content;
-        if (!ownedShips(c).some((ship) => ship.id === this.chosenShipId))
-            this.chosenShipId = c.ship?.id ?? ownedShips(c)[0]?.id ?? null;
+        if (!ownedShips(c).some((ship) => ship.id === this.hangarState.shipId))
+            this.hangarState.shipId = c.ship?.id ?? ownedShips(c)[0]?.id ?? null;
         if (!c.pilots.some((pilot) => pilot.id === this.chosenPilotId))
             this.chosenPilotId = c.selectedPilot || c.pilots[0]?.id || null;
         if (!c.recoverySignals.some((signal) => signal.id === this.recoveryId))
@@ -263,7 +248,7 @@ export class LobbyView extends Container {
         label(ui, c.story ? 'SATUK 15' : 'AURORA', 75, 43, 23, C.text);
         NAV.filter(({ tab }) => tab !== 'solar' || !!c.story).forEach(({ tab, title, icon }, i) => {
             const active = this.tab === tab;
-            const card = choiceCard(ui, 25, 110 + i * 55, 185, 46, active, () => this.go(tab));
+            const card = choiceCard(ui, 25, 110 + i * 51, 185, 43, active, () => this.go(tab));
             const mark = lobbyIcon(icon, active ? C.mint : C.muted);
             mark.position.set(24, 23);
             card.addChild(mark);
@@ -306,7 +291,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.102', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.106', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {
@@ -317,7 +302,7 @@ export class LobbyView extends Container {
             }
             this.visual.addChild(new Graphics().rect(236, 0, 1364, 900).fill(C.space));
             this.section('Układ słoneczny', 'Wybierz sektor następnej wyprawy.', false);
-            solarSystem(ui, c, (sector) => this.actions.travel?.(sector));
+            this.solarPlanets = solarSystem(ui, c, (sector) => this.actions.travel?.(sector));
             button(
                 ui,
                 'PRZYGOTUJ WYPRAWĘ →',
@@ -332,7 +317,7 @@ export class LobbyView extends Container {
             );
         }
         if (this.tab === 'overview') this.overview(ui);
-        if (this.tab === 'hangar') this.hangar(ui);
+        if (this.tab === 'hangar' || this.tab === 'shipyard') this.hangar(ui);
         if (this.tab === 'station') this.station(ui);
         if (this.tab === 'laboratory') {
             this.section(
@@ -657,676 +642,34 @@ export class LobbyView extends Container {
         this.departure(ui);
     }
     private hangar(ui: Container) {
-        const c = this.campaign,
-            ships = ownedShips(c),
-            catalogue = (Object.keys(HULLS) as HullId[]).filter(
-                (id) => !('salvageOnly' in HULLS[id]),
-            );
-        this.section('Hangar', 'Wybierz kadłub, zmień statek lub zamontuj moduły.');
-        button(
-            ui,
-            `Moje statki · ${ships.length}/${FLEET_LIMIT}`,
-            280,
-            220,
-            235,
-            () => {
-                this.hangarMode = 'owned';
+        const project = this.tab === 'shipyard';
+        this.section(
+            project ? 'Stocznia' : 'Hangar',
+            project
+                ? 'Przeglądaj projekty i buduj statki z części.'
+                : 'Wybierz statek, rozwijaj moduły i dobierz wariant uzbrojenia.',
+            false,
+        );
+        hangarScreen(ui, this.campaign, project ? this.shipyardState : this.hangarState, project, {
+            refresh: () => this.refresh(),
+            openRecipe: this.productionNavigation.openRecipe,
+            openStation: () => this.go('station'),
+            openFleet: () => this.go('hangar'),
+            selectShip: this.actions.selectShip,
+            upgrade: this.actions.upgrade,
+            equipWeapon: this.actions.equipWeapon,
+            scrapShip: (id) => {
+                this.scrapCandidate = id;
+                this.scrapPage = 0;
                 this.refresh();
             },
-            this.hangarMode === 'owned',
-            true,
-            38,
-        );
-        button(
-            ui,
-            'Stocznia',
-            529,
-            220,
-            170,
-            () => {
-                this.hangarMode = 'shop';
-                this.hullDetailMode = 'construction';
-                this.refresh();
+            buyShip: (hull) => {
+                this.hangarState.shipId = null;
+                this.hangarState.tab = 'stats';
+                this.hangarState.variant = 'standard';
+                this.tab = 'hangar';
+                this.actions.buyShip(hull);
             },
-            this.hangarMode === 'shop',
-            true,
-            38,
-        );
-        button(
-            ui,
-            'Uzbrojenie',
-            713,
-            220,
-            240,
-            () => {
-                this.hangarMode = 'weapons';
-                this.weaponFocus = c.ship?.weapon ?? 'standard';
-                this.refresh();
-            },
-            this.hangarMode === 'weapons',
-            true,
-            38,
-        );
-        if (this.hangarMode === 'weapons') {
-            this.weaponPanel(ui);
-            return;
-        }
-        const ship = ships.find((entry) => entry.id === this.chosenShipId);
-        const modules = this.hangarMode === 'shop' ? bareModules(this.shopHull) : ship;
-        const previewing = this.hullDetailMode === 'upgrades';
-        const visualModules =
-            modules && previewing
-                ? previewModules(
-                      modules,
-                      this.modulePreviewMode,
-                      this.moduleFocus,
-                      this.modulePreviewLevel,
-                  )
-                : modules;
-        if (modules && previewing) {
-            label(ui, 'PODGLĄD', 280, 266, 11, C.muted);
-            const modes = ['current', 'single', 'all'] as const;
-            for (const [i, mode] of modes.entries())
-                button(
-                    ui,
-                    mode === 'current'
-                        ? this.hangarMode === 'shop'
-                            ? 'Bazowy'
-                            : 'Zamontowane'
-                        : mode === 'single'
-                          ? 'Wybrany moduł'
-                          : 'Wszystkie III',
-                    280,
-                    285 + i * 42,
-                    160,
-                    () => {
-                        this.modulePreviewMode = mode;
-                        this.refresh();
-                    },
-                    this.modulePreviewMode === mode,
-                    true,
-                    34,
-                );
-            if (this.modulePreviewMode === 'single') {
-                label(
-                    ui,
-                    shipUpgradeDefinition(modules.hull, this.moduleFocus).title,
-                    280,
-                    418,
-                    14,
-                    C.mint,
-                    165,
-                );
-                for (const [i, text] of ['0', 'I', 'II', 'III'].entries())
-                    button(
-                        ui,
-                        text,
-                        280 + i * 41,
-                        463,
-                        34,
-                        () => {
-                            this.modulePreviewLevel = i;
-                            this.refresh();
-                        },
-                        this.modulePreviewLevel === i,
-                        true,
-                        30,
-                    );
-                const comparison = moduleComparison(
-                    modules,
-                    this.moduleFocus,
-                    this.modulePreviewLevel,
-                );
-                label(ui, comparison.title, 280, 504, 12, C.muted, 165);
-                label(ui, `${comparison.before} → ${comparison.after}`, 280, 523, 16, C.cyan, 165);
-            } else
-                label(
-                    ui,
-                    this.modulePreviewMode === 'all'
-                        ? 'Podgląd kompletu. Moduły kupujesz osobno.'
-                        : 'Kliknij nazwę modułu, aby porównać poziomy.',
-                    280,
-                    422,
-                    13,
-                    C.muted,
-                    165,
-                );
-        }
-        if (visualModules) this.art(hullPreview(visualModules), 625, 430);
-        else {
-            label(ui, 'Hangar czeka na nowy statek.', 392, 431, 25, C.muted);
-            button(ui, 'Otwórz stocznię', 425, 494, 330, () => {
-                this.hangarMode = 'shop';
-                this.hullDetailMode = 'construction';
-                this.refresh();
-            });
-        }
-        const pages = Math.ceil(catalogue.length / FLEET_LIMIT);
-        if (this.hangarMode === 'shop' && pages > 1) {
-            const changePage = (direction: number) => {
-                this.shopPage = (this.shopPage + direction + pages) % pages;
-                this.shopHull = catalogue[this.shopPage * FLEET_LIMIT];
-                this.refresh();
-            };
-            button(ui, '←', 280, 548, 48, () => changePage(-1), false, true, 32);
-            label(ui, `${this.shopPage + 1} / ${pages}`, 614, 554, 15, C.muted);
-            button(ui, '→', 937, 548, 48, () => changePage(1), false, true, 32);
-        }
-        const entries =
-            this.hangarMode === 'shop'
-                ? catalogue.slice(this.shopPage * FLEET_LIMIT, (this.shopPage + 1) * FLEET_LIMIT)
-                : ships;
-        entries.forEach((entry, i) => {
-            const hull = typeof entry === 'string' ? entry : entry.hull,
-                config = HULLS[hull];
-            const selected =
-                typeof entry === 'string' ? this.shopHull === hull : this.chosenShipId === entry.id;
-            const card = choiceCard(
-                ui,
-                280 + (i % 3) * 240,
-                594 + Math.floor(i / 3) * 109,
-                225,
-                91,
-                selected,
-                () => {
-                    if (typeof entry === 'string') this.shopHull = entry;
-                    else this.chosenShipId = entry.id;
-                    this.refresh();
-                },
-            );
-            const thumbnail = fittedShip(
-                typeof entry === 'string' ? bareModules(hull) : entry,
-                STATION_LAYOUT.actionHeight,
-                72,
-            );
-            thumbnail.position.set(37, 45);
-            card.addChild(thumbnail);
-            label(card, config.name, 75, 16, 16, C.text, 140);
-            label(
-                card,
-                typeof entry === 'string'
-                    ? hullUnlockReason(c, hull)
-                        ? 'Projekt zablokowany'
-                        : config.role
-                    : c.ship?.id === entry.id
-                      ? 'Aktywny'
-                      : `Rezerwa #${entry.id}`,
-                75,
-                51,
-                13,
-                typeof entry !== 'string' && c.ship?.id === entry.id ? C.mint : C.muted,
-                140,
-            );
-        });
-        if (!modules) {
-            label(ui, 'Brak statku', 1072, 252, 28);
-            label(ui, 'Wybierz kadłub w stoczni.', 1072, 311, 18, C.muted);
-            return;
-        }
-        const config = HULLS[modules.hull],
-            owned = this.hangarMode === 'owned';
-        label(ui, owned ? 'WYBRANY STATEK' : 'STOCZNIA / KADŁUB', 1072, 244, 13, C.muted);
-        label(
-            ui,
-            `${config.name}${ship && owned ? ` #${ship.id}` : ''}`,
-            1072,
-            276,
-            29,
-            C.text,
-            456,
-        );
-        label(ui, config.role, 1072, 318, 15, C.muted);
-        if (owned && this.hullDetailMode === 'construction') this.hullDetailMode = 'stats';
-        const modes = owned
-            ? (['stats', 'upgrades'] as const)
-            : (['stats', 'construction', 'upgrades'] as const);
-        const modeWidth = (456 - (modes.length - 1) * 12) / modes.length;
-        for (const [i, mode] of modes.entries())
-            button(
-                ui,
-                mode === 'stats' ? 'Parametry' : mode === 'construction' ? 'Budowa' : 'Ulepszenia',
-                1072 + i * (modeWidth + 12),
-                350,
-                modeWidth,
-                () => {
-                    this.hullDetailMode = mode;
-                    this.refresh();
-                },
-                this.hullDetailMode === mode,
-                true,
-                34,
-                15,
-            );
-        if (this.hullDetailMode === 'construction') {
-            label(ui, 'CZĘŚCI DO BUDOWY · POZIOM I', 1072, 400, 12, C.muted);
-            HULL_PARTS.forEach((id, i) => {
-                const need = HULL_CONSTRUCTION[modules.hull][id],
-                    have = c.bank[id] ?? 0;
-                illustrationInBox(ui, itemIllustration(id), 1072, 413 + i * 38, 28, 28);
-                label(ui, RESOURCES[id].name, 1112, 420 + i * 38, 15, C.text, 285);
-                const amount = label(
-                    ui,
-                    `${Math.min(have, need)} / ${need}`,
-                    1528,
-                    420 + i * 38,
-                    16,
-                    have >= need ? C.mint : C.gold,
-                );
-                amount.setHorizontalAlign('right');
-            });
-        } else if (this.hullDetailMode === 'upgrades')
-            this.shipModules(
-                ui,
-                {
-                    ...modules,
-                    id: ship?.id ?? 0,
-                    weapon: modules.weapon ?? 'standard',
-                    weapons: ship?.weapons ?? ['standard'],
-                },
-                !owned,
-            );
-        else {
-            stat(ui, 'KADŁUB', `${config.health + modules.armor * 25}`, 1072, 408, 'health');
-            stat(
-                ui,
-                'TARCZA',
-                `${Math.round(config.shield.capacity * (1 + modules.shield * 0.25))}`,
-                1230,
-                408,
-                'shield',
-            );
-            stat(ui, 'ŁADOWNIA', `${config.cargo + modules.cargo * 15}`, 1390, 408, 'cargo');
-            label(
-                ui,
-                `+${(config.shield.regen * (1 + modules.shield * 0.15)).toFixed(1)}/s`,
-                1264,
-                455,
-                13,
-                C.cyan,
-            );
-            stat(ui, 'PRĘDKOŚĆ', `${config.maxSpeed}`, 1072, 486);
-            stat(
-                ui,
-                'SKRĘT',
-                `${(config.turnSpeed * (1 + modules.handling * 0.2)).toFixed(2)}`,
-                1230,
-                486,
-            );
-            stat(ui, 'BOOST', `×${config.boost}`, 1390, 486);
-            label(
-                ui,
-                `Zakłócanie radarów ${Math.round(config.radarJamming * 100)}%`,
-                1072,
-                550,
-                15,
-                C.cyan,
-            );
-            label(
-                ui,
-                modules.hull === 'widmo'
-                    ? 'Dash LPM · kamuflaż optyczny PPM'
-                    : modules.hull === 'atlas'
-                      ? 'Rakiety · granaty · 4 chwytaki'
-                      : modules.hull === 'harpoon'
-                        ? '2 ramiona bojowe · 4 chwytaki'
-                        : modules.hull === 'aegis'
-                          ? 'Działko energetyczne · dron · impuls ochronny'
-                          : modules.hull === 'phoenix'
-                            ? 'Projektor bojowy · rakiety · chwytak'
-                            : `${config.guns.length} ${config.guns.length === 1 ? 'działo' : 'działa'} · ${config.lasers.length} ${config.lasers.length === 1 ? 'laser' : 'lasery'} · ${config.grabbers.length} ${config.grabbers.length === 1 ? 'chwytak' : 'chwytaki'}`,
-                1072,
-                578,
-                15,
-                C.text,
-            );
-            label(ui, config.detail, 1072, 605, 14, C.muted, 456);
-        }
-        if (owned && ship) {
-            if (c.ship?.id !== ship.id) {
-                button(
-                    ui,
-                    'USTAW AKTYWNY',
-                    1072,
-                    721,
-                    285,
-                    () => this.actions.selectShip(ship.id),
-                    true,
-                );
-                button(ui, 'Złomuj', 1373, 721, 155, () => {
-                    this.scrapCandidate = ship.id;
-                    this.refresh();
-                });
-            } else label(ui, '● Aktywny statek na następną wyprawę', 1072, 754, 15, C.mint);
-        } else {
-            const projectLock = hullUnlockReason(c, modules.hull),
-                locked = c.station.workshop < config.workshop,
-                full = ships.length >= FLEET_LIMIT;
-            label(
-                ui,
-                projectLock
-                    ? projectLock
-                    : locked
-                      ? `Wymagany warsztat ${config.workshop === 2 ? 'II' : 'I'}`
-                      : full
-                        ? 'Hangar pełny · zwolnij miejsce we flocie'
-                        : 'BUDOWA KADŁUBA Z CZĘŚCI',
-                1072,
-                650,
-                12,
-                projectLock || locked || full ? C.gold : C.muted,
-                456,
-            );
-            const completed = HULL_PARTS.filter(
-                (id) => (c.bank[id] ?? 0) >= HULL_CONSTRUCTION[modules.hull][id],
-            ).length;
-            const materials = label(
-                ui,
-                `Części gotowe: ${completed} / ${HULL_PARTS.length}`,
-                1072,
-                688,
-                15,
-                hasHullParts(c.bank, modules.hull) ? C.mint : C.gold,
-                456,
-            );
-            materials.eventMode = 'static';
-            materials.cursor = 'pointer';
-            materials.on('pointertap', () => {
-                this.hullDetailMode = 'construction';
-                this.refresh();
-            });
-            button(
-                ui,
-                projectLock
-                    ? 'PROJEKT ZABLOKOWANY'
-                    : locked
-                      ? 'ROZBUDUJ ZAPLECZE →'
-                      : full
-                        ? 'OTWÓRZ FLOTĘ →'
-                        : 'ZBUDUJ STATEK →',
-                1072,
-                STATION_LAYOUT.actionY,
-                456,
-                () => {
-                    if (locked) {
-                        this.go('station');
-                    } else if (full) {
-                        this.hangarMode = 'owned';
-                        this.refresh();
-                    } else {
-                        this.chosenShipId = null;
-                        this.hangarMode = 'owned';
-                        this.actions.buyShip(modules.hull);
-                    }
-                },
-                true,
-                !projectLock && (locked || full || hasHullParts(c.bank, modules.hull)),
-                STATION_LAYOUT.actionHeight,
-            );
-        }
-    }
-    private weaponPanel(ui: Container) {
-        const c = this.campaign,
-            ship = c.ship;
-        if (!ship) {
-            label(ui, 'Wybierz aktywny statek we flocie.', 390, 430, 23, C.muted);
-            return;
-        }
-        const id = this.weaponFocus,
-            w = WEAPONS[id],
-            special = ['widmo', 'mule', 'atlas', 'harpoon', 'aegis', 'stinger', 'phoenix'].includes(
-                ship.hull,
-            ),
-            beam = ship.hull === 'mule' || ship.hull === 'phoenix',
-            owned = ship.weapons.includes(id),
-            mounted = ship.weapon === id;
-        this.art(hullPreview({ ...ship, weapon: id }), 625, 430);
-        (Object.keys(WEAPONS) as WeaponId[]).forEach((key, i) => {
-            const definition = WEAPONS[key],
-                card = choiceCard(ui, 280 + i * 240, 650, 225, 141, id === key, () => {
-                    this.weaponFocus = key;
-                    this.refresh();
-                });
-            label(
-                card,
-                special
-                    ? key === 'standard'
-                        ? 'Standard'
-                        : key === 'pulse'
-                          ? 'Impulsowy'
-                          : 'Ciężki'
-                    : definition.name,
-                18,
-                22,
-                24,
-            );
-            label(
-                card,
-                special
-                    ? `Moc ×${ARMAMENT_KITS[key].power} · ${beam ? `zasięg ×${ARMAMENT_KITS[key].range}` : `cykl ×${ARMAMENT_KITS[key].cooldown}`}`
-                    : `${definition.damage} DMG · ${(1 / definition.interval).toFixed(1)}/s`,
-                18,
-                66,
-                15,
-                C.muted,
-            );
-            label(
-                card,
-                ship.weapon === key
-                    ? '● Zamontowane'
-                    : ship.weapons.includes(key)
-                      ? 'Posiadane'
-                      : 'Do kupienia',
-                18,
-                104,
-                14,
-                ship.weapon === key ? C.mint : C.muted,
-            );
-        });
-        label(ui, 'SYSTEM UZBROJENIA / AKTYWNY STATEK', 1072, 244, 13, C.muted);
-        label(ui, special ? armamentName(ship.hull, id) : w.name, 1072, 279, 26, C.text, 456);
-        label(
-            ui,
-            special
-                ? 'Wariant wyspecjalizowanego uzbrojenia tego kadłuba. Zachowuje jego rolę i sposób obsługi.'
-                : w.detail,
-            1072,
-            341,
-            18,
-            C.muted,
-            456,
-        );
-        stat(
-            ui,
-            special ? 'MOC' : 'OBRAŻENIA',
-            special ? `×${ARMAMENT_KITS[id].power}` : `${w.damage}`,
-            1072,
-            429,
-        );
-        stat(
-            ui,
-            special ? (beam ? 'ZASIĘG WIĄZKI' : 'CZAS CYKLU') : 'STRZAŁY / S',
-            special
-                ? beam
-                    ? `${Math.round(HULLS[ship.hull].laserRange * ARMAMENT_KITS[id].range)} m`
-                    : `×${ARMAMENT_KITS[id].cooldown}`
-                : (1 / w.interval).toFixed(1),
-            1298,
-            429,
-        );
-        label(ui, HULLS[ship.hull].detail, 1072, 530, 17, C.muted, 456);
-        label(
-            ui,
-            owned
-                ? 'Wariant należy do tego statku.'
-                : `Koszt: ${resourceSummary(WEAPON_PARTS[id])}`,
-            1072,
-            620,
-            16,
-            C.cyan,
-            456,
-        );
-        if (!owned && c.station.workshop < w.workshop)
-            label(ui, `Wymagane zaplecze produkcyjne ${w.workshop}.`, 1072, 690, 14, C.gold, 456);
-        button(
-            ui,
-            mounted ? 'ZAMONTOWANE' : owned ? 'ZAMONTUJ →' : 'KUP I ZAMONTUJ →',
-            1072,
-            STATION_LAYOUT.actionY,
-            456,
-            () => this.actions.equipWeapon(id),
-            true,
-            !c.activeRun &&
-                !mounted &&
-                (owned ||
-                    (c.station.workshop >= w.workshop &&
-                        canAffordEquipment(c.bank, WEAPON_PARTS[id]))),
-            48,
-        );
-    }
-    private shipModules(
-        ui: Container,
-        ship: ReturnType<typeof ownedShips>[number],
-        preview = false,
-    ) {
-        const c = this.campaign,
-            active = c.ship?.id === ship.id,
-            limit = preview ? 3 : c.station.workshop + 1;
-        label(
-            ui,
-            preview
-                ? 'MODUŁY BAZOWE · KOSZT POZIOMU I'
-                : active
-                  ? `MODUŁY · LIMIT ${limit}`
-                  : 'AKTYWUJ STATEK, ABY KUPOWAĆ MODUŁY',
-            1072,
-            399,
-            12,
-            C.muted,
-        );
-        const detailCard = ui.addChild(new Container());
-        const renderDetail = (key: typeof this.moduleFocus) => {
-            clear(detailCard);
-            panel(detailCard, 1060, 572, 480, 147);
-            const level = preview ? 0 : ship[key];
-            const definition = shipUpgradeDefinition(ship.hull, key);
-            const comparison = moduleComparison(ship, key, Math.min(3, level + 1));
-            label(detailCard, definition.title, 1076, 580, 19, C.mint, 440);
-            label(
-                detailCard,
-                `${comparison.title}: ${comparison.before} → ${comparison.after}`,
-                1076,
-                607,
-                22,
-                C.cyan,
-                440,
-            );
-            label(detailCard, definition.detail, 1076, 635, 14, C.muted, 440);
-            if (!preview && level >= limit) {
-                label(detailCard, 'Osiągnięto limit zaplecza.', 1076, 670, 17, C.muted);
-                return;
-            }
-            label(detailCard, 'KOSZT ULEPSZENIA', 1076, 667, 12, C.muted);
-            const price = upgradePrice({ ...c, ship: { ...ship, [key]: level } }, key);
-            RESOURCE_IDS.filter((id) => (price[id] ?? 0) > 0).forEach((id, i) => {
-                const x = 1076 + (i % 2) * 228,
-                    y = 681 + Math.floor(i / 2) * 40;
-                illustrationInBox(detailCard, itemIllustration(id), x, y, 24, 24);
-                label(detailCard, RESOURCES[id].name, x + 26, y, 15, C.text, 196);
-                label(
-                    detailCard,
-                    `${c.bank[id] ?? 0}/${price[id]}`,
-                    x + 26,
-                    y + 19,
-                    14,
-                    (c.bank[id] ?? 0) >= price[id]! ? C.mint : C.coral,
-                );
-                const recipe = RECIPE_IDS.find((recipe) => RECIPES[recipe].output === id);
-                if (recipe)
-                    button(
-                        detailCard,
-                        'STWÓRZ',
-                        x + 134,
-                        y + 17,
-                        82,
-                        () => {
-                            this.moduleFocus = key;
-                            this.productionNavigation.openRecipe(recipe);
-                        },
-                        false,
-                        true,
-                        20,
-                        10,
-                    );
-            });
-        };
-        renderDetail(this.moduleFocus);
-        (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const).forEach((key, i) => {
-            const level = ship[key],
-                price = upgradePrice(
-                    {
-                        ...c,
-                        ship: preview
-                            ? {
-                                  ...ship,
-                                  engine: 0,
-                                  handling: 0,
-                                  cargo: 0,
-                                  drill: 0,
-                                  armor: 0,
-                                  shield: 0,
-                              }
-                            : ship,
-                    },
-                    key,
-                ),
-                definition = shipUpgradeDefinition(ship.hull, key),
-                y = 421 + i * 25;
-            const title = label(
-                ui,
-                definition.title,
-                1072,
-                y,
-                16,
-                this.modulePreviewMode === 'single' && key === this.moduleFocus ? C.mint : C.text,
-            );
-            title.eventMode = 'static';
-            title.cursor = 'pointer';
-            title.on('pointertap', () => {
-                this.moduleFocus = key;
-                this.modulePreviewMode = 'single';
-                this.modulePreviewLevel = Math.min(3, ship[key] + 1);
-                this.refresh();
-            });
-            title.on('pointerenter', () => {
-                renderDetail(key);
-            });
-            title.on('pointerleave', () => renderDetail(this.moduleFocus));
-            segments(ui, level, 3, 1288, y + 5, 69);
-            const buy = button(
-                ui,
-                !preview && level >= limit ? 'MAX' : preview ? 'PODGLĄD' : 'ULEPSZ',
-                1390,
-                y - 6,
-                138,
-                () => {
-                    this.moduleFocus = key;
-                    if (preview) {
-                        this.modulePreviewMode = 'single';
-                        this.modulePreviewLevel = 1;
-                        this.refresh();
-                    } else {
-                        this.modulePreviewMode = 'current';
-                        this.actions.upgrade(key);
-                    }
-                },
-                false,
-                preview ||
-                    (active && !c.activeRun && level < limit && canAffordEquipment(c.bank, price)),
-                24,
-            );
-            buy.config.onHover = () => {
-                renderDetail(key);
-            };
         });
     }
     private station(ui: Container) {
@@ -1386,9 +729,9 @@ export class LobbyView extends Container {
         label(
             ui,
             level === 0
-                ? 'Podstawowa produkcja jest już dostępna. Rozbudowa I odblokuje nowe kadłuby i bardziej złożone części.'
+                ? 'Podstawowa produkcja jest już dostępna. Rozbudowa I odblokuje części tieru II i nowe kadłuby.'
                 : level < limit
-                  ? 'Rozbudowa II odblokuje zaawansowane procesy, osłony i kolejne ulepszenia statków.'
+                  ? 'Rozbudowa II odblokuje części tieru III, osłony i najwyższe ulepszenia statków.'
                   : 'Najwyższy poziom zaplecza.',
             1072,
             447,
@@ -1397,7 +740,7 @@ export class LobbyView extends Container {
             456,
         );
         if (level < limit)
-            constructionCosts(ui, c.bank, price, 570, this.productionNavigation.openRecipe);
+            constructionCosts(ui, c.bank, price, 542, this.productionNavigation.openRecipe);
         else label(ui, 'MAKSYMALNY POZIOM', 1072, 649, 12, C.muted);
         button(
             ui,
@@ -1746,35 +1089,97 @@ export class LobbyView extends Container {
         const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.88 });
         shade.eventMode = 'static';
         ui.addChild(shade);
-        panel(ui, 425, 265, 750, 370);
-        label(ui, `Zezłomować ${HULLS[ship.hull].name} #${ship.id}?`, 469, 302, 29);
-        label(ui, 'Kadłub i zamontowane moduły zostaną usunięte.', 469, 360, 18, C.red);
-        label(ui, 'ODZYSKANE CZĘŚCI I MATERIAŁY', 469, 409, 12, C.muted);
-        label(ui, resourceSummary(refund), 469, 435, 17, C.cyan, 650);
-        if (!room)
-            label(ui, 'Zbyt duża ilość zasobów do rozliczenia odzysku.', 469, 508, 16, C.gold);
-        button(ui, 'Anuluj', 469, 544, 300, () => {
-            this.scrapCandidate = null;
-            this.refresh();
+        panel(ui, 330, 170, 940, 630);
+        label(ui, `Zezłomować ${HULLS[ship.hull].name} #${ship.id}?`, 365, 204, 28, C.text, 870);
+        label(ui, 'Kadłub i zamontowane moduły zostaną usunięte.', 365, 251, 17, C.red, 870);
+        label(ui, 'ODZYSKANE CZĘŚCI', 365, 290, 13, C.mint);
+        const entries = RESOURCE_IDS.filter((id) => (refund[id] ?? 0) > 0);
+        const pages = Math.max(1, Math.ceil(entries.length / 8));
+        this.scrapPage = Math.min(this.scrapPage, pages - 1);
+        entries.slice(this.scrapPage * 8, (this.scrapPage + 1) * 8).forEach((id, i) => {
+            const x = 365 + (i % 2) * 445,
+                y = 322 + Math.floor(i / 2) * 70;
+            ui.addChild(new Graphics().roundRect(x, y, 425, 60, 10).fill(C.raised));
+            illustrationInBox(ui, itemIllustration(id), x + 12, y + 12, 36, 36);
+            label(ui, RESOURCES[id].name, x + 62, y + 9, 15, C.text, 350);
+            label(ui, `+${refund[id]}`, x + 62, y + 34, 16, C.cyan);
         });
+        if (pages > 1) {
+            button(
+                ui,
+                '←',
+                675,
+                620,
+                60,
+                () => {
+                    this.scrapPage--;
+                    this.refresh();
+                },
+                false,
+                this.scrapPage > 0,
+                30,
+            );
+            label(ui, `${this.scrapPage + 1} / ${pages}`, 780, 627, 14, C.muted);
+            button(
+                ui,
+                '→',
+                870,
+                620,
+                60,
+                () => {
+                    this.scrapPage++;
+                    this.refresh();
+                },
+                false,
+                this.scrapPage < pages - 1,
+                30,
+            );
+        }
+        label(
+            ui,
+            room
+                ? 'Otrzymasz pokazane części. Tej operacji nie można cofnąć.'
+                : 'Zbyt duża ilość zasobów do rozliczenia odzysku.',
+            365,
+            674,
+            16,
+            room ? C.muted : C.gold,
+            870,
+        );
         button(
             ui,
-            'Zezłomuj',
-            809,
-            544,
-            320,
+            'ANULUJ',
+            365,
+            733,
+            410,
+            () => {
+                this.scrapCandidate = null;
+                this.refresh();
+            },
+            false,
+            true,
+            42,
+        );
+        button(
+            ui,
+            'ZEZŁOMUJ STATEK',
+            810,
+            733,
+            425,
             () => {
                 const id = this.scrapCandidate!;
                 this.scrapCandidate = null;
-                this.chosenShipId = null;
+                this.hangarState.shipId = null;
                 this.actions.scrapShip(id);
             },
             false,
             room,
+            42,
         );
     }
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
+        for (const planet of this.solarPlanets) planet.updateAppearance(this.time);
         this.visual.y = this.tab === 'recovery' ? 0 : Math.sin(this.time * 0.25) * 2;
         if (this.toast && this.time >= this.messageUntil) this.toast.setText('');
     }

@@ -1,6 +1,6 @@
 import { EARTH_SYSTEM_BODY_SCALE } from '../worlds/celestialBodies';
 import { Container, Graphics } from 'pixi.js';
-import { label } from '../ui/primitives';
+import { hudLabel as label } from '../ui/hudIcons';
 import { C } from './shapes';
 import { MOON } from '../worlds/moon';
 import type { Point } from '../worlds/sector';
@@ -37,11 +37,11 @@ export function lunarTransferPose(progress: number, surface: boolean, zoom: numb
 
 export class LunarTransferView extends Container {
     private scene = new Graphics();
-    private title = label(this, '', 560, 735, 30, C.text, 620);
+    private title = label(this, '', 530, 735, 26, C.text, 590);
     private hint = label(
         this,
         'Transfer · sterowanie chwilowo zablokowane',
-        560,
+        530,
         779,
         18,
         C.muted,
@@ -64,9 +64,27 @@ export class LunarTransferView extends Container {
             surface ? 'KSIĘŻYC · WEJŚCIE NAD POWIERZCHNIĘ' : 'KSIĘŻYC · POWRÓT NA ORBITĘ',
         );
         this.title.alpha = this.hint.alpha = opacity;
-        g.rect(560, 825, 480, 3)
+        // A quiet curved limb, motion streaks and a fade soften the coordinate-space handoff.
+        const veil = Math.sin(Math.PI * t) ** 2;
+        g.rect(0, 0, 1600, 900).fill({ color: 0x10182b, alpha: veil * 0.18 });
+        const horizonY = surface ? 900 - 370 * t : 530 + 370 * t;
+        g.ellipse(800, horizonY + 500, 1200, 560).stroke({
+            color: 0xb3bfd2,
+            alpha: veil * 0.18,
+            width: 2,
+        });
+        for (let i = 0; i < 8; i++) {
+            const x = 130 + i * 190,
+                direction = surface ? 1 : -1;
+            const y = (((i * 127 + t * direction * 700) % 800) + 800) % 800;
+            g.moveTo(x, y)
+                .lineTo(x + direction * 12, y + direction * 45)
+                .stroke({ color: 0xd0dbe7, alpha: veil * 0.1, width: 1 });
+        }
+        g.roundRect(500, 714, 650, 124, 18).fill({ color: 0x10182b, alpha: opacity * 0.74 });
+        g.rect(530, 825, 590, 3)
             .fill({ color: C.line, alpha: opacity })
-            .rect(560, 825, 480 * t, 3)
+            .rect(530, 825, 590 * t, 3)
             .fill({ color: C.cyan, alpha: opacity });
     }
 }

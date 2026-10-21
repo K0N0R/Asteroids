@@ -13,6 +13,7 @@ export type LobbyIcon =
     | 'system'
     | 'flight'
     | 'ship'
+    | 'shipyard'
     | 'station'
     | 'pilot'
     | 'crew'
@@ -37,6 +38,23 @@ export function lobbyIcon(kind: LobbyIcon, color: number = C.mint) {
             .poly([0, -9, 5, 7, 0, 3, -5, 7])
             .stroke({ color, width: 2 });
     if (kind === 'ship') g.poly([0, -12, 10, 10, 0, 5, -10, 10]).stroke({ color, width: 2 });
+    if (kind === 'shipyard') {
+        // Assembly gantry and a suspended hull, distinct from the station's cross.
+        g.moveTo(-12, 11)
+            .lineTo(-12, -9)
+            .lineTo(12, -9)
+            .lineTo(12, 11)
+            .moveTo(-14, 12)
+            .lineTo(14, 12)
+            .moveTo(0, -9)
+            .lineTo(0, -5)
+            .moveTo(-12, 3)
+            .lineTo(-7, 3)
+            .moveTo(12, 3)
+            .lineTo(7, 3)
+            .stroke({ color, width: 2, cap: 'round', join: 'round' });
+        g.poly([0, -5, 5, 5, 0, 3, -5, 5]).fill(color);
+    }
     if (kind === 'station')
         g.rect(-6, -6, 12, 12)
             .stroke({ color, width: 2 })

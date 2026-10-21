@@ -1,3 +1,4 @@
+import { partInfo, PART_FAMILIES, TIER_NAMES } from '../state/partTiers';
 import { Container } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { RECIPES, RECIPE_IDS, type RecipeId, type ProcessRecipe } from '../state/chemistry';
@@ -53,8 +54,38 @@ function processOverview(
     panel(ui, 280, STATION_LAYOUT.top, 285, 591);
     label(ui, 'WYBIERZ PROCES', 300, 244, 13, C.mint);
     if (navigation?.back) button(ui, 'POWRÓT', 453, 237, 96, navigation.back, false, true, 28, 12);
-    ids.forEach((kind, i) => {
-        const y = 284 + i * 43;
+    const tier = partInfo(recipe.output)?.tier ?? 1;
+    if (category === 'workshop') {
+        TIER_NAMES.forEach((name, index) =>
+            button(
+                ui,
+                `TIER ${name}`,
+                296 + index * 86,
+                272,
+                80,
+                () => {
+                    const family = partInfo(recipe.output)?.family;
+                    const output = family ? PART_FAMILIES[family][index] : null;
+                    const first = ids.find((key) =>
+                        output
+                            ? RECIPES[key].output === output
+                            : (partInfo(RECIPES[key].output)?.tier ?? 1) === index + 1,
+                    );
+                    if (first) select(first);
+                },
+                tier === index + 1,
+                true,
+                30,
+                12,
+            ),
+        );
+    }
+    const listed =
+        category === 'workshop'
+            ? ids.filter((key) => (partInfo(RECIPES[key].output)?.tier ?? 1) === tier)
+            : ids;
+    listed.forEach((kind, i) => {
+        const y = category === 'workshop' ? 314 + i * 40 : 284 + i * 43;
         button(ui, RECIPES[kind].title, 296, y, 253, () => select(kind), kind === id, true, 34, 13);
     });
     const details = new Container();
@@ -72,7 +103,7 @@ function processOverview(
     label(details, 'MASZ', 862, 510, 12, C.muted);
     label(details, 'POTRZEBA', 925, 510, 12, C.muted);
     preview.ingredients.forEach((row, i) => {
-        const y = 539 + i * 36;
+        const y = 539 + i * 32;
         const source = RECIPE_IDS.find((sourceId) => RECIPES[sourceId].output === row.resource);
         const canNavigate = !!source && !!navigation;
         label(details, RESOURCES[row.resource].name, 609, y, 15, C.text, canNavigate ? 162 : 239);
@@ -95,7 +126,14 @@ function processOverview(
     label(details, recipe.equation ?? 'Ciekawostka', 609, 664, 19, C.cyan, 382);
     label(details, recipe.explanation, 609, 708, 15, C.muted, 382);
     label(details, output, 1072, 244, 25, C.text, 456);
-    label(details, 'PRODUKT', 1072, 295, 13, C.mint);
+    label(
+        details,
+        partInfo(recipe.output) ? `PRODUKT · TIER ${TIER_NAMES[tier - 1]}` : 'PRODUKT',
+        1072,
+        295,
+        13,
+        C.mint,
+    );
     illustrationInBox(details, itemIllustration(recipe.output), 1120, 329, 350, 180);
     label(details, `W magazynie: ${preview.outputHave}`, 1072, 539, 18, C.muted);
     label(
@@ -110,7 +148,7 @@ function processOverview(
     label(
         details,
         lock
-            ? missing
+            ? missing && lock.startsWith('Potrzeba:')
                 ? 'Brakuje składników zaznaczonych w tabeli.'
                 : lock
             : 'Gotowe do wykonania.',

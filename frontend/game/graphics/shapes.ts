@@ -529,6 +529,23 @@ export function surveySiteView(site: ScanSiteId) {
 
 export class ShapeLibrary {
     private rocks = new Map<string, GraphicsContext>();
+    private references = new Map<string, number>();
+    private borrow(key: string, context: GraphicsContext) {
+        this.references.set(key, (this.references.get(key) ?? 0) + 1);
+        const view = new Graphics(context);
+        view.once('destroyed', () => {
+            const remaining = (this.references.get(key) ?? 1) - 1;
+            if (remaining > 0) this.references.set(key, remaining);
+            else {
+                this.references.delete(key);
+                if (this.rocks.get(key) === context) {
+                    this.rocks.delete(key);
+                    context.destroy();
+                }
+            }
+        });
+        return view;
+    }
     lunarRock(
         variant: number,
         rich: boolean,
@@ -568,7 +585,7 @@ export class ShapeLibrary {
             drawMineralMarkers(context, contents, variant, true);
             this.rocks.set(key, context);
         }
-        return new Graphics(context);
+        return this.borrow(key, context);
     }
     rock(variant: number, rich: boolean, crystal = false, contents: Readonly<ResourceStore> = {}) {
         const key = `${variant}:${rich}:${crystal}:${mineralMarkerKey(contents)}`;
@@ -619,10 +636,11 @@ export class ShapeLibrary {
             drawMineralMarkers(context, contents, variant);
             this.rocks.set(key, context);
         }
-        return new Graphics(context);
+        return this.borrow(key, context);
     }
     dispose() {
         for (const context of this.rocks.values()) context.destroy();
         this.rocks.clear();
+        this.references.clear();
     }
 }

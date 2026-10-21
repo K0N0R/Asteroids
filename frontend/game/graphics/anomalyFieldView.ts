@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { ANOMALY, ANOMALY_BANDS } from '../systems/anomalyField';
-import { label } from '../ui/primitives';
+import { hudLabel as label } from '../ui/hudIcons';
 
 export function anomalyFieldView() {
     const view = new Container(),

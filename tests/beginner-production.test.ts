@@ -34,6 +34,7 @@ test('one initial field supplies the first delivery and first workshop without r
         ['conductors', 2],
         ['silicon', 1],
         ['silica', 1],
+        ['plating', 2],
         ['machinery', 1],
         ['electronics', 1],
     ] as const)

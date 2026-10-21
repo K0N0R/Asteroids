@@ -1,3 +1,4 @@
+import { PlanetIllustration } from '../frontend/game/graphics/planetView';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelestialLayer } from '../frontend/game/graphics/celestialLayer';
@@ -71,6 +72,9 @@ test('Earth remains in the approach background while Moon transfers into the sur
         assert.equal(layer.children.length, 2);
         assert.equal(layer.visible, true);
         assert.equal(preview.visible, false);
+        bg.update(1000);
+        const earth = layer.getChildByLabel('celestial-earth') as PlanetIllustration;
+        assert.ok(Math.abs(earth.cloudDrift!.x - 0.8) < 1e-9);
         bg.surface = true;
         bg.lunarTransfer = true;
         bg.update(0);

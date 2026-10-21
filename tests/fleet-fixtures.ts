@@ -1,11 +1,11 @@
 import { LUNAR_PROCESSING } from '../frontend/game/state/lunarConstruction';
 import type { Campaign } from '../frontend/game/state/campaign';
 import type { HullId } from '../frontend/game/config';
-import { HULL_CONSTRUCTION, HULL_PARTS } from '../frontend/game/state/fleetConstruction';
+import { HULL_CONSTRUCTION, hullPartIds } from '../frontend/game/state/fleetConstruction';
 /** Explicit fixture stock for tests of loadouts/locks rather than resource acquisition. */
 export function fundHull(c: Campaign, hull: HullId = 'prospector', count = 1) {
-    for (const id of HULL_PARTS)
-        c.bank[id] = (c.bank[id] ?? 0) + HULL_CONSTRUCTION[hull][id] * count;
+    for (const id of hullPartIds(hull))
+        c.bank[id] = (c.bank[id] ?? 0) + (HULL_CONSTRUCTION[hull][id] ?? 0) * count;
 }
 
 /** Exact extra stock for physics/loadout tests; economy tests supply their own bills. */

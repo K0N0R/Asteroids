@@ -32,6 +32,8 @@ async function collectFilePaths(dir, fileList = []) {
 export async function generatePreloadConfig() {
     const allFilePaths = await collectFilePaths(staticFolder);
     const filteredFilePaths = allFilePaths.filter((i) => {
+        // Music streams through one native media element; do not also decode it into WebAudio.
+        if (i.startsWith('sounds/cc0/music/')) return false;
         if (i.includes('.html') || i.includes('.css')) {
             return false;
         }

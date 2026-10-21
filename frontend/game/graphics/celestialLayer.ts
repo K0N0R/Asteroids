@@ -7,7 +7,7 @@ import type { Point } from '../worlds/sector';
 
 /** Independent distant planes behind the playable orbital space. */
 export class CelestialLayer extends Container {
-    private bodies: { spec: CelestialBodySpec; view: Container }[] = [];
+    private bodies: { spec: CelestialBodySpec; view: ReturnType<typeof planetView> }[] = [];
     constructor() {
         super();
         this.label = 'celestial-layer';
@@ -27,8 +27,15 @@ export class CelestialLayer extends Container {
                 return { spec, view };
             });
     }
-    update(camera: Point, angle: number, zoom: number, hiddenIds: readonly string[] = []) {
+    update(
+        camera: Point,
+        angle: number,
+        zoom: number,
+        hiddenIds: readonly string[] = [],
+        seconds = 0,
+    ) {
         for (const { spec, view } of this.bodies) {
+            view.updateAppearance(seconds);
             view.visible = !hiddenIds.includes(spec.id);
             view.position.copyFrom(parallaxPoint(spec.anchor, camera, angle, spec.depth, zoom));
             view.rotation = angle;

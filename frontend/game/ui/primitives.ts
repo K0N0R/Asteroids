@@ -34,7 +34,12 @@ export function label(
     return view;
 }
 export function worldLabel(...args: Parameters<typeof label>) {
-    const view = label(...args);
+    const [parent, text, x, y, size, color, width, style] = args;
+    const view = label(parent, text, x, y, size, color, width, {
+        dropShadow: { color: 0x050b1a, alpha: 1, blur: 3, distance: 3, angle: Math.PI / 4 },
+        stroke: { color: 0x080d20, width: 1.5, alpha: 0.8 },
+        ...style,
+    });
     view.setHorizontalAlign('center');
     return view;
 }

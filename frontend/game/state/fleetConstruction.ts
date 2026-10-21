@@ -1,4 +1,5 @@
-import type { HullId } from '../config';
+import { tieredBill, type PartTier } from './partTiers';
+import { HULLS, type HullId } from '../config';
 import type { ResourceStore } from './resources';
 
 export const HULL_PARTS = [
@@ -9,7 +10,7 @@ export const HULL_PARTS = [
     'propulsion',
     'powerModules',
 ] as const;
-/** Fixed tier-I bills. Material alternatives and tiers II–III are a later stage. */
+/** Six families; technology tier follows the hull project. */
 function bill(
     plating: number,
     electronics: number,
@@ -27,7 +28,7 @@ function bill(
         powerModules: power,
     });
 }
-export const HULL_CONSTRUCTION = {
+const BASE_HULL_CONSTRUCTION = {
     prospector: bill(4, 1, 2, 1, 1, 1),
     swift: bill(3, 2, 1, 1, 2, 1),
     mule: bill(10, 2, 8, 2, 2, 3),
@@ -43,10 +44,24 @@ export const HULL_CONSTRUCTION = {
     raider: bill(4, 1, 1, 1, 1, 1),
     lancer: bill(6, 2, 2, 1, 2, 2),
 } as const satisfies Record<HullId, Readonly<ResourceStore>>;
+export const HULL_CONSTRUCTION = Object.fromEntries(
+    (Object.keys(BASE_HULL_CONSTRUCTION) as HullId[]).map((hull) => {
+        const base: ResourceStore = { ...BASE_HULL_CONSTRUCTION[hull] };
+        if (['falcon', 'widmo', 'stinger', 'phoenix'].includes(hull)) {
+            base.lightPlating = base.parts;
+            delete base.parts;
+        }
+        return [hull, Object.freeze(tieredBill(base, (HULLS[hull].workshop + 1) as PartTier))];
+    }),
+) as Record<HullId, Readonly<ResourceStore>>;
+export function hullPartIds(hull: HullId) {
+    return Object.keys(HULL_CONSTRUCTION[hull]) as (keyof ResourceStore)[];
+}
 export function hasHullParts(bank: Readonly<ResourceStore>, hull: HullId) {
     if (!Object.hasOwn(HULL_CONSTRUCTION, hull)) return false;
-    return HULL_PARTS.every(
+    return hullPartIds(hull).every(
         (id) =>
-            Number.isSafeInteger(bank[id] ?? 0) && (bank[id] ?? 0) >= HULL_CONSTRUCTION[hull][id],
+            Number.isSafeInteger(bank[id] ?? 0) &&
+            (bank[id] ?? 0) >= (HULL_CONSTRUCTION[hull][id] ?? 0),
     );
 }

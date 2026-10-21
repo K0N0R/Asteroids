@@ -81,7 +81,7 @@ export function stationShieldContent(
             ui,
             c.bank,
             upgradeMode ? nextCost : STATION_SHIELD.cost,
-            570,
+            542,
             openRecipe,
         );
     else label(ui, 'Poziom II · maksymalny zasięg 1150 m', 1072, 597, 19, C.gold, 456);
@@ -188,7 +188,7 @@ export function stationDronesContent(
             ui,
             `Strażnik ${id + 1} · ${status}`,
             1072,
-            425 + id * 26,
+            417 + id * 22,
             16,
             state?.hull ? C.mint : C.muted,
             456,
@@ -198,7 +198,7 @@ export function stationDronesContent(
         ui,
         'Naprawa: 4 HP/s po 8 s bez kontaktu. Utracone jednostki odbudowujesz ręcznie z części w bazie.',
         1072,
-        514,
+        486,
         14,
         C.muted,
         456,
@@ -209,7 +209,7 @@ export function stationDronesContent(
             ui,
             c.bank,
             c.station.sentries ? droneReplacementBill(lost) : D.cost,
-            565,
+            526,
             openRecipe,
         );
     else label(ui, 'Wszystkie drony są sprawne.', 1072, 600, 17, C.mint, 456);
@@ -223,7 +223,7 @@ export function stationDronesContent(
                       ? `Gotowe do odbudowy: ${lost === 1 ? '1 dron' : `${lost} drony`}.`
                       : 'Części gotowe do montażu.')),
         1072,
-        697,
+        710,
         13,
         C.muted,
         456,

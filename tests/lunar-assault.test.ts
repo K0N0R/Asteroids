@@ -1,3 +1,4 @@
+import { grantLunarProcessing } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -7,7 +8,12 @@ import {
     finishRun,
     parseCampaign,
 } from '../frontend/game/state/campaign';
-import { STORY_TASKS, actOneComplete, storyObjectives } from '../frontend/game/state/story';
+import {
+    STORY_TASKS,
+    actOneComplete,
+    storyObjectives,
+    storyVisibleTasks,
+} from '../frontend/game/state/story';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 import { MOON } from '../frontend/game/worlds/moon';
 import { angleDifference } from '../frontend/game/systems/flight';
@@ -28,6 +34,7 @@ function ready() {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
     }
+    grantLunarProcessing(c);
     c.story!.sector = 'lunar';
     assert.ok(parseCampaign(JSON.stringify(c)));
     return c;
@@ -111,12 +118,17 @@ test('the starter ship can repel real AI waves; radio confirmation completes Act
         assert.equal(c.story!.progress['lunar-attack'], 1);
         assert.equal(actOneComplete(c.story!), true);
         assert.ok(storyObjectives(c, [], true).find((t) => t.id === 'lunar-attack')!.complete);
+        assert.equal(
+            storyVisibleTasks(c.story!).some((t) => t.id === 'lunar-defense'),
+            false,
+        );
+        assert.equal(c.story!.claimed.includes('lunar-defense'), false);
         assert.equal(s.loot.size, 0);
         assert.equal(
             [...s.salvage.items.values()].filter((item) => item.source !== 'recovery').length,
             0,
         );
-        // Normal flight from the surface, through its exit, to the Satuk 15 dock.
+        // Fly through the surface exit, then verify docking settlement.
         s.step(idle);
         for (let f = 0; f < 60 * 90 && s.area === 'surface'; f++)
             s.step({
@@ -124,8 +136,10 @@ test('the starter ship can repel real AI waves; radio confirmation completes Act
                 interact: Math.hypot(s.position.x - MOON.exit.x, s.position.y - MOON.exit.y) < 160,
             });
         assert.equal(s.area, 'orbit');
-        for (let f = 0; f < 60 * 90 && !s.ended; f++)
-            s.step({ ...steer(s, { x: 0, y: 0 }, 85), interact: true });
+        // Dock settlement is independent of random hazards on the long return leg.
+        while (s.transferActive) s.step(idle);
+        at(s, { x: 0, y: 0 });
+        for (let f = 0; f < 150 && !s.ended; f++) s.step({ ...idle, interact: true });
         assert.equal(s.ended, 'returned');
         const result = finishRun(c, true, s.cargo, s.elapsed, 'dock', s.repairKits, {
             assaultWon: true,

@@ -501,7 +501,7 @@ export class MissionHud extends Container {
             this.combatComplete = true;
             this.target = s.recoverySignal && !s.recoverySecured ? 5 : 0;
         }
-        const objectives =
+        const objectives = (
             this.customObjectives?.() ??
             missionObjectives(
                 this.contract,
@@ -511,7 +511,8 @@ export class MissionHud extends Container {
                 s.recoverySecured,
                 false,
                 s.enemyKills,
-            );
+            )
+        ).filter((goal) => !goal.complete);
         // Campaign objectives can be revealed or removed during the same flight.
         while (this.goals.length > objectives.length) {
             const view = this.goals.pop()!;

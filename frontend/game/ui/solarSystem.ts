@@ -34,7 +34,8 @@ function solarBackdrop(ui: Container, center: { x: number; y: number }) {
 }
 
 export function solarSystem(ui: Container, c: Campaign, select: (id: StorySectorId) => void) {
-    if (!c.story) return;
+    const planets: ReturnType<typeof planetView>[] = [];
+    if (!c.story) return planets;
     const center = { x: 920, y: 490 };
     solarBackdrop(ui, center);
     const g = ui.addChild(new Graphics());
@@ -102,9 +103,11 @@ export function solarSystem(ui: Container, c: Campaign, select: (id: StorySector
             passage.moveTo(-9, 0).lineTo(9, 0).stroke({ color, width: 3 });
             passage.circle(-25, 0, 3).circle(25, 0, 3).fill(color);
         } else {
+            const planet = planetView(body.id);
+            planets.push(planet);
             const art = illustrationInBox(
                 node,
-                planetView(body.id),
+                planet,
                 -body.radius,
                 -body.radius,
                 body.radius * 2,
@@ -148,4 +151,5 @@ export function solarSystem(ui: Container, c: Campaign, select: (id: StorySector
     }
     label(ui, 'WYBRANY SEKTOR', 300, 789, 12, C.muted);
     label(ui, STORY_SECTORS[c.story.sector].name, 300, 811, 20, C.mint);
+    return planets;
 }

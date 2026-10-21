@@ -42,7 +42,8 @@ import {
 } from '../config';
 import { SoundManager } from '../../core/systems/soundManager';
 import { Ship } from '../state/campaign';
-import { label, worldLabel } from '../ui/primitives';
+import { worldLabel } from '../ui/primitives';
+import { hudLabel as label } from '../ui/hudIcons';
 import { enemyPosition } from '../systems/enemies';
 import {
     angleDifference,

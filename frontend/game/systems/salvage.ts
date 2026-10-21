@@ -132,7 +132,9 @@ export class SalvageFleet {
         for (const [id, rope] of this.ropes) {
             if (item && id !== item.id) continue;
             this.world.removeImpulseJoint(rope.joint, true);
-            this.towing.get(id)?.collider.setCollisionGroups(0x0002ffff);
+            const collider = this.towing.get(id)?.collider;
+            collider?.setEnabled(true);
+            collider?.setCollisionGroups(0x0002ffff);
             this.ropes.delete(id);
             this.towing.delete(id);
         }

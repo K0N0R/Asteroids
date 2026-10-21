@@ -347,7 +347,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         id: 'lunar-defense',
         sector: 'lunar',
         act: 1,
-        title: 'Osłona budowy',
+        title: 'Ochrona budowy przed asteroidami',
         detail: 'Po fundamentach: przy budowie przytrzymaj G przez 2 s. Obroń konstrukcję przed trzema falami asteroid.',
         required: false,
         kind: 'defense',
@@ -1144,6 +1144,11 @@ export function storyVisibleTasks(p: StoryProgress) {
             (t.sector === p.sector || (inEarthSystem(t.sector) && inEarthSystem(p.sector))) &&
             !t.id.startsWith('earth-satellite-') &&
             !t.internal &&
+            !(
+                t.id === 'lunar-defense' &&
+                p.claimed.includes('lunar-attack') &&
+                !p.claimed.includes(t.id)
+            ) &&
             (t.id !== 'earth-debrief' || p.claimed.includes('mars-belt')) &&
             (t.act !== 5 || beltTechnologyReady(p)),
     );

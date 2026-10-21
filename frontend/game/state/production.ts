@@ -60,7 +60,8 @@ export function productionLock(
     const context = productionContext(c, scope);
     if (context.blocked) return context.blocked;
     const recipe: ProcessRecipe = RECIPES[id];
-    if (context.level < recipe.level) return `Wymagane zaplecze produkcyjne ${recipe.level}.`;
+    if (context.level < recipe.level)
+        return `Wymagane zaplecze produkcyjne ${recipe.level === 1 ? 'I' : 'II'}.`;
     if (
         (id === 'kineticPlate' || id === 'kineticModule') &&
         c.story &&

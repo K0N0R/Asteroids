@@ -32,6 +32,8 @@ function unlocked() {
         c.story!.progress[task.id] = task.target;
         c.story!.claimed.push(task.id);
     }
+    c.story!.progress['earth-workshop'] = 1;
+    c.story!.claimed.push('earth-workshop');
     c.station.workshop = 1;
     return c;
 }

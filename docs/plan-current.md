@@ -1,8 +1,32 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-20, wersja 0.102.
+Stan: 2026-10-21, wersja 0.106.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.106 — Hangar i Stocznia
+
+Hangar i Stocznia są osobnymi zakładkami menu; Stocznia ma własną ikonę suwnicy z kadłubem. Wybór statku lub projektu pozostaje w bocznej liście. Parametry, budowa, ulepszenia i warianty mają oddzielne widoki. Każdy z sześciu modułów ma własną zakładkę z porównaniem efektu i kosztami właściwego tieru. Przy częściach są odnośniki „Stwórz” z powrotem do wybranego modułu lub projektu. Warianty pokazują trzy istniejące kierunki wyposażenia oraz ich rzeczywiste parametry. Podgląd statku mieści się w osobnym obszarze pod wyborem I/II/III, również dla długich kadłubów. [Szczegóły i weryfikacja](implementation-v0.106.md).
+
+## Wdrożenie 0.105 — części tieru II i III
+
+Sześć rodzin części oraz lekkie poszycie mają teraz poziomy I–III. Czternaście nowych receptur łączy poprzedni tier z materiałami i podzespołami, bez produkcji w tle. Zaplecze I odblokowuje tier II; zaplecze II — tier III. Każdy wyższy tier ma osobną ilustrację konstrukcji we wspólnym katalogu ikon. Warsztat ma przełączniki I/II/III, zachowuje rodzinę przy zmianie tieru i pozwala przejść do składnika oraz wrócić.
+
+Kadłuby wymagają sześciu rodzin części na poziomie właściwym projektowi; Sokół, Widmo, Żądło i Feniks korzystają z lekkiego poszycia. Moduły statku I/II/III zużywają dokładnie odpowiedni tier. Rozbudowa zaplecza II jest składana z części II, dostępnych już na zapleczu I. Recykling zwraca te same rodziny i poziomy, które były wymagane do budowy i ulepszeń. Początkowe kadłuby oraz pierwsza rozbudowa nadal używają części I.
+
+Format kampanii 66 odrzuca zapisy 65 i starsze; dziennik 29 bez zmian. [Receptury, zastosowania i weryfikacja](implementation-v0.105.md).
+
+Pozostały zakres gospodarki: kolejne warianty materiałowe i ich świadomy wybór z właściwościami zapisywanymi w konstrukcji, manifesty dalszych aktów oraz balans czasu ręcznej produkcji. Same tiery części II–III są wdrożone.
+
+## Wdrożenie 0.104 — pamięć, hipernapęd, czytelność lotu i muzyka
+
+Geometria usuniętych asteroid jest zwalniana po zniszczeniu ostatniego korzystającego z niej widoku. Muzyka korzysta z jednego strumieniowanego elementu audio; pauza po utracie fokusu zachowuje pozycję bez zmieniania początku pętli. Hipernapęd ignoruje przeszkody i wyłącza kolizje statku oraz holu na czas ładowania i przelotu, przywracając je w zwykłym locie.
+
+HUD pokazuje wyłącznie aktywne cele. Rozróżniono wcześniejszą ochronę budowy przed asteroidami i późniejszą obronę stacji przed wrogami; niepodjęta ochrona budowy znika po zakończeniu późniejszej obrony. Teksty HUD i oznaczenia świata mają cień. Przyciemniono Księżyc, a transfery otrzymały delikatne wygaszenie, łuk horyzontu, smugi ruchu i czytelniejsze podpisy. Format kampanii 65 i dziennika 29 bez zmian. [Szczegóły i ograniczenia diagnozy pamięci](implementation-v0.104.md).
+
+## Wdrożenie 0.103 — Ziemia i Księżyc
+
+Ziemia ma uproszczone obrysy kontynentów w rzucie ortograficznym od strony Atlantyku, z Grenlandią, wyspami i oddzielnymi białymi chmurami. Chmury delikatnie dryfują niezależnie od lądu, również w locie i na mapie. Ukryta półkula nie przebija przez glob. Księżyc pokazuje schemat mórz widocznej strony oraz większe kratery, w tym Tycho i Kopernik z promieniami wyrzutowymi. Zachowano płaskie kolory i lekkie cieniowanie w stylistyce ilustracji edukacyjnej. Dotychczasowa skala i paralaksa pozostają. [Szczegóły](implementation-v0.103.md).
 
 ## Wdrożenie 0.102 — nabór, rozwój i użyteczne specjalizacje pilotów
 
@@ -39,7 +63,7 @@ Tekst odpraw i komunikatów radiowych pojawia się literka po literce z pauzami 
 
 Przeredagowano kwestie dowodzenia, naukowca i raporty w locie. Usunięto nieaktualne instrukcje o dostarczaniu surowców, Swifcie i ponownej rozbudowie ukończonego zaplecza. Stan animacji jest wyłącznie prezentacją: nie zmienia zadań, nagród ani formatu zapisu. [Szczegóły wdrożenia](implementation-v0.100.md).
 
-Kolejny pozostały zakres planu: warianty materiałowe i części II–III oraz ich zastosowanie w konstrukcjach, z zachowaniem priorytetu spójnego początku gry.
+Kolejny zakres po 0.105: dalsze warianty materiałowe i ich właściwości, z zachowaniem priorytetu spójnego początku gry.
 
 ## Wdrożenie 0.98 — wyposażenie Księżyca jako paczka na holu
 

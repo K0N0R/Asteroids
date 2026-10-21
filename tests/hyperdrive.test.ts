@@ -2,14 +2,7 @@ import { TerminalPuzzle } from '../frontend/game/systems/terminalPuzzle';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
-import {
-    newStoryCampaign,
-    newShip,
-    beginRun,
-    finishRun,
-    parseCampaign,
-    selectShip,
-} from '../frontend/game/state/campaign';
+import { newStoryCampaign, beginRun, parseCampaign } from '../frontend/game/state/campaign';
 import { STORY_TASKS, storyRadius } from '../frontend/game/state/story';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 import { Hyperdrive, HYPERDRIVE, segmentDistance } from '../frontend/game/systems/hyperdrive';
@@ -131,40 +124,36 @@ test('stock Prospector flies to a gate, crosses the full lane and returns repeat
     }
 });
 
-test('swept hyperflight collision with a thin off-axis physical obstacle destroys a shielded ship and stops all later mission work', () => {
+test('hyperflight ignores a late physical obstacle and restores ship and tow colliders on arrival', () => {
     const s = run();
     try {
         clear(s);
         const gate = s.sector.hyperlanes[0];
         s.ship.setTranslation({ x: gate.a.x / 100, y: gate.a.y / 100 }, true);
         s.ship.setLinvel({ x: 0, y: 0 }, true);
-        const shield = s.kineticShield.charge;
+        const item = s.salvage.add(
+            90001,
+            'satellite',
+            { x: gate.a.x - 100, y: gate.a.y },
+            { x: 0, y: 0 },
+        )!;
+        assert.ok(s.salvage.attach(item, s.ship));
+        const hull = s.hull,
+            shield = s.kineticShield.charge;
         s.step({ ...idle, hyperdrive: true });
-        for (let frame = 0; frame < 60 && s.hyperdrive.state === 'charging' && !s.ended; frame++)
-            advance(s, 1);
-        assert.equal(s.hyperdrive.state, 'transit');
+        assert.equal(s.shipCollider.isEnabled(), false);
+        assert.equal(item.collider.isEnabled(), false);
+        while (s.hyperdrive.state === 'charging') advance(s, 1);
         const point = { x: (gate.a.x + gate.b.x) / 200, y: (gate.a.y + gate.b.y) / 200 };
-        s.world.createCollider(
-            RAPIER.ColliderDesc.ball(0.02).setTranslation(point.x + 0.25, point.y),
-        );
+        s.world.createCollider(RAPIER.ColliderDesc.ball(1).setTranslation(point.x, point.y));
         advance(s, 180);
-        assert.equal(s.ended, 'destroyed');
-        assert.equal(s.hull, 0);
-        assert.equal(
-            s.kineticShield.charge,
-            shield,
-            'ordinary shielding cannot save a hyperspeed collision',
-        );
-        assert.ok(Math.hypot(s.position.x - gate.b.x, s.position.y - gate.b.y) > 1);
-        assert.match(s.deathReason, /hiperskoku/);
-        const time = s.elapsed,
-            data = [...s.surveyData],
-            cargo = structuredClone(s.cargo);
-        advance(s);
-        s.step({ ...idle, interact: true, fire: true });
-        assert.equal(s.elapsed, time);
-        assert.deepEqual([...s.surveyData], data);
-        assert.deepEqual(s.cargo, cargo);
+        assert.equal(s.ended, null);
+        assert.equal(s.hull, hull);
+        assert.equal(s.kineticShield.charge, shield);
+        assert.ok(Math.hypot(s.position.x - gate.b.x, s.position.y - gate.b.y) < 1);
+        assert.equal(s.shipCollider.isEnabled(), true);
+        assert.equal(item.collider.isEnabled(), true);
+        assert.ok(s.salvage.towing.has(item.id));
     } finally {
         s.dispose();
     }
@@ -203,7 +192,7 @@ test('hyperdrive charge and route stepping depend on simulation time and cap the
     assert.deepEqual(d.next({ x: 0, y: 0 }, 10), { point: { x: 1000, y: 0 }, complete: true });
 });
 
-test('gates reject an obstructed route and recheck before departure, without consuming fuel', () => {
+test('gates cross obstructed routes even when an obstacle appears during charging', () => {
     for (const late of [false, true]) {
         const s = run();
         try {
@@ -218,10 +207,10 @@ test('gates reject an obstructed route and recheck before departure, without con
             s.world.createCollider(RAPIER.ColliderDesc.ball(0.1).setTranslation(0, -20));
             s.world.step();
             if (!late) s.step({ ...idle, hyperdrive: true });
-            advance(s, 100);
+            advance(s, 180);
             assert.equal(s.ended, null);
             assert.equal(s.hyperdrive.state, 'idle');
-            assert.match(s.notice, /zablokowana/);
+            assert.ok(Math.hypot(s.position.x - gate.b.x, s.position.y - gate.b.y) < 1);
         } finally {
             s.dispose();
         }
@@ -250,6 +239,31 @@ test('a fresh Prospector uses an available gate with no workshop, story unlock, 
         assert.ok(Math.hypot(s.position.x - 240, s.position.y - 1000) < 1);
         assert.deepEqual(c.bank, { ore: 0, parts: 0 });
         assert.deepEqual(c.story!.claimed, []);
+    } finally {
+        s.dispose();
+    }
+});
+
+test('cancelling a charged jump immediately restores normal collisions for ship and tow', () => {
+    const s = run();
+    try {
+        clear(s);
+        const gate = s.sector.hyperlanes[0];
+        s.ship.setTranslation({ x: gate.a.x / 100, y: gate.a.y / 100 }, true);
+        s.ship.setLinvel({ x: 0, y: 0 }, true);
+        const item = s.salvage.add(
+            90001,
+            'satellite',
+            { x: gate.a.x - 100, y: gate.a.y },
+            { x: 0, y: 0 },
+        )!;
+        assert.ok(s.salvage.attach(item, s.ship));
+        s.step({ ...idle, hyperdrive: true });
+        s.step(idle);
+        s.step({ ...idle, hyperdrive: true });
+        assert.equal(s.hyperdrive.active, false);
+        assert.equal(s.shipCollider.isEnabled(), true);
+        assert.equal(item.collider.isEnabled(), true);
     } finally {
         s.dispose();
     }

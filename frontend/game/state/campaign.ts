@@ -94,7 +94,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 65;
+    version: 66;
     story: StoryProgress | null;
     bank: Cargo;
     lunarStation: { bank: Cargo };
@@ -189,7 +189,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 65,
+        version: 66,
         story: null,
         bank: { ore: 0, parts: 0 },
         lunarStation: { bank: { ore: 0, parts: 0 } },
@@ -239,7 +239,7 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 65 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 66 || !cargo(p.bank) || !object(p.station)) return null;
         if (!object(p.lunarStation) || !cargo(p.lunarStation.bank)) return null;
         if (
             !integer(p.station.workshop, 2) ||
@@ -592,7 +592,7 @@ export function ownedShips(c: Campaign) {
     return [...(c.ship ? [c.ship] : []), ...c.reserveShips];
 }
 export function scrapRefund(ship: Ship): Cargo {
-    const spent: Cargo = { ore: 0, ...HULL_CONSTRUCTION[ship.hull] };
+    const spent: Cargo = { ore: 0, parts: 0, ...HULL_CONSTRUCTION[ship.hull] };
     for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const) {
         for (let level = 0; level < ship[key]; level++) {
             const bill = moduleParts(key, level);
