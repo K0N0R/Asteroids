@@ -19,16 +19,21 @@ export function lunarTransferPoint(
     };
 }
 
-export function lunarTransferPose(progress: number, surface: boolean, zoom: number) {
+export function lunarTransferPose(
+    progress: number,
+    surface: boolean,
+    zoom: number,
+    site: { center: Point; exit: Point; radius: number } = MOON,
+) {
     const t = Math.max(0, Math.min(1, progress));
     const ease = t * t * (3 - 2 * t);
     const approach = surface ? ease : 1 - ease;
-    const globeZoom = (126 * EARTH_SYSTEM_BODY_SCALE.moon) / MOON.radius;
+    const globeZoom = (126 * EARTH_SYSTEM_BODY_SCALE.moon) / site.radius;
     return {
         zoom: globeZoom * (zoom / globeZoom) ** approach,
         pivot: {
-            x: MOON.center.x + (MOON.exit.x - MOON.center.x) * approach,
-            y: MOON.center.y + (MOON.exit.y - MOON.center.y) * approach,
+            x: site.center.x + (site.exit.x - site.center.x) * approach,
+            y: site.center.y + (site.exit.y - site.center.y) * approach,
         },
         detail: Math.min(1, approach * 3),
         pitch: Math.sin(Math.PI * t) ** 2,
@@ -53,7 +58,7 @@ export class LunarTransferView extends Container {
         this.eventMode = 'none';
         this.visible = false;
     }
-    update(active: boolean, progress: number, surface: boolean) {
+    update(active: boolean, progress: number, surface: boolean, name = 'Księżyc') {
         const g = this.scene.clear();
         this.visible = active;
         if (!this.visible) return;
@@ -61,7 +66,7 @@ export class LunarTransferView extends Container {
         const t = Math.max(0, Math.min(1, progress));
         const opacity = Math.min(1, t * 8, (1 - t) * 8);
         this.title.setText(
-            surface ? 'KSIĘŻYC · WEJŚCIE NAD POWIERZCHNIĘ' : 'KSIĘŻYC · POWRÓT NA ORBITĘ',
+            `${name.toUpperCase()} · ${surface ? 'WEJŚCIE NAD POWIERZCHNIĘ' : 'POWRÓT NA ORBITĘ'}`,
         );
         this.title.alpha = this.hint.alpha = opacity;
         // A quiet curved limb, motion streaks and a fade soften the coordinate-space handoff.

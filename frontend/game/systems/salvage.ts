@@ -61,7 +61,8 @@ export class SalvageFleet {
     ) {
         if (
             this.items.has(id) ||
-            (source !== 'recovery' &&
+            (id >= 0 &&
+                source !== 'recovery' &&
                 source !== 'shipment' &&
                 [...this.items.values()].filter((item) => item.source !== 'recovery').length >=
                     SALVAGE.limit)

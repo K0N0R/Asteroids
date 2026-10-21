@@ -1,0 +1,55 @@
+import { Container, Graphics } from 'pixi.js';
+import { marsMoonView } from './marsMoons';
+import { MARS_MOONS } from '../worlds/marsMoons';
+import { phobosOrbitSecured } from '../state/marsAct';
+import type { MissionSimulation } from '../systems/mission';
+import { worldLabel } from '../ui/primitives';
+import { C } from './shapes';
+
+/** Each moon has its own ground and approach; neither is an extra dockable station. */
+export class MarsMoonSurfaceView extends Container {
+    private bodies = Object.values(MARS_MOONS).map((body) => {
+        const ground = marsMoonView(body.id);
+        ground.position.copyFrom(body.center);
+        ground.scale.set(30);
+        ground.tint = body.id === 'phobos' ? 0x777580 : 0x85828e;
+        const gates = [body.entrance, body.exit].map((point, i) => {
+            const gate = new Container();
+            gate.position.copyFrom(point);
+            gate.addChild(
+                new Graphics()
+                    .circle(0, 0, 145)
+                    .fill({ color: C.cyan, alpha: 0.05 })
+                    .circle(0, 0, 110)
+                    .stroke({ color: C.cyan, width: 3, alpha: 0.7 }),
+            );
+            const title = worldLabel(
+                gate,
+                `${body.name} · ${i ? '1 · orbita' : 'E · lądowanie'}`,
+                0,
+                170,
+                18,
+                C.cyan,
+            );
+            return { gate, title };
+        });
+        this.addChild(ground, ...gates.map((g) => g.gate));
+        return { body, ground, gates };
+    });
+    update(s: MissionSimulation, angle: number) {
+        for (const { body, ground, gates } of this.bodies) {
+            const unlocked =
+                body.id === 'deimos' || !s.marsAct || phobosOrbitSecured(s.campaign.story!);
+            ground.visible =
+                (s.area === 'surface' && s.marsMoon?.id === body.id) ||
+                (s.transferActive && s.marsMoon?.id === body.id);
+            gates.forEach(({ gate, title }, i) => {
+                gate.visible =
+                    unlocked &&
+                    !s.transferActive &&
+                    (i ? s.area === 'surface' && s.marsMoon?.id === body.id : s.area === 'orbit');
+                title.rotation = -angle;
+            });
+        }
+    }
+}

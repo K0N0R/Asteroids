@@ -291,7 +291,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.117', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.122', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {
@@ -509,7 +509,7 @@ export class LobbyView extends Container {
                                   ? 'Zbuduj placówkę, przygotuj osłonę i zabezpiecz wyprawę na Merkurego.'
                                   : actTwoComplete(p)
                                     ? 'Akt II ukończony. Trasa do Wenus otwarta.'
-                                    : p.claimed.includes('mars-belt')
+                                    : p.claimed.includes('mars-anomaly-research')
                                       ? 'Pas blokuje pościg. Odbierz odprawę w sektorze Ziemi.'
                                       : p.sector === 'mars'
                                         ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'

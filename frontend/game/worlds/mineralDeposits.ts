@@ -37,7 +37,7 @@ export function mineralDeposit(spec: MineralSpec): MineralDeposit {
               ? 'Złoże miedzi i żelaza'
               : spec.rich
                 ? `Żelazo z domieszką ${TRACE_NAMES[trace]}`
-                : 'Złoże żelaza';
+                : 'Złoże żelaza i minerałów tlenowych';
     if (spec.defense)
         return Object.freeze({
             name,
@@ -48,13 +48,17 @@ export function mineralDeposit(spec: MineralSpec): MineralDeposit {
     if (spec.mercuryVein) loose.mercuryOre = MERCURY_VEINS.yield;
     else {
         const count = Math.ceil(spec.radius / 17);
-        if (spec.rich) loose[TRACES[trace]] = 1;
-        loose.ore = count - (spec.rich ? 1 : 0);
+        // Oxygen-bearing minerals are common feedstock, not a rare bonus replacing iron.
+        loose.ore = count;
+        loose.oxygen = count;
+        loose.carbon = Math.max(1, Math.ceil(count / 2));
+        const traceYield = spec.rich ? Math.max(1, Math.ceil(count / 2)) : 1;
+        loose[TRACES[trace]] = (loose[TRACES[trace]] ?? 0) + traceYield;
         if (spec.radius <= 44) {
-            if (copper) loose.copperOre = 3;
+            if (copper) loose.copperOre = 4;
             if (spec.crystal) {
-                loose.crystals = 3;
-                loose.hydrogen = 3;
+                loose.crystals = 4;
+                loose.hydrogen = 4;
             }
         } else
             for (const side of [-1, 1]) {

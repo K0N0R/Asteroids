@@ -160,6 +160,15 @@ export class ResearchEscort {
             this.body,
         );
     }
+    resumeResearch(point: Point) {
+        if (this.health <= 0) return false;
+        this.setDestination(point);
+        this.state = 'travel';
+        this.researchProgress = 0;
+        this.ambushed = true;
+        this.collider.setSensor(false);
+        return true;
+    }
     protected setDestination(point: Point) {
         Object.assign(this.destination, point);
         this.path = [];

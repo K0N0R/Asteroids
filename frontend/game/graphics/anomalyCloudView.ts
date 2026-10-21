@@ -11,7 +11,7 @@ export function anomalyCloudView(polygons: readonly (readonly Point[])[], seed =
         y0 = Math.min(...points.map((p) => p.y)) - 40;
     const width = Math.max(...points.map((p) => p.x)) - x0 + 40;
     const height = Math.max(...points.map((p) => p.y)) - y0 + 40;
-    const resolution = 0.65;
+    const resolution = Math.min(0.65, 2048 / Math.max(width, height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.ceil(width * resolution);
     canvas.height = Math.ceil(height * resolution);
@@ -92,8 +92,9 @@ export function anomalyCloudView(polygons: readonly (readonly Point[])[], seed =
     ctx.globalAlpha = 1;
     // A low resolution smooth mask is enough for broad wispy edges and avoids a full-size distance field.
     const mask = document.createElement('canvas');
-    mask.width = Math.ceil(width / 5);
-    mask.height = Math.ceil(height / 5);
+    const maskStep = Math.max(5, Math.max(width, height) / 512);
+    mask.width = Math.ceil(width / maskStep);
+    mask.height = Math.ceil(height / maskStep);
     const maskContext = mask.getContext('2d')!,
         pixels = maskContext.createImageData(mask.width, mask.height);
     for (let y = 0; y < mask.height; y++)

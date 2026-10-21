@@ -1,10 +1,11 @@
 import type { Point } from '../worlds/sector';
 
+export const SECTOR_RADIATION_DAMAGE = 10;
 export const ANOMALY = {
     center: { x: -2400, y: -1700 },
     probe: { x: -2850, y: -1700 },
-    warningSeconds: 0.8,
-    damagePerSecond: 10,
+    damagePerSecond: SECTOR_RADIATION_DAMAGE * 1.5,
+    maxSpeed: 25,
     waypoints: [
         { x: -1750, y: -1050 },
         { x: -1750, y: -2300 },
@@ -87,7 +88,6 @@ export class AnomalyExposure {
     exposure = 0;
     contaminated = false;
     nearby = false;
-    private damageTime = 0;
     step(from: Point, to: Point, dt: number, radius: number) {
         const distance = Math.hypot(to.x - from.x, to.y - from.y);
         const samples = Math.max(1, Math.ceil(distance / 20));
@@ -98,16 +98,10 @@ export class AnomalyExposure {
                 y: from.y + ((to.y - from.y) * i) / samples,
             };
             if (anomalyDistance(p) <= radius) {
-                const before = Math.max(0, this.exposure - ANOMALY.warningSeconds);
                 this.exposure += dt / samples;
-                this.damageTime += Math.max(0, this.exposure - ANOMALY.warningSeconds) - before;
-                while (this.damageTime + 1e-8 >= 0.5) {
-                    damage += ANOMALY.damagePerSecond * 0.5;
-                    this.damageTime = Math.max(0, this.damageTime - 0.5);
-                }
+                damage += (ANOMALY.damagePerSecond * dt) / samples;
             } else {
                 this.exposure = 0;
-                this.damageTime = 0;
             }
         }
         const edge = anomalyDistance(to);
@@ -117,9 +111,7 @@ export class AnomalyExposure {
     }
     get status() {
         return this.contaminated
-            ? this.exposure < ANOMALY.warningSeconds
-                ? 'ANOMALIA · opuść skażone pasmo!'
-                : 'SKAŻENIE · 10 obrażeń/s · wróć do jasnego korytarza!'
+            ? 'ANOMALIA · 15 kadłuba/s · silne spowolnienie · opuść włókna!'
             : this.nearby
               ? 'Granica skażenia · jasne korytarze są bezpieczne'
               : '';

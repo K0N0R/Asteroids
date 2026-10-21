@@ -31,6 +31,8 @@ export class EnemyFactory {
     constructor(
         private world: RAPIER.World,
         destroyed = false,
+        readonly position: Point = ENEMY_FACTORY.position,
+        readonly idBase = 10000,
     ) {
         this.health = destroyed ? 0 : ENEMY_FACTORY.health;
         this.collider = destroyed
@@ -38,8 +40,8 @@ export class EnemyFactory {
             : world.createCollider(
                   RAPIER.ColliderDesc.ball(ENEMY_FACTORY.radius / GAME.pixelsPerMeter)
                       .setTranslation(
-                          ENEMY_FACTORY.position.x / GAME.pixelsPerMeter,
-                          ENEMY_FACTORY.position.y / GAME.pixelsPerMeter,
+                          position.x / GAME.pixelsPerMeter,
+                          position.y / GAME.pixelsPerMeter,
                       )
                       .setRestitution(0.3),
               );
@@ -58,7 +60,7 @@ export class EnemyFactory {
     update(dt: number, player: Point, fleet: EnemyFleet, blocked: (p: Point) => boolean) {
         for (const id of this.units) if (!fleet.enemies.has(id)) this.units.delete(id);
         if (this.destroyed) return false;
-        const p = ENEMY_FACTORY.position;
+        const p = this.position;
         if (
             !this.active &&
             Math.hypot(player.x - p.x, player.y - p.y) < ENEMY_FACTORY.activateRange
@@ -76,7 +78,7 @@ export class EnemyFactory {
             const a = ((i + this.launched) * Math.PI) / 6;
             const point = { x: p.x + Math.cos(a) * 220, y: p.y + Math.sin(a) * 220 };
             if (blocked(point)) continue;
-            const id = 10000 + ++this.launched;
+            const id = this.idBase + ++this.launched;
             fleet.add([
                 {
                     ...point,

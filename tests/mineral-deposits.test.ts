@@ -1,3 +1,9 @@
+import { newStoryProgress } from '../frontend/game/state/story';
+import { generateMarsActSector } from '../frontend/game/worlds/marsSystem';
+import { SHIELD_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
+import { HULL_CONSTRUCTION } from '../frontend/game/state/fleetConstruction';
+import { RECIPES, type ProcessRecipe } from '../frontend/game/state/chemistry';
+import type { ResourceId } from '../frontend/game/state/resources';
 import { ShapeLibrary } from '../frontend/game/graphics/shapes';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -59,8 +65,8 @@ test('every generated rock has a deterministic elemental budget matching all fra
 });
 test('silicon and hydrogen appear in silicon deposits; defensive threats produce no resources', () => {
     const d = mineralDeposit({ radius: 32, variant: 12, rich: true, crystal: true });
-    assert.equal(d.total.crystals, 3);
-    assert.equal(d.total.hydrogen, 3);
+    assert.equal(d.total.crystals, 4);
+    assert.equal(d.total.hydrogen, 4);
     assert.equal(d.total.parts, undefined);
     assert.equal(
         resourceTotal(mineralDeposit({ radius: 76, variant: 12, rich: true, defense: true }).total),
@@ -218,4 +224,51 @@ test('asteroid artwork cache distinguishes actual elements for identical geometr
     } finally {
         shapes.dispose();
     }
+});
+
+test('ordinary deposits supply oxygen and carbon without requiring a lucky rich trace', () => {
+    for (let variant = 0; variant < 128; variant++) {
+        const d = mineralDeposit({ radius: 32, variant, rich: false });
+        assert.ok((d.total.oxygen ?? 0) >= 2);
+        assert.ok((d.total.carbon ?? 0) >= 1);
+        assert.ok((d.total.ore ?? 0) >= 2);
+    }
+});
+
+test('peaceful Mars supplies a generous recipe budget before any combat unlocks', () => {
+    const p = newStoryProgress();
+    p.sector = 'mars';
+    const sector = generateMarsActSector(p),
+        available: ResourceStore = {},
+        needed: ResourceStore = {};
+    for (const rock of sector.rocks) add(available, mineralDeposit(rock).total);
+    const expand = (id: ResourceId, amount: number) => {
+        if (ELEMENT_IDS.some((element) => element === id)) {
+            needed[id] = (needed[id] ?? 0) + amount;
+            return;
+        }
+        const recipe = (Object.values(RECIPES) as ProcessRecipe[]).find(
+            (recipe) => recipe.output === id,
+        )!;
+        assert.ok(recipe, id);
+        for (const [input, count] of Object.entries(recipe.inputs))
+            expand(input as ResourceId, count * Math.ceil(amount / recipe.amount));
+    };
+    // A shield generator plus two replacement starter hulls, with twice their full raw bill in reserve.
+    const bill: ResourceStore = { ...SHIELD_CONSTRUCTION };
+    add(bill, HULL_CONSTRUCTION.prospector);
+    add(bill, HULL_CONSTRUCTION.prospector);
+    for (const [id, count] of Object.entries(bill)) expand(id as ResourceId, count * 2);
+    for (const id of ELEMENT_IDS)
+        assert.ok(
+            (available[id] ?? 0) >= (needed[id] ?? 0),
+            `${id}: available ${available[id] ?? 0}, required ${needed[id] ?? 0}`,
+        );
+    for (const id of ELEMENT_IDS.filter((id) => id !== 'mercuryOre'))
+        assert.ok((available[id] ?? 0) >= 20, `${id} should not be a scarce random trace`);
+    assert.equal(sector.enemies.length, 0);
+    assert.equal(
+        sector.hyperlanes.some((l) => l.name.includes('Fobosa')),
+        false,
+    );
 });

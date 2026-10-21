@@ -12,6 +12,7 @@ import {
     parseCampaign,
     buyUpgrade,
     newShip,
+    capacity,
 } from '../frontend/game/state/campaign';
 import {
     contributeStory,
@@ -140,7 +141,7 @@ test('cargo manifests debit the bank once, respect capacity, and require a reach
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
     s.dispose();
     const invalid = JSON.parse(JSON.stringify(c));
-    invalid.activeRun.freight.ore = 41;
+    invalid.activeRun.freight.ore = capacity(c) + 1;
     assert.equal(parseCampaign(JSON.stringify(invalid)), null);
     const fresh = newStoryCampaign();
     fresh.bank.ore = 100;

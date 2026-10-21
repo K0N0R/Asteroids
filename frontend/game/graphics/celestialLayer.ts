@@ -8,6 +8,7 @@ import type { Point } from '../worlds/sector';
 /** Independent distant planes behind the playable orbital space. */
 export class CelestialLayer extends Container {
     private bodies: { spec: CelestialBodySpec; view: ReturnType<typeof planetView> }[] = [];
+    private signature = '';
     constructor() {
         super();
         this.label = 'celestial-layer';
@@ -17,6 +18,9 @@ export class CelestialLayer extends Container {
         for (const spec of specs)
             if (!(spec.depth > 0 && spec.depth < 1) || !(spec.scale > 0))
                 throw new Error(`Invalid distant body: ${spec.id}`);
+        const signature = JSON.stringify(specs);
+        if (this.signature === signature) return;
+        this.signature = signature;
         for (const body of this.bodies) destroyDisplayTree(body.view);
         this.bodies = [...specs]
             .sort((a, b) => a.depth - b.depth)

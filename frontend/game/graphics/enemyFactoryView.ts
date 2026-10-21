@@ -19,6 +19,14 @@ export class EnemyFactoryView extends Container {
         this.addChild(this.readout);
     }
     update(factory: EnemyFactory, cameraAngle: number) {
+        this.position.copyFrom(factory.position);
+        this.title.setText(
+            factory.idBase === 73000
+                ? factory.position.x > 0
+                    ? 'INSTALACJA FOBOSA'
+                    : '5 · ZAKŁAD PRZEMYSŁOWY'
+                : '5 · STOCZNIA POLOWA',
+        );
         this.readout.rotation = -cameraAngle;
         const g = this.state.clear();
         if (this.ruinState !== factory.destroyed) {

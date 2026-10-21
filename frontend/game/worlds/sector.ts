@@ -23,6 +23,7 @@ export interface RockSpec extends Point {
 }
 export interface Landmark extends Point {
     area?: 'surface';
+    surfaceBody?: 'phobos' | 'deimos';
     name: string;
     key: number;
     kind:

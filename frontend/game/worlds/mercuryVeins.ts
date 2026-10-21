@@ -4,7 +4,7 @@ export const MERCURY_VEINS = {
     y: 1350,
     radius: 260,
     health: 180,
-    yield: 3,
+    yield: 4,
     nodes: [
         { x: 1655, y: 1275 },
         { x: 1745, y: 1310 },

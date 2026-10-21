@@ -1,3 +1,11 @@
+import {
+    phobosOrbitSecured,
+    newMarsProgress,
+    validMarsProgress,
+    marsThreatsCleared,
+    marsSecurityObjective,
+    type MarsProgress,
+} from './marsAct';
 import { lunarShipmentPending, lunarShipmentLock } from './lunarShipment';
 import { STARTER_MATERIALS } from './stationConstruction';
 import { awardPilotXp } from './pilots';
@@ -47,7 +55,7 @@ export const STORY_SECTORS = {
     mars: {
         act: 2,
         shortName: 'Mars',
-        name: 'Podejście do Marsa',
+        name: 'Sektor Marsa',
         size: 'M',
         seed: 150073,
         radius: 3000,
@@ -147,7 +155,8 @@ export interface StoryTask {
         | 'boss'
         | 'rescue'
         | 'factory'
-        | 'kineticShield';
+        | 'kineticShield'
+        | 'event';
     resource?: ResourceId;
     target: number;
     site?: ScanSiteId;
@@ -368,78 +377,124 @@ export const STORY_TASKS: readonly StoryTask[] = [
         reward: { ore: 40, parts: 8 },
     },
     {
-        id: 'mars-trail',
+        id: 'mars-shields',
         sector: 'mars',
         act: 2,
-        title: 'Ślad pościgu',
+        title: 'Tarcze Satuk 15',
+        detail: 'Zbuduj system tarcz w zakładce Rozbudowa stacji. Odblokowuje Bastiona i Mantę.',
         required: true,
-        detail: 'Leć do przekaźnika na trasie pościgu. Zbierz odczyt przez E i poczekaj na potwierdzenie radiowe Satuk 15.',
-        kind: 'scan',
-        site: 'relay',
+        kind: 'event',
         target: 1,
         dependencies: [],
-        reward: { ore: 16, parts: 4 },
+        reward: { ore: 0, parts: 0 },
     },
     {
-        id: 'mars-patrol',
+        id: 'mars-sector-secure',
         sector: 'mars',
         act: 2,
-        title: 'Zabezpieczenie podejścia',
+        title: 'Zabezpieczenie sektora Marsa',
+        detail: 'Rozpoznaj barierę, zabezpiecz Fobosa i zlikwiduj zakład oraz wymagane patrole. Cele aktualizują się z odkryciami.',
         required: true,
-        detail: 'Odeprzyj dwa patrole na podejściu. Wyniki walki potwierdza radio; możesz rozdzielić je na wyprawy.',
-        kind: 'patrol',
-        target: 2,
-        dependencies: [],
-        reward: { ore: 24, parts: 6 },
-    },
-    {
-        id: 'mars-belt',
-        sector: 'mars',
-        act: 2,
-        title: 'Granica pościgu',
-        required: true,
-        detail: 'Leć do podejścia do pasa asteroid. Zbierz odczyt przez E i poczekaj na potwierdzenie radiowe. Dalszy przelot wymaga brakującej technologii.',
-        kind: 'scan',
-        site: 'archive',
+        kind: 'event',
         target: 1,
-        dependencies: ['mars-trail', 'mars-patrol'],
-        reward: { ore: 20, parts: 4 },
+        dependencies: [],
+        reward: { ore: 0, parts: 0 },
     },
     {
-        id: 'mars-factory',
+        id: 'mars-phobos-route',
+        sector: 'mars',
+        act: 2,
+        title: 'Nieznany korytarz',
+        detail: 'Po budowie tarcz i rozpoznaniu bariery zbadaj labirynt anomalii i hiperśluzę na Fobosa.',
+        required: true,
+        kind: 'event',
+        target: 1,
+        dependencies: ['mars-shields', 'mars-landing-blocked'],
+        reward: { ore: 0, parts: 0 },
+    },
+    {
+        id: 'mars-landing-blocked',
+        sector: 'mars',
+        act: 2,
+        title: 'Bariera lądowania',
+        detail: 'Podejdź do bariery lądowania na Marsie.',
+        required: false,
+        kind: 'event',
+        target: 1,
+        dependencies: [],
+        reward: { ore: 0, parts: 0 },
+        internal: true,
+    },
+    {
+        id: 'mars-phobos-base',
+        sector: 'mars',
+        act: 2,
+        title: 'Ukryta instalacja',
+        detail: 'Odkryj bazę wśród złóż Fobosa. Włam się do terminala bez alarmu lub zniszcz instalację. Fizyczny moduł pamięci odholuj do Satuk 15.',
+        required: true,
+        kind: 'event',
+        target: 1,
+        dependencies: ['mars-phobos-route'],
+        reward: { ore: 0, parts: 0 },
+    },
+    {
+        id: 'mars-ai-discovery',
+        sector: 'mars',
+        act: 2,
+        title: 'Wróg bez załogi',
+        detail: 'Dostarcz moduł pamięci i wróć do Satuk 15 na analizę.',
+        required: true,
+        kind: 'event',
+        target: 1,
+        dependencies: ['mars-phobos-base'],
+        reward: { ore: 0, parts: 0 },
+    },
+    {
+        id: 'mars-asteroid-yard',
         sector: 'mars',
         act: 2,
         title: 'Zatrzymaj produkcję',
-        detail: 'Odszukaj stocznię polową. Zniszcz jej rdzeń, aby zatrzymać posiłki, i poczekaj na potwierdzenie radiowe. Wypuszczone jednostki pozostaną w walce.',
-        required: false,
-        kind: 'factory',
-        site: 'factory',
+        detail: 'Przez ujawnioną hiperśluzę dotrzyj do dużej asteroidy. Zniszcz zakład przemysłowy; pozostali przeciwnicy nadal wymagają eliminacji.',
+        required: true,
+        kind: 'event',
         target: 1,
-        dependencies: ['mars-trail', 'mars-patrol'],
-        reward: { ore: 28, parts: 8 },
+        dependencies: ['mars-ai-discovery'],
+        reward: { ore: 0, parts: 0 },
     },
     {
-        id: 'mars-reserve',
+        id: 'mars-anomaly-research',
         sector: 'mars',
         act: 2,
-        title: 'Zapasy ekspedycji',
+        title: 'Osłona ekspedycji naukowej',
+        detail: 'Eskortuj Keplera do trzech punktów pomiarowych na orbicie Marsa. Odeprzyj ograniczone fale niedobitków. Zniszczoną jednostkę zastąpi kolejna wyprawa.',
+        required: true,
+        kind: 'event',
+        target: 1,
+        dependencies: ['mars-sector-secure'],
+        reward: { ore: 0, parts: 0 },
+    },
+    {
+        id: 'mars-probe',
+        sector: 'mars',
+        act: 2,
+        title: 'Zapomniana sonda',
+        detail: 'Odholuj starą ziemską sondę z orbity Fobosa do Satuk 15.',
         required: false,
-        detail: 'Przekaż 20 rudy na zaplecze pościgu. Zadanie dodatkowe nie blokuje rozpoznania pasa.',
-        kind: 'ore',
-        target: 20,
-        dependencies: [],
-        reward: { ore: 10, parts: 4 },
+        kind: 'event',
+        target: 1,
+        dependencies: ['mars-phobos-route'],
+        reward: { ore: 0, parts: 0 },
     },
     {
         id: 'earth-debrief',
         sector: 'earth',
         act: 2,
         title: 'Nowy kierunek',
+        detail: 'Po zakończeniu trzech pomiarów wróć do Satuk 15 i zatwierdź odprawę. Następny kierunek: Wenus i Merkury.',
         required: true,
-        detail: 'Raport z pasa wymaga odprawy przy Ziemi. Przeczytaj plan wyprawy i zatwierdź trasę do Wenus w Satuk 15.',
         kind: 'briefing',
         target: 1,
-        dependencies: ['mars-belt'],
+        dependencies: ['mars-anomaly-research'],
         reward: { ore: 0, parts: 0 },
     },
     {
@@ -1062,9 +1117,10 @@ export const VENUS_EXPANSION_TASKS = [
 ];
 export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
-    'Technologia potrzebna do pokonania pasa jest do zdobycia na Merkurym. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
+    'Pomiary anomalii wskazują, że brakującą technologię znajdziemy w rejonie Merkurego. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 29;
+    version: 30;
+    mars: MarsProgress;
     dialogues: string[];
     sector: StorySectorId;
     progress: Record<string, number>;
@@ -1072,7 +1128,8 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 29,
+    version: 30,
+    mars: newMarsProgress(),
     dialogues: [],
     sector: 'earth',
     progress: Object.fromEntries(STORY_TASKS.map((task) => [task.id, 0])),
@@ -1082,6 +1139,7 @@ export const newStoryProgress = (): StoryProgress => ({
 export function storyTaskAvailable(p: StoryProgress, task: StoryTask) {
     return (
         storySectorUnlocked(p, task.sector) &&
+        (task.id !== 'mars-phobos-base' || phobosOrbitSecured(p)) &&
         task.dependencies.every((id) => p.claimed.includes(id))
     );
 }
@@ -1131,7 +1189,8 @@ export function storyAct(p: StoryProgress) {
         ? 'AKT IV'
         : p.sector === 'venus'
           ? 'AKT III'
-          : p.sector === 'mars' || (p.sector === 'earth' && p.claimed.includes('mars-belt'))
+          : p.sector === 'mars' ||
+              (p.sector === 'earth' && p.claimed.includes('mars-anomaly-research'))
             ? 'AKT II'
             : 'AKT I';
 }
@@ -1141,7 +1200,9 @@ export function actTwoComplete(p: StoryProgress) {
 export function storyVisibleTasks(p: StoryProgress) {
     const tasks = STORY_TASKS.filter(
         (t) =>
-            (t.sector === p.sector || (inEarthSystem(t.sector) && inEarthSystem(p.sector))) &&
+            (t.sector === p.sector ||
+                (inEarthSystem(t.sector) && inEarthSystem(p.sector)) ||
+                (t.id === 'earth-debrief' && p.sector === 'mars')) &&
             !t.id.startsWith('earth-satellite-') &&
             !t.internal &&
             !(
@@ -1149,7 +1210,7 @@ export function storyVisibleTasks(p: StoryProgress) {
                 p.claimed.includes('lunar-attack') &&
                 !p.claimed.includes(t.id)
             ) &&
-            (t.id !== 'earth-debrief' || p.claimed.includes('mars-belt')) &&
+            (t.id !== 'earth-debrief' || p.claimed.includes('mars-anomaly-research')) &&
             (t.act !== 5 || beltTechnologyReady(p)),
     );
     return p.sector === 'mars' && beltTechnologyReady(p)
@@ -1179,6 +1240,10 @@ export function beltTechnologyReady(p: StoryProgress) {
     return p.claimed.includes('mercury-technology');
 }
 export function storyNextStep(p: StoryProgress) {
+    if (p.sector === 'mars' && !beltTechnologyReady(p))
+        return p.claimed.includes('mars-anomaly-research')
+            ? 'Pomiary zakończone. Wróć do Satuk 15 na odprawę i przygotuj wyprawę ku Wenus.'
+            : marsSecurityObjective(p);
     if (inEarthSystem(p.sector) && !actOneComplete(p)) {
         if (!p.claimed.includes('earth-relay'))
             return 'Uruchom przekaźnik orbitalny przez E. Otworzy śluzę Ziemia–Księżyc.';
@@ -1292,10 +1357,10 @@ export function storyNextStep(p: StoryProgress) {
     }
     if (actTwoComplete(p))
         return 'Akt II ukończony. Trasa do Wenus otwarta. Przygotuj zaplecze przed wyprawą na Merkurego; wcześniejsze sektory pozostają dostępne.';
-    if (p.claimed.includes('mars-belt'))
+    if (p.claimed.includes('mars-anomaly-research'))
         return p.sector === 'earth'
-            ? 'Raport z pasa dostarczony. Odbierz odprawę Nowy kierunek i zatwierdź plan podróży do Wenus.'
-            : 'Pas asteroid blokuje pościg. Wróć do sektora Ziemi i odbierz odprawę Nowy kierunek w Satuk 15.';
+            ? 'Pomiary anomalii dostarczone. Odbierz odprawę Nowy kierunek i zatwierdź plan podróży do Wenus.'
+            : 'Wróć do Satuk 15 i odbierz odprawę Nowy kierunek po badaniach anomalii.';
     if (actOneComplete(p))
         return p.sector === 'mars'
             ? 'Odczyt przekaźnika i osłona podejścia otworzą dalszy obszar. Raporty zatwierdzasz po powrocie.'
@@ -1303,7 +1368,7 @@ export function storyNextStep(p: StoryProgress) {
     return '';
 }
 export function marsApproachOpen(p: StoryProgress) {
-    return ['mars-trail', 'mars-patrol'].every((id) => p.claimed.includes(id));
+    return p.mars.aiIdentified;
 }
 export function jupiterObservationsOpen(p: StoryProgress) {
     return ['jupiter-patrol', 'jupiter-uplink'].every((id) => p.claimed.includes(id));
@@ -1346,7 +1411,7 @@ export function storyRadius(p: StoryProgress) {
     if (p.sector === 'belt' && p.claimed.includes('belt-survey')) return 5700;
     if (p.sector === 'mercury' && p.claimed.includes('mercury-survey')) return 4700;
     if (p.sector === 'mars' && p.claimed.includes('mars-base-build')) return 5400;
-    if (p.sector === 'mars' && marsApproachOpen(p)) return 4600;
+    if (p.sector === 'mars' && !beltTechnologyReady(p)) return 11000;
     if (p.sector === 'venus' && p.claimed.includes('venus-survey')) return 3900;
     return p.sector === 'earth' &&
         ['earth-supply', 'earth-relay'].every((id) => p.claimed.includes(id))
@@ -1360,7 +1425,8 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 29 ||
+        p.version !== 30 ||
+        !validMarsProgress(p.mars) ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||
         typeof p.progress !== 'object' ||
@@ -1432,6 +1498,19 @@ function settle(c: Campaign): StoryChange {
             )
         )
             p.progress[task.id] = task.target;
+        if (task.id === 'mars-shields' && c.station.shield) p.progress[task.id] = 1;
+        if (task.id === 'mars-landing-blocked' && p.mars.landingBlocked) p.progress[task.id] = 1;
+        if (task.id === 'mars-phobos-route' && p.mars.ambushEntered) p.progress[task.id] = 1;
+        if (task.id === 'mars-phobos-base' && p.mars.memoryDelivered) p.progress[task.id] = 1;
+        if (task.id === 'mars-ai-discovery' && p.mars.memoryDelivered && !c.activeRun) {
+            p.mars.aiIdentified = true;
+            p.progress[task.id] = 1;
+        }
+        if (task.id === 'mars-asteroid-yard' && p.mars.yardDestroyed) p.progress[task.id] = 1;
+        if (task.id === 'mars-sector-secure' && marsThreatsCleared(p)) p.progress[task.id] = 1;
+        if (task.id === 'mars-anomaly-research' && p.mars.researchSites === 3)
+            p.progress[task.id] = 1;
+        if (task.id === 'mars-probe' && p.mars.probeDelivered) p.progress[task.id] = 1;
         if (task.id === 'venus-shield' && VENUS_SHIELD.every((t) => p.claimed.includes(t.id)))
             p.progress[task.id] = 1;
         if (
@@ -1553,7 +1632,7 @@ export function acknowledgeStoryBriefing(c: Campaign) {
     if (
         !p ||
         c.activeRun ||
-        p.sector !== 'earth' ||
+        !['earth', 'mars'].includes(p.sector) ||
         p.claimed.includes(task.id) ||
         !storyTaskAvailable(p, task)
     )

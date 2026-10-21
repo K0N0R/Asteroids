@@ -1,3 +1,5 @@
+import { generateMarsActSector } from './marsSystem';
+import { MARS_MOONS } from './marsMoons';
 import {
     earthSystemLanes,
     earthSystemZones,
@@ -21,14 +23,12 @@ import {
     jupiterObservationsOpen,
     BELT_BARRIERS,
     beltRouteCleared,
-    marsApproachOpen,
     beltTechnologyReady,
     MARS_BASE,
     STORY_SECTORS,
     type StoryProgress,
 } from '../state/story';
 import { MERCURY_SHELTERS } from '../systems/solarExposure';
-import { ENEMY_FACTORY } from '../systems/enemyFactory';
 import { MOON, inEarthSystem } from './moon';
 
 const MARS_CORRIDOR_POINTS = [
@@ -49,6 +49,8 @@ export function marsCorridorFleet(progress: StoryProgress): EnemySpec[] {
         : [];
 }
 export function generateStorySector(progress: StoryProgress) {
+    if (progress.sector === 'mars' && !beltTechnologyReady(progress))
+        return generateMarsActSector(progress);
     const def = STORY_SECTORS[progress.sector],
         sector = generateSector(def.seed);
     const earth = progress.sector === 'earth',
@@ -219,54 +221,6 @@ export function generateStorySector(progress: StoryProgress) {
             });
         }
     }
-    if (progress.sector === 'mars') {
-        sector.landmarks = [
-            { x: 1100, y: 0, name: 'Złoże podejścia', key: 2, kind: 'field', radius: 330 },
-            {
-                x: 1300,
-                y: 1100,
-                name: 'Przekaźnik trasy pościgu',
-                key: 7,
-                kind: 'relay',
-                siteId: 'relay',
-                radius: 180,
-            },
-            { x: 850, y: -550, name: 'Pozostałości na trasie', key: 4, kind: 'wreck', radius: 100 },
-            ...(marsApproachOpen(progress)
-                ? [
-                      {
-                          x: 3600,
-                          y: 600,
-                          name: beltTechnologyReady(progress)
-                              ? 'Podejście do pasa · technologia zabezpieczona'
-                              : 'Pas asteroid · przelot zablokowany',
-                          key: 8,
-                          kind: 'archive' as const,
-                          siteId: 'archive' as const,
-                          radius: 180,
-                      },
-                  ]
-                : []),
-        ];
-        const contacts = [
-            { x: -1600, y: -800 },
-            { x: -1900, y: 900 },
-        ];
-        const remaining = Math.max(0, 2 - progress.progress['mars-patrol']);
-        sector.enemies = contacts.slice(0, remaining).map((point, i) => ({
-            ...point,
-            home: { ...point },
-            id: 7000 + i,
-            phase: 0,
-            kind: 'patrol',
-            storyPatrol: true,
-        }));
-        sector.rocks = sector.rocks.filter((r) =>
-            [...sector.landmarks.filter((l) => l.siteId), ...contacts].every(
-                (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 330,
-            ),
-        );
-    }
     if (progress.sector === 'mars' && beltTechnologyReady(progress)) {
         sector.landmarks = [
             { x: 1100, y: 0, name: 'Złoże marsjańskie', key: 2, kind: 'field', radius: 330 },
@@ -290,6 +244,27 @@ export function generateStorySector(progress: StoryProgress) {
                 radius: 180,
             },
         ];
+        for (const body of Object.values(MARS_MOONS)) {
+            sector.landmarks.push(
+                {
+                    ...body.entrance,
+                    key: body.id === 'phobos' ? 5 : 9,
+                    surfaceBody: body.id,
+                    name: `${body.name} · lądowanie`,
+                    kind: 'passage',
+                    radius: 200,
+                },
+                {
+                    ...body.exit,
+                    key: 1,
+                    area: 'surface',
+                    surfaceBody: body.id,
+                    name: `${body.name} · powrót na orbitę`,
+                    kind: 'passage',
+                    radius: 200,
+                },
+            );
+        }
         const contacts = MARS_CORRIDOR_POINTS;
         sector.enemies = marsCorridorFleet(progress);
         sector.rocks = sector.rocks.filter((r) =>
@@ -297,25 +272,6 @@ export function generateStorySector(progress: StoryProgress) {
                 (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 360,
             ),
         );
-    }
-    if (progress.sector === 'mars' && marsApproachOpen(progress)) {
-        const p = ENEMY_FACTORY.position;
-        sector.landmarks.push({
-            ...p,
-            key: 5,
-            kind: 'factory',
-            name: progress.claimed.includes('mars-factory')
-                ? 'Ruiny stoczni polowej'
-                : 'Stocznia polowa przeciwnika',
-            radius: ENEMY_FACTORY.radius,
-        });
-        sector.rocks = sector.rocks.filter((r) => {
-            const t = Math.max(0, Math.min(1, (r.x * p.x + r.y * p.y) / (p.x * p.x + p.y * p.y)));
-            return (
-                Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 650 &&
-                Math.hypot(r.x - p.x * t, r.y - p.y * t) > r.radius + 160
-            );
-        });
     }
     if (progress.sector === 'venus') {
         sector.landmarks = [

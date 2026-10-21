@@ -1,3 +1,7 @@
+import { releaseSceneBuffers } from '../../core/systems/renderMemory';
+import { MARS_ACT } from '../state/marsAct';
+import { MarsMoonSurfaceView } from '../graphics/marsMoonSurface';
+import { anomalyCloudView } from '../graphics/anomalyCloudView';
 import { lunarShipmentView } from '../graphics/lunarShipmentView';
 import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { itemIllustration } from '../graphics/items';
@@ -61,7 +65,7 @@ import {
     lunarTransferPose,
     lunarTransferPoint,
 } from '../graphics/lunarTransfer';
-import { MOON, moonOrbitPoint } from './moon';
+import { MOON } from './moon';
 import { MoonSurfaceView } from '../graphics/moonSurface';
 import { FlightDirection } from '../systems/flightDirection';
 import { FlightDirectionView } from '../graphics/flightDirectionView';
@@ -75,6 +79,7 @@ export class MissionWorld extends Container {
         return this.direction.returnFinished;
     }
     private moon: MoonSurfaceView;
+    private marsMoons: MarsMoonSurfaceView | null = null;
     private moonPrepared = false;
     private transfer = new LunarTransferView();
     private routes = new Graphics();
@@ -97,7 +102,16 @@ export class MissionWorld extends Container {
     private transferZoom = 1;
     get backgroundCamera() {
         return this.simulation.area === 'surface'
-            ? moonOrbitPoint(this.simulation.position)
+            ? {
+                  x:
+                      this.simulation.surfaceSite.entrance.x +
+                      this.simulation.position.x -
+                      this.simulation.surfaceSite.exit.x,
+                  y:
+                      this.simulation.surfaceSite.entrance.y +
+                      this.simulation.position.y -
+                      this.simulation.surfaceSite.exit.y,
+              }
             : this.shipView.position;
     }
     get backgroundZoom() {
@@ -197,6 +211,29 @@ export class MissionWorld extends Container {
         this.moonPrepared = !!simulation.surfaceUnlocked;
         this.camera.addChild(this.moon, this.venusOutpost, this.solarShadows);
         if (simulation.anomalyMission) this.camera.addChild(anomalyFieldView());
+        if (simulation.campaign.story?.sector === 'mars') {
+            this.marsMoons = new MarsMoonSurfaceView();
+            this.camera.addChild(this.marsMoons);
+        }
+        if (simulation.marsAct) {
+            const oldInstallation = outpostView();
+            oldInstallation.position.set(7650, -350);
+            oldInstallation.scale.set(0.6);
+            oldInstallation.alpha = 0.65;
+            const sealedProbe = recoveryProbeView();
+            sealedProbe.position.set(7500, -750);
+            sealedProbe.alpha = 0.7;
+            this.camera.addChild(
+                oldInstallation,
+                sealedProbe,
+                anomalyCloudView(simulation.marsAnomalies),
+            );
+            this.camera.addChild(
+                new Graphics()
+                    .ellipse(MARS_ACT.asteroid.x, MARS_ACT.asteroid.y, 1450, 1200)
+                    .fill({ color: 0x4a4348, alpha: 0.4 }),
+            );
+        }
         this.camera.addChild(this.navigation, this.routes, this.shield, this.home);
         this.syncRoutes();
         this.homeTitle = worldLabel(this.home, simulation.stationName, 0, 165, 18, C.mint);
@@ -751,7 +788,11 @@ export class MissionWorld extends Container {
             p = s.position;
         if (this.factoryView && s.enemyFactory) {
             this.factoryView.visible =
-                s.area === 'orbit' && this.inView(this.factoryView.position, 250);
+                (s.marsAct?.baseFactory
+                    ? s.area === 'surface' && s.marsMoon?.id === 'phobos'
+                    : s.area === 'orbit') &&
+                this.inView(s.enemyFactory.position, 250) &&
+                (!s.marsAct?.baseFactory || s.marsAct.baseDiscovered);
             this.factoryView.update(s.enemyFactory, this.camera.rotation);
         }
         this.solarGlare.alpha = s.mercurySector
@@ -780,6 +821,7 @@ export class MissionWorld extends Container {
                     .stroke({ color: C.cyan, width: 1, alpha: 0.2 });
             }
         this.venusOutpost.update(s, this.camera.rotation);
+        this.marsMoons?.update(s, this.camera.rotation);
         if (s.surfaceUnlocked && !this.moonPrepared) {
             destroyDisplayTree(this.moon);
             this.moon = new MoonSurfaceView(true);
@@ -791,7 +833,8 @@ export class MissionWorld extends Container {
             s.buildStage,
             this.camera.rotation,
             s.transferActive
-                ? lunarTransferPose(s.transferFraction, s.area === 'surface', 1).detail
+                ? lunarTransferPose(s.transferFraction, s.area === 'surface', 1, s.surfaceSite)
+                      .detail
                 : 1,
             s.passageProgress,
             s.lunarModuleStates,
@@ -898,7 +941,7 @@ export class MissionWorld extends Container {
         const normalZoom = followCameraZoom(this.camera.scale.x / this.transferZoom, s.speed, dt);
         const t = s.transferFraction;
         const approach = s.transferActive
-            ? lunarTransferPose(t, s.area === 'surface', normalZoom)
+            ? lunarTransferPose(t, s.area === 'surface', normalZoom, s.surfaceSite)
             : null;
         const shipPosition = {
             x: interpolate(s.previous.x, p.x, alpha),
@@ -1023,7 +1066,7 @@ export class MissionWorld extends Container {
             shipScale * (1 - (approach?.pitch ?? 0) * 0.16),
             shipScale * (1 + (approach?.pitch ?? 0) * 0.035),
         );
-        this.transfer.update(s.transferActive, t, s.area === 'surface');
+        this.transfer.update(s.transferActive, t, s.area === 'surface', s.surfaceName);
         this.camera.pivot.copyFrom(approach?.pivot ?? this.shipView.position);
         this.camera.position.set(800, 450);
         this.homeTitle.rotation = -this.camera.rotation;
@@ -1648,11 +1691,20 @@ export class MissionWorld extends Container {
             let view = this.salvageViews.get(item.id);
             if (!view) {
                 const drone =
-                    item.source === 'shipment'
-                        ? lunarShipmentView()
-                        : item.source === 'satellite'
-                          ? surveySiteView('relay')
-                          : new DroneView(item.source);
+                    item.id === MARS_ACT.memoryId
+                        ? new Graphics()
+                              .roundRect(-26, -20, 52, 40, 6)
+                              .fill(0x293349)
+                              .stroke({ color: 0x79e4de, width: 3 })
+                              .rect(-17, -10, 34, 20)
+                              .fill(0x759eaa)
+                        : item.id === MARS_ACT.probeId
+                          ? recoveryProbeView()
+                          : item.source === 'shipment'
+                            ? lunarShipmentView()
+                            : item.source === 'satellite'
+                              ? surveySiteView('relay')
+                              : new DroneView(item.source);
                 if (drone instanceof DroneView) drone.flame.visible = false;
                 drone.alpha = item.source === 'shipment' ? 1 : 0.75;
                 const scars = new Graphics()
@@ -1664,7 +1716,8 @@ export class MissionWorld extends Container {
                     .fill(0x25323d);
                 view = new Container();
                 view.addChild(drone);
-                if (item.source !== 'shipment') view.addChild(scars);
+                if (item.source !== 'shipment' && item.id !== MARS_ACT.memoryId)
+                    view.addChild(scars);
                 else destroyDisplayTree(scars);
                 this.effectLayer.addChild(view);
                 this.salvageViews.set(item.id, view);
@@ -1998,5 +2051,6 @@ export class MissionWorld extends Container {
         this.simulation.dispose();
         destroyDisplayTree(this);
         this.shapes.dispose();
+        releaseSceneBuffers();
     }
 }

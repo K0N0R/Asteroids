@@ -15,12 +15,15 @@ export class Background extends Container {
     cameraZoom = 1;
     surface = false;
     lunarTransfer = false;
+    transferBody = 'moon';
     private flight = false;
     private clouds = new Container();
     private scenery = new Container();
     private celestialLayer = new CelestialLayer();
     private stars: { view: Graphics; x: number; y: number; depth: number; phase: number }[] = [];
     private time = 0;
+    private region: StorySectorId | null = null;
+    private starContexts: GraphicsContext[] = [];
     private illustration: ReturnType<typeof planetView>;
     constructor() {
         super();
@@ -55,6 +58,11 @@ export class Background extends Container {
                     .poly([0, -4, 1, -1, 4, 0, 1, 1, 0, 4, -1, 1, -4, 0, -1, -1])
                     .fill(0xc2c7e6),
             ];
+        this.starContexts = contexts;
+        this.once('destroyed', () => {
+            for (const context of this.starContexts) context.destroy();
+            this.starContexts.length = 0;
+        });
         for (let i = 0; i < 260; i++) {
             const view = new Graphics(contexts[i % 31 === 0 ? 3 : i % 3]);
             this.stars.push({
@@ -79,6 +87,8 @@ export class Background extends Container {
         this.update(0);
     }
     setRegion(region: StorySectorId | null) {
+        if (region === this.region) return;
+        this.region = region;
         this.celestialLayer.setBodies(celestialBodiesFor(region));
         destroyDisplayTree(this.illustration);
         this.illustration = planetView(region);
@@ -100,7 +110,7 @@ export class Background extends Container {
                 this.camera,
                 this.cameraAngle,
                 this.cameraZoom,
-                this.lunarTransfer ? ['moon'] : [],
+                this.lunarTransfer ? [this.transferBody] : [],
                 this.time,
             );
             this.clouds.pivot.set(800, 450);

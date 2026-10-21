@@ -1,8 +1,34 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-21, wersja 0.117.1.
+Stan: 2026-10-21, wersja 0.122.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.122 — labirynt i obrażenia anomalii
+
+Śluza Fobosa znajduje się na końcu długiego labiryntu z siedmioma odcinkami, dwunastoma zakrętami i jednym wejściem; przegrody zamykają skrót od zewnątrz. Radar pokazuje pasma, nawigacja wskazuje wejście, a skały nie zatykają korytarzy. Anomalie ograniczają prędkość do 25 m/s i od razu odbierają 15 punktów kadłuba/s, z pominięciem tarcz — 1.5× obrażenia poza sektorem. Dotyczy to również istniejącej anomalii przy Jowiszu. [Szczegóły i testy](implementation-v0.122.md).
+
+## Wdrożenie 0.121 — lądowania na księżycach Marsa
+
+Fobos i Deimos mają własne podejścia orbitalne i powierzchnie, osiągane jak Księżyc: E przez 2 sekundy, animowane zejście oraz powrót. Zastąpiono zwykłą trasę do gruntu Fobosa prawdziwym przejściem między obszarami. Lądowanie na Fobosie nadal wymaga zabezpieczenia orbity; jego instalacja i fizyczny moduł pamięci działają na powierzchni. Deimos jest dostępny do eksploracji bez nowych zadań — nowe polecenie autora zastępuje wcześniejsze założenie o całkowitej blokadzie tego księżyca w akcie II. Radar, zapis i sygnały ratunkowe rozróżniają oba księżyce. [Szczegóły i testy](implementation-v0.121.md).
+
+## Wdrożenie 0.120 — ładownie i sprzątanie scen
+
+Bazowa pojemność wszystkich statków wzrosła o 25%. Poziomy ładowni I / II / III dają odpowiednio ×1.25 / ×1.5 / ×2 nowej bazy. Ograniczono nadmierny uzysk skał z 0.119, zachowując powszechny tlen i budżet startowych receptur Marsa. Zamknięcie panelu pokładu usuwa callbacki zatrzymujące symulację; powrót do bazy zwalnia wolne bufory renderowania. Ten sam sektor nie przebudowuje niepotrzebnie tła. 63 testy, kontrola typów i build przechodzą. Zgłoszony wielogodzinny wzrost pamięci pozostaje do potwierdzenia w rzeczywistej sesji; krótsze próby nie odtworzyły kilkunastu GB. [Szczegóły i ograniczenia diagnostyki](implementation-v0.120.md).
+
+## Wdrożenie 0.119 — obfitość surowców
+
+Tlen i węgiel są stałym urobkiem zwykłych skał, a nie wyłącznie losową domieszką. Zwiększono uzysk żelaza, pozostałych domieszek, miedzi, krzemu, wodoru i złoża tytanowego. Mars ma dodatkowe bogate pole na dostępnej od początku spokojnej orbicie oraz częstsze złoża miedzi i krzemu. Test budżetu receptur wymaga co najmniej dwukrotności materiałów na tarcze Satuk 15 i dwa zapasowe Prospectory przed odblokowaniem Fobosa. [Szczegóły balansu](implementation-v0.119.md).
+
+## Wdrożenie 0.118 — refaktor Aktu II: Mars
+
+Źródło projektu autora: [SATUK 15 — Akt II, v0.4](SATUK15_Akt_II_Mars_plan_v0.4.md). Oryginał zachowuje status koncepcji i nie jest nadpisywany raportem realizacji.
+
+Nowy przebieg obejmuje dwa równoległe cele początkowe, warunkowo odkrywany Fobos, jednorazową zasadzkę trzech jednostek, bazę z wariantem cichego włamania lub walki, fizyczny moduł pamięci, analizę SI, asymilację, zakład przy dużej asteroidzie z trzema grupami po cztery jednostki i eskortę przez trzy pomiary na orbicie Marsa. Wieloetapowe zabezpieczenie sektora pozostaje jednym zadaniem. Mars i Deimos nie otrzymują dostępu do powierzchni w akcie II. Bastion i Manta wymagają tarcz Satuk 15; koszt tarcz pozostaje istniejący, zgodnie z odpowiedzią autora.
+
+Format kampanii 66 pozostaje, dziennik przechodzi na 30 z automatyczną migracją 29. Częściowo rozpoczęty dawny łańcuch Marsa rozpoczyna nową strukturę aktu bez odbierania zasobów i floty; ukończony dawny łańcuch zachowuje przejście do dalszych aktów. [Analiza, decyzje wdrożeniowe, testy i pozostały balans](implementation-v0.118.md).
+
+Dalsze prace dla tego aktu: ręczne przejście ekonomii i trudności na różnych kadłubach, dopracowanie ujęć lądowania Fobosa i autorskich dialogów oraz zatwierdzenie docelowych współrzędnych i zasad opcjonalnego sabotażu zakładu. Technologia wycinania anomalii, Mars i Deimos po powrocie pozostają zakresem późniejszych aktów.
 
 ## Wdrożenie 0.117 — wygląd obszarów anomalii
 

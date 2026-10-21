@@ -2,38 +2,34 @@ import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
 import {
+    deliverSalvage,
+    emergencyKit,
+    newStoryCampaign,
     beginRun,
     finishRun,
-    newStoryCampaign,
     parseCampaign,
-    emergencyKit,
 } from '../frontend/game/state/campaign';
 import {
     STORY_TASKS,
-    STORY_SECTORS,
-    storySectorUnlocked,
-    storySectorComplete,
-    storyRadius,
+    syncStory,
     travelStory,
-    storyObjectives,
+    storyTaskAvailable,
+    acknowledgeStoryBriefing,
+    storySectorUnlocked,
+    validStory,
 } from '../frontend/game/state/story';
+import {
+    MARS_ACT as M,
+    phobosRouteOpen,
+    phobosOrbitSecured,
+    MARS_AMBUSH,
+    MARS_YARD_PATROLS,
+} from '../frontend/game/state/marsAct';
 import { generateStorySector } from '../frontend/game/worlds/storySector';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
-import { angleDifference } from '../frontend/game/systems/flight';
-import { enemyPosition } from '../frontend/game/systems/enemies';
-
-before(async () => RAPIER.init());
-function ready() {
-    const c = newStoryCampaign();
-    c.station.workshop = 1;
-    for (const task of STORY_TASKS.filter((t) => t.act === 1 && t.required)) {
-        c.story!.progress[task.id] = task.target;
-        c.story!.claimed.push(task.id);
-    }
-    assert.ok(travelStory(c, 'mars'));
-    assert.ok(parseCampaign(JSON.stringify(c)));
-    return c;
-}
+import { hullUnlocked } from '../frontend/game/state/fleetUnlocks';
+import { MARS_MOONS } from '../frontend/game/worlds/marsMoons';
+import { celestialBodiesFor } from '../frontend/game/worlds/celestialBodies';
 const idle: FlightInput = {
     target: { x: 0, y: 0 },
     thrust: false,
@@ -41,160 +37,476 @@ const idle: FlightInput = {
     fire: false,
     interact: false,
 };
-const empty = { ore: 0, parts: 0 };
-function report(c: ReturnType<typeof ready>, patrolKills = 0, data: ('relay' | 'archive')[] = []) {
-    assert.ok(beginRun(c, 999));
-    return finishRun(c, true, empty, 30, 'dock', c.activeRun!.repairKits, { patrolKills, data })!;
-}
-
-test('Mars requires the final Act I report, preserves optional tasks and supports backtracking', () => {
+before(async () => RAPIER.init());
+function ready() {
     const c = newStoryCampaign();
-    assert.equal(storySectorUnlocked(c.story!, 'mars'), false);
-    assert.equal(travelStory(c, 'mars'), false);
-    const p = ready();
-    assert.equal(p.story!.progress['earth-reserve'], 0);
-    assert.equal(p.story!.progress['mars-reserve'], 0);
-    report(p, 1, ['relay']);
-    const progress = { ...p.story!.progress };
-    assert.ok(travelStory(p, 'earth'));
-    assert.ok(travelStory(p, 'lunar'));
-    assert.ok(travelStory(p, 'mars'));
-    assert.deepEqual(p.story!.progress, progress);
-    assert.equal(beginRun(p, 4), true);
-    assert.equal(p.activeRun!.seed, STORY_SECTORS.mars.seed);
-    assert.equal(travelStory(p, 'earth'), false);
-});
-
-test('parallel reports expand Mars once; the belt scan and optional reserve remain independent', () => {
-    for (const first of ['scan', 'combat']) {
-        const c = ready();
-        report(c, 0, ['archive']); // Hidden coordinates cannot complete a locked scan.
-        assert.equal(c.story!.progress['mars-belt'], 0);
-        const bank = { ...c.bank };
-        report(c, first === 'combat' ? 1 : 0, first === 'scan' ? ['relay'] : []);
-        assert.equal(storyRadius(c.story!), 3000);
-        report(c, first === 'combat' ? 1 : 2, first === 'combat' ? ['relay'] : []);
-        assert.equal(storyRadius(c.story!), 4600);
-        assert.deepEqual(c.bank, { ore: bank.ore + 40, parts: bank.parts + 10 });
-        assert.equal(generateStorySector(c.story!).enemies.length, 0);
-        assert.ok(generateStorySector(c.story!).landmarks.some((l) => l.key === 8));
-        assert.ok(report(c, 0, ['archive']).reason.includes('Pas asteroid blokuje pościg'));
-        assert.ok(storySectorComplete(c.story!, 'mars'));
-        assert.equal(c.story!.progress['mars-reserve'], 0);
-        const earned = { ...c.bank };
-        report(c, 2, ['archive', 'relay']);
-        assert.deepEqual(c.bank, earned);
-        assert.ok(parseCampaign(JSON.stringify(c)));
+    c.station.workshop = 1;
+    for (const t of STORY_TASKS.filter((t) => t.act === 1)) {
+        c.story!.progress[t.id] = t.target;
+        c.story!.claimed.push(t.id);
     }
+    assert.ok(travelStory(c, 'mars'));
+    assert.ok(validStory(c.story));
+    assert.ok(parseCampaign(JSON.stringify(c)));
+    return c;
+}
+function openPhobos(c: ReturnType<typeof ready>) {
+    c.station.shield = true;
+    c.story!.mars.landingBlocked = true;
+    syncStory(c);
+}
+function orbitSecured(c: ReturnType<typeof ready>) {
+    openPhobos(c);
+    c.story!.mars.ambushEntered = true;
+    c.story!.mars.kills.push(...MARS_AMBUSH);
+    syncStory(c);
+}
+function ai(c: ReturnType<typeof ready>) {
+    orbitSecured(c);
+    c.story!.mars.baseNeutralized = true;
+    c.story!.mars.memoryDelivered = true;
+    syncStory(c);
+    assert.ok(c.story!.mars.aiIdentified);
+}
+function spawn(c: ReturnType<typeof ready>) {
+    assert.ok(beginRun(c, 123));
+    return new MissionSimulation(c, c.activeRun!.seed);
+}
+function move(s: MissionSimulation, p: { x: number; y: number }) {
+    s.ship.setTranslation({ x: p.x / 100, y: p.y / 100 }, true);
+    s.ship.setLinvel({ x: 0, y: 0 }, true);
+}
+test('two independent opening conditions reveal Phobos; orbit begins peaceful', () => {
+    const c = ready(),
+        p = c.story!;
+    assert.equal(generateStorySector(p).enemies.length, 0);
+    assert.equal(
+        generateStorySector(p).hyperlanes.some((l) => l.name.includes('Fobosa')),
+        false,
+    );
+    assert.equal(hullUnlocked(c, 'fighter'), false);
+    assert.equal(hullUnlocked(c, 'tug'), false);
+    p.mars.landingBlocked = true;
+    syncStory(c);
+    assert.equal(phobosRouteOpen(p), false);
+    c.station.shield = true;
+    syncStory(c);
+    assert.ok(phobosRouteOpen(p));
+    assert.ok(hullUnlocked(c, 'fighter'));
+    assert.ok(hullUnlocked(c, 'tug'));
+    assert.equal(generateStorySector(p).enemies.length, 3);
+    assert.ok(parseCampaign(JSON.stringify(c)));
+});
+test('shields before the barrier also work and no industrial route leaks early', () => {
+    const c = ready();
+    c.station.shield = true;
+    syncStory(c);
+    assert.equal(phobosRouteOpen(c.story!), false);
+    c.story!.mars.landingBlocked = true;
+    syncStory(c);
+    assert.ok(phobosRouteOpen(c.story!));
+    assert.ok(
+        generateStorySector(c.story!).hyperlanes.some((l) => l.name === 'Mars — orbita Fobosa'),
+    );
+    assert.ok(!generateStorySector(c.story!).landmarks.some((l) => l.kind === 'factory'));
+});
+test('defeated Phobos patrols persist; landing needs all three', () => {
+    const c = ready();
+    openPhobos(c);
+    c.story!.mars.ambushEntered = true;
+    c.story!.mars.kills.push(71000);
+    syncStory(c);
+    assert.equal(generateStorySector(c.story!).enemies.length, 2);
+    assert.equal(phobosOrbitSecured(c.story!), false);
+    c.story!.mars.kills.push(71001, 71002);
+    syncStory(c);
+    assert.ok(phobosOrbitSecured(c.story!));
+    assert.ok(storyTaskAvailable(c.story!, STORY_TASKS.find((t) => t.id === 'mars-phobos-base')!));
+    assert.ok(parseCampaign(JSON.stringify(c)));
+});
+test('base destruction alone never completes memory delivery or enables assimilation', () => {
+    const c = ready();
+    orbitSecured(c);
+    const s = spawn(c);
+    s.enemyFactory!.damage(s.enemyFactory!.health);
+    s.marsAct!.factoryDestroyed();
+    assert.ok(c.story!.mars.baseNeutralized);
+    assert.equal(c.story!.mars.aiIdentified, false);
+    assert.ok(!c.story!.claimed.includes('mars-phobos-base'));
+    const memory = s.salvage.items.get(M.memoryId);
+    assert.ok(memory);
+    assert.equal(s.marsAct!.deliver(M.memoryId), false);
+    s.dispose();
+    finishRun(c, false, { ore: 0, parts: 0 }, 1, 'lost');
+    c.bank.ore = 0;
+    emergencyKit(c);
+    const retry = spawn(c);
+    assert.ok(retry.salvage.items.has(M.memoryId));
+    retry.dispose();
+});
+test('physical memory docking unlocks analysis only after return to Satuk', () => {
+    const c = ready();
+    orbitSecured(c);
+    c.story!.mars.baseNeutralized = true;
+    const s = spawn(c),
+        memory = s.salvage.items.get(M.memoryId)!;
+    memory.body.setTranslation({ x: 0, y: 0 }, true);
+    assert.ok(s.marsAct!.deliver(M.memoryId));
+    assert.ok(c.story!.claimed.includes('mars-phobos-base'));
+    assert.equal(c.story!.mars.aiIdentified, false);
+    s.dispose();
+    finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock');
+    syncStory(c);
+    assert.ok(c.story!.mars.aiIdentified);
+    assert.equal(
+        generateStorySector(c.story!).enemies.filter((e) => e.id >= 72000 && e.id < 73000).length,
+        12,
+    );
+    assert.ok(parseCampaign(JSON.stringify(c)));
+});
+test('all required surviving patrols must be eliminated after factory destruction', () => {
+    const c = ready();
+    ai(c);
+    c.story!.mars.yardDestroyed = true;
+    syncStory(c);
+    assert.ok(!c.story!.claimed.includes('mars-sector-secure'));
+    c.story!.mars.kills.push(...MARS_YARD_PATROLS);
+    syncStory(c);
+    assert.ok(c.story!.claimed.includes('mars-sector-secure'));
+    assert.equal(storySectorUnlocked(c.story!, 'venus'), false);
+    c.story!.mars.researchWaves = 3;
+    c.story!.mars.researchSites = 3;
+    syncStory(c);
+    assert.ok(acknowledgeStoryBriefing(c));
+    assert.ok(storySectorUnlocked(c.story!, 'venus'));
+    assert.ok(parseCampaign(JSON.stringify(c)));
+});
+test('live layout reveals gates and first ambush without restarting the sortie', () => {
+    const c = ready();
+    c.station.shield = true;
+    syncStory(c);
+    const s = spawn(c);
+    move(s, M.landing);
+    s.marsAct!.update(idle, 0.02);
+    assert.ok(s.sector.hyperlanes.some((l) => l.name === 'Mars — orbita Fobosa'));
+    assert.equal(s.enemies.enemies.size, 3);
+    move(s, M.phobos);
+    s.marsAct!.update(idle, 0.02);
+    assert.ok(c.story!.mars.ambushEntered);
+    s.dispose();
+});
+test('silent terminal route neutralizes the base without production or radio completion', () => {
+    const c = ready();
+    orbitSecured(c);
+    const s = spawn(c);
+    s.area = 'surface';
+    move(s, M.terminal);
+    for (let i = 0; i < 51; i++) s.marsAct!.update({ ...idle, interact: true }, 0.1);
+    assert.ok(c.story!.mars.quietHack);
+    assert.ok(c.story!.mars.baseNeutralized);
+    assert.equal(c.story!.mars.memoryDelivered, false);
+    assert.equal(s.enemyFactory!.launched, 0);
+    s.dispose();
+});
+test('research waves remain finite and survive a later sortie through stable identities', () => {
+    const c = ready();
+    ai(c);
+    c.story!.mars.yardDestroyed = true;
+    c.story!.mars.kills.push(...MARS_YARD_PATROLS);
+    syncStory(c);
+    const s = spawn(c);
+    s.escort!.state = 'research';
+    s.escort!.body.setTranslation({ x: M.research[0].x / 100, y: M.research[0].y / 100 }, true);
+    s.marsAct!.update(idle, 0.02);
+    s.marsAct!.update(idle, 0.02);
+    assert.equal(c.story!.mars.researchWaves, 1);
+    assert.equal([...s.enemies.enemies.keys()].filter((id) => id >= 74010).length, 2);
+    c.story!.mars.kills.push(74010);
+    s.dispose();
+    finishRun(c, false, { ore: 0, parts: 0 }, 1, 'lost');
+    c.bank.ore = 0;
+    emergencyKit(c);
+    const retry = spawn(c);
+    assert.ok(retry.enemies.enemies.has(74011));
+    assert.ok(!retry.enemies.enemies.has(74010));
+    assert.equal(c.story!.mars.researchSites, 0);
+    retry.dispose();
+});
+test('journal 29 migrates a partial Mars campaign without losing inventory or ships', () => {
+    const c = ready(),
+        old = JSON.parse(JSON.stringify(c));
+    old.story.version = 29;
+    delete old.story.mars;
+    for (const t of STORY_TASKS.filter((t) => t.act === 2 && t.id !== 'earth-debrief'))
+        delete old.story.progress[t.id];
+    for (const id of ['mars-trail', 'mars-patrol', 'mars-belt', 'mars-factory', 'mars-reserve'])
+        old.story.progress[id] = 0;
+    old.story.progress['mars-trail'] = 1;
+    old.story.claimed.push('mars-trail');
+    const loaded = parseCampaign(JSON.stringify(old));
+    assert.ok(loaded);
+    assert.equal(loaded.story!.version, 30);
+    assert.deepEqual(loaded.bank, c.bank);
+    assert.deepEqual(loaded.ship, c.ship);
+    assert.equal(loaded.story!.mars.aiIdentified, false);
+    assert.equal(generateStorySector(loaded.story!).enemies.length, 0);
+});
+test('journal migration preserves an already finished old Mars chain and later travel', () => {
+    const c = ready(),
+        old = JSON.parse(JSON.stringify(c));
+    old.story.version = 29;
+    delete old.story.mars;
+    for (const t of STORY_TASKS.filter((t) => t.act === 2 && t.id !== 'earth-debrief'))
+        delete old.story.progress[t.id];
+    for (const [id, target] of [
+        ['mars-trail', 1],
+        ['mars-patrol', 2],
+        ['mars-belt', 1],
+        ['mars-factory', 0],
+        ['mars-reserve', 0],
+    ] as const) {
+        old.story.progress[id] = target;
+        if (target) old.story.claimed.push(id);
+    }
+    const loaded = parseCampaign(JSON.stringify(old));
+    assert.ok(loaded);
+    assert.ok(loaded.story!.claimed.includes('mars-anomaly-research'));
+    assert.ok(acknowledgeStoryBriefing(loaded));
+    assert.ok(storySectorUnlocked(loaded.story!, 'venus'));
+    assert.ok(parseCampaign(JSON.stringify(loaded)));
+});
+test('physical memory retains its last position after loss, and a damaged base retains health', () => {
+    const c = ready();
+    orbitSecured(c);
+    const s = spawn(c);
+    s.enemyFactory!.damage(250);
+    s.marsAct!.update(idle, 0.02);
+    assert.equal(c.story!.mars.baseHealth, 650);
+    s.enemyFactory!.damage(650);
+    s.marsAct!.factoryDestroyed();
+    const memory = s.salvage.items.get(M.memoryId)!;
+    memory.body.setTranslation({ x: 50, y: 20 }, true);
+    s.marsAct!.update(idle, 0.02);
+    s.dispose();
+    finishRun(c, false, { ore: 0, parts: 0 }, 1, 'lost');
+    c.bank.ore = 0;
+    emergencyKit(c);
+    const retry = spawn(c),
+        recovered = retry.salvage.items.get(M.memoryId)!;
+    assert.equal(recovered.body.translation().x, 50);
+    assert.equal(recovered.body.translation().y, 20);
+    retry.dispose();
+});
+test('combat alarm produces durable reinforcements instead of allowing a silent bypass', () => {
+    const c = ready();
+    orbitSecured(c);
+    const s = spawn(c);
+    s.area = 'surface';
+    move(s, { x: M.base.x + 300, y: M.base.y });
+    for (let i = 0; i < 430 && !s.ended; i++) s.step(idle);
+    assert.ok(c.story!.mars.baseAlarm);
+    assert.ok(c.story!.mars.reinforcements.length > 0);
+    assert.equal(c.story!.mars.quietHack, false);
+    const ids = c.story!.mars.reinforcements.map((e) => e.id);
+    s.dispose();
+    finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock');
+    const retry = spawn(c);
+    assert.ok(ids.every((id) => retry.enemies.enemies.has(id)));
+    retry.dispose();
+});
+test('the actual simulation completes three separate escorted measurements and unlocks the briefing', () => {
+    const c = ready();
+    ai(c);
+    c.story!.mars.yardDestroyed = true;
+    c.story!.mars.kills.push(...MARS_YARD_PATROLS);
+    syncStory(c);
+    const s = spawn(c);
+    for (let site = 0; site < 3; site++) {
+        const point = M.research[site],
+            e = s.escort!;
+        e.state = 'research';
+        e.researchProgress = 0;
+        e.body.setTranslation({ x: point.x / 100, y: point.y / 100 }, true);
+        e.body.setLinvel({ x: 0, y: 0 }, true);
+        move(s, { x: point.x + 90, y: point.y });
+        for (let i = 0; i < 850 && c.story!.mars.researchSites === site && !s.ended; i++) {
+            for (const id of [...s.enemies.enemies.keys()]) {
+                s.enemies.remove(id);
+                s.marsAct!.killed(id);
+            }
+            s.step(idle);
+        }
+        assert.equal(s.ended, null);
+        assert.equal(c.story!.mars.researchSites, site + 1);
+    }
+    assert.equal(c.story!.mars.researchWaves, 3);
+    assert.ok(c.story!.claimed.includes('mars-anomaly-research'));
+    s.dispose();
+    finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock');
+    assert.ok(acknowledgeStoryBriefing(c));
+    assert.ok(parseCampaign(JSON.stringify(c)));
 });
 
-test('combat reports are provisional, only tagged patrols count, and losses retain earlier reports', () => {
-    const c = ready();
-    report(c, 1);
-    assert.equal(generateStorySector(c.story!).enemies.length, 1);
-    assert.ok(beginRun(c, 1));
-    const s = new MissionSimulation(c, c.activeRun!.seed);
-    try {
-        assert.equal(s.surfaceUnlocked, false);
-        assert.ok(s.landmarks.every((l) => !l.area && l.kind !== 'passage'));
-        assert.equal(s.enemies.enemies.size, 1);
-        assert.ok([...s.enemies.enemies.values()].every((e) => e.storyPatrol));
-        assert.ok(
-            storyObjectives(c, [], false, 1)
-                .find((t) => t.id === 'mars-patrol')!
-                .progress.includes('wysyłanie raportu'),
-        );
-        finishRun(c, false, empty, 5, 'lost', 0, { patrolKills: 1, data: ['relay'] });
-        assert.equal(c.story!.progress['mars-patrol'], 1);
-        assert.equal(c.story!.progress['mars-trail'], 0);
-        assert.equal(generateStorySector(c.story!).enemies.length, 1);
-        assert.ok(emergencyKit(c));
-        report(c, 0); // Unrelated kills do not become story patrol reports.
-        assert.equal(c.story!.progress['mars-patrol'], 1);
-        assert.ok(parseCampaign(JSON.stringify(c)));
-    } finally {
+test('AI hull adaptation is gated by the physical analysis while ordinary material salvage remains available', () => {
+    const before = ready();
+    openPhobos(before);
+    spawn(before).dispose();
+    for (let id = 1; id <= 24; id++) assert.ok(deliverSalvage(before, id, 'patrol'));
+    assert.equal(before.reserveShips.length, 0);
+    const after = ready();
+    ai(after);
+    spawn(after).dispose();
+    for (let id = 1; id <= 24; id++) assert.ok(deliverSalvage(after, id, 'patrol'));
+    assert.ok(after.reserveShips.some((ship) => ship.hull === 'raider'));
+});
+
+test('both Mars moons have approach artwork and real reversible orbit/surface transfers', () => {
+    for (const body of Object.values(MARS_MOONS)) {
+        const c = ready();
+        orbitSecured(c);
+        const s = spawn(c);
+        const artwork = celestialBodiesFor('mars').find((v) => v.id === body.id)!;
+        assert.deepEqual(artwork.anchor, body.entrance);
+        assert.ok(!s.sector.hyperlanes.some((l) => l.name === 'Lądowanie na Fobosie'));
+        move(s, body.entrance);
+        assert.equal(s.nearbyPassage?.surfaceBody, body.id);
+        s.step(idle);
+        for (let i = 0; i < 130; i++) s.step({ ...idle, interact: true });
+        assert.equal(s.area, 'surface');
+        assert.equal(s.marsMoon?.id, body.id);
+        assert.deepEqual(s.mapCenter, body.center);
+        assert.equal(s.sectorRadius, body.radius);
+        assert.ok(Math.hypot(s.position.x - body.exit.x, s.position.y - body.exit.y) < 10);
+        assert.ok(s.landmarks.every((l) => l.surfaceBody === body.id));
+        assert.ok(s.hyperdriveLock);
+        assert.ok(s.notice.includes(body.name));
+        assert.ok(parseCampaign(JSON.stringify(c)), `${body.id}: landed save remains valid`);
+        for (let i = 0; i < 220; i++) s.step(idle);
+        // Releasing E is required, just as for the Moon; holding it cannot bounce back.
+        for (let i = 0; i < 130; i++) s.step({ ...idle, interact: true });
+        assert.equal(s.area, 'orbit');
+        assert.ok(Math.hypot(s.position.x - body.entrance.x, s.position.y - body.entrance.y) < 10);
+        assert.equal(c.activeRun!.area, undefined);
         s.dispose();
     }
 });
 
-test('Mars recovery stays in its sector and an interrupted sortie loses unreported scans and combat', () => {
+test('Phobos landing remains locked until the ambush is cleared and cannot be bypassed by flying to its ground', () => {
     const c = ready();
-    report(c, 1);
-    beginRun(c, 1);
-    const restored = parseCampaign(JSON.stringify(c))!;
-    assert.ok(restored.activeRun);
-    finishRun(restored, false, empty, 4, 'interrupted', 0, { lossPosition: { x: 9000, y: 0 } });
-    const signal = restored.recoverySignals[0];
-    assert.equal(signal.seed, STORY_SECTORS.mars.seed);
-    assert.equal(signal.area, undefined);
-    assert.ok(Math.hypot(signal.x, signal.y) < storyRadius(restored.story!));
-    assert.equal(restored.story!.progress['mars-patrol'], 1);
-    assert.equal(restored.story!.progress['mars-trail'], 0);
-    assert.ok(emergencyKit(restored));
-    travelStory(restored, 'earth');
-    assert.equal(beginRun(restored, 1, signal.id), false);
-    travelStory(restored, 'mars');
-    assert.ok(beginRun(restored, 1, signal.id));
+    openPhobos(c);
+    const s = spawn(c);
+    move(s, M.phobos);
+    assert.equal(s.nearbyPassage, undefined);
+    move(s, M.surface);
+    s.marsAct!.update(idle, 0.02);
+    assert.equal(s.area, 'orbit');
+    assert.equal(c.story!.mars.baseDiscovered, false);
+    assert.ok(Math.hypot(s.position.x - M.surface.x, s.position.y - M.surface.y) > 1900);
+    s.dispose();
 });
 
-function steer(s: MissionSimulation, target: { x: number; y: number }, radius: number) {
-    const dx = target.x - s.position.x,
-        dy = target.y - s.position.y;
-    const distance = Math.hypot(dx, dy),
-        error = angleDifference(Math.atan2(dy, dx), s.ship.rotation());
-    const stop = (s.speed * s.speed) / (2 * s.hullConfig.brake);
-    return {
-        ...idle,
-        target,
-        turn: Math.max(-1, Math.min(1, error * 2.5)),
-        thrust: Math.abs(error) < 0.3 && distance > radius + stop + 15,
-        brake: s.speed > 20 && (distance < radius + stop || Math.abs(error) > 0.6),
-    };
-}
-test('stock Prospector flies the pursuit, defeats real patrol AI, returns reports and scans the blocked belt', () => {
+test('return from Phobos carries the physical memory and keeps cargo and damage', () => {
     const c = ready();
-    for (const siteId of ['relay', 'archive'] as const) {
-        assert.ok(beginRun(c, 1));
-        const s = new MissionSimulation(c, c.activeRun!.seed);
-        try {
-            const site = s.landmarks.find((l) => l.siteId === siteId)!;
-            assert.ok(site);
-            for (let f = 0; f < 60 * 360 && !s.ended; f++) {
-                const enemy = [...s.enemies.enemies.values()].sort((a, b) => {
-                    const ap = enemyPosition(a),
-                        bp = enemyPosition(b),
-                        p = s.position;
-                    return Math.hypot(ap.x - p.x, ap.y - p.y) - Math.hypot(bp.x - p.x, bp.y - p.y);
-                })[0];
-                let input: FlightInput;
-                if (enemy)
-                    input = { ...steer(s, enemyPosition(enemy), 240), fire: true, mine: true };
-                else if (s.hull < s.maxHull && s.repairKits) input = { ...idle, repair: true };
-                else if (!s.surveyData.has(siteId))
-                    input = { ...steer(s, site, 85), interact: true };
-                else input = { ...steer(s, { x: 0, y: 0 }, 85), interact: true };
-                s.step(input);
-                s.events.length = 0;
-            }
-            assert.equal(
-                s.ended,
-                'returned',
-                `${siteId}: hull ${s.hull}, kills ${s.enemyKills}, position ${JSON.stringify(s.position)}`,
+    orbitSecured(c);
+    c.story!.mars.baseNeutralized = true;
+    const s = spawn(c),
+        body = MARS_MOONS.phobos;
+    s.area = 'surface';
+    move(s, body.exit);
+    s.hull = 42;
+    s.cargo.ore = 7;
+    const memory = s.salvage.items.get(M.memoryId)!;
+    memory.body.setTranslation({ x: (body.exit.x - 100) / 100, y: body.exit.y / 100 }, true);
+    assert.ok(s.salvage.attach(memory, s.ship));
+    s.step(idle);
+    for (let i = 0; i < 160 && s.area === 'surface'; i++) s.step({ ...idle, interact: true });
+    assert.equal(s.area, 'orbit');
+    assert.equal(s.cargo.ore, 7);
+    assert.equal(s.hull, 42);
+    assert.ok(s.salvage.towing.has(M.memoryId));
+    assert.ok(
+        Math.hypot(
+            memory.body.translation().x * 100 - body.entrance.x,
+            memory.body.translation().y * 100 - body.entrance.y,
+        ) < 300,
+    );
+    assert.equal(c.story!.mars.memoryDelivered, false);
+    s.dispose();
+});
+
+test('loss on each Mars moon saves a recovery signal at that moon instead of moving it to the Moon', () => {
+    for (const body of Object.values(MARS_MOONS)) {
+        const c = ready();
+        orbitSecured(c);
+        const s = spawn(c);
+        s.area = 'surface';
+        move(s, body.exit);
+        c.activeRun!.area = 'surface';
+        c.activeRun!.lastPosition = s.position;
+        const saved = JSON.parse(JSON.stringify(c));
+        assert.ok(parseCampaign(JSON.stringify(saved)));
+        s.dispose();
+        let found = false;
+        for (let pilotId = 1; pilotId < 20 && !found; pilotId++) {
+            const copy = structuredClone(saved);
+            // Keep sector seed fixed in the saved result; deterministic identities vary survival.
+            copy.activeRun.pilotId = copy.pilots[0].id = pilotId;
+            copy.selectedPilot = pilotId;
+            copy.nextPilotId = pilotId + 1;
+            finishRun(copy, false, { ore: 0, parts: 0 }, 1, 'lost', { lossPosition: body.exit });
+            const signal = copy.recoverySignals[0];
+            if (!signal) continue;
+            found = true;
+            assert.equal(signal.area, 'surface');
+            assert.ok(
+                Math.hypot(signal.x - body.center.x, signal.y - body.center.y) <=
+                    body.radius - 200 + 1e-8,
             );
-            if (siteId === 'relay') {
-                assert.equal(s.storyPatrolKills, 2);
-                assert.equal(c.story!.progress['mars-patrol'], 2);
-            }
-            finishRun(c, true, s.cargo, s.elapsed, 'dock', s.repairKits, {
-                patrolKills: s.storyPatrolKills,
-                kills: s.enemyKills,
-                data: [...s.surveyData],
-            });
-            assert.ok(parseCampaign(JSON.stringify(c)));
-        } finally {
-            s.dispose();
+            assert.ok(parseCampaign(JSON.stringify(copy)));
         }
+        assert.ok(found);
     }
-    assert.ok(storySectorComplete(c.story!, 'mars'));
-    assert.ok(travelStory(c, 'earth'));
+});
+
+test('Mars contamination is 1.5 times boundary damage, bypasses full shields and caps boosted speed', () => {
+    const c = ready(),
+        s = spawn(c),
+        outside = spawn(ready());
+    move(s, { x: 2200, y: -1000 });
+    s.ship.setLinvel({ x: 10, y: 0 }, true);
+    move(outside, { x: 15000, y: 0 });
+    const shield = s.kineticShield.charge,
+        hull = s.hull,
+        other = outside.hull;
+    for (let i = 0; i < 60; i++) {
+        s.step({ ...idle, thrust: true, boost: true, target: { x: 9000, y: -1000 } });
+        outside.step(idle);
+        assert.ok(s.speed <= 25 + 1e-6);
+    }
+    assert.ok(Math.abs(hull - s.hull - 15) < 1e-6);
+    assert.ok(Math.abs(other - outside.hull - 10) < 1e-6);
+    assert.equal(s.kineticShield.charge, shield);
+    assert.equal(s.statistics.shieldDamage, 0);
+    move(s, { x: 1800, y: -1000 });
+    const after = s.hull;
+    s.step(idle);
+    assert.equal(s.hull, after);
+    s.dispose();
+    outside.dispose();
+});
+
+test('the Phobos gate at the maze exit still performs its calibrated jump without contamination during hyperspace', () => {
+    const c = ready();
+    openPhobos(c);
+    const s = spawn(c);
+    const lane = s.sector.hyperlanes.find((l) => l.name === 'Mars — orbita Fobosa')!;
+    move(s, lane.a);
+    const hp = s.hull;
+    s.step({ ...idle, hyperdrive: true });
+    assert.ok(s.hyperdrive.active);
+    for (let i = 0; i < 240 && s.hyperdrive.active; i++) s.step(idle);
+    assert.equal(s.hyperdrive.active, false);
+    assert.equal(s.hull, hp);
+    assert.ok(Math.hypot(s.position.x - lane.b.x, s.position.y - lane.b.y) < 30);
+    s.dispose();
 });

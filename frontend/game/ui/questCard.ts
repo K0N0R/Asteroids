@@ -1,3 +1,4 @@
+import { marsSecurityObjective } from '../state/marsAct';
 import { CanvasTextMetrics, Container, Graphics, TextStyle } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { RECIPES, RECIPE_IDS, type RecipeId } from '../state/chemistry';
@@ -97,13 +98,16 @@ export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCard
           ? 'Etap 2 · Odholuj paczkę z wyposażeniem do stacji na Księżycu. Dostawa zostanie przyjęta po zetknięciu paczki z placówką. Paczka pozostaje w świecie po utracie statku.'
           : task.id === 'lunar-equipment'
             ? `Etap 1 · ${task.detail}`
-            : task.detail;
+            : task.id === 'mars-sector-secure'
+              ? marsSecurityObjective(p)
+              : task.detail;
     const descriptionHeight = textHeight(description, bodyWidth, 17);
     const stage = !complete && task.id === 'earth-supply';
     const destination =
         task.id === 'earth-ship-upgrade'
             ? 'hangar'
-            : ['earth-supply', 'earth-workshop'].includes(task.id) || task.kind === 'kineticShield'
+            : ['earth-supply', 'earth-workshop', 'mars-shields'].includes(task.id) ||
+                task.kind === 'kineticShield'
               ? 'station'
               : null;
     const action = complete

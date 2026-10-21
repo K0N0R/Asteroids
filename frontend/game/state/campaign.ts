@@ -1,3 +1,5 @@
+import { cargoCapacity } from '../config';
+import { newMarsProgress } from './marsAct';
 import {
     packLunarShipment,
     lunarShipmentPending,
@@ -7,6 +9,8 @@ import {
 import { SATELLITES } from '../worlds/earthSystem';
 import { recordSatelliteDelivery } from './story';
 import { inEarthSystem } from '../worlds/moon';
+import { marsSurfaceAt, nearestMarsSurface } from '../worlds/marsMoons';
+import { phobosOrbitSecured } from './marsAct';
 import { WORKSHOP_CONSTRUCTION } from './stationConstruction';
 import { moduleParts, WEAPON_PARTS, spendEquipment } from './equipmentCosts';
 import { HULL_CONSTRUCTION, hasHullParts } from './fleetConstruction';
@@ -16,7 +20,9 @@ import { STATION_DRONES, type StationDroneState } from './stationDrones';
 import { hullUnlocked } from './fleetUnlocks';
 import { selectableMission, missionObjectiveMet, type MissionOrder } from './missionOrders';
 import {
+    syncStory,
     newStoryProgress,
+    STORY_TASKS,
     storyRadius,
     constructionManifest,
     validStory,
@@ -240,6 +246,63 @@ export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
         if (!object(p) || p.version !== 66 || !cargo(p.bank) || !object(p.station)) return null;
+        // Upgrade the previous journal in place; keep inventory, pilots, ships and later acts.
+        if (
+            object(p.story) &&
+            p.story.version === 29 &&
+            object(p.story.progress) &&
+            Array.isArray(p.story.claimed)
+        ) {
+            const retired = [
+                'mars-trail',
+                'mars-patrol',
+                'mars-belt',
+                'mars-factory',
+                'mars-reserve',
+            ];
+            const finished = p.story.claimed.includes('mars-belt');
+            for (const id of retired) delete p.story.progress[id];
+            p.story.claimed = p.story.claimed.filter((id) => !retired.includes(id as string));
+            for (const task of STORY_TASKS)
+                if (!(task.id in p.story.progress)) p.story.progress[task.id] = 0;
+            p.story.mars = newMarsProgress();
+            if (finished) {
+                Object.assign(p.story.mars as object, {
+                    landingBlocked: true,
+                    ambushEntered: true,
+                    baseNeutralized: true,
+                    memoryDelivered: true,
+                    aiIdentified: true,
+                    yardDestroyed: true,
+                    researchSites: 3,
+                    researchWaves: 3,
+                    kills: [
+                        71000,
+                        71001,
+                        71002,
+                        ...Array.from({ length: 12 }, (_, i) => 72000 + i),
+                    ],
+                });
+                p.station.shield = true;
+                for (const task of STORY_TASKS.filter(
+                    (task) =>
+                        (task.act === 2 && task.sector === 'mars' && task.required) ||
+                        task.id === 'mars-landing-blocked',
+                )) {
+                    p.story.progress[task.id] = task.target;
+                    if (!(p.story.claimed as string[]).includes(task.id))
+                        (p.story.claimed as string[]).push(task.id);
+                }
+            }
+            p.story.version = 30;
+            if (
+                object(p.activeRun) &&
+                object(p.activeRun.mission) &&
+                retired.includes(p.activeRun.mission.task as string)
+            )
+                delete p.activeRun.mission;
+        }
+
         if (!object(p.lunarStation) || !cargo(p.lunarStation.bank)) return null;
         if (
             !integer(p.station.workshop, 2) ||
@@ -478,9 +541,16 @@ export function parseCampaign(json: string | null): Campaign | null {
                 !validPoint(signal) ||
                 (signal.area !== undefined && signal.area !== 'surface') ||
                 (signal.area === 'surface'
-                    ? (signal.seed !== STORY_SECTORS.lunar.seed &&
-                          signal.seed !== STORY_SECTORS.earth.seed) ||
-                      moonDistance(signal) > MOON.radius - 200
+                    ? signal.seed === STORY_SECTORS.mars.seed
+                        ? !marsSurfaceAt(signal) ||
+                          Math.hypot(
+                              signal.x - nearestMarsSurface(signal).center.x,
+                              signal.y - nearestMarsSurface(signal).center.y,
+                          ) >
+                              nearestMarsSurface(signal).radius - 200
+                        : (signal.seed !== STORY_SECTORS.lunar.seed &&
+                              signal.seed !== STORY_SECTORS.earth.seed) ||
+                          moonDistance(signal) > MOON.radius - 200
                     : Math.hypot(signal.x, signal.y) > signalRadius - 200) ||
                 (signal.ship === null && signal.pilot === null) ||
                 (signal.ship !== null && (!validShip(signal.ship) || signal.ship.id !== signal.id))
@@ -531,14 +601,24 @@ export function parseCampaign(json: string | null): Campaign | null {
             object(p.activeRun) &&
             p.activeRun.area !== undefined &&
             (p.activeRun.area !== 'surface' ||
-                !inEarthSystem(p.story?.sector) ||
-                !p.story.claimed.includes('lunar-survey'))
+                (p.story?.sector === 'mars'
+                    ? nearestMarsSurface(p.activeRun.lastPosition as Point).id === 'phobos' &&
+                      !phobosOrbitSecured(p.story) &&
+                      !beltTechnologyReady(p.story)
+                    : !inEarthSystem(p.story?.sector) || !p.story.claimed.includes('lunar-survey')))
         )
             return null;
         const story = p.story as StoryProgress | null;
         if (
             p.recoverySignals.some(
-                (s) => s.area === 'surface' && (!story || !story.claimed.includes('lunar-survey')),
+                (s) =>
+                    s.area === 'surface' &&
+                    (s.seed === STORY_SECTORS.mars.seed
+                        ? !story ||
+                          (nearestMarsSurface(s).id === 'phobos' &&
+                              !phobosOrbitSecured(story) &&
+                              !beltTechnologyReady(story))
+                        : !story || !story.claimed.includes('lunar-survey')),
             )
         )
             return null;
@@ -583,7 +663,7 @@ export function selectedPilot(c: Campaign) {
     return pilot ? pilotProfile(pilot) : null;
 }
 export function capacity(c: Campaign) {
-    return c.ship ? HULLS[c.ship.hull].cargo + c.ship.cargo * 15 : 0;
+    return c.ship ? cargoCapacity(c.ship.hull, c.ship.cargo) : 0;
 }
 export function shipHealth(ship: Ship) {
     return HULLS[ship.hull].health + ship.armor * 25;
@@ -819,7 +899,7 @@ export function deliverSalvage(
         };
         description = `Wrak ${source === 'lancer' ? 'Lancer' : 'drona'} #${id}`;
         const rng = random(active.seed ^ Math.imul(id, 0x45d9f3b) ^ 0x16a4c2);
-        const rebuild = rng() < 0.3;
+        const rebuild = (!c.story || c.story.mars.aiIdentified) && rng() < 0.3;
         if (rebuild && ownedShips(c).length < FLEET_LIMIT) {
             const ship = newShip(c.nextShipId++, source === 'lancer' ? 'lancer' : 'raider');
             c.reserveShips.push(ship);
@@ -831,7 +911,7 @@ export function deliverSalvage(
                     .filter((key) => ship[key] < Math.min(3, c.station.workshop + 1))
                     .map((key) => ({ ship, key })),
             );
-            if (options.length) {
+            if (options.length && (!c.story || c.story.mars.aiIdentified)) {
                 const { ship, key } = options[Math.floor(rng() * options.length)];
                 ship[key]++;
                 description += ` · ${HULLS[ship.hull].name} #${ship.id}: ${UPGRADES[key].title} +1`;
@@ -1035,7 +1115,8 @@ export function finishRun(
             const closingMars = !beltPassageReady(c.story);
             const closingTechnology = !beltTechnologyReady(c.story);
             const closingAct = !c.story.claimed.includes('lunar-attack');
-            const closingBelt = active.sector === 'mars' && !c.story.claimed.includes('mars-belt');
+            const closingBelt =
+                active.sector === 'mars' && !c.story.claimed.includes('mars-anomaly-research');
             const closingVenus =
                 active.sector === 'venus' &&
                 (!storySectorComplete(c.story, 'venus') || !!recovery.venusDefenseWon);
@@ -1063,9 +1144,9 @@ export function finishRun(
                 )
                     result.reason =
                         'Akt I ukończony. Stacja księżycowa obroniona. Następny kierunek: Mars.';
-                if (closingBelt && c.story.claimed.includes('mars-belt'))
+                if (closingBelt && c.story.claimed.includes('mars-anomaly-research'))
                     result.reason =
-                        'Pas asteroid blokuje pościg. Dalszy przelot wymaga nowej technologii.';
+                        'Badania anomalii zakończone. Odbierz odprawę Nowy kierunek w Satuk 15.';
                 if (closingVenus && storySectorComplete(c.story, 'venus'))
                     result.reason =
                         'Akt III ukończony. Placówka obroniona, osłona gotowa. Następny kierunek: Merkury.';
@@ -1097,21 +1178,22 @@ export function finishRun(
         }
     } else {
         const loss = recovery.lossPosition ?? active.lastPosition;
+        const site = active.sector === 'mars' ? nearestMarsSurface(loss) : MOON;
         const signal = createRecoverySignal(
             c.ship!,
             pilot,
             active.seed,
             active.area === 'surface'
-                ? { x: loss.x - MOON.center.x, y: loss.y - MOON.center.y }
+                ? { x: loss.x - site.center.x, y: loss.y - site.center.y }
                 : loss,
             c.story ? storyRadius(c.story) : GAME.sectorRadius,
         );
         if (signal) {
             if (active.area === 'surface') {
                 const distance = Math.hypot(signal.x, signal.y);
-                const scale = Math.min(1, (MOON.radius - 200) / distance);
-                signal.x = MOON.center.x + signal.x * scale;
-                signal.y = MOON.center.y + signal.y * scale;
+                const scale = Math.min(1, (site.radius - 200) / distance);
+                signal.x = site.center.x + signal.x * scale;
+                signal.y = site.center.y + signal.y * scale;
                 signal.area = 'surface';
             } else if (c.story) {
                 const limit = storyRadius(c.story) - 200;
@@ -1144,6 +1226,7 @@ export function finishRun(
         result.pilotProgress.points = pilotPoints(pilot);
     }
     c.activeRun = null;
+    if (c.story?.mars.memoryDelivered && !c.story.mars.aiIdentified) syncStory(c);
     return result;
 }
 

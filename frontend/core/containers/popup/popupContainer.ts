@@ -85,6 +85,7 @@ export class PopupContainer extends PIXI.Container {
         this.notifySubscribers(popupName, true);
         await this.instance.popupPromises[popupName].promise;
         this.instance.popups[popupName].visible = false;
+        this.instance.popups[popupName].hide();
         this.instance.popupPromises[popupName] = null;
         InputHandler.clear();
         this.notifySubscribers(popupName, false);

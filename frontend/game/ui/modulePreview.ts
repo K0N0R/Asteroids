@@ -1,3 +1,4 @@
+import { cargoCapacity } from '../config';
 import {
     AEGIS,
     ARMAMENT_KITS,
@@ -45,7 +46,7 @@ export function moduleComparison(
             break;
         case 'cargo':
             title = 'Ładownia';
-            value = (l) => config.cargo + l * 15;
+            value = (l) => cargoCapacity(source.hull, l);
             break;
         case 'armor':
             title = 'Kadłub';

@@ -1,3 +1,4 @@
+import { cargoCapacity } from '../config';
 import { Container, Graphics } from 'pixi.js';
 import {
     HULLS,
@@ -303,7 +304,7 @@ function statsScreen(
         416,
         'shield',
     );
-    stat(ui, 'ŁADOWNIA', `${config.cargo + ship.cargo * 15}`, 1070, 495, 'cargo');
+    stat(ui, 'ŁADOWNIA', `${cargoCapacity(ship.hull, ship.cargo)}`, 1070, 495, 'cargo');
     stat(ui, 'PRĘDKOŚĆ', `${config.maxSpeed} m/s`, 1307, 495);
     stat(
         ui,

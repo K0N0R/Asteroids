@@ -119,7 +119,7 @@ export function storyOverview(
             ? storyNextStep(p)
             : p.sector === 'mercury'
               ? storyNextStep(p)
-              : p.sector === 'earth' && p.claimed.includes('mars-belt')
+              : p.sector === 'earth' && p.claimed.includes('mars-anomaly-research')
                 ? EARTH_BRIEFING
                 : p.sector === 'venus'
                   ? complete || p.claimed.includes('venus-build')
@@ -128,7 +128,7 @@ export function storyOverview(
                   : p.sector === 'mars'
                     ? complete
                         ? storyNextStep(p)
-                        : 'Podejmij pościg w stronę Marsa. Rozpoznaj przekaźnik i zabezpiecz podejście, aby dotrzeć do pasa asteroid. Dalszy przelot wymaga nowej technologii.'
+                        : 'Zbuduj tarcze Satuk 15 i zbadaj barierę lądowania. Odkrywaj dostępne obszary, zabezpiecz sektor i osłaniaj badania anomalii.'
                     : actOneComplete(p)
                       ? 'Stacja księżycowa działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
                       : p.sector === 'earth'

@@ -2,6 +2,7 @@ import { GAME, HULLS, PILOTS } from '../config';
 import { Point, random } from '../worlds/sector';
 import type { Pilot, Ship } from './campaign';
 import { clonePilot, pilotLevel, pilotProfile, pilotName } from './pilots';
+import { marsSurfaceAt } from '../worlds/marsMoons';
 
 export interface RecoverySignal extends Point {
     area?: 'surface';
@@ -48,7 +49,9 @@ export function createRecoverySignal(
 
 export function recoveryDescription(signal: RecoverySignal) {
     return [
-        signal.area === 'surface' ? 'powierzchnia Księżyca' : '',
+        signal.area === 'surface'
+            ? `powierzchnia · ${marsSurfaceAt(signal)?.name ?? 'Księżyc'}`
+            : '',
         signal.pilot ? `kapsuła: ${pilotName(signal.pilot)} · P${pilotLevel(signal.pilot)}` : '',
         signal.ship ? `wrak: ${HULLS[signal.ship.hull].name} #${signal.ship.id}` : '',
     ]

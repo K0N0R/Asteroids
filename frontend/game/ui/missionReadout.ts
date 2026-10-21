@@ -77,8 +77,22 @@ export function missionObjectives(
 
 // Only actionable context belongs on the flight HUD. Explanations live under Tab.
 export function flightHint(s: MissionSimulation) {
+    if (s.marsAct?.context) return s.marsAct.context;
+    if (
+        s.marsAct &&
+        s.enemyFactory &&
+        !s.enemyFactory.destroyed &&
+        Math.hypot(
+            s.position.x - s.enemyFactory.position.x,
+            s.position.y - s.enemyFactory.position.y,
+        ) < 750 &&
+        (!s.marsAct.baseFactory || s.enemyFactory.active)
+    )
+        return `Instalacja · ${Math.ceil(s.enemyFactory.health)}/900 HP · zniszcz rdzeń produkcyjny`;
+
     if (
         s.enemyFactory &&
+        !s.marsAct &&
         (s.factoryMission ||
             Math.hypot(
                 s.position.x - ENEMY_FACTORY.position.x,
@@ -118,6 +132,7 @@ export function flightHint(s: MissionSimulation) {
     if (s.cargoTransferRemaining > 0 || s.canTransferCargo) return s.context;
     if (s.relayTuning) return 'Strojenie łączności · dopasuj fazy i zatwierdź sygnał';
     if (s.dockable && s.missionStatus) return s.missionStatus;
+    if (s.marsAct?.context) return s.marsAct.context;
     if (s.surfaceContext) return s.surfaceContext;
     const percent = (progress: number, seconds: number) =>
         `${Math.min(100, Math.floor((progress / seconds) * 100))}%`;

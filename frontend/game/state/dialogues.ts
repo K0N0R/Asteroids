@@ -19,7 +19,7 @@ export interface DialogueLine {
 export interface DialogueDefinition {
     id: string;
     title: string;
-    sector: 'earth';
+    sector: 'earth' | 'mars';
     after: readonly string[];
     tasks: readonly string[];
     lines: readonly DialogueLine[];
@@ -98,6 +98,61 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             {
                 speaker: 'science',
                 text: 'Sprawdzę zapis ich sygnałów. Ty przygotuj statek. Nie odcinamy tras do Ziemi ani Księżyca, więc do zaległych spraw będzie można wrócić.',
+            },
+        ],
+    },
+    {
+        id: 'mars-offensive',
+        title: 'Pierwsza ofensywa',
+        sector: 'mars',
+        after: [],
+        tasks: [],
+        lines: [
+            {
+                speaker: 'operations',
+                text: 'Stacja księżycowa jest bezpieczna. Zaczynamy operację w sektorze Marsa: przygotuj tarcze Satuk 15 i zbadaj możliwość założenia placówki.',
+            },
+            {
+                speaker: 'science',
+                text: 'Orbita jest spokojna, lecz anomalie blokują podejście do powierzchni. Potrzebuję potwierdzenia z bliska. Na razie eksploruj i zbieraj materiały.',
+            },
+        ],
+    },
+    {
+        id: 'mars-ai',
+        title: 'Wróg bez załogi',
+        sector: 'mars',
+        after: ['mars-offensive'],
+        tasks: ['mars-ai-discovery'],
+        lines: [
+            {
+                speaker: 'science',
+                text: 'Moduł z Fobosa nie zawiera zapisów załogi. Te jednostki są autonomiczne: steruje nimi sztuczna inteligencja. Potrafimy już przeprogramować część zachowanych kadłubów.',
+            },
+            {
+                speaker: 'operations',
+                text: 'Zidentyfikowaliśmy zakład przemysłowy przy dużej asteroidzie. Ujawniamy hiperśluzę na orbicie Fobosa. Zniszcz produkcję i usuń pozostałe zagrożenia.',
+            },
+            {
+                speaker: 'science',
+                text: 'Nie wiemy, kto zaprojektował ten system ani jakie są jego długofalowe cele. Dane mówią nam tylko o jego działaniu tutaj.',
+            },
+        ],
+    },
+    {
+        id: 'mars-research-done',
+        title: 'Pomiary zakończone',
+        sector: 'mars',
+        after: ['mars-offensive'],
+        tasks: ['mars-anomaly-research'],
+        lines: [
+            {
+                speaker: 'science',
+                text: 'Trzy serie pomiarów są kompletne. Wycofujemy siły i analizujemy próbki. Potrzebujemy technologii, której jeszcze nie mamy.',
+            },
+            {
+                speaker: 'operations',
+                text: 'Odbierz w Satuk 15 odprawę Nowy kierunek. Przy Wenus przygotujemy osłony, a na Merkurym poszukamy rozwiązania bariery.',
             },
         ],
     },

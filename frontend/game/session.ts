@@ -72,6 +72,7 @@ import {
 } from './systems/sandbox';
 import { SandboxSetup, sandboxResult } from './ui/sandbox';
 import { FrameDiagnostics } from '../core/systems/frameDiagnostics';
+import { releaseSceneBuffers } from '../core/systems/renderMemory';
 
 export class GameSession {
     private profile: 'story' | 'legacy' = (() => {
@@ -576,6 +577,7 @@ export class GameSession {
             this.syncInteractionPanel();
             if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
+            releaseSceneBuffers();
             this.sandboxRun = null;
             this.background.setRegion(this.campaign.story?.sector ?? null);
             this.lobby.visible = true;
@@ -601,6 +603,7 @@ export class GameSession {
         this.syncInteractionPanel();
         if (this.hud) destroyDisplayTree(this.hud);
         this.hud = null;
+        releaseSceneBuffers();
         this.sandboxRun = null;
         this.background.setRegion(this.campaign.story?.sector ?? null);
         SoundManager.stopGroup('gameplay');
@@ -703,6 +706,7 @@ export class GameSession {
             this.syncInteractionPanel();
             if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
+            releaseSceneBuffers();
             this.lobby.visible = true;
             this.lobby.refresh('Nie udało się uruchomić sektora. Spróbuj ponownie.');
             console.error(error);
@@ -803,6 +807,7 @@ export class GameSession {
             if (this.lunarStationOpen) return;
         }
         this.background.lunarTransfer = this.mission.simulation.transferActive;
+        this.background.transferBody = this.mission.simulation.marsMoon?.id ?? 'moon';
         this.background.camera = this.mission.backgroundCamera;
         this.background.cameraAngle = this.mission.camera.rotation;
         this.background.cameraZoom = this.mission.backgroundZoom;
@@ -914,6 +919,7 @@ export class GameSession {
             this.syncInteractionPanel();
             if (this.hud) destroyDisplayTree(this.hud);
             this.hud = null;
+            releaseSceneBuffers();
             this.background.camera = { x: 0, y: 0 };
             this.lobby.visible = true;
             this.lobby.refresh('');

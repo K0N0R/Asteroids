@@ -1,3 +1,7 @@
+import { MarsActMission } from './marsActMission';
+import { MARS_ACT, marsArea } from '../state/marsAct';
+import { MARS_ANOMALIES } from '../worlds/marsSystem';
+import { MARS_MOONS, marsSurfaceAt } from '../worlds/marsMoons';
 import {
     earthSystemLanes,
     earthSystemZones,
@@ -25,7 +29,7 @@ import {
 } from '../worlds/mineralDeposits';
 import { MAGNETIC_RELAYS } from './magneticZones';
 import { type ResourceId, type ResourceStore, RESOURCE_IDS, RESOURCES } from '../state/resources';
-import { ANOMALY, AnomalyExposure } from './anomalyField';
+import { ANOMALY, AnomalyExposure, SECTOR_RADIATION_DAMAGE } from './anomalyField';
 import { EarthGuide } from './earthGuide';
 import { Hyperdrive, HYPERDRIVE, nearestGate, segmentDistance } from './hyperdrive';
 import { recycleAsteroid, cruisingVelocity } from '../worlds/asteroidFields';
@@ -484,6 +488,10 @@ export class MissionSimulation {
     private dashHits = new Set<number>();
     readonly destroyedFortressWalls = new Set<number>();
     readonly enemyFactory: EnemyFactory | null;
+    readonly marsAct: MarsActMission | null;
+    get marsAnomalies() {
+        return this.marsAct ? MARS_ANOMALIES : [];
+    }
     readonly structureHealth = new Map<number, number>();
     opticalCloakTime = 0;
     opticalCloakCooldown = 0;
@@ -504,6 +512,22 @@ export class MissionSimulation {
     }
     wreckVisited = false;
     area: 'orbit' | 'surface' = 'orbit';
+    get marsMoon() {
+        if (this.campaign.story?.sector !== 'mars') return null;
+        const anchor = this.area === 'surface' ? 'center' : 'entrance';
+        return Object.values(MARS_MOONS).reduce((a, b) =>
+            Math.hypot(this.position.x - a[anchor].x, this.position.y - a[anchor].y) <
+            Math.hypot(this.position.x - b[anchor].x, this.position.y - b[anchor].y)
+                ? a
+                : b,
+        );
+    }
+    get surfaceSite() {
+        return this.marsMoon ?? MOON;
+    }
+    get surfaceName() {
+        return this.marsMoon?.name ?? 'Księżyc';
+    }
     areaRevision = 0;
     transferRemaining = 0;
     get transferActive() {
@@ -558,7 +582,7 @@ export class MissionSimulation {
     private disposed = false;
 
     constructor(
-        private campaign: Campaign,
+        readonly campaign: Campaign,
         private readonly seed: number,
         sector?: ReturnType<typeof generateSector>,
     ) {
@@ -715,18 +739,29 @@ export class MissionSimulation {
             (collider) => this.isObstacle(collider),
             () => false,
         );
-        this.enemyFactory =
-            campaign.story?.sector === 'mars' && marsApproachOpen(campaign.story)
-                ? new EnemyFactory(this.world, campaign.story.claimed.includes('mars-factory'))
-                : null;
+        const marsAct = campaign.story?.sector === 'mars' && !beltTechnologyReady(campaign.story);
+        this.enemyFactory = marsAct
+            ? new EnemyFactory(
+                  this.world,
+                  campaign.story!.mars.aiIdentified
+                      ? campaign.story!.mars.yardDestroyed
+                      : campaign.story!.mars.baseNeutralized,
+                  campaign.story!.mars.aiIdentified ? MARS_ACT.yard : MARS_ACT.base,
+                  73000,
+              )
+            : null;
         this.escort =
             inEarthSystem(campaign.story?.sector) &&
             lunarProcessingReady(campaign.story) &&
             !lunarConstructionReady(campaign.story)
                 ? new MiningEscort(this.world)
-                : campaign.activeRun?.contract === 7
-                  ? new ResearchEscort(this.world, this.sector.researchSite)
-                  : null;
+                : marsAct
+                  ? new ResearchEscort(this.world, {
+                        ...MARS_ACT.research[campaign.story!.mars.researchSites % 3],
+                    })
+                  : campaign.activeRun?.contract === 7
+                    ? new ResearchEscort(this.world, this.sector.researchSite)
+                    : null;
         if (this.miningEscort)
             this.miningEscort.processingReady = lunarProcessingReady(campaign.story!);
         this.guide =
@@ -746,17 +781,29 @@ export class MissionSimulation {
             this.radioMessages.push(
                 'Sonda pomiarowa utknęła w anomalii. Punkty nawigacyjne prowadzą bezpiecznym objazdem do sondy. Fioletowe pasma zadają 10 obrażeń na sekundę po krótkim ostrzeżeniu; jasne korytarze są bezpieczne. Sonda ma własną osłonę pomiarową przed skażeniem. Podejdź, przytrzymaj H przez 3 sekundy i odholuj ją do Satuk 15.',
             );
+        this.marsAct = marsAct ? new MarsActMission(this) : null;
+        if (marsAct && this.escort) this.escort.ambushed = true;
         this.previous = this.position;
     }
     get factoryMission() {
         return (
-            !!this.campaign.story &&
-            this.campaign.story.sector === 'mars' &&
-            storyTaskAvailable(
-                this.campaign.story,
-                STORY_TASKS.find((t) => t.id === 'mars-factory')!,
-            )
+            !!this.marsAct &&
+            this.campaign.story!.mars.aiIdentified &&
+            !this.campaign.story!.mars.yardDestroyed
         );
+    }
+    syncMarsLayout(generated: ReturnType<typeof generateStorySector>) {
+        const known = new Set(this.sector.rocks.map((r) => `${r.x},${r.y}`));
+        for (const spec of generated.rocks)
+            if (!known.has(`${spec.x},${spec.y}`)) {
+                this.sector.rocks.push(spec);
+                this.addRock(spec);
+            }
+        const missing = generated.enemies.filter(
+            (e) =>
+                !this.enemies.enemies.has(e.id) && !this.campaign.story!.mars.kills.includes(e.id),
+        );
+        this.enemies.add(missing);
     }
     get miningEscort() {
         return this.escort instanceof MiningEscort ? this.escort : null;
@@ -773,7 +820,7 @@ export class MissionSimulation {
         };
     }
     get missionStatus() {
-        return missionOrderStatus(this.campaign, this.missionReport);
+        return this.marsAct?.status ?? missionOrderStatus(this.campaign, this.missionReport);
     }
     get missionReturnBlocked() {
         return (
@@ -1095,11 +1142,12 @@ export class MissionSimulation {
         return landmarks.filter(
             (l) =>
                 (l.area ?? 'orbit') === this.area &&
+                (!l.surfaceBody || this.area === 'orbit' || l.surfaceBody === this.marsMoon?.id) &&
                 (!this.marsBaseSector || this.orbitalBaseStage > 0 || l.siteId !== 'archive'),
         );
     }
     get mapCenter(): Point {
-        return this.area === 'surface' ? MOON.center : { x: 0, y: 0 };
+        return this.area === 'surface' ? this.surfaceSite.center : { x: 0, y: 0 };
     }
     get nearbyPassage() {
         return this.landmarks.find(
@@ -1201,7 +1249,7 @@ export class MissionSimulation {
                 ? 'Chwytaki zaciągają łup · zaczekaj przed zmianą obszaru'
                 : this.passageProgress > 0
                   ? `Zmiana obszaru · ${Math.floor((this.passageProgress / MOON.transferSeconds) * 100)}%`
-                  : `Przytrzymaj E przez 2 s · ${this.area === 'orbit' ? 'lot nad Księżycem' : 'powrót na orbitę'} · poniżej 60 m/s`;
+                  : `Przytrzymaj E przez 2 s · ${this.area === 'orbit' ? `lądowanie · ${this.surfaceName}` : 'powrót na orbitę'} · poniżej 60 m/s`;
         if (this.nearbyConstruction && this.buildStage < 2) {
             const tasks = lunarDeliveryTasks(this.campaign),
                 task = tasks[0];
@@ -1218,7 +1266,7 @@ export class MissionSimulation {
         return this.campaign.story ? 'stacji Satuk 15' : 'Aurorze';
     }
     get sectorRadius() {
-        if (this.area === 'surface') return MOON.radius;
+        if (this.area === 'surface') return this.surfaceSite.radius;
         return this.campaign.story ? storyRadius(this.campaign.story) : GAME.sectorRadius;
     }
     get position(): Point {
@@ -1454,7 +1502,24 @@ export class MissionSimulation {
                 Math.hypot(site.x - p.x, site.y - p.y) < SCAN.radius,
         );
     }
+    applyAnomalyExposure(damage: number) {
+        // Environmental radiation bypasses combat shields, as at the sector boundary.
+        this.statistics.hullDamage += Math.min(this.hull, damage);
+        this.hull = Math.max(0, this.hull - damage);
+        this.deathReason = 'Statek zniszczony przez skażenie anomalii.';
+        this.damageCooldown = 0.5;
+        this.repairProgress = this.scanProgress = this.passageProgress = 0;
+        const v = this.ship.linvel(),
+            speed = Math.hypot(v.x, v.y),
+            limit = ANOMALY.maxSpeed / P;
+        if (speed > limit)
+            this.ship.setLinvel({ x: (v.x * limit) / speed, y: (v.y * limit) / speed }, true);
+    }
+    get marsUnderFire() {
+        return this.damageCooldown > 0;
+    }
     get context() {
+        if (this.marsAct?.context) return this.marsAct.context;
         if (this.cargoTransferRemaining > 0)
             return `Transfer ładunku · ${Math.floor((1 - this.cargoTransferRemaining / 2.4) * 100)}% · ruch lub ogień przerywa`;
         if (this.stationLogistics && this.canTransferCargo)
@@ -1673,7 +1738,11 @@ export class MissionSimulation {
         const rock: Rock = {
             ...spec,
             deposit,
-            surface: Math.hypot(spec.x - MOON.center.x, spec.y - MOON.center.y) < MOON.radius + 500,
+            surface:
+                this.campaign.story?.sector === 'mars'
+                    ? !!marsSurfaceAt(spec)
+                    : Math.hypot(spec.x - MOON.center.x, spec.y - MOON.center.y) <
+                      MOON.radius + 500,
             copper: spec.copper ?? (!!spec.rich && !spec.crystal && spec.variant % 5 === 2),
             id: ++this.ids,
             body,
@@ -2128,8 +2197,13 @@ export class MissionSimulation {
                     );
                 }
             } else if (completed) {
-                this.surveyData.add('escort');
-                this.setNotice('Kepler: badania ukończone · wróć z danymi do Aurory.');
+                this.marsAct?.researchCompleted();
+                if (!this.marsAct) this.surveyData.add('escort');
+                this.setNotice(
+                    this.marsAct
+                        ? this.marsAct.status
+                        : 'Kepler: badania ukończone · wróć z danymi do Aurory.',
+                );
                 this.events.push({
                     ...this.escort.position,
                     kind: 'collect',
@@ -2214,14 +2288,14 @@ export class MissionSimulation {
         this.updateDash(input, dt);
         const dashFrom = { ...this.position };
         this.world.step(this.queue);
-        if (this.anomalyMission && this.area === 'orbit') {
+        if (this.anomalyMission && this.area === 'orbit' && !hyperFrame) {
             const damage = this.anomalyExposure.step(
                 dashFrom,
                 this.position,
                 dt,
                 Math.max(...this.hullConfig.hitbox) * this.hullConfig.size,
             );
-            if (damage) this.takeDamage(damage, 'Statek zniszczony przez skażenie anomalii.');
+            if (damage) this.applyAnomalyExposure(damage);
         }
         this.statistics.distance += Math.hypot(
             this.position.x - dashFrom.x,
@@ -2364,7 +2438,16 @@ export class MissionSimulation {
         this.updateRepair(input, dt);
         this.updateEscort(input, dt);
         this.updateRescueOperation(input, dt);
-        if (this.enemyFactory && this.area === 'orbit') {
+        if (
+            this.enemyFactory &&
+            (this.marsAct?.baseFactory
+                ? this.area === 'surface' && this.marsMoon?.id === 'phobos'
+                : this.area === 'orbit') &&
+            (!this.marsAct || this.marsAct.canProduce) &&
+            (!this.marsAct ||
+                marsArea(this.position) ===
+                    (this.enemyFactory.position.x === MARS_ACT.base.x ? 'surface' : 'asteroid'))
+        ) {
             const spawned = this.enemyFactory.update(dt, this.position, this.enemies, (point) => {
                 let blocked = false;
                 this.world.intersectionsWithShape(
@@ -2381,6 +2464,7 @@ export class MissionSimulation {
             if (spawned)
                 this.setNotice('Stocznia wypuściła posiłki · 5 wskazuje rdzeń produkcyjny.');
         }
+        this.marsAct?.update(input, dt);
         this.updateRecovery(input, dt);
         this.updateSalvage(input, dt);
         this.updateSurface(input, dt);
@@ -2404,7 +2488,10 @@ export class MissionSimulation {
         )
             this.interact(dt);
         else this.dockProgress = 0;
-        const distance = this.area === 'surface' ? moonDistance(this.position) : this.distanceHome;
+        const distance =
+            this.area === 'surface'
+                ? Math.hypot(this.position.x - this.mapCenter.x, this.position.y - this.mapCenter.y)
+                : this.distanceHome;
         const unprotected =
             this.magneticNetwork &&
             !this.hyperdrive.active &&
@@ -2413,8 +2500,8 @@ export class MissionSimulation {
                     Math.hypot(this.position.x - zone.x, this.position.y - zone.y) <= zone.radius,
             );
         if (distance > this.sectorRadius || unprotected) {
-            this.statistics.hullDamage += Math.min(this.hull, dt * 10);
-            this.hull -= dt * 10;
+            this.statistics.hullDamage += Math.min(this.hull, dt * SECTOR_RADIATION_DAMAGE);
+            this.hull -= dt * SECTOR_RADIATION_DAMAGE;
             if (this.hull <= 0)
                 this.deathReason = 'Promieniowanie poza granicą sektora zniszczyło kadłub.';
             this.setNotice(
@@ -2438,6 +2525,8 @@ export class MissionSimulation {
         }
     }
     get nearbyEscort() {
+        if (this.marsAct && !this.campaign.story!.claimed.includes('mars-sector-secure'))
+            return false;
         return (
             !!this.escort &&
             Math.hypot(
@@ -2675,6 +2764,7 @@ export class MissionSimulation {
         }
     }
     private updateEscort(input: FlightInput, dt: number) {
+        if (this.marsAct && !this.campaign.story!.claimed.includes('mars-sector-secure')) return;
         const e = this.escort;
         if (this.miningEscort)
             this.miningEscort.processingReady = lunarProcessingReady(this.campaign.story!);
@@ -2998,6 +3088,7 @@ export class MissionSimulation {
         this.aegis?.hostiles.delete(enemy.id);
         this.clearAtlasTarget(enemy.id);
         this.enemyKills++;
+        this.marsAct?.killed(enemy.id);
         if (enemy.storyPatrol) this.storyPatrolKills++;
         this.events.push({
             ...wreck,
@@ -3041,12 +3132,13 @@ export class MissionSimulation {
         factory.active = true;
         this.events.push({ ...point, kind: 'hit', strength: damage });
         if (factory.damage(damage)) {
-            this.surveyData.add('factory');
+            this.marsAct?.factoryDestroyed();
+            if (!this.marsAct) this.surveyData.add('factory');
             this.setNotice(
                 'Stocznia zniszczona · produkcja zatrzymana. Wróć z raportem do Satuk 15.',
             );
             this.events.push({
-                ...ENEMY_FACTORY.position,
+                ...factory.position,
                 kind: 'break',
                 sound: 'destroy',
                 strength: 160,
@@ -3055,7 +3147,7 @@ export class MissionSimulation {
         }
     }
     private damageSalvage(item: SalvageBody, damage: number, point: Point) {
-        if (item.source === 'shipment') return;
+        if (item.source === 'shipment' || (this.marsAct && item.id === MARS_ACT.memoryId)) return;
         if (Math.hypot(salvagePosition(item).x, salvagePosition(item).y) < this.stationSafeRadius)
             return;
         damage = this.absorbSupport(`salvage:${item.id}`, damage, point);
@@ -3136,6 +3228,7 @@ export class MissionSimulation {
     private deliverTow(selected?: SalvageBody) {
         if (this.campaign.activeRun?.mission?.aborted) return;
         for (const item of selected ? [selected] : [...this.salvage.towing.values()]) {
+            if (this.marsAct?.deliver(item.id)) continue;
             if (item.source === 'shipment') {
                 const p = salvagePosition(item);
                 if (
@@ -3494,7 +3587,10 @@ export class MissionSimulation {
         return this.campaign.recoverySignals.filter(
             (signal) =>
                 signal.seed === this.campaign.activeRun?.seed &&
-                (signal.area === 'surface') === (this.area === 'surface'),
+                (signal.area === 'surface') === (this.area === 'surface') &&
+                (this.area !== 'surface' ||
+                    !this.marsMoon ||
+                    marsSurfaceAt(signal)?.id === this.marsMoon.id),
         );
     }
     private selectWorldRecovery() {
@@ -4229,10 +4325,10 @@ export class MissionSimulation {
         if (
             factory?.collider &&
             !this.dashHits.has(factory.collider.handle) &&
-            touches(ENEMY_FACTORY.position, ENEMY_FACTORY.radius)
+            touches(factory.position, ENEMY_FACTORY.radius)
         ) {
             this.dashHits.add(factory.collider.handle);
-            this.damageFactory(this.dashDamage, ENEMY_FACTORY.position);
+            this.damageFactory(this.dashDamage, factory.position);
         }
         for (const enemy of [...this.enemies.enemies.values()]) {
             if (this.dashHits.has(enemy.collider.handle)) continue;
@@ -5239,7 +5335,8 @@ export class MissionSimulation {
         else {
             this.passageProgress += dt;
             if (this.passageProgress + 1e-8 >= MOON.transferSeconds) {
-                const target = this.area === 'orbit' ? MOON.exit : MOON.entrance;
+                const site = this.surfaceSite;
+                const target = this.area === 'orbit' ? site.exit : site.entrance;
                 const dx = target.x - this.position.x,
                     dy = target.y - this.position.y;
                 const move = (body: RAPIER.RigidBody) => {
@@ -5272,9 +5369,11 @@ export class MissionSimulation {
                 this.passageArmed = false;
                 this.passageProgress = 0;
                 this.setNotice(
-                    this.area === 'surface'
-                        ? 'Powierzchnia Księżyca · 7 budowa · 2 złoże · 5 miedź · 1 orbita'
-                        : 'Orbita księżycowa · 1 Satuk 15 · puść E przed kolejnym przejściem',
+                    this.marsMoon
+                        ? `${this.surfaceName} · ${this.area === 'surface' ? 'powierzchnia · 1 powrót na orbitę' : 'orbita · puść E przed kolejnym przejściem'}`
+                        : this.area === 'surface'
+                          ? 'Powierzchnia Księżyca · 7 budowa · 2 złoże · 5 miedź · 1 orbita'
+                          : 'Orbita księżycowa · 1 Satuk 15 · puść E przed kolejnym przejściem',
                 );
             }
         }

@@ -19,6 +19,7 @@ import { selectableMission } from '../frontend/game/state/missionOrders';
 import { MissionSimulation, type FlightInput } from '../frontend/game/systems/mission';
 import { angleDifference } from '../frontend/game/systems/flight';
 import type { Point } from '../frontend/game/worlds/sector';
+import { MARS_AMBUSH, MARS_YARD_PATROLS } from '../frontend/game/state/marsAct';
 
 before(async () => RAPIER.init());
 const idle: FlightInput = {
@@ -31,8 +32,23 @@ const idle: FlightInput = {
 function ready(survey = true, mission = true) {
     const c = newStoryCampaign();
     c.station.workshop = 1;
+    c.station.shield = true;
+    Object.assign(c.story!.mars, {
+        landingBlocked: true,
+        ambushEntered: true,
+        baseDiscovered: true,
+        baseNeutralized: true,
+        baseHealth: 0,
+        memoryDelivered: true,
+        aiIdentified: true,
+        yardDestroyed: true,
+        yardHealth: 0,
+        researchSites: 3,
+        researchWaves: 3,
+        kills: [...MARS_AMBUSH, ...MARS_YARD_PATROLS],
+    });
     for (const t of STORY_TASKS.filter(
-        (t) => t.required && (t.act <= 6 || (survey && t.id === 'jupiter-survey')),
+        (t) => t.act <= 6 || (survey && t.id === 'jupiter-survey'),
     )) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
@@ -101,14 +117,14 @@ test('irregular anomaly bands have clear corridors for full hulls and a dangerou
     assert.equal(polygonDistance({ x: 13, y: 5 }, square), 3);
 });
 
-test('exposure has a warning, deals the same timed damage at different steps, and stops outside the full hull boundary', () => {
+test('exposure immediately deals the same environmental damage at different steps and stops outside the full hull boundary', () => {
     const p = { x: -2300, y: -1800 };
     for (const step of [1 / 30, 1 / 60, 1 / 120]) {
         const e = new AnomalyExposure();
         let damage = 0;
         for (let i = 0; i < Math.round(2.8 / step); i++) damage += e.step(p, p, step, 40);
-        assert.equal(damage, 20);
-        assert.match(e.status, /SKAŻENIE/);
+        assert.ok(Math.abs(damage - 42) < 1e-8);
+        assert.match(e.status, /15 kadłuba/);
         assert.equal(e.step(ANOMALY.probe, ANOMALY.probe, step, 40), 0);
         assert.equal(e.contaminated, false);
         assert.equal(e.exposure, 0);
@@ -148,13 +164,15 @@ test('recovery is optional, unlocks after survey, and creates the physical probe
     }
 });
 
-test('contamination damages real shields and hull and can kill without confirming a report', () => {
+test('contamination bypasses shields, slows the ship and can kill without confirming a report', () => {
     const c = ready(),
         s = new MissionSimulation(c, c.activeRun!.seed);
     try {
         at(s, { x: -2300, y: -1800 });
+        const shield = s.kineticShield.charge;
         hold(s, 42);
-        assert.equal(s.hull, s.maxHull);
+        assert.ok(s.hull < s.maxHull);
+        assert.equal(s.kineticShield.charge, shield);
         hold(s, 420, true);
         assert.ok(s.statistics.hullDamage + s.statistics.shieldDamage > 0);
         assert.equal(c.story!.progress['jupiter-recovery'], 0);

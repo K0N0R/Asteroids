@@ -2,6 +2,7 @@ import type { StorySectorId } from '../state/story';
 import type { Point } from './sector';
 import { MOON } from './moon';
 import type { PlanetAppearance } from '../graphics/planetView';
+import { MARS_MOONS } from './marsMoons';
 
 export interface CelestialBodySpec {
     id: string;
@@ -29,11 +30,23 @@ const EARTH_SYSTEM_BODIES: readonly CelestialBodySpec[] = [
         scale: EARTH_SYSTEM_BODY_SCALE.moon,
     },
 ];
-/** Temporary scenery framing only. Replace anchors when the Mars sector layout is designed. */
+/** Moon artwork is anchored to its actual approach, just as in the Earth–Moon sector. */
 export const MARS_SYSTEM_PREVIEW_BODIES: readonly CelestialBodySpec[] = [
     { id: 'mars', appearance: 'mars', anchor: { x: 12000, y: 6000 }, depth: 0.035, scale: 0.95 },
-    { id: 'phobos', appearance: 'phobos', anchor: { x: 3700, y: 3850 }, depth: 0.065, scale: 0.42 },
-    { id: 'deimos', appearance: 'deimos', anchor: { x: 3000, y: 7000 }, depth: 0.05, scale: 0.28 },
+    {
+        id: 'phobos',
+        appearance: 'phobos',
+        anchor: MARS_MOONS.phobos.entrance,
+        depth: 0.18,
+        scale: 1.4,
+    },
+    {
+        id: 'deimos',
+        appearance: 'deimos',
+        anchor: MARS_MOONS.deimos.entrance,
+        depth: 0.18,
+        scale: 1.2,
+    },
 ];
 export const SECTOR_CELESTIAL_BODIES: Partial<Record<StorySectorId, readonly CelestialBodySpec[]>> =
     {

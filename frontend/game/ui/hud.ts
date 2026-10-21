@@ -12,6 +12,8 @@ import { navigationWaypoint } from '../worlds/sector';
 import { EnemyNavigation } from '../systems/enemyNavigation';
 import { enemyPosition } from '../systems/enemies';
 import { MOON } from '../worlds/moon';
+import { PHOBOS_MAZE_ENTRY, PHOBOS_MAZE_GATE } from '../worlds/phobosMaze';
+import { phobosRouteOpen } from '../state/marsAct';
 import { STORY_TASKS } from '../state/story';
 import { flightHint, missionObjectives } from './missionReadout';
 import { hudLabel as label, keyHint, mouseHint, objectiveMark } from './hudIcons';
@@ -251,6 +253,18 @@ export class MissionHud extends Container {
     }
     get waypoint() {
         const s = this.sim;
+        if (
+            this.target === 17 &&
+            s.marsAct &&
+            phobosRouteOpen(s.campaign.story!) &&
+            !s.campaign.story!.mars.ambushEntered
+        ) {
+            const p = s.position;
+            const inside = p.x > 2350 && p.x < 5450 && p.y > -3050 && p.y < 1650;
+            return inside
+                ? { ...PHOBOS_MAZE_GATE, name: 'Śluza Fobosa · koniec labiryntu' }
+                : { ...PHOBOS_MAZE_ENTRY, name: 'Labirynt Fobosa · wejście' };
+        }
         if (this.target === 17)
             return s.nearestHypergate
                 ? { ...s.nearestHypergate.from, name: `Śluza: ${s.nearestHypergate.name}` }
@@ -265,6 +279,13 @@ export class MissionHud extends Container {
                 : { ...s.miningEscort.position, name: 'Muł · budowa stacji' };
         }
         if (s.area === 'surface' && this.target !== 14) {
+            if (s.marsMoon)
+                return (
+                    s.landmarks.find((l) => l.key === this.target + 1) ?? {
+                        ...s.surfaceSite.exit,
+                        name: `${s.surfaceName} · powrót na orbitę`,
+                    }
+                );
             if (this.target === 10)
                 return s.enemies.enemies.size
                     ? this.enemyNavigation.waypoint(s.enemies, s.position)
@@ -278,7 +299,7 @@ export class MissionHud extends Container {
                 return { ...s.recoverySignal, name: 'Cel ratunkowy na powierzchni' };
             return (
                 s.landmarks.find((l) => l.key === this.target + 1) ?? {
-                    ...MOON.exit,
+                    ...s.surfaceSite.exit,
                     name: 'Powrót na orbitę',
                 }
             );
@@ -375,25 +396,43 @@ export class MissionHud extends Container {
                       : C.gold,
             );
         this.defenseStatus?.setText(
-            this.sim.rescueOperation
-                ? ''
-                : this.sim.outerSector
-                  ? this.sim.outerStatus
-                  : this.sim.saturnSector
-                    ? this.sim.saturnStatus
-                    : this.sim.jupiterSector
-                      ? this.sim.jupiterStatus
-                      : this.sim.beltSector
-                        ? this.sim.beltStatus
-                        : this.sim.mercurySector
-                          ? this.sim.solar.summary
-                          : this.sim.orbitalBaseSector || this.sim.area === 'surface'
-                            ? this.sim.defenseSummary
-                            : '',
+            this.sim.marsMoon
+                ? (this.sim.marsAct?.status ??
+                      `${this.sim.surfaceName} · ${this.sim.area === 'surface' ? 'powierzchnia' : 'orbita'}`)
+                : this.sim.rescueOperation
+                  ? ''
+                  : this.sim.outerSector
+                    ? this.sim.outerStatus
+                    : this.sim.saturnSector
+                      ? this.sim.saturnStatus
+                      : this.sim.jupiterSector
+                        ? this.sim.jupiterStatus
+                        : this.sim.beltSector
+                          ? this.sim.beltStatus
+                          : this.sim.mercurySector
+                            ? this.sim.solar.summary
+                            : this.sim.orbitalBaseSector || this.sim.area === 'surface'
+                              ? this.sim.defenseSummary
+                              : '',
         );
         if (this.areaRevision !== this.sim.areaRevision) {
             this.areaRevision = this.sim.areaRevision;
             this.target = this.sim.area === 'surface' ? (this.sim.miningEscort ? 15 : 0) : 2;
+            if (this.sim.marsAct && this.sim.area === 'orbit') {
+                const mars = this.sim.campaign.story!.mars;
+                this.target = !mars.landingBlocked
+                    ? 2
+                    : this.sim.factoryMission
+                      ? 4
+                      : this.sim.campaign.story!.claimed.includes('mars-sector-secure')
+                        ? 15
+                        : mars.baseNeutralized
+                          ? 14
+                          : mars.baseDiscovered
+                            ? 6
+                            : 17;
+                if (this.target === 14) this.trackWreck();
+            }
             this.trail = new RadarTrail();
         }
         const s = this.sim,
@@ -481,6 +520,7 @@ export class MissionHud extends Container {
             this.orderStatus,
         ])
             if (status) status.visible = false;
+        if (s.marsAct && this.orderStatus) this.orderStatus.visible = true;
         const towedIds = [...s.salvage.towing.keys()].join(',');
         if (this.towedIds !== towedIds) {
             this.towedIds = towedIds;
@@ -616,6 +656,12 @@ export class MissionHud extends Container {
             .lineTo(x, y + radius)
             .stroke({ color: C.line, width: 1, alpha: 0.35 });
         this.trail.update(p, s.elapsed);
+        for (const band of s.marsAnomalies)
+            this.map
+                .beginPath()
+                .poly(band.flatMap((point) => [x + point.x * scale, y + point.y * scale]))
+                .fill({ color: 0xc06439, alpha: 0.22 })
+                .stroke({ color: 0xe99d58, width: 0.8, alpha: 0.6 });
         this.map
             .beginPath()
             .circle(x, y, s.stationSafeRadius * scale)
@@ -830,8 +876,8 @@ export class MissionHud extends Container {
             y = 130,
             scale = 88 / s.sectorRadius;
         const point = (p: { x: number; y: number }) => ({
-            x: x + (p.x - MOON.center.x) * scale,
-            y: y + (p.y - MOON.center.y) * scale,
+            x: x + (p.x - s.mapCenter.x) * scale,
+            y: y + (p.y - s.mapCenter.y) * scale,
         });
         const map = this.map
             .clear()
@@ -850,7 +896,7 @@ export class MissionHud extends Container {
         }
         for (const e of s.enemies.enemies.values()) {
             const ep = enemyPosition(e);
-            if (Math.hypot(ep.x - MOON.center.x, ep.y - MOON.center.y) > s.sectorRadius) continue;
+            if (Math.hypot(ep.x - s.mapCenter.x, ep.y - s.mapCenter.y) > s.sectorRadius) continue;
             const p = point(ep);
             map.circle(p.x, p.y, 3).fill(C.red);
         }

@@ -186,9 +186,10 @@ test('stock Prospector cannot dock before a selected scan, flies the real relay,
 test('combat orders require the remaining patrol count and distinguish Neptune from final boss reports', () => {
     const c = newStoryCampaign();
     c.station.workshop = 2;
-    for (const task of STORY_TASKS.filter((t) => t.required && t.act === 1)) grant(c, task.id);
-    assert.ok(travelStory(c, 'mars'));
-    assert.ok(beginRun(c, 1, null, false, 'mars-patrol'));
+    for (const task of STORY_TASKS.filter((t) => t.required && t.act <= 3)) grant(c, task.id);
+    grant(c, 'mercury-survey');
+    assert.ok(travelStory(c, 'mercury'));
+    assert.ok(beginRun(c, 1, null, false, 'mercury-patrol'));
     assert.equal(missionObjectiveMet(c, { patrolKills: 1 }), false);
     assert.equal(missionObjectiveMet(c, { patrolKills: 2 }), true);
     assert.equal(finishRun(c, true, empty, 1, 'dock', 0, { patrolKills: 1 }), null);

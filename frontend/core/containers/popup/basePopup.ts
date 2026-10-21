@@ -6,6 +6,9 @@ export class BasePopup<TData> extends PIXI.Container {
 
     show(data: TData) {}
 
+    /** Release per-opening content and callbacks when this reusable popup closes. */
+    hide() {}
+
     createBaseComponents() {}
 
     update(deltaMS: number) {}

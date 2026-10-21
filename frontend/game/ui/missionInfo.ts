@@ -29,6 +29,12 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         super();
         this.addChild(this.content);
     }
+    hide() {
+        // Pagination and cargo buttons close over the simulation passed to show().
+        clear(this.content);
+        this.cargoPage = 0;
+        this.goalPage = 0;
+    }
     show(data: MissionInfoData) {
         const {
             simulation: s,

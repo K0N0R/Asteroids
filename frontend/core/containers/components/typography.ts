@@ -61,6 +61,7 @@ export class Typography extends PIXI.Container {
     }
 
     setText(text: string | number) {
+        if (this.text.text === String(text)) return;
         this.text.text = text;
     }
     setHorizontalAlign(align: TTypographyHorizontalAlign) {
