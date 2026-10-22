@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { CelestialLayer } from '../frontend/game/graphics/celestialLayer';
 import {
     celestialBodiesFor,
+    marsCelestialBodies,
     type CelestialBodySpec,
 } from '../frontend/game/worlds/celestialBodies';
 import { parallaxPoint } from '../frontend/game/graphics/parallax';
@@ -55,45 +56,39 @@ test('one sector layer supports three or more bodies with independent anchors an
         );
         assert.equal(thirdView.scale.x, 0.72);
         layer.setBodies(celestialBodiesFor('mars'));
-        assert.equal(layer.children.length, 3);
+        assert.equal(layer.children.length, 1);
         assert.equal(thirdView.destroyed, true);
     } finally {
         destroyDisplayTree(layer);
     }
 });
 
-test('Mars scenery has reusable, distinct moon artwork and releases all bodies on a sector change', () => {
-    const layer = new CelestialLayer(),
-        specs = celestialBodiesFor('mars');
-    layer.setBodies(specs);
-    try {
-        assert.deepEqual(specs.map((spec) => spec.id).sort(), ['deimos', 'mars', 'phobos']);
-        for (const moon of ['phobos', 'deimos']) {
-            const view = layer.getChildByLabel(`celestial-${moon}`)!;
-            assert.ok(view.getChildByLabel(`mars-moon-${moon}`, true));
-        }
-        const before = [...layer.children];
-        for (const angle of [0, -Math.PI / 2, 0.8]) {
-            layer.update({ x: 700, y: -600 }, angle, 1.1);
-            for (const spec of specs) {
-                const view = layer.getChildByLabel(`celestial-${spec.id}`)!;
-                const expected = parallaxPoint(
-                    spec.anchor,
-                    { x: 700, y: -600 },
-                    angle,
-                    spec.depth,
-                    1.1,
-                );
-                assert.deepEqual({ x: view.x, y: view.y }, expected);
-            }
-        }
-        layer.setBodies(celestialBodiesFor('venus'));
-        assert.equal(layer.children.length, 1);
-        assert.ok(before.every((view) => view.destroyed));
-        assert.equal(layer.getChildByLabel('celestial-phobos'), null);
-    } finally {
-        destroyDisplayTree(layer);
-    }
+test('Mars maps have separate scenery and release the previous map artwork', () => {
+    const layer = new CelestialLayer();
+    layer.setBodies(marsCelestialBodies('mars'));
+    assert.deepEqual(
+        layer.children.map((v) => v.label),
+        ['celestial-mars'],
+    );
+    const old = layer.children[0];
+    layer.setBodies(marsCelestialBodies('phobos'));
+    assert.ok(old.destroyed);
+    assert.deepEqual(
+        layer.children.map((v) => v.label),
+        ['celestial-phobos'],
+    );
+    assert.ok(layer.getChildByLabel('mars-moon-phobos', true));
+    const phobos = layer.children[0],
+        spec = marsCelestialBodies('phobos')[0];
+    layer.update({ x: 30000, y: 0 }, 0.8, 1.1);
+    assert.deepEqual(
+        { x: phobos.x, y: phobos.y },
+        parallaxPoint(spec.anchor, { x: 30000, y: 0 }, 0.8, spec.depth, 1.1),
+    );
+    layer.setBodies(marsCelestialBodies('asteroid'));
+    assert.equal(layer.children.length, 0);
+    assert.ok(phobos.destroyed);
+    destroyDisplayTree(layer);
 });
 test('Earth remains in the approach background while Moon transfers into the surface renderer', () => {
     const bg = new Background();

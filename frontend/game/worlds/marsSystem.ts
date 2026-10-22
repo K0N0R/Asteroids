@@ -1,78 +1,99 @@
 import { generateSector, random, type EnemySpec, type Landmark, type RockSpec } from './sector';
 import type { StoryProgress } from '../state/story';
-import { MARS_MOONS } from './marsMoons';
-import { PHOBOS_MAZE_BANDS, PHOBOS_MAZE_GATE, PHOBOS_MAZE_ENTRY } from './phobosMaze';
 import {
     MARS_ACT as M,
     MARS_AMBUSH,
+    MARS_SURFACE_PATROLS,
     MARS_YARD_PATROLS,
     phobosRouteOpen,
     phobosOrbitSecured,
 } from '../state/marsAct';
-
-export const MARS_ANOMALIES = [
-    [
-        { x: -2400, y: 1000 },
-        { x: -1200, y: 1000 },
-        { x: -1100, y: 2200 },
-        { x: -2400, y: 2300 },
-    ],
-    [
-        { x: -2800, y: -2200 },
-        { x: -1800, y: -2200 },
-        { x: -1800, y: -1400 },
-        { x: -2800, y: -1400 },
-    ],
-    ...PHOBOS_MAZE_BANDS,
-    [
-        { x: 7200, y: -1100 },
-        { x: 7900, y: -1100 },
-        { x: 7900, y: 600 },
-        { x: 7200, y: 500 },
-    ],
-] as const;
+import { MARS_MAPS, MARS_GATES, type MarsOrbitId } from './marsLayout';
+import {
+    PHOBOS_MAZE_BANDS,
+    PHOBOS_ORBIT_BANDS,
+    PHOBOS_MAZE_ENTRY,
+    PHOBOS_MAZE_GATE,
+} from './phobosMaze';
+import { MARS_MOONS } from './marsMoons';
+import { polygonDistance } from '../systems/anomalyField';
+export const MARS_ANOMALIES = PHOBOS_MAZE_BANDS;
+export function marsAnomaliesFor(id: MarsOrbitId) {
+    return id === 'mars' ? MARS_ANOMALIES : id === 'phobos' ? PHOBOS_ORBIT_BANDS : [];
+}
 export function marsSystemLanes(p: StoryProgress) {
     return [
         ...(phobosRouteOpen(p)
-            ? [{ name: 'Mars — orbita Fobosa', a: PHOBOS_MAZE_GATE, b: { x: 5300, y: 0 } }]
+            ? [{ name: 'Mars — orbita Fobosa', a: PHOBOS_MAZE_GATE, b: MARS_GATES.phobosArrival }]
             : []),
-        { name: 'Mars — Deimos', a: { x: -1000, y: -600 }, b: { x: -4600, y: -1700 } },
         ...(p.mars.aiIdentified
-            ? [{ name: 'Fobos — duża asteroida', a: { x: 5400, y: 700 }, b: { x: 700, y: 5700 } }]
+            ? [
+                  {
+                      name: 'Fobos — duża asteroida',
+                      a: MARS_GATES.asteroidExit,
+                      b: MARS_GATES.asteroidArrival,
+                  },
+              ]
             : []),
     ];
 }
 export function marsSystemZones(p: StoryProgress) {
     return [
-        { x: 0, y: 0, radius: 3100, name: 'Orbita Marsa · Satuk 15' },
-        { ...M.deimosGate, radius: 1400, name: 'Orbita Deimosa' },
-        ...(phobosRouteOpen(p) ? [{ ...M.phobos, radius: 1800, name: 'Orbita Fobosa' }] : []),
-        ...(p.mars.aiIdentified ? [{ ...M.asteroid, radius: 1800, name: 'Duża asteroida' }] : []),
+        {
+            ...MARS_MAPS.mars.center,
+            radius: MARS_MAPS.mars.radius,
+            name: 'Orbita Marsa · Satuk 15',
+        },
+        ...(phobosRouteOpen(p)
+            ? [
+                  {
+                      ...MARS_MAPS.phobos.center,
+                      radius: MARS_MAPS.phobos.radius,
+                      name: 'Orbita Fobosa',
+                  },
+              ]
+            : []),
+        ...(p.mars.aiIdentified
+            ? [
+                  {
+                      ...MARS_MAPS.asteroid.center,
+                      radius: MARS_MAPS.asteroid.radius,
+                      name: 'Obszar asteroidy',
+                  },
+              ]
+            : []),
     ];
 }
 export function marsRequiredFleet(p: StoryProgress): EnemySpec[] {
-    const make = (id: number, x: number, y: number, kind: EnemySpec['kind']): EnemySpec => ({
-        id,
-        x,
-        y,
-        kind,
-        home: { x, y },
-        phase: 0,
-    });
+    const make = (
+        id: number,
+        x: number,
+        y: number,
+        kind: EnemySpec['kind'],
+        route?: EnemySpec['route'],
+    ): EnemySpec => ({ id, x, y, kind, home: { x, y }, phase: 0, route });
     return [
         ...(phobosRouteOpen(p)
             ? MARS_AMBUSH.map((id, i) =>
-                  make(id, 6000 + i * 260, -450 + i * 300, i === 2 ? 'lancer' : 'patrol'),
+                  make(id, 29200 + i * 460, 700 - i * 500, i === 2 ? 'lancer' : 'patrol'),
               )
+            : []),
+        ...(phobosOrbitSecured(p) && !p.mars.baseNeutralized
+            ? MARS_SURFACE_PATROLS.map((id, i) => {
+                  const route = Array.from({ length: 4 }, (_, j) => {
+                      const a = ((j + i) * Math.PI) / 2;
+                      return { x: M.base.x + Math.cos(a) * 440, y: M.base.y + Math.sin(a) * 440 };
+                  });
+                  return make(id, route[0].x, route[0].y, 'patrol', route);
+              })
             : []),
         ...(p.mars.aiIdentified
             ? MARS_YARD_PATROLS.map((id, i) => {
-                  const group = Math.floor(i / 4),
-                      angle = ((i % 4) * Math.PI) / 2;
+                  const a = (i * Math.PI) / 6;
                   return make(
                       id,
-                      -1200 + group * 650 + Math.cos(angle) * 230,
-                      5900 + (group % 2) * 950 + Math.sin(angle) * 230,
+                      M.asteroid.x + Math.cos(a) * (850 + (i % 3) * 180),
+                      M.asteroid.y + Math.sin(a) * (850 + (i % 3) * 180),
                       i % 4 === 3 ? 'heavy' : i % 4 === 2 ? 'support' : 'lancer',
                   );
               })
@@ -95,17 +116,17 @@ export function marsRequiredFleet(p: StoryProgress): EnemySpec[] {
 }
 export function generateMarsActSector(p: StoryProgress) {
     const sector = generateSector(150073),
-        rng = random(220118);
+        rng = random(220123);
     sector.enemies = marsRequiredFleet(p);
     sector.caches = [];
     sector.outpost = {
         ...sector.outpost,
-        x: 22000,
+        x: 120000,
         y: 0,
-        terminal: { x: 22200, y: 0 },
+        terminal: { x: 120200, y: 0 },
         guards: [],
     };
-    sector.fortress = { ...sector.fortress, x: 24000, y: 0, walls: [], guards: [] };
+    sector.fortress = { ...sector.fortress, x: 124000, y: 0, walls: [], guards: [] };
     sector.researchSite = {
         ...M.research[p.mars.researchSites % 3],
         name: 'Pomiary anomalii Marsa',
@@ -113,29 +134,21 @@ export function generateMarsActSector(p: StoryProgress) {
     sector.hyperlanes = marsSystemLanes(p);
     sector.regions = marsSystemZones(p);
     const landmarks: Landmark[] = [
-        {
-            x: 1100,
-            y: 0,
-            key: 2,
-            kind: 'field',
-            radius: 600,
-            name: 'Złoże orbitalne · surowce produkcyjne',
-        },
-        { x: -500, y: -850, key: 0, kind: 'field', radius: 650, name: 'Bogate złoże pierwiastków' },
+        { x: 0, y: -1300, key: 2, kind: 'field', radius: 800, name: 'Pas asteroid nad Satuk 15' },
+        { x: 0, y: 1300, key: 0, kind: 'field', radius: 850, name: 'Pas asteroid pod Satuk 15' },
         {
             ...M.landing,
             key: 3,
             kind: 'field',
             radius: 190,
-            name: 'Mars · podejście do bariery lądowania',
+            name: 'Mars · zejście odcięte anomalią',
         },
         {
             ...M.deimosGate,
             key: 9,
-            kind: 'passage',
+            kind: 'field',
             radius: 190,
-            surfaceBody: 'deimos',
-            name: 'Deimos · lądowanie',
+            name: 'Deimos · śluza całkowicie odcięta anomalią',
         },
     ];
     if (phobosRouteOpen(p))
@@ -152,67 +165,69 @@ export function generateMarsActSector(p: StoryProgress) {
                 key: 4,
                 kind: phobosOrbitSecured(p) ? 'passage' : 'field',
                 surfaceBody: 'phobos',
-                radius: 180,
+                radius: 200,
                 name: phobosOrbitSecured(p)
-                    ? 'Orbita Fobosa · zabezpieczona'
-                    : 'Orbita Fobosa · nieznane kontakty',
+                    ? 'Fobos · lądowanie'
+                    : 'Fobos · najpierw odeprzyj zasadzkę',
             },
             { ...M.probe, key: 6, kind: 'wreck', radius: 120, name: 'Zapomniana ziemska sonda' },
-            {
-                x: 7600,
-                y: -550,
-                key: 0,
-                kind: 'field',
-                radius: 100,
-                name: 'Sonda i stara instalacja za anomalią · brak dostępu',
-            },
+            { ...M.oldShip, key: 0, kind: 'wreck', radius: 120, name: 'Wrak starego Prospectora' },
         );
-    if (phobosOrbitSecured(p) && (p.mars.baseDiscovered || p.mars.baseNeutralized))
+    if (phobosOrbitSecured(p)) {
+        const b = MARS_MOONS.phobos;
         landmarks.push(
             {
-                ...M.terminal,
+                ...b.exit,
+                key: 1,
                 area: 'surface',
                 surfaceBody: 'phobos',
-                key: 7,
-                kind: 'field',
-                radius: 100,
-                name: p.mars.baseNeutralized
-                    ? 'Instalacja zneutralizowana · moduł pamięci'
-                    : 'Ukryta instalacja · E: terminal bez alarmu',
+                kind: 'passage',
+                radius: 200,
+                name: 'Fobos · powrót na orbitę',
             },
             {
                 x: 6100,
                 y: 6000,
+                key: 2,
                 area: 'surface',
                 surfaceBody: 'phobos',
-                key: 2,
                 kind: 'field',
                 radius: 500,
-                name: 'Bogactwa Fobosa',
+                name: 'Złoża powierzchniowe Fobosa',
             },
         );
-    for (const body of Object.values(MARS_MOONS)) {
-        if (body.id === 'phobos' && !phobosOrbitSecured(p)) continue;
-        landmarks.push({
-            ...body.exit,
-            key: 1,
-            area: 'surface',
-            surfaceBody: body.id,
-            kind: 'passage',
-            radius: 200,
-            name: `${body.name} · powrót na orbitę`,
-        });
+        if (p.mars.baseDiscovered || p.mars.baseNeutralized)
+            landmarks.push({
+                ...M.terminal,
+                key: 7,
+                area: 'surface',
+                surfaceBody: 'phobos',
+                kind: 'field',
+                radius: 120,
+                name: p.mars.baseNeutralized
+                    ? 'Instalacja wyłączona · moduł pamięci'
+                    : 'Terminal bazy · E: ułóż ścieżkę',
+            });
     }
     if (p.mars.aiIdentified)
-        landmarks.push({
-            ...M.yard,
-            key: 5,
-            kind: 'factory',
-            radius: 100,
-            name: p.mars.yardDestroyed
-                ? 'Ruiny zakładu przemysłowego'
-                : 'Zakład przemysłowy SI · silna obrona',
-        });
+        landmarks.push(
+            {
+                ...M.yard,
+                key: 5,
+                kind: 'factory',
+                radius: 120,
+                name: p.mars.yardDestroyed
+                    ? 'Ruiny zakładu przemysłowego'
+                    : 'Zakład przemysłowy SI',
+            },
+            {
+                ...M.asteroid,
+                key: 2,
+                kind: 'cluster',
+                radius: 500,
+                name: 'Duża asteroida · skupisko skał',
+            },
+        );
     if (p.claimed.includes('mars-sector-secure') && p.mars.researchSites < 3)
         landmarks.push({
             ...M.research[p.mars.researchSites],
@@ -223,51 +238,79 @@ export function generateMarsActSector(p: StoryProgress) {
         });
     sector.landmarks = landmarks;
     const rocks: RockSpec[] = [];
-    const areas = [
-        { x: 1100, y: 0, radius: 600, count: 80 },
-        { x: -500, y: -850, radius: 650, count: 70 },
-        ...(phobosRouteOpen(p) ? [{ ...M.phobos, radius: 1400, count: 34 }] : []),
-        ...(phobosOrbitSecured(p) ? [{ ...M.surface, radius: 1350, count: 100 }] : []),
-        ...(p.mars.aiIdentified ? [{ ...M.asteroid, radius: 1400, count: 60 }] : []),
+    const fields = [
+        { x: 0, y: -1300, radius: 850, count: 100, surface: false },
+        { x: 0, y: 1300, radius: 900, count: 100, surface: false },
+        ...(phobosRouteOpen(p)
+            ? [{ x: 30000, y: 500, radius: 1850, count: 90, surface: false }]
+            : []),
+        ...(phobosOrbitSecured(p)
+            ? [{ ...M.surface, radius: 1400, count: 130, surface: true }]
+            : []),
+        ...(p.mars.aiIdentified
+            ? [{ ...M.asteroid, radius: 1500, count: 300, surface: false }]
+            : []),
     ];
-    for (const area of areas)
-        for (let i = 0; i < area.count; i++) {
-            const angle = rng() * Math.PI * 2,
-                d = Math.sqrt(rng()) * area.radius;
-            const rock: RockSpec = {
-                x: area.x + Math.cos(angle) * d,
-                y: area.y + Math.sin(angle) * d,
-                radius: 28 + rng() * 32,
+    if (p.mars.aiIdentified)
+        rocks.push({
+            ...M.asteroid,
+            radius: 420,
+            variant: 911,
+            rich: true,
+            anchored: true,
+            vx: 0,
+            vy: 0,
+        });
+    for (const field of fields)
+        for (let i = 0; i < field.count; i++) {
+            const a = rng() * Math.PI * 2,
+                d = Math.sqrt(rng()) * field.radius,
+                asteroid = field.x > 50000;
+            const r: RockSpec = {
+                x: field.x + Math.cos(a) * d,
+                y: field.y + Math.sin(a) * d,
+                radius: asteroid
+                    ? 18 + rng() * 47
+                    : field.surface
+                      ? 28 + rng() * 32
+                      : 20 + rng() * 27,
                 rich: i % 2 === 0,
                 copper: i % 4 === 0,
                 crystal: i % 5 === 0,
                 variant: Math.floor(rng() * 128),
-                vx: 0,
-                vy: 0,
-                anchored: area.y > 4000,
+                anchored: field.surface,
+                vx: field.surface ? 0 : 30 + rng() * 30,
+                vy: field.surface ? 0 : (rng() - 0.5) * 12,
             };
-            // Keep the steering challenge readable; mining rocks must not plug the maze lanes.
-            if (rock.x > 1900 && rock.x < 5800 && rock.y > -3400 && rock.y < 2000) continue;
             if (
-                [
-                    ...landmarks.filter((l) => l.kind !== 'field' || l.key === 7),
-                    ...sector.enemies,
-                    ...sector.hyperlanes.flatMap((l) => [l.a, l.b]),
-                ].some((l) => Math.hypot(l.x - rock.x, l.y - rock.y) < rock.radius + 190)
+                !field.surface &&
+                marsAnomaliesFor(
+                    field.x > 50000 ? 'asteroid' : field.x > 20000 ? 'phobos' : 'mars',
+                ).some((b) => polygonDistance(r, b) < r.radius + 80)
             )
                 continue;
             if (
-                Math.hypot(rock.x - M.base.x, rock.y - M.base.y) < rock.radius + 175 ||
-                Math.hypot(rock.x - M.yard.x, rock.y - M.yard.y) < rock.radius + 200
+                [
+                    ...landmarks.filter(
+                        (l) => l.kind === 'passage' || l.key === 7 || l.kind === 'wreck',
+                    ),
+                    ...sector.hyperlanes.flatMap((l) => [l.a, l.b]),
+                ].some((l) => Math.hypot(l.x - r.x, l.y - r.y) < r.radius + 200)
+            )
+                continue;
+            if (
+                [M.base, M.yard, { x: 0, y: 0 }].some(
+                    (l) => Math.hypot(l.x - r.x, l.y - r.y) < r.radius + (l.x === 0 ? 550 : 220),
+                )
             )
                 continue;
             if (
                 rocks.some(
-                    (r) => Math.hypot(r.x - rock.x, r.y - rock.y) < r.radius + rock.radius + 14,
+                    (old) => Math.hypot(old.x - r.x, old.y - r.y) < old.radius + r.radius + 14,
                 )
             )
                 continue;
-            rocks.push(rock);
+            rocks.push(r);
         }
     sector.rocks = rocks;
     return sector;

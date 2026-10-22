@@ -14,6 +14,8 @@ import { enemyPosition } from '../systems/enemies';
 import { MOON } from '../worlds/moon';
 import { PHOBOS_MAZE_ENTRY, PHOBOS_MAZE_GATE } from '../worlds/phobosMaze';
 import { phobosRouteOpen } from '../state/marsAct';
+import { MARS_GATES, marsOrbitAt } from '../worlds/marsLayout';
+import { MARS_MOONS } from '../worlds/marsMoons';
 import { STORY_TASKS } from '../state/story';
 import { flightHint, missionObjectives } from './missionReadout';
 import { hudLabel as label, keyHint, mouseHint, objectiveMark } from './hudIcons';
@@ -52,6 +54,7 @@ export class MissionHud extends Container {
     private rescueStatus: Typography | null = null;
     private guideStatus: Typography | null = null;
     private anomalyStatus: Typography | null = null;
+    private areaTitle: Typography | null = null;
     constructor(
         readonly sim: MissionSimulation,
         private contract: number,
@@ -74,6 +77,7 @@ export class MissionHud extends Container {
             graphic.eventMode = 'none';
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 342, 43, 17, 0x86bded);
+        if (sim.marsAct) this.areaTitle = label(this, '', 40, 145, 18, C.cyan, 700);
         if (
             sim.surfaceUnlocked ||
             sim.orbitalBaseSector ||
@@ -252,15 +256,44 @@ export class MissionHud extends Container {
         this.target = 14;
     }
     get waypoint() {
+        const s = this.sim,
+            recovery =
+                s.marsAct && this.target === 5
+                    ? s.campaign.recoverySignals.find(
+                          (signal) => signal.id === s.campaign.activeRun?.recoveryId,
+                      )
+                    : undefined,
+            p = recovery ? { ...recovery, name: 'Sygnał ratunkowy' } : this.worldWaypoint;
+        if (!s.marsAct || s.inCurrentMap(p)) return p;
+        if (s.area === 'surface')
+            return { ...s.surfaceSite.exit, name: 'Fobos · powrót na orbitę' };
+        if (s.marsOrbit === 'mars')
+            return {
+                ...(Math.hypot(s.position.x, s.position.y) < 2900
+                    ? PHOBOS_MAZE_ENTRY
+                    : PHOBOS_MAZE_GATE),
+                name: 'Labirynt · śluza Fobosa',
+            };
+        if (s.marsOrbit === 'asteroid')
+            return { ...MARS_GATES.asteroidArrival, name: 'Śluza · powrót na orbitę Fobosa' };
+        const dest = marsOrbitAt(p)?.id;
+        if (dest === 'asteroid' && s.campaign.story!.mars.aiIdentified)
+            return { ...MARS_GATES.asteroidExit, name: 'Śluza · obszar asteroidy' };
+        if (Math.hypot(p.x - MARS_MOONS.phobos.center.x, p.y - MARS_MOONS.phobos.center.y) < 2500)
+            return { ...MARS_MOONS.phobos.entrance, name: 'Fobos · lądowanie' };
+        return { ...MARS_GATES.phobosArrival, name: 'Śluza · powrót na orbitę Marsa' };
+    }
+    private get worldWaypoint() {
         const s = this.sim;
         if (
             this.target === 17 &&
             s.marsAct &&
+            s.marsOrbit === 'mars' &&
             phobosRouteOpen(s.campaign.story!) &&
             !s.campaign.story!.mars.ambushEntered
         ) {
             const p = s.position;
-            const inside = p.x > 2350 && p.x < 5450 && p.y > -3050 && p.y < 1650;
+            const inside = Math.hypot(p.x, p.y) > 2900;
             return inside
                 ? { ...PHOBOS_MAZE_GATE, name: 'Śluza Fobosa · koniec labiryntu' }
                 : { ...PHOBOS_MAZE_ENTRY, name: 'Labirynt Fobosa · wejście' };
@@ -362,6 +395,9 @@ export class MissionHud extends Container {
         }
     }
     private refresh() {
+        this.areaTitle?.setText(
+            this.sim.area === 'surface' ? 'Fobos · powierzchnia' : (this.sim.marsMap?.name ?? ''),
+        );
         if (this.sim.rescueOperation && !this.rescueStatus)
             this.rescueStatus = label(this, '', 40, 245, 14, C.gold, 720);
         this.guideStatus?.setText(
@@ -632,7 +668,7 @@ export class MissionHud extends Container {
         this.selectedGoal.y = goalY;
         this.selectedGoal.setText(matches ? '' : `Wybrany cel: ${waypoint.name}`);
         this.direction.setText(`${waypoint.name} · ${(distance / 1000).toFixed(1)} km`);
-        if (s.area === 'surface') {
+        if (s.area === 'surface' || s.marsAct) {
             this.surfaceRadar(waypoint);
             this.navigationArrow(waypoint, distance);
             return;
@@ -656,12 +692,6 @@ export class MissionHud extends Container {
             .lineTo(x, y + radius)
             .stroke({ color: C.line, width: 1, alpha: 0.35 });
         this.trail.update(p, s.elapsed);
-        for (const band of s.marsAnomalies)
-            this.map
-                .beginPath()
-                .poly(band.flatMap((point) => [x + point.x * scale, y + point.y * scale]))
-                .fill({ color: 0xc06439, alpha: 0.22 })
-                .stroke({ color: 0xe99d58, width: 0.8, alpha: 0.6 });
         this.map
             .beginPath()
             .circle(x, y, s.stationSafeRadius * scale)
@@ -884,6 +914,36 @@ export class MissionHud extends Container {
             .circle(x, y, 88)
             .fill({ color: 0x303c45, alpha: 0.94 })
             .stroke({ color: C.line, width: 2 });
+        if (s.marsAct) {
+            for (const lane of s.sector.hyperlanes)
+                for (const p of [lane.a, lane.b])
+                    if (s.inCurrentMap(p)) {
+                        const q = point(p);
+                        map.circle(q.x, q.y, 5).stroke({ color: C.cyan, width: 1.5 });
+                    }
+            for (const rock of s.rocks.values()) {
+                const raw = rock.body.translation(),
+                    p = { x: raw.x * GAME.pixelsPerMeter, y: raw.y * GAME.pixelsPerMeter };
+                if (s.inCurrentMap(p)) {
+                    const q = point(p);
+                    map.circle(q.x, q.y, rock.radius > 100 ? 3 : 1).fill({
+                        color: C.gold,
+                        alpha: 0.5,
+                    });
+                }
+            }
+            for (const item of s.salvage.items.values()) {
+                const p = salvagePosition(item);
+                if (s.inCurrentMap(p)) {
+                    const q = point(p);
+                    map.rect(q.x - 2, q.y - 2, 4, 4).stroke({ color: C.gold, width: 1 });
+                }
+            }
+            if (s.inCurrentMap({ x: 0, y: 0 })) {
+                const q = point({ x: 0, y: 0 });
+                map.circle(q.x, q.y, 4).fill(C.mint);
+            }
+        }
         for (const l of s.landmarks) {
             const p = point(l);
             map.circle(p.x, p.y, l.kind === 'passage' ? 5 : 3).fill(

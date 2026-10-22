@@ -1119,7 +1119,7 @@ export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Pomiary anomalii wskazują, że brakującą technologię znajdziemy w rejonie Merkurego. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
-    version: 30;
+    version: 31;
     mars: MarsProgress;
     dialogues: string[];
     sector: StorySectorId;
@@ -1128,7 +1128,7 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 30,
+    version: 31,
     mars: newMarsProgress(),
     dialogues: [],
     sector: 'earth',
@@ -1425,7 +1425,7 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 30 ||
+        p.version !== 31 ||
         !validMarsProgress(p.mars) ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||
         !p.progress ||

@@ -8,6 +8,8 @@ import { destroyDisplayTree } from '../../systems/destroyDisplayTree';
 import { parallaxPoint } from '../../../game/graphics/parallax';
 import { celestialBodiesFor } from '../../../game/worlds/celestialBodies';
 import { CelestialLayer } from '../../../game/graphics/celestialLayer';
+import { marsCelestialBodies } from '../../../game/worlds/celestialBodies';
+import type { MarsOrbitId } from '../../../game/worlds/marsLayout';
 
 export class Background extends Container {
     camera = { x: 0, y: 0 };
@@ -23,6 +25,14 @@ export class Background extends Container {
     private stars: { view: Graphics; x: number; y: number; depth: number; phase: number }[] = [];
     private time = 0;
     private region: StorySectorId | null = null;
+    private marsArea: MarsOrbitId | null = null;
+    setMarsArea(area: MarsOrbitId | null) {
+        if (this.region !== 'mars' || this.marsArea === area) return;
+        this.marsArea = area;
+        this.celestialLayer.setBodies(
+            area ? marsCelestialBodies(area) : celestialBodiesFor('mars'),
+        );
+    }
     private starContexts: GraphicsContext[] = [];
     private illustration: ReturnType<typeof planetView>;
     constructor() {
@@ -89,6 +99,7 @@ export class Background extends Container {
     setRegion(region: StorySectorId | null) {
         if (region === this.region) return;
         this.region = region;
+        this.marsArea = null;
         this.celestialLayer.setBodies(celestialBodiesFor(region));
         destroyDisplayTree(this.illustration);
         this.illustration = planetView(region);

@@ -1,8 +1,16 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-21, wersja 0.122.
+Stan: 2026-10-22, wersja 0.124.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.124 — oprawa i przeloty aktu II
+
+Spójne barwy Fobosa, szczegółowe okno grafiki anomalii wokół kamery, radar bez anomalii, ciągłe animowane przeloty śluzami, zasięg rysowania uwzględniający rozmiar asteroidy i Kepler dopiero po odblokowaniu eskorty. 77 testów przechodzi. [Szczegóły i weryfikacja](implementation-v0.124.md).
+
+## Wdrożenie 0.123 — przebudowa Aktu II według planu v0.5
+
+[Uzupełnienie planu v0.5](SATUK15_Akt_II_Mars_plan_v0.5.md) określa trzy oddzielne obszary orbitalne (Mars 75% anomalii, Fobos 25%, asteroida 0%) oraz powierzchnię Fobosa. Zastępuje wcześniejsze założenie o wspólnej mapie i dostępności Deimosa. Obejmuje rozgałęziony labirynt, skaner bazy, minigrę, wyłączanie patroli do holowania i usunięcie blokowania wylotu. Wdrożono trzy osobne mapy orbitalne i powierzchnię Fobosa, minigrę ze skanerem i holowaniem wyłączonych patroli, migrację zapisów i optymalizację przygotowania anomalii. 75 testów przechodzi. [Szczegóły, pomiary i pozostały balans](implementation-v0.123.md).
 
 ## Wdrożenie 0.122 — labirynt i obrażenia anomalii
 

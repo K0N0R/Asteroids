@@ -2,26 +2,32 @@ import { GAME } from '../config';
 import { syncStory } from '../state/story';
 import {
     MARS_ACT as M,
+    MARS_SURFACE_PATROLS,
     marsArea,
     phobosRouteOpen,
     phobosOrbitSecured,
     marsSecurityObjective,
 } from '../state/marsAct';
-import {
-    marsSystemLanes,
-    marsSystemZones,
-    generateMarsActSector,
-    MARS_ANOMALIES,
-} from '../worlds/marsSystem';
+import { marsSystemLanes, marsSystemZones, generateMarsActSector } from '../worlds/marsSystem';
 import { ANOMALY, polygonDistance } from './anomalyField';
 import { enemyPosition } from './enemies';
 import { salvagePosition } from './salvage';
 import { awardPilotXp } from '../state/pilots';
 import type { FlightInput, MissionSimulation } from './mission';
 import type { Point } from '../worlds/sector';
+import { OutpostSecurity } from './outpost';
+import { TerminalPuzzle, type TerminalAction } from './terminalPuzzle';
 
 export class MarsActMission {
-    private hack = 0;
+    readonly security = new OutpostSecurity({
+        ...M.base,
+        name: 'Instalacja Fobosa',
+        phase: 0,
+        terminal: M.terminal,
+        guards: [],
+    });
+    hacking = false;
+    private interactHeld = false;
     private exposure = 0;
     private knownLayout = '';
     private warned = '';
@@ -34,10 +40,16 @@ export class MarsActMission {
                 factory.damage(900 - (this.baseFactory ? this.p.baseHealth : this.p.yardHealth));
             if (this.baseFactory) factory.active = this.p.baseAlarm;
             for (const e of this.p.reinforcements)
-                if (s.enemies.enemies.has(e.id)) factory.units.add(e.id);
+                if (
+                    s.enemies.enemies.has(e.id) &&
+                    marsArea(e) === (this.baseFactory ? 'surface' : 'asteroid')
+                )
+                    factory.units.add(e.id);
         }
         this.refreshLayout();
         this.spawnCargo();
+        this.security.secured = this.p.baseNeutralized;
+        if (this.p.baseNeutralized) this.security.disabledTime = Infinity;
         this.say(
             'intro',
             'Ada Serrin: Rozpoczynamy operację. Przygotuj tarcze Satuk 15 i rozpoznaj możliwość lądowania na Marsie. Orbita jest na razie spokojna.',
@@ -76,7 +88,7 @@ export class MarsActMission {
         )
             return this.s.enemyFactory?.active
                 ? 'Alarm instalacji · zniszcz rdzeń i odeprzyj posiłki'
-                : `E · włamanie bez alarmu · ${Math.floor((this.hack / 5) * 100)}%`;
+                : 'E · szybkie włamanie: ułóż ścieżkę · uważaj na obracający się skaner';
         return '';
     }
     private say(id: string, text: string) {
@@ -100,6 +112,7 @@ export class MarsActMission {
         ].join();
         if (key === this.knownLayout) return;
         this.knownLayout = key;
+        s.ensureMarsResearchEscort();
         const generated = generateMarsActSector(p);
         s.syncMarsLayout(generated);
         s.sector.hyperlanes = marsSystemLanes(p);
@@ -110,6 +123,12 @@ export class MarsActMission {
     }
     private spawnCargo() {
         const s = this.s;
+        if (
+            phobosRouteOpen(s.campaign.story!) &&
+            !this.p.announcements.includes('old-ship-delivery') &&
+            !s.salvage.items.has(M.oldShipId)
+        )
+            s.salvage.add(M.oldShipId, 'patrol', M.oldShip, { x: 0, y: 0 });
         if (this.p.baseNeutralized && !this.p.memoryDelivered && !s.salvage.items.has(M.memoryId))
             s.salvage.add(M.memoryId, 'satellite', this.p.memoryPosition ?? M.memory, {
                 x: 0,
@@ -127,11 +146,12 @@ export class MarsActMission {
             item = s.salvage.items.get(id);
         if (
             !item ||
-            ![M.memoryId, M.probeId].includes(id as typeof M.memoryId) ||
+            !([M.memoryId, M.probeId, M.oldShipId] as number[]).includes(id) ||
             Math.hypot(salvagePosition(item).x, salvagePosition(item).y) > GAME.dockRadius
         )
             return false;
-        if (id === M.memoryId) {
+        if (id === M.oldShipId) this.p.announcements.push('old-ship-delivery');
+        else if (id === M.memoryId) {
             if (!this.p.baseNeutralized || this.p.memoryDelivered) return false;
             this.p.memoryDelivered = true;
             this.say(
@@ -186,6 +206,101 @@ export class MarsActMission {
         s.deliveryRevision++;
         this.refreshLayout();
     }
+    private canHack() {
+        const s = this.s;
+        return (
+            s.area === 'surface' &&
+            !s.ended &&
+            s.speed < 30 &&
+            !s.thrusting &&
+            !s.marsUnderFire &&
+            !this.p.baseNeutralized &&
+            !this.p.baseAlarm &&
+            Math.hypot(s.position.x - M.terminal.x, s.position.y - M.terminal.y) < 125
+        );
+    }
+    private alarmBase() {
+        this.p.baseAlarm = true;
+        this.security.raiseAlarm();
+        if (this.baseFactory && this.s.enemyFactory) this.s.enemyFactory.active = true;
+        this.hacking = false;
+        this.s.terminalPuzzle = null;
+        this.s.setNotice('Alarm Fobosa · skaner wykrył intruza · baza produkuje posiłki');
+        this.s.deliveryRevision++;
+    }
+    terminalAction(action: TerminalAction) {
+        const s = this.s,
+            puzzle = s.terminalPuzzle;
+        if (!this.hacking || !puzzle) return false;
+        if ('cancel' in action || !this.canHack()) {
+            this.hacking = false;
+            s.terminalPuzzle = null;
+            return false;
+        }
+        const outcome = puzzle.act(action);
+        if (outcome === 'alarm' || puzzle.trace >= 100) {
+            this.alarmBase();
+            return false;
+        }
+        if (outcome !== 'success') return false;
+        this.hacking = false;
+        s.terminalPuzzle = null;
+        this.p.quietHack = true;
+        this.security.secured = true;
+        this.security.disabledTime = Infinity;
+        this.security.alarm = 0;
+        s.disableMarsPatrols(MARS_SURFACE_PATROLS);
+        s.enemyFactory!.damage(s.enemyFactory!.health);
+        this.factoryDestroyed();
+        const pilot = s.campaign.pilots.find((p) => p.id === s.campaign.activeRun?.pilotId);
+        if (pilot) {
+            const result = awardPilotXp(pilot, 25);
+            if (s.campaign.activeRun)
+                s.campaign.activeRun.questXp =
+                    (s.campaign.activeRun.questXp ?? 0) + result.gainedXp;
+        }
+        s.events.push({ ...M.base, kind: 'collect', sound: 'complete' });
+        this.say(
+            'hack',
+            'Ivo Nadir: Ścieżka połączona. Baza i patrole wyłączone. Drony można odholować, a moduł pamięci dostarczyć do Satuk 15.',
+        );
+        return true;
+    }
+    private updateBase(input: FlightInput, dt: number) {
+        const s = this.s,
+            pressed = input.interact && !this.interactHeld;
+        this.interactHeld = input.interact;
+        const seen = this.security.sees(
+            s.position,
+            s.elapsed,
+            s.opticalCloak ? 0 : 1,
+            s.scannerLineClear(M.base, s.position),
+        );
+        if (
+            this.security.update(dt, seen).callGuards ||
+            (Math.hypot(s.position.x - M.base.x, s.position.y - M.base.y) < 850 &&
+                (input.fire || s.marsUnderFire))
+        )
+            this.alarmBase();
+        if (this.hacking && (!s.terminalPuzzle || !this.canHack())) {
+            this.hacking = false;
+            s.terminalPuzzle = null;
+        }
+        if (this.hacking && s.terminalPuzzle?.tick(dt)) {
+            this.alarmBase();
+            return;
+        }
+        if (pressed && !this.hacking && this.canHack()) {
+            s.terminalPuzzle = new TerminalPuzzle(
+                'breach',
+                s.hullId,
+                s.campaign.activeRun!.seed ^ 0x7150,
+            );
+            s.terminalPuzzle.remaining = s.hullId === 'falcon' ? 20 : 15;
+            this.hacking = true;
+            s.setNotice('Połącz ścieżkę przed wykryciem · skaner i patrole nadal działają');
+        }
+    }
     update(input: FlightInput, dt: number) {
         const s = this.s,
             p = s.campaign.story!,
@@ -213,7 +328,7 @@ export class MarsActMission {
         } else if (allowed) this.lastAllowed = { ...point };
         if (
             !this.p.landingBlocked &&
-            Math.hypot(point.x - M.landing.x, point.y - M.landing.y) < 400
+            Math.hypot(point.x - M.landing.x, point.y - M.landing.y) < 1100
         ) {
             this.p.landingBlocked = true;
             this.say(
@@ -248,7 +363,7 @@ export class MarsActMission {
             this.p.baseDiscovered = true;
             this.say(
                 'discovery',
-                'Ivo Nadir: Wśród złóż wykryłem ukrytą instalację. Podejdź od zachodu do terminala bez alarmu albo zneutralizuj jej systemy w walce.',
+                'Ivo Nadir: Wśród złóż wykryłem ukrytą instalację. Podejdź od wschodu do terminala bez alarmu albo zneutralizuj jej systemy w walce.',
             );
         }
         if (factory) {
@@ -264,36 +379,7 @@ export class MarsActMission {
             area === 'surface' &&
             s.area === 'surface'
         ) {
-            const near = Math.hypot(point.x - M.base.x, point.y - M.base.y) < 650;
-            if (near && (point.x > M.base.x - 60 || input.fire)) factory.active = true;
-            const ready =
-                !factory.active &&
-                this.context &&
-                input.interact &&
-                !input.fire &&
-                !input.mine &&
-                !input.thrust &&
-                s.speed < 30 &&
-                !s.marsUnderFire;
-            this.hack = ready ? this.hack + dt : 0;
-            if (this.hack >= 5) {
-                this.p.quietHack = true;
-                factory.damage(factory.health);
-                this.factoryDestroyed();
-                const pilot = s.campaign.pilots.find(
-                    (pilot) => pilot.id === s.campaign.activeRun?.pilotId,
-                );
-                if (pilot) {
-                    const result = awardPilotXp(pilot, 80);
-                    if (s.campaign.activeRun)
-                        s.campaign.activeRun.questXp =
-                            (s.campaign.activeRun.questXp ?? 0) + result.gainedXp;
-                }
-                this.say(
-                    'hack',
-                    'Ivo Nadir: Ciche włamanie udane. Obrona wyłączona; pilot otrzymuje 80 PD.',
-                );
-            }
+            this.updateBase(input, dt);
         }
         if (factory)
             for (const id of factory.units) {
@@ -303,7 +389,7 @@ export class MarsActMission {
             }
         const contaminated =
             s.area === 'orbit' &&
-            MARS_ANOMALIES.some(
+            s.marsAnomalies.some(
                 (band) =>
                     polygonDistance(point, band) <=
                     Math.max(...s.hullConfig.hitbox) * s.hullConfig.size,

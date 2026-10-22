@@ -66,6 +66,7 @@ export function validMarsProgress(value: unknown): value is MarsProgress {
                 'wave-0',
                 'wave-1',
                 'wave-2',
+                'old-ship-delivery',
             ].includes(id),
         ) &&
         [
@@ -85,7 +86,7 @@ export function validMarsProgress(value: unknown): value is MarsProgress {
                 !!p.memoryPosition &&
                 Number.isFinite(p.memoryPosition.x) &&
                 Number.isFinite(p.memoryPosition.y) &&
-                Math.hypot(p.memoryPosition.x, p.memoryPosition.y) <= 12000)) &&
+                Math.hypot(p.memoryPosition.x, p.memoryPosition.y) <= 1000000)) &&
         [p.baseHealth, p.yardHealth].every((n) => Number.isFinite(n) && n >= 0 && n <= 900) &&
         Array.isArray(p.reinforcements) &&
         p.reinforcements.length <= 1000 &&
@@ -116,16 +117,18 @@ export function validMarsProgress(value: unknown): value is MarsProgress {
     );
 }
 export const MARS_ACT = {
-    landing: { x: -1800, y: 1300 },
-    deimosGate: { x: -5200, y: -1700 },
-    phobos: { x: 6500, y: 0 },
+    landing: { x: 4000, y: -4000 },
+    deimosGate: { x: -2200, y: -10000 },
+    phobos: { x: 31000, y: -100 },
     surface: { x: 6500, y: 6000 },
-    asteroid: { x: -500, y: 6500 },
+    asteroid: { x: 60000, y: 0 },
     base: { x: 6900, y: 6300 },
-    terminal: { x: 6650, y: 6300 },
-    yard: { x: -800, y: 6600 },
+    terminal: { x: 7140, y: 6300 },
+    yard: { x: 60650, y: 100 },
     memory: { x: 6600, y: 6220 },
-    probe: { x: 6100, y: -550 },
+    probe: { x: 29100, y: -900 },
+    oldShip: { x: 30700, y: 1000 },
+    oldShipId: -73003,
     research: [
         { x: 1550, y: -1200 },
         { x: -1650, y: -1700 },
@@ -135,6 +138,7 @@ export const MARS_ACT = {
     probeId: -73002,
 } as const;
 export const MARS_AMBUSH = [71000, 71001, 71002];
+export const MARS_SURFACE_PATROLS = [71500, 71501, 71502, 71503];
 export const MARS_YARD_PATROLS = Array.from({ length: 12 }, (_, i) => 72000 + i);
 export function phobosRouteOpen(p: StoryProgress) {
     return p.claimed.includes('mars-shields') && p.mars.landingBlocked;
@@ -146,9 +150,12 @@ export function marsThreatsCleared(p: StoryProgress) {
     return (
         p.mars.baseNeutralized &&
         p.mars.yardDestroyed &&
-        [...MARS_AMBUSH, ...MARS_YARD_PATROLS, ...p.mars.reinforcements.map((e) => e.id)].every(
-            (id) => p.mars.kills.includes(id),
-        )
+        [
+            ...MARS_AMBUSH,
+            ...MARS_SURFACE_PATROLS,
+            ...MARS_YARD_PATROLS,
+            ...p.mars.reinforcements.map((e) => e.id),
+        ].every((id) => p.mars.kills.includes(id))
     );
 }
 export function marsSecurityObjective(p: StoryProgress) {
@@ -163,7 +170,7 @@ export function marsSecurityObjective(p: StoryProgress) {
 }
 export function marsArea(p: Point) {
     if (Math.hypot(p.x - MARS_ACT.surface.x, p.y - MARS_ACT.surface.y) < 1900) return 'surface';
-    if (Math.hypot(p.x - MARS_ACT.asteroid.x, p.y - MARS_ACT.asteroid.y) < 1900) return 'asteroid';
-    if (Math.hypot(p.x - MARS_ACT.phobos.x, p.y - MARS_ACT.phobos.y) < 1900) return 'phobos';
+    if (Math.hypot(p.x - MARS_ACT.asteroid.x, p.y - MARS_ACT.asteroid.y) < 2000) return 'asteroid';
+    if (Math.hypot(p.x - 30000, p.y) < 3000) return 'phobos';
     return 'orbit';
 }

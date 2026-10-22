@@ -268,3 +268,24 @@ test('cancelling a charged jump immediately restores normal collisions for ship 
         s.dispose();
     }
 });
+
+test('inter-area hyperspace follows a continuous timed route instead of teleporting', () => {
+    const d = new Hyperdrive(),
+        from = { x: 10500, y: -9500 },
+        to = { x: 30000, y: 2200 };
+    assert.ok(d.start(from, to, true, true));
+    assert.ok(d.charge(0.7));
+    let last = from,
+        total = 0;
+    for (let i = 0; i < 144; i++) {
+        const next = d.next(last, 1 / 60);
+        total += Math.hypot(next.point.x - last.x, next.point.y - last.y);
+        assert.ok(Math.hypot(next.point.x - last.x, next.point.y - last.y) < 300);
+        if (i < 140) assert.equal(next.complete, false);
+        last = next.point;
+    }
+    const end = d.next(last, 1 / 60);
+    assert.equal(end.complete, true);
+    assert.deepEqual(end.point, to);
+    assert.ok(Math.abs(total - Math.hypot(to.x - from.x, to.y - from.y)) < 1);
+});

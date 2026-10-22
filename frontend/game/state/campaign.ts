@@ -1,4 +1,6 @@
 import { cargoCapacity } from '../config';
+import { migrateMarsLayout } from './marsLayoutMigration';
+import { nearestMarsOrbit } from '../worlds/marsLayout';
 import { newMarsProgress } from './marsAct';
 import {
     packLunarShipment,
@@ -303,6 +305,7 @@ export function parseCampaign(json: string | null): Campaign | null {
                 delete p.activeRun.mission;
         }
 
+        migrateMarsLayout(p);
         if (!object(p.lunarStation) || !cargo(p.lunarStation.bank)) return null;
         if (
             !integer(p.station.workshop, 2) ||
@@ -551,7 +554,13 @@ export function parseCampaign(json: string | null): Campaign | null {
                         : (signal.seed !== STORY_SECTORS.lunar.seed &&
                               signal.seed !== STORY_SECTORS.earth.seed) ||
                           moonDistance(signal) > MOON.radius - 200
-                    : Math.hypot(signal.x, signal.y) > signalRadius - 200) ||
+                    : signal.seed === STORY_SECTORS.mars.seed
+                      ? Math.hypot(
+                            signal.x - nearestMarsOrbit(signal).center.x,
+                            signal.y - nearestMarsOrbit(signal).center.y,
+                        ) >
+                        nearestMarsOrbit(signal).radius - 200
+                      : Math.hypot(signal.x, signal.y) > signalRadius - 200) ||
                 (signal.ship === null && signal.pilot === null) ||
                 (signal.ship !== null && (!validShip(signal.ship) || signal.ship.id !== signal.id))
             )
@@ -1178,23 +1187,28 @@ export function finishRun(
         }
     } else {
         const loss = recovery.lossPosition ?? active.lastPosition;
-        const site = active.sector === 'mars' ? nearestMarsSurface(loss) : MOON;
+        const site =
+            active.sector === 'mars'
+                ? active.area === 'surface'
+                    ? nearestMarsSurface(loss)
+                    : nearestMarsOrbit(loss)
+                : active.area === 'surface'
+                  ? MOON
+                  : null;
         const signal = createRecoverySignal(
             c.ship!,
             pilot,
             active.seed,
-            active.area === 'surface'
-                ? { x: loss.x - site.center.x, y: loss.y - site.center.y }
-                : loss,
-            c.story ? storyRadius(c.story) : GAME.sectorRadius,
+            site ? { x: loss.x - site.center.x, y: loss.y - site.center.y } : loss,
+            site?.radius ?? (c.story ? storyRadius(c.story) : GAME.sectorRadius),
         );
         if (signal) {
-            if (active.area === 'surface') {
+            if (site) {
                 const distance = Math.hypot(signal.x, signal.y);
                 const scale = Math.min(1, (site.radius - 200) / distance);
                 signal.x = site.center.x + signal.x * scale;
                 signal.y = site.center.y + signal.y * scale;
-                signal.area = 'surface';
+                if (active.area === 'surface') signal.area = 'surface';
             } else if (c.story) {
                 const limit = storyRadius(c.story) - 200;
                 const scale = Math.min(1, limit / Math.hypot(signal.x, signal.y));

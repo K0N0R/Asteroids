@@ -7,6 +7,7 @@ export const HYPERDRIVE = {
     charge: 0.7,
     minimum: 600,
     gateRadius: 110,
+    transferSeconds: 2.4,
 } as const;
 export interface Hyperlane {
     name: string;
@@ -42,24 +43,30 @@ export class Hyperdrive {
     state: 'idle' | 'charging' | 'transit' = 'idle';
     remaining = 0;
     guided = false;
+    transfer = false;
+    transitElapsed = 0;
     target: Point = { x: 0, y: 0 };
     origin: Point = { x: 0, y: 0 };
     get active() {
         return this.state !== 'idle';
     }
-    start(from: Point, to: Point, guided = false) {
+    start(from: Point, to: Point, guided = false, transfer = false) {
         if (
             this.active ||
             ![from.x, from.y, to.x, to.y].every(Number.isFinite) ||
             Math.hypot(to.x - from.x, to.y - from.y) < HYPERDRIVE.minimum ||
-            Math.hypot(to.x - from.x, to.y - from.y) >
-                (guided ? HYPERDRIVE.gateRange : HYPERDRIVE.range) + 1
+            (!transfer &&
+                Math.hypot(to.x - from.x, to.y - from.y) >
+                    (guided ? HYPERDRIVE.gateRange : HYPERDRIVE.range) + 1) ||
+            (transfer && !guided)
         )
             return false;
         this.origin = { ...from };
         this.target = { ...to };
         this.remaining = HYPERDRIVE.charge;
         this.guided = guided;
+        this.transfer = transfer;
+        this.transitElapsed = 0;
         this.state = 'charging';
         return true;
     }
@@ -75,6 +82,18 @@ export class Hyperdrive {
         return true;
     }
     next(from: Point, dt: number) {
+        if (this.transfer) {
+            this.transitElapsed = Math.min(HYPERDRIVE.transferSeconds, this.transitElapsed + dt);
+            const t = this.transitElapsed / HYPERDRIVE.transferSeconds;
+            const eased = t * t * (3 - 2 * t);
+            return {
+                point: {
+                    x: this.origin.x + (this.target.x - this.origin.x) * eased,
+                    y: this.origin.y + (this.target.y - this.origin.y) * eased,
+                },
+                complete: t >= 1,
+            };
+        }
         const dx = this.target.x - from.x,
             dy = this.target.y - from.y,
             length = Math.hypot(dx, dy);

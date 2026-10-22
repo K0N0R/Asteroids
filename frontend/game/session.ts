@@ -808,6 +808,7 @@ export class GameSession {
         }
         this.background.lunarTransfer = this.mission.simulation.transferActive;
         this.background.transferBody = this.mission.simulation.marsMoon?.id ?? 'moon';
+        this.background.setMarsArea(this.mission.simulation.marsMap?.id ?? null);
         this.background.camera = this.mission.backgroundCamera;
         this.background.cameraAngle = this.mission.camera.rotation;
         this.background.cameraZoom = this.mission.backgroundZoom;

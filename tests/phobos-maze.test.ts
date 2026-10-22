@@ -3,42 +3,42 @@ import assert from 'node:assert/strict';
 import {
     PHOBOS_MAZE_BANDS,
     PHOBOS_MAZE_ROUTE,
+    PHOBOS_MAZE_BRANCHES,
     PHOBOS_MAZE_ENTRY,
     PHOBOS_MAZE_GATE,
 } from '../frontend/game/worlds/phobosMaze';
 import { polygonDistance } from '../frontend/game/systems/anomalyField';
-
-test('the full winding route has generous hull clearance and is over four times the direct distance', () => {
-    let length = 0;
-    for (let i = 1; i < PHOBOS_MAZE_ROUTE.length; i++) {
-        const a = PHOBOS_MAZE_ROUTE[i - 1],
-            b = PHOBOS_MAZE_ROUTE[i];
-        length += Math.hypot(b.x - a.x, b.y - a.y);
-        for (let t = 0; t <= 1; t += 0.01) {
-            const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-            assert.ok(
-                PHOBOS_MAZE_BANDS.every((band) => polygonDistance(p, band) > 180),
-                JSON.stringify(p),
-            );
-        }
+import { segmentDistance } from '../frontend/game/systems/hyperdrive';
+import { MARS_MAPS, inMarsMap } from '../frontend/game/worlds/marsLayout';
+import { marsAnomaliesFor } from '../frontend/game/worlds/marsSystem';
+test('branching maze has ample full-hull clearance and five genuine dead ends', () => {
+    for (const route of [PHOBOS_MAZE_ROUTE, ...PHOBOS_MAZE_BRANCHES])
+        for (let i = 1; i < route.length; i++)
+            for (let t = 0; t <= 1; t += 0.01) {
+                const a = route[i - 1],
+                    b = route[i],
+                    p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+                assert.ok(
+                    PHOBOS_MAZE_BANDS.every((b) => polygonDistance(p, b) > 180),
+                    JSON.stringify(p),
+                );
+            }
+    assert.equal(PHOBOS_MAZE_BRANCHES.length, 5);
+    for (const branch of PHOBOS_MAZE_BRANCHES) {
+        const end = branch.at(-1)!;
+        assert.ok(
+            PHOBOS_MAZE_ROUTE.slice(1).every(
+                (b, i) => segmentDistance(end, PHOBOS_MAZE_ROUTE[i], b) > 750,
+            ),
+        );
     }
-    assert.deepEqual(PHOBOS_MAZE_ROUTE.at(-1), PHOBOS_MAZE_GATE);
-    assert.ok(
-        length >
-            4 *
-                Math.hypot(
-                    PHOBOS_MAZE_GATE.x - PHOBOS_MAZE_ENTRY.x,
-                    PHOBOS_MAZE_GATE.y - PHOBOS_MAZE_ENTRY.y,
-                ),
-    );
 });
-
-test('a shortest-path search cannot bypass the maze by flying around its outer walls', () => {
-    const step = 100,
+test('independent path search confirms a long route through the maze, without an exterior bypass', () => {
+    const step = 200,
         start = PHOBOS_MAZE_ENTRY,
-        goal = PHOBOS_MAZE_GATE;
-    const key = (x: number, y: number) => `${x},${y}`;
-    const seen = new Set([key(start.x, start.y)]),
+        goal = PHOBOS_MAZE_GATE,
+        key = (x: number, y: number) => `${x},${y}`,
+        seen = new Set([key(start.x, start.y)]),
         queue = [{ ...start, d: 0 }];
     let shortest = Infinity;
     for (let i = 0; i < queue.length; i++) {
@@ -56,12 +56,32 @@ test('a shortest-path search cannot bypass the maze by flying around its outer w
             const x = p.x + dx,
                 y = p.y + dy,
                 k = key(x, y);
-            if (x < 0 || x > 6500 || y < -3800 || y > 2300 || seen.has(k)) continue;
-            if (PHOBOS_MAZE_BANDS.some((b) => polygonDistance({ x, y }, b) <= 80)) continue;
+            if (
+                !inMarsMap('mars', { x, y }) ||
+                seen.has(k) ||
+                PHOBOS_MAZE_BANDS.some((b) => polygonDistance({ x, y }, b) <= 80)
+            )
+                continue;
             seen.add(k);
             queue.push({ x, y, d: p.d + step });
         }
     }
-    assert.ok(Number.isFinite(shortest), 'gate remains reachable');
-    assert.ok(shortest > 16000, `shortest ${shortest}`);
+    assert.ok(Number.isFinite(shortest));
+    assert.ok(shortest > 25000, `shortest ${shortest}`);
+});
+test('separate orbital maps have roughly 75 / 25 / 0 percent contamination', () => {
+    for (const m of Object.values(MARS_MAPS)) {
+        let all = 0,
+            on = 0;
+        const bands = marsAnomaliesFor(m.id);
+        for (let x = m.center.x - m.radius; x < m.center.x + m.radius; x += 200)
+            for (let y = m.center.y - m.radius; y < m.center.y + m.radius; y += 200) {
+                const p = { x: x + 100, y: y + 100 };
+                if (!inMarsMap(m.id, p)) continue;
+                all++;
+                if (bands.some((b) => polygonDistance(p, b) === 0)) on++;
+            }
+        const expected = m.id === 'mars' ? 0.75 : m.id === 'phobos' ? 0.25 : 0;
+        assert.ok(Math.abs(on / all - expected) < 0.025, `${m.id}: ${on / all}`);
+    }
 });

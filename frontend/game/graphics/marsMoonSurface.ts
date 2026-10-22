@@ -8,11 +8,10 @@ import { C } from './shapes';
 
 /** Each moon has its own ground and approach; neither is an extra dockable station. */
 export class MarsMoonSurfaceView extends Container {
-    private bodies = Object.values(MARS_MOONS).map((body) => {
+    private bodies = [MARS_MOONS.phobos].map((body) => {
         const ground = marsMoonView(body.id);
         ground.position.copyFrom(body.center);
         ground.scale.set(30);
-        ground.tint = body.id === 'phobos' ? 0x777580 : 0x85828e;
         const gates = [body.entrance, body.exit].map((point, i) => {
             const gate = new Container();
             gate.position.copyFrom(point);
@@ -38,8 +37,7 @@ export class MarsMoonSurfaceView extends Container {
     });
     update(s: MissionSimulation, angle: number) {
         for (const { body, ground, gates } of this.bodies) {
-            const unlocked =
-                body.id === 'deimos' || !s.marsAct || phobosOrbitSecured(s.campaign.story!);
+            const unlocked = !s.marsAct || phobosOrbitSecured(s.campaign.story!);
             ground.visible =
                 (s.area === 'surface' && s.marsMoon?.id === body.id) ||
                 (s.transferActive && s.marsMoon?.id === body.id);
@@ -47,7 +45,9 @@ export class MarsMoonSurfaceView extends Container {
                 gate.visible =
                     unlocked &&
                     !s.transferActive &&
-                    (i ? s.area === 'surface' && s.marsMoon?.id === body.id : s.area === 'orbit');
+                    (i
+                        ? s.area === 'surface' && s.marsMoon?.id === body.id
+                        : s.area === 'orbit' && (!s.marsAct || s.marsOrbit === 'phobos'));
                 title.rotation = -angle;
             });
         }

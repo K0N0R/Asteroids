@@ -1,7 +1,7 @@
 import { releaseSceneBuffers } from '../../core/systems/renderMemory';
 import { MARS_ACT } from '../state/marsAct';
 import { MarsMoonSurfaceView } from '../graphics/marsMoonSurface';
-import { anomalyCloudView } from '../graphics/anomalyCloudView';
+import { AnomalyCloudView } from '../graphics/anomalyCloudView';
 import { lunarShipmentView } from '../graphics/lunarShipmentView';
 import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { itemIllustration } from '../graphics/items';
@@ -80,6 +80,9 @@ export class MissionWorld extends Container {
     }
     private moon: MoonSurfaceView;
     private marsMoons: MarsMoonSurfaceView | null = null;
+    private marsCloud: AnomalyCloudView | null = null;
+    private jupiterCloud: AnomalyCloudView | null = null;
+    private marsCloudKey = '';
     private moonPrepared = false;
     private transfer = new LunarTransferView();
     private routes = new Graphics();
@@ -210,24 +213,16 @@ export class MissionWorld extends Container {
         this.moon = new MoonSurfaceView(!!simulation.surfaceUnlocked);
         this.moonPrepared = !!simulation.surfaceUnlocked;
         this.camera.addChild(this.moon, this.venusOutpost, this.solarShadows);
-        if (simulation.anomalyMission) this.camera.addChild(anomalyFieldView());
+        if (simulation.anomalyMission) {
+            const field = anomalyFieldView();
+            this.jupiterCloud = field.cloud;
+            this.camera.addChild(field);
+        }
         if (simulation.campaign.story?.sector === 'mars') {
             this.marsMoons = new MarsMoonSurfaceView();
             this.camera.addChild(this.marsMoons);
         }
         if (simulation.marsAct) {
-            const oldInstallation = outpostView();
-            oldInstallation.position.set(7650, -350);
-            oldInstallation.scale.set(0.6);
-            oldInstallation.alpha = 0.65;
-            const sealedProbe = recoveryProbeView();
-            sealedProbe.position.set(7500, -750);
-            sealedProbe.alpha = 0.7;
-            this.camera.addChild(
-                oldInstallation,
-                sealedProbe,
-                anomalyCloudView(simulation.marsAnomalies),
-            );
             this.camera.addChild(
                 new Graphics()
                     .ellipse(MARS_ACT.asteroid.x, MARS_ACT.asteroid.y, 1450, 1200)
@@ -327,9 +322,9 @@ export class MissionWorld extends Container {
             this.factoryView = new EnemyFactoryView();
             this.camera.addChild(this.factoryView);
         }
-        const outpost = simulation.sector.outpost;
+        const outpost = simulation.marsAct?.security.spec ?? simulation.sector.outpost;
         this.outpostView.position.set(outpost.x, outpost.y);
-        this.outpostView.rotation = outpost.phase + Math.PI;
+        this.outpostView.rotation = simulation.marsAct ? 0 : outpost.phase + Math.PI;
         this.outpostScanner.position.set(outpost.x, outpost.y);
         const titles = new Container();
         titles.position.set(outpost.x, outpost.y);
@@ -349,8 +344,8 @@ export class MissionWorld extends Container {
             20,
             C.mint,
         );
-        this.camera.addChildAt(this.outpostScanner, 2);
-        this.camera.addChildAt(this.outpostView, 3);
+        this.camera.addChildAt(this.outpostScanner, this.camera.getChildIndex(this.rockLayer));
+        this.camera.addChildAt(this.outpostView, this.camera.getChildIndex(this.rockLayer));
         this.camera.addChild(titles);
         this.camera.addChildAt(this.cacheRings, 2);
         for (const cache of simulation.sector.caches) {
@@ -379,6 +374,7 @@ export class MissionWorld extends Container {
     private routeSignature = '';
     private syncRoutes() {
         const signature = JSON.stringify([
+            this.simulation.marsAct ? [this.simulation.area, this.simulation.marsOrbit] : null,
             this.simulation.sector.hyperlanes,
             this.simulation.sector.regions,
         ]);
@@ -387,16 +383,24 @@ export class MissionWorld extends Container {
         this.routes.clear();
         for (const item of this.gateLabels) destroyDisplayTree(item.view);
         this.gateLabels = [];
-        for (const region of this.simulation.sector.regions)
+        for (const region of this.simulation.sector.regions.filter(
+            (r) => !this.simulation.marsAct || this.simulation.inCurrentMap(r),
+        ))
             this.routes
                 .circle(region.x, region.y, region.radius)
                 .stroke({ color: C.cyan, width: 2, alpha: 0.1 });
         for (const lane of this.simulation.sector.hyperlanes) {
-            this.routes
-                .moveTo(lane.a.x, lane.a.y)
-                .lineTo(lane.b.x, lane.b.y)
-                .stroke({ color: 0xa3a9f2, width: 3, alpha: 0.18 });
+            if (!this.simulation.marsAct)
+                this.routes
+                    .moveTo(lane.a.x, lane.a.y)
+                    .lineTo(lane.b.x, lane.b.y)
+                    .stroke({ color: 0xa3a9f2, width: 3, alpha: 0.18 });
             for (const point of [lane.a, lane.b]) {
+                if (
+                    this.simulation.marsAct &&
+                    (this.simulation.area === 'surface' || !this.simulation.inCurrentMap(point))
+                )
+                    continue;
                 this.routes
                     .circle(point.x, point.y, 110)
                     .stroke({ color: 0xa3a9f2, width: 4, alpha: 0.8 })
@@ -786,8 +790,33 @@ export class MissionWorld extends Container {
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
             p = s.position;
+        if (s.marsAct) {
+            const key = `${s.area}/${s.marsOrbit}`;
+            if (key !== this.marsCloudKey) {
+                if (this.marsCloud) destroyDisplayTree(this.marsCloud);
+                this.marsCloud = null;
+                this.marsCloudKey = key;
+                if (s.marsAnomalies.length)
+                    this.marsCloud = this.camera.addChildAt(
+                        new AnomalyCloudView(s.marsAnomalies),
+                        0,
+                    );
+            }
+        }
+        for (const cloud of [this.marsCloud, this.jupiterCloud]) {
+            if (!cloud) continue;
+            cloud.visible = s.hyperdrive.state !== 'transit';
+            if (cloud.visible)
+                cloud.update(
+                    p,
+                    960 / this.camera.scale.x,
+                    580 / this.camera.scale.y,
+                    this.camera.rotation,
+                );
+        }
         if (this.factoryView && s.enemyFactory) {
             this.factoryView.visible =
+                !s.marsAct?.baseFactory &&
                 (s.marsAct?.baseFactory
                     ? s.area === 'surface' && s.marsMoon?.id === 'phobos'
                     : s.area === 'orbit') &&
@@ -1444,11 +1473,19 @@ export class MissionWorld extends Container {
                     .lineTo(site.x + 13, site.y - 113)
                     .stroke({ color: C.mint, width: 3 });
         }
-        const outpost = s.sector.outpost,
-            security = s.outpost;
+        const outpost = s.marsAct?.security.spec ?? s.sector.outpost,
+            security = s.marsAct?.security ?? s.outpost;
+        const showBase = this.inView(outpost) && (!s.marsAct || s.area === 'surface');
         this.outpostScanner.clear();
-        this.outpostView.visible = this.inView(outpost);
-        this.outpostLabel.visible = this.outpostView.visible;
+        this.outpostScanner.position.copyFrom(outpost);
+        this.outpostView.visible = showBase;
+        this.outpostView.position.copyFrom(outpost);
+        this.outpostView.alpha = s.marsAct && s.campaign.story!.mars.baseNeutralized ? 0.7 : 1;
+        this.outpostLabel.visible = showBase;
+        if (s.marsAct)
+            this.outpostLabel.setText(
+                `${outpost.name} · ${Math.ceil(s.campaign.story!.mars.baseHealth)} / 900`,
+            );
         this.terminalLabel.visible =
             this.inView(outpost.terminal) &&
             (!security.secured ||
@@ -1462,7 +1499,7 @@ export class MissionWorld extends Container {
             outpost.terminal.x + terminalOffset.x,
             outpost.terminal.y + terminalOffset.y,
         );
-        if (this.outpostView.visible) {
+        if (showBase) {
             const angle = security.scannerAngle(s.elapsed),
                 half = OUTPOST.scanHalfAngle;
             const color = security.disabledTime > 0 ? C.muted : security.alarm > 0 ? C.red : C.gold;
@@ -1643,6 +1680,10 @@ export class MissionWorld extends Container {
             this.camera.addChild(this.anomalyView, this.researchView, this.researchStatus);
         }
         if (s.escort) {
+            if (!this.researchView.parent) {
+                this.anomalyView.position.copyFrom(s.sector.researchSite);
+                this.camera.addChild(this.anomalyView, this.researchView, this.researchStatus);
+            }
             const e = s.escort,
                 p = e.position;
             this.researchView.visible =
@@ -1657,7 +1698,10 @@ export class MissionWorld extends Container {
             );
             this.researchView.rotation =
                 e.previousAngle + angleDifference(e.body.rotation(), e.previousAngle) * alpha;
-            this.anomalyView.visible = !s.miningEscort && this.inView(s.sector.researchSite, 180);
+            this.anomalyView.visible =
+                !s.miningEscort &&
+                (!s.marsAct || (s.area === 'orbit' && s.marsOrbit === 'mars')) &&
+                this.inView(s.sector.researchSite, 180);
             this.anomalyView.rotation = this.clock * 0.08;
             this.researchStatus.clear();
             if (this.researchView.visible)
@@ -1698,13 +1742,15 @@ export class MissionWorld extends Container {
                               .stroke({ color: 0x79e4de, width: 3 })
                               .rect(-17, -10, 34, 20)
                               .fill(0x759eaa)
-                        : item.id === MARS_ACT.probeId
-                          ? recoveryProbeView()
-                          : item.source === 'shipment'
-                            ? lunarShipmentView()
-                            : item.source === 'satellite'
-                              ? surveySiteView('relay')
-                              : new DroneView(item.source);
+                        : item.id === MARS_ACT.oldShipId
+                          ? new ShipView(newShip(0, 'prospector'))
+                          : item.id === MARS_ACT.probeId
+                            ? recoveryProbeView()
+                            : item.source === 'shipment'
+                              ? lunarShipmentView()
+                              : item.source === 'satellite'
+                                ? surveySiteView('relay')
+                                : new DroneView(item.source);
                 if (drone instanceof DroneView) drone.flame.visible = false;
                 drone.alpha = item.source === 'shipment' ? 1 : 0.75;
                 const scars = new Graphics()
@@ -1829,7 +1875,7 @@ export class MissionWorld extends Container {
                 interpolate(rock.previous.y, pos.y * 100, alpha),
             );
             view.rotation = interpolate(rock.previousAngle, rock.body.rotation(), alpha);
-            view.visible = this.inView(view.position);
+            view.visible = this.inView(view.position, rock.radius * 1.2 + 40);
         }
         for (const [id, view] of this.bullets)
             if (!s.bullets.has(id)) {
@@ -2050,6 +2096,8 @@ export class MissionWorld extends Container {
         SoundManager.stopGroup('gameplay');
         this.simulation.dispose();
         destroyDisplayTree(this);
+        for (const view of [this.researchView, this.researchStatus, this.anomalyView])
+            if (!view.destroyed) destroyDisplayTree(view);
         this.shapes.dispose();
         releaseSceneBuffers();
     }
