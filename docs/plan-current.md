@@ -1,8 +1,32 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-22, wersja 0.124.
+Stan: 2026-10-23, wersja 0.130.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie 0.130 — zasoby na radarze i nowy układ Fobosa
+
+Radar orbity Marsa nie pokazuje złóż z powierzchni Fobosa ani skał poza grywalnym obszarem. Orbitalne pola są generowane z zapasem wewnątrz granic map. Śluza powrotna z Fobosa jest na południowym zachodzie; południowa anomalia została usunięta, a większa strefa zajmuje północ i północny zachód. Aktualny układ zastępuje wcześniejsze założenie o 25% pokrycia Fobosa. 135 testów zakresu zmian przechodzą. [Szczegóły](implementation-v0.130.md).
+
+## Wdrożenie 0.129 — radar, bezpieczne śluzy i obrzeża anomalii
+
+Naprawiono jednolite czerwone wypełnienie radaru w czystym obszarze i przy zmianie skali. Obie trasy śluz Mars–Fobos–asteroida mają wolny pas w grafice i polu obrażeń. Anomalia ma nieregularny zasięg poza granicą gry, a statek zachowuje kierunek przelotu również po ostatniej klatce. 132 testy zakresu zmian przechodzą. [Szczegóły](implementation-v0.129.md).
+
+## Wdrożenie 0.128 — czytelna, ruchoma anomalia i radar
+
+Zwiększono nieregularność brzegów labiryntu i amplitudę płynnej deformacji włókien. Stała, mała warstwa mgły pokazuje niebezpieczne wnętrza również podczas doczytywania szczegółów. Radar jest większy o 25%, ma zanikający ślad lotu, kolorowe pole anomalii i zoom pod `[` / `]` (×0.75–×4). Przejścia i powierzchnie zachowują właściwą historię śladu. 127 testów zakresu zmian przechodzi; podgląd przeglądarkowy potwierdza pokrycie zagrożeń, ruch siatki, klawisze zoomu i zwolnienie zasobów. [Szczegóły](implementation-v0.128.md).
+
+## Wdrożenie 0.127 — organiczny labirynt, płynne śluzy i narzędzia testowe
+
+[Plan aktu II v0.6](SATUK15_Akt_II_Mars_plan_v0.6.md) uzupełnia poprzedni układ. Moduł pamięci nadal wymaga dostawy, natomiast odzysk wraków statków jest opcjonalny. Labirynt ma zakrzywione, rozgałęzione przejścia i falującą grafikę; obiekty i radar działają w trakcie przelotu śluzą. Ograniczono aktywną fizykę i pamięć grafiki, dodano techniczny powrót i osobny zapis testowy z dowolnym sektorem. Prospector zawsze rozpada się po utracie sygnału. [Raport i weryfikacja](implementation-v0.127.md).
+
+## Wdrożenie 0.126 — lądowanie Fobosa i ruch podczas animacji
+
+Szeroki kadr lądowania filtruje obiekty według bieżącego obszaru. Nie pokazuje Satuk 15, jej dronów, asteroid z innych map ani warstwy ziemskiego Księżyca. Podczas wylotu, dokowania i transferów fizyka otoczenia nadal działa; statek i hol pozostają pod kontrolą animacji, bez obrażeń i uruchamiania walki. [Szczegóły i testy](implementation-v0.126.md).
+
+## Wdrożenie 0.125 — płynność zwykłego lotu
+
+Rysowanie anomalii przeniesiono do workera i podzielono na małe fragmenty przygotowywane z wyprzedzeniem. Zastępuje to synchroniczną wymianę dużego okna grafiki z 0.124. Zachowano szczegółowość włókien; zwalnianie obejmuje bitmapy, tekstury i worker. [Pomiary i weryfikacja](implementation-v0.125.md).
 
 ## Wdrożenie 0.124 — oprawa i przeloty aktu II
 

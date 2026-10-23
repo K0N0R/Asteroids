@@ -458,7 +458,7 @@ test('distant lunar copper outcrops stay attached, break into loose fragments, a
     }
 });
 
-test('lunar cinematic locks actions and world time in both directions, preserving supplies and held-E protection', () => {
+test('lunar cinematic locks pilot actions while world time advances, preserving supplies and held-E protection', () => {
     const c = lunarReady();
     beginRun(c, 1);
     const s = new MissionSimulation(c, 1);
@@ -471,7 +471,6 @@ test('lunar cinematic locks actions and world time in both directions, preservin
         assert.equal(s.area, 'surface');
         assert.ok(s.transferActive);
         const snapshot = () => ({
-            elapsed: s.elapsed,
             position: { ...s.position },
             hull: s.hull,
             shield: s.shield,
@@ -625,7 +624,10 @@ test('renderer keeps the physical tow visible and has no endpoint jump in either
                 const towScreen = tow.getGlobalPosition();
                 assert.ok(Math.abs(shipScreen.x - 800) < 1e-7);
                 assert.ok(Math.abs(shipScreen.y - 450) < 1e-7);
-                assert.ok(Math.abs(tow.scale.x * world.camera.scale.x - 1) < 1e-12);
+                assert.ok(
+                    Math.abs(tow.scale.x * world.camera.scale.x - 1) < 1e-12,
+                    `progress ${progress}, surface ${surface}, tow ${tow.scale.x}, zoom ${world.camera.scale.x}`,
+                );
                 if (previousTow)
                     assert.ok(
                         Math.hypot(towScreen.x - previousTow.x, towScreen.y - previousTow.y) < 1e-7,

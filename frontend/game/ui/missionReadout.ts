@@ -11,6 +11,7 @@ import {
 } from '../config';
 import type { Cargo } from '../state/campaign';
 import type { MissionSimulation } from '../systems/mission';
+import { MARS_ACT } from '../state/marsAct';
 import { CACHE } from '../systems/prototypes';
 
 export interface MissionObjective {
@@ -154,7 +155,7 @@ export function flightHint(s: MissionSimulation) {
         return `E  Magazyn · ${percent(s.outpost.equipmentProgress, OUTPOST.equipmentSeconds)}`;
     if (s.repairProgress > 0) return `R  Naprawa · ${percent(s.repairProgress, s.repairSeconds)}`;
     if (s.salvageProgress > 0)
-        return `H Holowanie wraku · ${percent(s.salvageProgress, s.salvageSeconds)}`;
+        return `H Holowanie ${s.marsAct && s.salvageTarget === MARS_ACT.memoryId ? 'modułu pamięci' : 'wraku'} · ${percent(s.salvageProgress, s.salvageSeconds)}`;
     if (s.recoveryProgress > 0)
         return `H  Odzysk · ${percent(s.recoveryProgress, s.recoverySeconds)}`;
     if (s.scanProgress > 0) return `E  Skan · ${percent(s.scanProgress, SCAN.seconds)}`;
@@ -176,7 +177,7 @@ export function flightHint(s: MissionSimulation) {
     if (s.nearbyWreck)
         return s.speed > 80
             ? 'S Wyhamuj przy wraku · <80 m/s'
-            : `H Holuj wrak · przytrzymaj ${s.salvageSeconds} s`;
+            : `H Holuj ${s.marsAct && s.nearbyWreck.id === MARS_ACT.memoryId ? 'moduł pamięci · wymagany do analizy' : s.marsAct ? 'wrak · odzysk opcjonalny' : 'wrak'} · przytrzymaj ${s.salvageSeconds} s`;
     if (s.salvage.towed) {
         const item = s.salvage.towed;
         if (s.distanceHome > 350)

@@ -8,15 +8,15 @@ import {
     phobosRouteOpen,
     phobosOrbitSecured,
 } from '../state/marsAct';
-import { MARS_MAPS, MARS_GATES, type MarsOrbitId } from './marsLayout';
+import { MARS_MAPS, MARS_GATES, inMarsMap, type MarsOrbitId } from './marsLayout';
 import {
     PHOBOS_MAZE_BANDS,
     PHOBOS_ORBIT_BANDS,
     PHOBOS_MAZE_ENTRY,
     PHOBOS_MAZE_GATE,
+    marsAnomalyClearance,
 } from './phobosMaze';
 import { MARS_MOONS } from './marsMoons';
-import { polygonDistance } from '../systems/anomalyField';
 export const MARS_ANOMALIES = PHOBOS_MAZE_BANDS;
 export function marsAnomaliesFor(id: MarsOrbitId) {
     return id === 'mars' ? MARS_ANOMALIES : id === 'phobos' ? PHOBOS_ORBIT_BANDS : [];
@@ -282,11 +282,15 @@ export function generateMarsActSector(p: StoryProgress) {
                 vx: field.surface ? 0 : 30 + rng() * 30,
                 vy: field.surface ? 0 : (rng() - 0.5) * 12,
             };
+            const orbit = field.x > 50000 ? 'asteroid' : field.x > 20000 ? 'phobos' : 'mars';
+            if (!field.surface && !inMarsMap(orbit, r, -r.radius - 40)) continue;
             if (
                 !field.surface &&
-                marsAnomaliesFor(
+                marsAnomalyClearance(
+                    r,
                     field.x > 50000 ? 'asteroid' : field.x > 20000 ? 'phobos' : 'mars',
-                ).some((b) => polygonDistance(r, b) < r.radius + 80)
+                ) <
+                    r.radius + 80
             )
                 continue;
             if (

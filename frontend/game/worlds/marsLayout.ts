@@ -28,7 +28,7 @@ export function inMarsMap(id: MarsOrbitId, p: Point, margin = 0) {
     return Math.hypot(p.x - m.center.x, p.y - m.center.y) <= m.radius + margin;
 }
 export const MARS_GATES = {
-    phobosArrival: { x: 30000, y: 2200 },
+    phobosArrival: { x: 28250, y: 1650 },
     asteroidExit: { x: 31800, y: 1300 },
     asteroidArrival: { x: 58600, y: 400 },
 } as const;

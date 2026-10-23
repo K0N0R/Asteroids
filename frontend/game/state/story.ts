@@ -430,7 +430,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'mars',
         act: 2,
         title: 'Ukryta instalacja',
-        detail: 'Odkryj bazę wśród złóż Fobosa. Włam się do terminala bez alarmu lub zniszcz instalację. Fizyczny moduł pamięci odholuj do Satuk 15.',
+        detail: 'Odkryj bazę wśród złóż Fobosa. Włam się do terminala bez alarmu lub zniszcz instalację. Odholuj moduł pamięci do Satuk 15. Odzysk wraków statków i dronów jest opcjonalny.',
         required: true,
         kind: 'event',
         target: 1,
@@ -1120,6 +1120,8 @@ export const EARTH_BRIEFING =
     'Pomiary anomalii wskazują, że brakującą technologię znajdziemy w rejonie Merkurego. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
 export interface StoryProgress {
     version: 31;
+    /** Only written to the separate development save slot. */
+    development?: boolean;
     mars: MarsProgress;
     dialogues: string[];
     sector: StorySectorId;
@@ -1140,7 +1142,12 @@ export function storyTaskAvailable(p: StoryProgress, task: StoryTask) {
     return (
         storySectorUnlocked(p, task.sector) &&
         (task.id !== 'mars-phobos-base' || phobosOrbitSecured(p)) &&
-        task.dependencies.every((id) => p.claimed.includes(id))
+        task.dependencies.every(
+            (id) =>
+                p.claimed.includes(id) ||
+                (p.development === true &&
+                    STORY_TASKS.find((t) => t.id === id)?.sector !== task.sector),
+        )
     );
 }
 export function storySectorComplete(
@@ -1153,6 +1160,7 @@ export function storySectorComplete(
     ).every((task) => p.claimed.includes(task.id));
 }
 export function storySectorUnlocked(p: StoryProgress, sector: StorySectorId) {
+    if (p.development === true) return Object.hasOwn(STORY_SECTORS, sector);
     switch (sector) {
         case 'earth':
             return true;

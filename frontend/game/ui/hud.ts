@@ -1,7 +1,16 @@
 import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { RESOURCE_IDS, RESOURCES, resourceSummary, resourceTotal } from '../state/resources';
 import { salvagePosition } from '../systems/salvage';
+import { radarRocks } from './radarRocks';
+import { drawRadarAnomaly } from './radarAnomaly';
 import { RadarTrail } from '../systems/radarTrail';
+import {
+    gateRadarFrame,
+    radarPoint,
+    RADAR_RADIUS,
+    RADAR_ZOOMS,
+    zoomRadarFrame,
+} from '../systems/radarFrame';
 import { sentryPosition } from '../systems/stationSentries';
 import { Container, Graphics } from 'pixi.js';
 import { Typography } from '../../core/containers/components/typography';
@@ -13,7 +22,7 @@ import { EnemyNavigation } from '../systems/enemyNavigation';
 import { enemyPosition } from '../systems/enemies';
 import { MOON } from '../worlds/moon';
 import { PHOBOS_MAZE_ENTRY, PHOBOS_MAZE_GATE } from '../worlds/phobosMaze';
-import { phobosRouteOpen } from '../state/marsAct';
+import { phobosRouteOpen, MARS_ACT } from '../state/marsAct';
 import { MARS_GATES, marsOrbitAt } from '../worlds/marsLayout';
 import { MARS_MOONS } from '../worlds/marsMoons';
 import { STORY_TASKS } from '../state/story';
@@ -42,6 +51,19 @@ export class MissionHud extends Container {
     private combatComplete = false;
     private enemyNavigation = new EnemyNavigation();
     private trail = new RadarTrail();
+    private trails = new Map<string, RadarTrail>();
+    private radarZoomIndex = 1;
+    private radarHint: Typography;
+    private radarClip = new Graphics().circle(1470, 130, RADAR_RADIUS).fill(0xffffff);
+    zoomRadar(direction: number) {
+        this.radarZoomIndex = Math.max(
+            0,
+            Math.min(RADAR_ZOOMS.length - 1, this.radarZoomIndex + direction),
+        );
+        this.radarHint.setText(`[ / ]  radar ×${RADAR_ZOOMS[this.radarZoomIndex]}`);
+        this.throttle = 0;
+        this.refresh();
+    }
     private map = new Graphics();
     private meters = new Graphics();
     private arrow = new Graphics();
@@ -72,7 +94,15 @@ export class MissionHud extends Container {
         if (sim.miningEscort) this.target = 15;
         if (sim.factoryMission) this.target = 4;
         if (sim.rescueOperation) this.target = 16;
-        this.addChild(this.selection, this.meters, this.map, this.checks, this.arrow);
+        this.addChild(
+            this.selection,
+            this.meters,
+            this.map,
+            this.radarClip,
+            this.checks,
+            this.arrow,
+        );
+        this.map.mask = this.radarClip;
         for (const graphic of [this.selection, this.meters, this.map, this.checks, this.arrow])
             graphic.eventMode = 'none';
         this.health = label(this, '', 80, 41, 20);
@@ -94,17 +124,18 @@ export class MissionHud extends Container {
         if (sim.rescueOperation) this.rescueStatus = label(this, '', 40, 245, 16, C.gold, 720);
         if (sim.miningEscort) this.convoyStatus = label(this, '', 40, 215, 14, C.gold, 760);
         if (sim.guide) this.guideStatus = label(this, '', 40, 185, 14, C.mint, 760);
-        this.direction = label(this, '', 1320, 234, 16, C.muted, 250);
+        this.radarHint = label(this, '[ / ]  radar ×1', 1360, 246, 12, C.muted, 220);
+        this.direction = label(this, '', 1320, 268, 16, C.muted, 250);
         label(
             this,
             customObjectives ? objectivesTitle : CONTRACTS[contract].title,
             1320,
-            285,
+            315,
             16,
             C.text,
             250,
         );
-        this.selectedGoal = label(this, '', 1343, 320, 15, C.cyan, 228);
+        this.selectedGoal = label(this, '', 1343, 350, 15, C.cyan, 228);
         this.selectedGoal.label = 'selected-navigation-goal';
         this.selectedGoal.visible = false;
         if (sim.missionStatus) this.orderStatus = label(this, '', 40, 235, 15, C.mint, 700);
@@ -244,6 +275,16 @@ export class MissionHud extends Container {
         return false;
     }
     trackWreck() {
+        if (
+            this.sim.marsAct &&
+            this.sim.campaign.story!.mars.baseNeutralized &&
+            !this.sim.campaign.story!.mars.memoryDelivered &&
+            this.sim.salvage.items.has(MARS_ACT.memoryId)
+        ) {
+            this.wreckId = MARS_ACT.memoryId;
+            this.target = 14;
+            return;
+        }
         const p = this.sim.position;
         this.wreckId =
             [...this.sim.salvage.items.values()]
@@ -359,9 +400,11 @@ export class MissionHud extends Container {
                 ? {
                       ...salvagePosition(item),
                       name:
-                          item.source === 'shipment'
-                              ? 'Paczka · wyposażenie stacji księżycowej'
-                              : `Wrak #${item.id}`,
+                          item.id === MARS_ACT.memoryId && this.sim.marsAct
+                              ? 'Moduł pamięci · wymagany do analizy'
+                              : item.source === 'shipment'
+                                ? 'Paczka · wyposażenie stacji księżycowej'
+                                : `Wrak #${item.id}${this.sim.marsAct ? ' · odzysk opcjonalny' : ''}`,
                   }
                 : { x: 0, y: 0, name: 'Aurora / brak wraków' };
         }
@@ -469,7 +512,6 @@ export class MissionHud extends Container {
                             : 17;
                 if (this.target === 14) this.trackWreck();
             }
-            this.trail = new RadarTrail();
         }
         const s = this.sim,
             p = s.position,
@@ -597,12 +639,12 @@ export class MissionHud extends Container {
         }
         while (this.goals.length < objectives.length) {
             const i = this.goals.length;
-            this.goals.push(label(this, '', 1343, 320 + i * this.goalStep, 15, C.muted, 228));
+            this.goals.push(label(this, '', 1343, 350 + i * this.goalStep, 15, C.muted, 228));
         }
         this.checks.clear();
         this.selection.clear();
         let matches = false;
-        let goalY = 320;
+        let goalY = 350;
         objectives.forEach((goal, i) => {
             const selected = this.matchesObjective(goal);
             const rows = !goal.complete ? (goal.requirements ?? []) : [];
@@ -668,30 +710,39 @@ export class MissionHud extends Container {
         this.selectedGoal.y = goalY;
         this.selectedGoal.setText(matches ? '' : `Wybrany cel: ${waypoint.name}`);
         this.direction.setText(`${waypoint.name} · ${(distance / 1000).toFixed(1)} km`);
+        const trailKey = `${s.area}:${s.area === 'surface' ? (s.marsMoon?.id ?? 'moon') : 'orbit'}`;
+        if (!this.trails.has(trailKey)) this.trails.set(trailKey, new RadarTrail());
+        this.trail = this.trails.get(trailKey)!;
+        this.trail.update(p, s.elapsed);
         if (s.area === 'surface' || s.marsAct) {
             this.surfaceRadar(waypoint);
             this.navigationArrow(waypoint, distance);
             return;
         }
-        const x = 1470,
-            y = 130,
-            radius = 88,
-            scale = radius / s.sectorRadius;
+        const frame = zoomRadarFrame(
+                { x: 0, y: 0 },
+                s.sectorRadius,
+                p,
+                RADAR_ZOOMS[this.radarZoomIndex],
+            ),
+            radius = RADAR_RADIUS,
+            scale = radius / frame.radius,
+            x = 1470 - frame.center.x * scale,
+            y = 130 - frame.center.y * scale;
         const enemies = [...s.enemies.enemies.values()];
         const chased = s.outpost.alarm > 0 || enemies.some((enemy) => enemy.state === 'chase');
         this.map
             .clear()
             .beginPath()
-            .circle(x, y, radius)
+            .circle(1470, 130, radius)
             .fill({ color: C.ink, alpha: 0.72 })
             .stroke({ color: chased ? C.red : C.line, width: chased ? 2 : 1 });
         this.map
-            .moveTo(x - radius, y)
-            .lineTo(x + radius, y)
-            .moveTo(x, y - radius)
-            .lineTo(x, y + radius)
+            .moveTo(1470 - radius, 130)
+            .lineTo(1470 + radius, 130)
+            .moveTo(1470, 130 - radius)
+            .lineTo(1470, 130 + radius)
             .stroke({ color: C.line, width: 1, alpha: 0.35 });
-        this.trail.update(p, s.elapsed);
         this.map
             .beginPath()
             .circle(x, y, s.stationSafeRadius * scale)
@@ -728,10 +779,11 @@ export class MissionHud extends Container {
                 .fill({ color: C.red, alpha: 0.09 })
                 .stroke({ color: C.red, width: 1, alpha: 0.35 });
         for (const point of this.trail.points) {
-            if (Math.hypot(point.x, point.y) > s.sectorRadius) continue;
+            if (Math.hypot(point.x - frame.center.x, point.y - frame.center.y) > frame.radius)
+                continue;
             this.map
                 .beginPath()
-                .circle(x + point.x * scale, y + point.y * scale, 1)
+                .circle(x + point.x * scale, y + point.y * scale, 1.5)
                 .fill({ color: C.cyan, alpha: this.trail.opacity(s.elapsed, point) });
         }
         this.map.circle(x, y, 3).fill(C.mint);
@@ -879,9 +931,9 @@ export class MissionHud extends Container {
                 .circle(x + waypoint.x * scale, y + waypoint.y * scale, 7)
                 .stroke({ color: C.text, width: 1, alpha: 0.7 });
         // Keep the player marker within the radar when escaping the sector boundary.
-        const length = Math.max(s.sectorRadius, Math.hypot(p.x, p.y));
-        const mx = x + (p.x / length) * radius,
-            my = y + (p.y / length) * radius;
+        const marker = radarPoint(p, frame.center, frame.radius, true),
+            mx = marker.x,
+            my = marker.y;
         const a = s.ship.rotation();
         this.map
             .poly([
@@ -904,27 +956,46 @@ export class MissionHud extends Container {
         const s = this.sim,
             x = 1470,
             y = 130,
-            scale = 88 / s.sectorRadius;
-        const point = (p: { x: number; y: number }) => ({
-            x: x + (p.x - s.mapCenter.x) * scale,
-            y: y + (p.y - s.mapCenter.y) * scale,
-        });
+            baseFrame =
+                s.marsAct && s.area === 'orbit'
+                    ? gateRadarFrame(s.mapCenter, s.sectorRadius, s.hyperdrive)
+                    : { center: s.mapCenter, radius: s.sectorRadius },
+            frame = zoomRadarFrame(
+                baseFrame.center,
+                baseFrame.radius,
+                s.position,
+                RADAR_ZOOMS[this.radarZoomIndex],
+            );
+        const point = (p: { x: number; y: number }, clamp = false) =>
+            radarPoint(p, frame.center, frame.radius, clamp);
+        const inside = (p: { x: number; y: number }) =>
+            Math.hypot(p.x - frame.center.x, p.y - frame.center.y) <= frame.radius;
         const map = this.map
             .clear()
-            .circle(x, y, 88)
+            .circle(x, y, RADAR_RADIUS)
             .fill({ color: 0x303c45, alpha: 0.94 })
             .stroke({ color: C.line, width: 2 });
+        if (s.marsAct && s.area === 'orbit') {
+            drawRadarAnomaly(map, frame);
+        }
+        for (const dot of this.trail.points) {
+            if (!inside(dot)) continue;
+            const q = point(dot);
+            map.circle(q.x, q.y, 1.5).fill({
+                color: C.cyan,
+                alpha: this.trail.opacity(s.elapsed, dot),
+            });
+        }
         if (s.marsAct) {
             for (const lane of s.sector.hyperlanes)
                 for (const p of [lane.a, lane.b])
-                    if (s.inCurrentMap(p)) {
+                    if (inside(p)) {
                         const q = point(p);
                         map.circle(q.x, q.y, 5).stroke({ color: C.cyan, width: 1.5 });
                     }
-            for (const rock of s.rocks.values()) {
-                const raw = rock.body.translation(),
-                    p = { x: raw.x * GAME.pixelsPerMeter, y: raw.y * GAME.pixelsPerMeter };
-                if (s.inCurrentMap(p)) {
+            for (const rock of radarRocks(s)) {
+                const p = rock;
+                if (inside(p)) {
                     const q = point(p);
                     map.circle(q.x, q.y, rock.radius > 100 ? 3 : 1).fill({
                         color: C.gold,
@@ -934,17 +1005,18 @@ export class MissionHud extends Container {
             }
             for (const item of s.salvage.items.values()) {
                 const p = salvagePosition(item);
-                if (s.inCurrentMap(p)) {
+                if (inside(p)) {
                     const q = point(p);
                     map.rect(q.x - 2, q.y - 2, 4, 4).stroke({ color: C.gold, width: 1 });
                 }
             }
-            if (s.inCurrentMap({ x: 0, y: 0 })) {
+            if (inside({ x: 0, y: 0 })) {
                 const q = point({ x: 0, y: 0 });
                 map.circle(q.x, q.y, 4).fill(C.mint);
             }
         }
         for (const l of s.landmarks) {
+            if (!inside(l)) continue;
             const p = point(l);
             map.circle(p.x, p.y, l.kind === 'passage' ? 5 : 3).fill(
                 l.kind === 'passage' ? C.cyan : C.gold,
@@ -956,7 +1028,7 @@ export class MissionHud extends Container {
         }
         for (const e of s.enemies.enemies.values()) {
             const ep = enemyPosition(e);
-            if (Math.hypot(ep.x - s.mapCenter.x, ep.y - s.mapCenter.y) > s.sectorRadius) continue;
+            if (!inside(ep)) continue;
             const p = point(ep);
             map.circle(p.x, p.y, 3).fill(C.red);
         }
@@ -987,8 +1059,8 @@ export class MissionHud extends Container {
             const p = point(signal);
             map.rect(p.x - 3, p.y - 3, 6, 6).stroke({ color: C.mint, width: 2 });
         }
-        const p = point(s.position),
-            w = point(waypoint),
+        const p = point(s.position, true),
+            w = point(waypoint, true),
             a = s.ship.rotation();
         map.circle(w.x, w.y, 7)
             .stroke({ color: C.text, width: 1 })

@@ -163,7 +163,8 @@ export function marsSecurityObjective(p: StoryProgress) {
     if (!phobosRouteOpen(p)) return 'Zbuduj tarcze Satuk 15';
     if (!phobosOrbitSecured(p)) return 'Zbadaj korytarz i zabezpiecz orbitę Fobosa';
     if (!p.mars.baseNeutralized) return 'Zneutralizuj ukrytą instalację na Fobosie';
-    if (!p.mars.memoryDelivered) return 'Odholuj moduł pamięci bezpośrednio do Satuk 15';
+    if (!p.mars.memoryDelivered)
+        return 'Odholuj moduł pamięci do Satuk 15 · wraki statków są opcjonalne';
     if (!p.mars.aiIdentified) return 'Wróć do Satuk 15 na analizę danych';
     if (!p.mars.yardDestroyed) return 'Zniszcz zakład przy dużej asteroidzie';
     return 'Wyeliminuj pozostałe wymagane jednostki';

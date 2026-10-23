@@ -88,7 +88,7 @@ test('large frame gaps cannot finish an entire cinematic and presentation never 
     assert.deepEqual(state, before);
 });
 
-test('world launch pauses physics and a real docking interaction waits for the return animation', async () => {
+test('world launch and docking keep the backdrop moving while protecting the scripted ship', async () => {
     await RAPIER.init();
     const campaign = newStoryCampaign();
     assert.ok(beginRun(campaign, 1234));
@@ -103,9 +103,19 @@ test('world launch pauses physics and a real docking interaction waits for the r
     };
     try {
         const position = { ...sim.position };
+        const rock = [...sim.rocks.values()].find((r) => !r.anchored)!;
+        rock.body.setTranslation({ x: 40, y: 0 }, true);
+        rock.body.setLinvel({ x: 1, y: 0 }, true);
+        const beforeRock = { ...rock.body.translation() };
         for (let i = 0; i < 60; i++) world.update(1000 / 60, input);
-        assert.equal(sim.elapsed, 0);
+        assert.ok(sim.elapsed > 0.9);
         assert.deepEqual(sim.position, position);
+        assert.ok(
+            Math.hypot(
+                rock.body.translation().x - beforeRock.x,
+                rock.body.translation().y - beforeRock.y,
+            ) > 0.2,
+        );
         for (let i = 0; i < 60; i++) world.update(1000 / 60, input);
         assert.equal(world.direction.phase, 'flight');
         assert.ok(sim.elapsed > 0);
@@ -116,9 +126,18 @@ test('world launch pauses physics and a real docking interaction waits for the r
         assert.equal(sim.ended, 'returned');
         assert.equal(world.returnFinished, false);
         const elapsed = sim.elapsed;
+        rock.body.setTranslation({ x: 40, y: 0 }, true);
+        rock.body.setLinvel({ x: 1, y: 0 }, true);
+        const dockRock = { ...rock.body.translation() };
         for (let i = 0; i < 100; i++) world.update(1000 / 60, input);
         assert.equal(world.returnFinished, true);
-        assert.equal(sim.elapsed, elapsed);
+        assert.ok(
+            Math.hypot(
+                rock.body.translation().x - dockRock.x,
+                rock.body.translation().y - dockRock.y,
+            ) > 0.2,
+        );
+        assert.ok(sim.elapsed > elapsed + 1);
         assert.ok(campaign.activeRun, 'presentation must leave settlement to the session');
     } finally {
         world.dispose();

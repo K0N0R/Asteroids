@@ -73,6 +73,13 @@ import {
 import { SandboxSetup, sandboxResult } from './ui/sandbox';
 import { FrameDiagnostics } from '../core/systems/frameDiagnostics';
 import { releaseSceneBuffers } from '../core/systems/renderMemory';
+import {
+    DEVELOPMENT_SAVE_KEY,
+    DEVELOPMENT_MODE_KEY,
+    developmentControls,
+    developmentCopy,
+} from './state/development';
+import type { StorySectorId } from './state/story';
 
 export class GameSession {
     private profile: 'story' | 'legacy' = (() => {
@@ -96,8 +103,23 @@ export class GameSession {
         { key: STORY_SAVE_KEY, create: newStoryCampaign },
     );
     get saves() {
+        if (this.developmentMode) return this.developmentSaves;
         return this.profile === 'story' ? this.storySaves : this.legacySaves;
     }
+    private developmentMode = (() => {
+        try {
+            return localStorage.getItem(DEVELOPMENT_MODE_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    })();
+    private developmentSaves = new SaveRepository(
+        {
+            getItem: (key) => localStorage.getItem(key),
+            setItem: (key, value) => localStorage.setItem(key, value),
+        },
+        { key: DEVELOPMENT_SAVE_KEY, create: newStoryCampaign },
+    );
     readonly campaign: Campaign;
     mission: MissionWorld | null = null;
     hud: MissionHud | null = null;
@@ -123,6 +145,13 @@ export class GameSession {
         private background: Background,
     ) {
         this.campaign = this.saves.load();
+        developmentControls.actions = {
+            canReturn: () => !!this.mission,
+            returnToBase: () => this.technicalReturn(),
+            chooseSector: (sector) => this.developmentTravel(sector),
+            leave: () => this.leaveDevelopment(),
+            active: () => this.developmentMode,
+        };
         const interrupted = this.campaign.activeRun
             ? finishRun(
                   this.campaign,
@@ -287,6 +316,14 @@ export class GameSession {
                     this.hud &&
                     !this.hasOverlay &&
                     !PopupContainer.hasActivePopup() &&
+                    ['[', ']'].includes(message.data)
+                )
+                    this.hud.zoomRadar(message.data === ']' ? 1 : -1);
+                if (
+                    message.name === 'keydown' &&
+                    this.hud &&
+                    !this.hasOverlay &&
+                    !PopupContainer.hasActivePopup() &&
                     [',', '.'].includes(message.data)
                 )
                     this.hud.cycleTarget(message.data === '.' ? 1 : -1);
@@ -369,6 +406,10 @@ export class GameSession {
     }
     private switchProfile() {
         if (this.mission || this.launching || this.hasOverlay) return;
+        if (this.developmentMode) {
+            this.leaveDevelopment();
+            return;
+        }
         this.saves.save(this.campaign);
         this.profile = this.profile === 'story' ? 'legacy' : 'story';
         try {
@@ -413,6 +454,79 @@ export class GameSession {
                         : message
                     : 'Brak surowców lub osiągnięty limit.'),
         );
+    }
+    private technicalReturn() {
+        if (this.sandboxRun) {
+            this.finishSandbox('stopped');
+            return;
+        }
+        const world = this.mission;
+        if (!world) return;
+        const sim = world.simulation;
+        // Use normal settlement for cargo and persistence, without replaying docking or a loss.
+        finishRun(
+            this.campaign,
+            true,
+            sim.cargo,
+            sim.elapsed,
+            'Techniczny powrót do bazy.',
+            sim.repairKits,
+        );
+        world.dispose();
+        this.mission = null;
+        if (this.hud) destroyDisplayTree(this.hud);
+        this.hud = null;
+        this.dialogue = null;
+        this.dialoguePanel = null;
+        this.hasOverlay = false;
+        this.lunarStationOpen = false;
+        clear(this.overlay);
+        this.syncInteractionPanel();
+        this.background.camera = { x: 0, y: 0 };
+        this.background.surface = false;
+        this.background.lunarTransfer = false;
+        this.lobby.visible = true;
+        this.lobby.refresh('Techniczny powrót do bazy.');
+        this.saves.save(this.campaign);
+        GameState.goToLobby();
+        InputHandler.clear();
+    }
+    private developmentTravel(sector: StorySectorId) {
+        if (this.launching) return;
+        this.technicalReturn();
+        this.saves.save(this.campaign);
+        const source = this.campaign.story ? this.campaign : newStoryCampaign();
+        const copy = developmentCopy(source, sector);
+        this.developmentMode = true;
+        try {
+            localStorage.setItem(DEVELOPMENT_MODE_KEY, 'true');
+        } catch {
+            /* Session-only mode. */
+        }
+        Object.assign(this.campaign, copy);
+        this.saves.save(this.campaign);
+        this.background.setRegion(sector);
+        this.lobby.resetProfile();
+        this.lobby.refresh(
+            'TRYB TESTOWY · ' +
+                STORY_SECTORS[sector].name +
+                ' · wybierz statek i wyleć. ESC: powrót do kampanii.',
+        );
+    }
+    private leaveDevelopment() {
+        if (!this.developmentMode || this.launching) return;
+        this.technicalReturn();
+        this.saves.save(this.campaign);
+        this.developmentMode = false;
+        try {
+            localStorage.removeItem(DEVELOPMENT_MODE_KEY);
+        } catch {
+            /* Session-only mode. */
+        }
+        Object.assign(this.campaign, this.saves.load());
+        this.background.setRegion(this.campaign.story?.sector ?? null);
+        this.lobby.resetProfile();
+        this.lobby.refresh('Wczytano zwykłą kampanię. Postęp testowy pozostaje w osobnym zapisie.');
     }
     private requestAbortMission() {
         const sim = this.mission?.simulation;

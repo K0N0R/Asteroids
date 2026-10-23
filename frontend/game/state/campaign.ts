@@ -248,6 +248,22 @@ export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
         if (!object(p) || p.version !== 66 || !cargo(p.bank) || !object(p.station)) return null;
+        // Starter hulls are destroyed on signal loss; keep any independently surviving capsule.
+        // Apply the same rule to old beacons so saved wrecks cannot fund repeated free starters.
+        if (Array.isArray(p.recoverySignals)) {
+            const removed = new Set<unknown>();
+            p.recoverySignals = p.recoverySignals.filter((signal: unknown) => {
+                if (!object(signal)) return true;
+                if (object(signal.ship) && signal.ship.hull === 'prospector') {
+                    signal.ship = null;
+                    if (!signal.pilot) removed.add(signal.id);
+                    return !!signal.pilot;
+                }
+                return true;
+            });
+            if (object(p.activeRun) && removed.has(p.activeRun.recoveryId))
+                p.activeRun.recoveryId = null;
+        }
         // Upgrade the previous journal in place; keep inventory, pilots, ships and later acts.
         if (
             object(p.story) &&

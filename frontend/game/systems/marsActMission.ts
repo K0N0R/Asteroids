@@ -9,7 +9,8 @@ import {
     marsSecurityObjective,
 } from '../state/marsAct';
 import { marsSystemLanes, marsSystemZones, generateMarsActSector } from '../worlds/marsSystem';
-import { ANOMALY, polygonDistance } from './anomalyField';
+import { ANOMALY } from './anomalyField';
+import { marsAnomalyClearance } from '../worlds/phobosMaze';
 import { enemyPosition } from './enemies';
 import { salvagePosition } from './salvage';
 import { awardPilotXp } from '../state/pilots';
@@ -173,7 +174,7 @@ export class MarsActMission {
             this.p.baseHealth = 0;
             this.say(
                 'base',
-                'Ada Serrin: Instalacja zneutralizowana. Zabezpiecz moduł pamięci i odholuj go bezpośrednio do Satuk 15. Radio nie zastąpi dostawy danych.',
+                'Ada Serrin: Instalacja zneutralizowana. Odholuj moduł pamięci do Satuk 15 na analizę. Odzysk wraków statków i wyłączonych dronów jest opcjonalny.',
             );
         } else {
             this.p.yardDestroyed = true;
@@ -262,7 +263,7 @@ export class MarsActMission {
         s.events.push({ ...M.base, kind: 'collect', sound: 'complete' });
         this.say(
             'hack',
-            'Ivo Nadir: Ścieżka połączona. Baza i patrole wyłączone. Drony można odholować, a moduł pamięci dostarczyć do Satuk 15.',
+            'Ivo Nadir: Ścieżka połączona. Baza i patrole wyłączone. Moduł pamięci trzeba odholować do Satuk 15; odzysk dronów jest opcjonalny.',
         );
         return true;
     }
@@ -389,11 +390,8 @@ export class MarsActMission {
             }
         const contaminated =
             s.area === 'orbit' &&
-            s.marsAnomalies.some(
-                (band) =>
-                    polygonDistance(point, band) <=
-                    Math.max(...s.hullConfig.hitbox) * s.hullConfig.size,
-            );
+            marsAnomalyClearance(point, s.marsOrbit) <=
+                Math.max(...s.hullConfig.hitbox) * s.hullConfig.size;
         this.exposure = contaminated && !s.hyperdrive.active ? this.exposure + dt : 0;
         if (this.exposure > 0) {
             s.applyAnomalyExposure(ANOMALY.damagePerSecond * dt);

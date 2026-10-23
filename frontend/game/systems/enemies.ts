@@ -164,6 +164,7 @@ export class EnemyFleet {
     ) {
         if (this.disposed) return;
         for (const enemy of this.enemies.values()) {
+            if (!enemy.body.isEnabled()) continue;
             const config = enemy.config,
                 p0 = enemyPosition(enemy);
             const allyDistance = ally

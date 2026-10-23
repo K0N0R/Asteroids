@@ -71,10 +71,11 @@ export function polygonDistance(point: Point, polygon: readonly Point[]) {
             inside = !inside;
         const dx = b.x - a.x,
             dy = b.y - a.y;
-        const t = Math.max(
-            0,
-            Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)),
-        );
+        const length = dx * dx + dy * dy;
+        const t =
+            length === 0
+                ? 0
+                : Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length));
         distance = Math.min(distance, Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy));
     }
     return inside ? 0 : distance;

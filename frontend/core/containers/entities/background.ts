@@ -30,7 +30,9 @@ export class Background extends Container {
         if (this.region !== 'mars' || this.marsArea === area) return;
         this.marsArea = area;
         this.celestialLayer.setBodies(
-            area ? marsCelestialBodies(area) : celestialBodiesFor('mars'),
+            area
+                ? [...marsCelestialBodies('mars'), ...marsCelestialBodies('phobos')]
+                : celestialBodiesFor('mars'),
         );
     }
     private starContexts: GraphicsContext[] = [];

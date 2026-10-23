@@ -246,6 +246,7 @@ export class LobbyView extends Container {
         logo.position.set(50, 56);
         ui.addChild(logo);
         label(ui, c.story ? 'SATUK 15' : 'AURORA', 75, 43, 23, C.text);
+        if (c.story?.development) label(ui, 'ZAPIS TESTOWY', 75, 76, 11, C.gold);
         NAV.filter(({ tab }) => tab !== 'solar' || !!c.story).forEach(({ tab, title, icon }, i) => {
             const active = this.tab === tab;
             const card = choiceCard(ui, 25, 110 + i * 51, 185, 43, active, () => this.go(tab));
@@ -291,7 +292,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.124', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.130', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {

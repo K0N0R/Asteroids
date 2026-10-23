@@ -9,6 +9,7 @@ import {
     finishRun,
     hirePilot,
     newCampaign,
+    newShip,
     parseCampaign,
     pilotSlots,
     scrapRefund,
@@ -30,6 +31,7 @@ const idle: FlightInput = {
 
 function lostCampaign() {
     const c = newCampaign();
+    c.ship = newShip(c.ship!.id, 'swift');
     c.ship!.engine = 1;
     c.ship!.armor = 1;
     const pilot = c.pilots[0],
@@ -48,7 +50,7 @@ function lostCampaign() {
 
 test('survival is deterministic and improved by pilot training, hull quality and armor', () => {
     const c = newCampaign(),
-        ship = c.ship!,
+        ship = newShip(c.ship!.id, 'swift'),
         pilot = c.pilots[0];
     const base = recoveryChances(ship, pilot);
     assert.ok(recoveryChances({ ...ship, armor: 1 }, pilot).pilot > base.pilot);

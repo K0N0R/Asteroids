@@ -49,8 +49,19 @@ export class InputHandlerBase {
             if (document.hidden) loseFocus();
         });
         window.addEventListener('keydown', (evt) => {
-            const key = evt.code === 'Space' ? 'space' : evt.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'shift', 'e', 'h', 'r', 'c', 'g', ',', '.'].includes(key))
+            const key =
+                evt.code === 'Space'
+                    ? 'space'
+                    : evt.code === 'BracketLeft'
+                      ? '['
+                      : evt.code === 'BracketRight'
+                        ? ']'
+                        : evt.key.toLowerCase();
+            if (
+                ['w', 'a', 's', 'd', 'shift', 'e', 'h', 'r', 'c', 'g', ',', '.', '[', ']'].includes(
+                    key,
+                )
+            )
                 evt.preventDefault();
             if (key === 'space' && GameState.state === 'gameplay') evt.preventDefault();
             if (['tab', 'f6', 'f7'].includes(key) && GameState.state === 'gameplay')
@@ -59,7 +70,14 @@ export class InputHandlerBase {
             if (!evt.repeat) Bus.emit('input', { name: 'keydown', data: key });
         });
         window.addEventListener('keyup', (evt) => {
-            const key = evt.code === 'Space' ? 'space' : evt.key.toLowerCase();
+            const key =
+                evt.code === 'Space'
+                    ? 'space'
+                    : evt.code === 'BracketLeft'
+                      ? '['
+                      : evt.code === 'BracketRight'
+                        ? ']'
+                        : evt.key.toLowerCase();
             this.pressedKeys.delete(key);
             Bus.emit('input', { name: 'keyup', data: key });
         });

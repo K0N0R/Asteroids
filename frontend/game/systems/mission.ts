@@ -503,6 +503,44 @@ export class MissionSimulation {
             this.sectorRadius + margin
         );
     }
+    /** Both ends are part of the visible world during a gate flight. */
+    inVisibleMap(point: Point, margin = 0) {
+        const drive = this.hyperdrive;
+        if (this.marsAct && this.area === 'orbit' && drive.active && drive.transfer) {
+            return [drive.origin, drive.target].some((end) => {
+                const map = nearestMarsOrbit(end);
+                return (
+                    Math.hypot(point.x - map.center.x, point.y - map.center.y) <=
+                    map.radius + margin
+                );
+            });
+        }
+        return this.inCurrentMap(point, margin);
+    }
+    private marsActivityKey = '';
+    /** Distant maps retain state, but do not simulate collisions and patrol AI off-screen. */
+    private syncMarsActivity() {
+        if (!this.marsAct) return;
+        const key = `${this.area}/${this.marsOrbit}/${this.hyperdrive.active}/${this.areaRevision}`;
+        if (key === this.marsActivityKey) return;
+        this.marsActivityKey = key;
+        const enabled = (point: Point, surface = false) =>
+            this.area === 'surface'
+                ? surface || marsArea(point) === 'surface'
+                : !surface && marsArea(point) !== 'surface' && this.inVisibleMap(point, 200);
+        for (const rock of this.rocks.values()) {
+            const p = rock.body.translation();
+            rock.body.setEnabled(enabled({ x: p.x * P, y: p.y * P }, !!rock.surface));
+        }
+        for (const enemy of this.enemies.enemies.values())
+            enemy.body.setEnabled(enabled(enemy.home));
+        for (const item of this.salvage.items.values())
+            item.body.setEnabled(
+                this.salvage.towing.has(item.id) || enabled(salvagePosition(item)),
+            );
+        for (const drone of this.sentries.drones.values())
+            drone.body.setEnabled(this.area === 'orbit' && this.inVisibleMap({ x: 0, y: 0 }));
+    }
     readonly structureHealth = new Map<number, number>();
     opticalCloakTime = 0;
     opticalCloakCooldown = 0;
@@ -1994,8 +2032,20 @@ export class MissionSimulation {
             next = drive.next(from, dt),
             dx = next.point.x - from.x,
             dy = next.point.y - from.y;
-        this.ship.setRotation(Math.atan2(dy, dx), true);
+        // The final eased position can equal the previous one after rounding.
+        // Keep the lane heading instead of deriving atan2(0, 0) at arrival.
+        this.ship.setRotation(
+            Math.atan2(drive.target.y - drive.origin.y, drive.target.x - drive.origin.x),
+            true,
+        );
         this.ship.setTranslation({ x: next.point.x / P, y: next.point.y / P }, true);
+        if (this.marsAct && drive.transfer) {
+            const destination = marsOrbitAt(next.point);
+            if (destination && destination.id !== this.marsOrbit) {
+                this.marsOrbit = destination.id;
+                this.areaRevision++;
+            }
+        }
         for (const item of this.salvage.towing.values()) {
             const p = item.body.translation();
             item.body.setTranslation({ x: p.x + dx / P, y: p.y + dy / P }, true);
@@ -2026,11 +2076,66 @@ export class MissionSimulation {
             this.setNotice('Hiperskok zakończony · odzyskano sterowanie.');
         }
     }
+    /** Keep the physical backdrop alive while the pilot follows a scripted manoeuvre. */
+    stepCinematic() {
+        if (this.disposed || (this.ended && this.ended !== 'returned')) return;
+        this.syncMarsActivity();
+        const dt = GAME.step;
+        const snapshot = (item: {
+            body: RAPIER.RigidBody;
+            previous: Point;
+            previousAngle?: number;
+        }) => {
+            const p = item.body.translation();
+            item.previous = { x: p.x * P, y: p.y * P };
+            if ('previousAngle' in item) item.previousAngle = item.body.rotation();
+        };
+        this.previous = this.position;
+        this.previousAngle = this.ship.rotation();
+        for (const item of this.rocks.values()) snapshot(item);
+        for (const item of this.enemies.enemies.values()) snapshot(item);
+        for (const item of this.salvage.items.values()) snapshot(item);
+        for (const item of this.sentries.drones.values()) snapshot(item);
+        if (this.escort) snapshot(this.escort);
+        if (this.guide) snapshot(this.guide);
+        const protectedBodies = [
+            this.ship,
+            ...[...this.salvage.towing.values()].map((item) => item.body),
+            ...(this.aegis?.drone ? [this.aegis.drone.body] : []),
+        ];
+        const poses = protectedBodies.map((body) => ({
+            body,
+            position: { ...body.translation() },
+            angle: body.rotation(),
+        }));
+        this.shipCollider.setEnabled(false);
+        for (const item of this.salvage.towing.values()) item.collider.setEnabled(false);
+        for (const { body } of poses) {
+            body.setLinvel({ x: 0, y: 0 }, true);
+            body.setAngvel(0, true);
+        }
+        this.world.step(this.queue);
+        this.queue.drainCollisionEvents(() => {});
+        for (const { body, position, angle } of poses) {
+            body.setTranslation(position, true);
+            body.setRotation(angle, true);
+            body.setLinvel({ x: 0, y: 0 }, true);
+            body.setAngvel(0, true);
+        }
+        for (const bullet of this.bullets.values()) {
+            bullet.x += bullet.vx * dt;
+            bullet.y += bullet.vy * dt;
+            bullet.life -= dt;
+            if (bullet.life <= 0) this.bullets.delete(bullet.id);
+        }
+        this.elapsed += dt;
+    }
     step(input: FlightInput) {
         if (this.ended || this.disposed || this.choice) return;
         const dt = GAME.step;
         this.selectWorldRecovery();
         if (this.transferActive) {
+            this.stepCinematic();
             this.transferRemaining = Math.max(0, this.transferRemaining - dt);
             return;
         }
@@ -2098,7 +2203,9 @@ export class MissionSimulation {
             this.advanceHyperdrive(dt);
             if (this.ended) return;
         }
+        this.syncMarsActivity();
         for (const rock of this.rocks.values()) {
+            if (!rock.body.isEnabled()) continue;
             const p = rock.body.translation();
             rock.previous = { x: p.x * P, y: p.y * P };
             rock.previousAngle = rock.body.rotation();

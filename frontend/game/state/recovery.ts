@@ -16,7 +16,7 @@ export function recoveryChances(ship: Ship, pilot: Pilot) {
     const quality = HULLS[ship.hull].recovery;
     return {
         pilot: Math.min(0.85, 0.2 + quality + pilotProfile(pilot).escape + ship.armor * 0.04),
-        ship: Math.min(0.8, 0.35 + quality + ship.armor * 0.08),
+        ship: ship.hull === 'prospector' ? 0 : Math.min(0.8, 0.35 + quality + ship.armor * 0.08),
     };
 }
 

@@ -173,7 +173,7 @@ test('physical memory docking unlocks analysis only after return to Satuk', () =
     );
     assert.ok(parseCampaign(JSON.stringify(c)));
 });
-test('all required surviving patrols must be eliminated after factory destruction', () => {
+test('security requires surviving patrols to be eliminated but never ship wreck delivery', () => {
     const c = ready();
     ai(c);
     c.story!.mars.yardDestroyed = true;
@@ -181,6 +181,8 @@ test('all required surviving patrols must be eliminated after factory destructio
     assert.ok(!c.story!.claimed.includes('mars-sector-secure'));
     c.story!.mars.kills.push(...MARS_YARD_PATROLS);
     syncStory(c);
+    assert.equal(c.story!.mars.announcements.includes('old-ship-delivery'), false);
+    assert.equal(c.story!.mars.probeDelivered, false);
     assert.ok(c.story!.claimed.includes('mars-sector-secure'));
     assert.equal(storySectorUnlocked(c.story!, 'venus'), false);
     c.story!.mars.researchWaves = 3;
@@ -489,7 +491,7 @@ test('Mars contamination is 1.5 times boundary damage, bypasses full shields and
     const c = ready(),
         s = spawn(c),
         outside = spawn(ready());
-    move(s, { x: 4500, y: -5000 });
+    move(s, { x: -1500, y: -5000 });
     s.ship.setLinvel({ x: 10, y: 0 }, true);
     move(outside, { x: 15000, y: 0 });
     const shield = s.kineticShield.charge,
@@ -674,5 +676,252 @@ test('Kepler does not exist before the escort mission and appears when it unlock
     const escort = s.escort;
     s.marsAct!.update(idle, 0.01);
     assert.equal(s.escort, escort);
+    s.dispose();
+});
+
+test('wide Phobos landing view hides other maps, the Earth Moon layer and Satuk while preserving local outcrops', async () => {
+    const { MissionWorld } = await import('../frontend/game/worlds/missionWorld');
+    const { GameSettings } = await import('../frontend/core/systems/gameSettings');
+    GameSettings.soundEnabled = false;
+    const c = ready();
+    orbitSecured(c);
+    const s = spawn(c);
+    s.area = 'surface';
+    move(s, MARS_MOONS.phobos.exit);
+    s.previous = s.position;
+    s.transferRemaining = 3.2;
+    const world = new MissionWorld(s, c.ship!, false);
+    try {
+        world.update(0, idle);
+        const views = world as unknown as {
+            rocks: Map<number, { visible: boolean }>;
+            moon: { visible: boolean };
+            home: { visible: boolean };
+            sentryViews: Map<number, { visible: boolean }>;
+        };
+        assert.equal(views.moon.visible, false);
+        assert.equal(views.home.visible, false);
+        for (const r of s.rocks.values())
+            if (!r.surface)
+                assert.equal(!!views.rocks.get(r.id)?.visible, false, `foreign rock ${r.id}`);
+        assert.ok([...s.rocks.values()].some((r) => r.surface && views.rocks.get(r.id)?.visible));
+        assert.ok([...views.sentryViews.values()].every((v) => !v.visible));
+    } finally {
+        world.dispose();
+    }
+});
+
+test('landing animation advances drifting bodies but keeps the pilot, supplies and physical tow stable', () => {
+    const c = ready();
+    orbitSecured(c);
+    const s = spawn(c);
+    s.area = 'surface';
+    move(s, MARS_MOONS.phobos.exit);
+    s.transferRemaining = 3.2;
+    const rock = [...s.rocks.values()].find((r) => !r.anchored)!;
+    rock.body.setTranslation({ x: 65, y: 44 }, true);
+    rock.body.setLinvel({ x: 1, y: 0 }, true);
+    const tow = s.salvage.add(
+        100888,
+        'patrol',
+        { x: s.position.x - 90, y: s.position.y },
+        { x: 0, y: 0 },
+    );
+    assert.ok(s.salvage.attach(tow, s.ship));
+    const before = {
+        position: s.position,
+        hull: s.hull,
+        cargo: structuredClone(s.cargo),
+        tow: { ...tow.body.translation() },
+    };
+    for (let i = 0; i < 60; i++) s.step({ ...idle, thrust: true, fire: true });
+    assert.ok(s.elapsed > 0.9);
+    assert.ok(rock.body.translation().x > 65.3);
+    assert.deepEqual(s.position, before.position);
+    assert.equal(s.hull, before.hull);
+    assert.deepEqual(s.cargo, before.cargo);
+    assert.deepEqual({ ...tow.body.translation() }, before.tow);
+    assert.equal(s.shipCollider.isEnabled(), false);
+    while (s.transferActive) s.step(idle);
+    s.step(idle);
+    assert.equal(s.shipCollider.isEnabled(), true);
+    s.dispose();
+});
+
+test('gate scenery is available before arrival and only local physics stays enabled after repeated area changes', async () => {
+    const { MissionWorld } = await import('../frontend/game/worlds/missionWorld');
+    const { GameSettings } = await import('../frontend/core/systems/gameSettings');
+    GameSettings.soundEnabled = false;
+    const c = ready();
+    ai(c);
+    const s = spawn(c),
+        world = new MissionWorld(s, c.ship!, false);
+    try {
+        let cloud: unknown;
+        for (let round = 0; round < 3; round++) {
+            s.area = 'orbit';
+            s.marsOrbit = 'mars';
+            move(s, PHOBOS_MAZE_GATE);
+            s.areaRevision++;
+            s.hyperdrive.start(s.position, MARS_GATES.phobosArrival, true, true);
+            s.hyperdrive.charge(1);
+            world.update(17, idle);
+            assert.ok(s.inVisibleMap(MARS_GATES.phobosArrival));
+            assert.ok(s.inVisibleMap(PHOBOS_MAZE_GATE));
+            const views = world as unknown as { marsCloud: unknown; rocks: Map<number, unknown> };
+            if (cloud)
+                assert.equal(
+                    views.marsCloud,
+                    cloud,
+                    'gate travel must not recreate the anomaly renderer',
+                );
+            cloud = views.marsCloud;
+            s.hyperdrive.cancel();
+            s.marsOrbit = 'asteroid';
+            move(s, M.asteroid);
+            s.areaRevision++;
+            world.update(17, idle);
+            assert.equal(views.marsCloud, cloud);
+            assert.ok([...s.rocks.values()].some((r) => r.body.isEnabled()));
+            assert.ok([...s.rocks.values()].some((r) => !r.body.isEnabled()));
+            for (const e of s.enemies.enemies.values())
+                if (e.home.x < 50000) assert.equal(e.body.isEnabled(), false);
+            s.marsOrbit = 'mars';
+            move(s, { x: 0, y: 0 });
+            s.areaRevision++;
+            world.update(17, idle);
+            assert.ok(
+                views.rocks.size < 150,
+                'renderer retains the camera neighbourhood, not every visited map',
+            );
+            assert.equal(views.marsCloud, cloud);
+        }
+    } finally {
+        world.dispose();
+    }
+});
+
+test('required memory navigation cannot be replaced by a closer optional ship wreck', async () => {
+    const { MissionHud } = await import('../frontend/game/ui/hud');
+    const c = ready();
+    orbitSecured(c);
+    c.story!.mars.baseNeutralized = true;
+    const s = spawn(c);
+    s.area = 'surface';
+    move(s, M.surface);
+    const extra = s.salvage.add(-79888, 'patrol', s.position, { x: 0, y: 0 });
+    const hud = Object.create(MissionHud.prototype) as MissionHud;
+    Object.assign(hud, { sim: s, wreckId: null, target: 14 });
+    hud.trackWreck();
+    assert.match(hud.waypoint.name, /Moduł pamięci/);
+    assert.equal(hud.waypoint.x, s.salvage.items.get(M.memoryId)!.body.translation().x * 100);
+    assert.notEqual(hud.waypoint.x, extra.previous.x);
+    assert.equal(c.story!.mars.memoryDelivered, false);
+    s.dispose();
+});
+
+test('first orbital frame after surface ascent never requests a globe-sized anomaly raster window', async () => {
+    const { MissionWorld } = await import('../frontend/game/worlds/missionWorld');
+    const { AnomalyCloudView } = await import('../frontend/game/graphics/anomalyCloudView');
+    const { GameSettings } = await import('../frontend/core/systems/gameSettings');
+    GameSettings.soundEnabled = false;
+    const c = ready();
+    orbitSecured(c);
+    const s = spawn(c);
+    s.marsOrbit = 'phobos';
+    move(s, MARS_MOONS.phobos.entrance);
+    s.transferRemaining = 0.001;
+    const original = AnomalyCloudView.prototype.update,
+        windows: number[] = [];
+    AnomalyCloudView.prototype.update = function (...args: Parameters<typeof original>) {
+        windows.push(Math.max(args[1], args[2]));
+        return original.apply(this, args);
+    };
+    const world = new MissionWorld(s, c.ship!, false);
+    try {
+        assert.ok(world.camera.scale.x < 0.2, 'test starts in the distant globe shot');
+        world.update(17, idle);
+        assert.equal(s.transferActive, false);
+        assert.ok(windows.length > 0);
+        assert.ok(
+            Math.max(...windows) < 2200,
+            'only the ordinary orbital viewport may be prefetched',
+        );
+    } finally {
+        world.dispose();
+        AnomalyCloudView.prototype.update = original;
+    }
+});
+
+test('gate arrival preserves the travel heading even if the final eased frame has zero displacement', () => {
+    for (const [from, to] of [
+        [PHOBOS_MAZE_GATE, MARS_GATES.phobosArrival],
+        [MARS_GATES.phobosArrival, PHOBOS_MAZE_GATE],
+        [MARS_GATES.asteroidExit, MARS_GATES.asteroidArrival],
+        [MARS_GATES.asteroidArrival, MARS_GATES.asteroidExit],
+    ]) {
+        const s = spawn(ready());
+        const heading = Math.atan2(to.y - from.y, to.x - from.x);
+        assert.equal(s.hyperdrive.start(from, to, true, true), true);
+        s.hyperdrive.state = 'transit';
+        s.hyperdrive.transitElapsed = 2.4 - 1e-9;
+        move(s, to);
+        s.ship.setRotation(heading, true);
+        s.step(idle);
+        assert.equal(s.hyperdrive.active, false);
+        assert.ok(
+            Math.abs(
+                Math.atan2(
+                    Math.sin(s.ship.rotation() - heading),
+                    Math.cos(s.ship.rotation() - heading),
+                ),
+            ) < 1e-6,
+        );
+        for (let i = 0; i < 20; i++) s.step(idle);
+        assert.ok(
+            Math.abs(
+                Math.atan2(
+                    Math.sin(s.ship.rotation() - heading),
+                    Math.cos(s.ship.rotation() - heading),
+                ),
+            ) < 1e-6,
+        );
+        s.dispose();
+    }
+});
+
+import { radarRocks } from '../frontend/game/ui/radarRocks';
+import { inMarsMap, nearestMarsOrbit } from '../frontend/game/worlds/marsLayout';
+
+test('orbital resource fields fit playable maps and Mars radar excludes Phobos surface deposits', () => {
+    const c = ready();
+    ai(c);
+    const s = spawn(c);
+    const surface = [...s.rocks.values()].filter((r) => r.surface);
+    assert.ok(surface.length > 40, 'surface deposits remain available after landing');
+    for (const r of s.sector.rocks) {
+        if (surface.some((v) => v.x === r.x && v.y === r.y)) continue;
+        assert.ok(inMarsMap(nearestMarsOrbit(r).id, r, -r.radius), JSON.stringify(r));
+    }
+    s.area = 'orbit';
+    s.marsOrbit = 'mars';
+    move(s, { x: 0, y: 0 });
+    const orbital = [...radarRocks(s)];
+    assert.ok(orbital.length > 50);
+    assert.ok(orbital.every((r) => inMarsMap('mars', r, -r.radius)));
+    assert.ok(orbital.every((r) => !surface.some((v) => v.x === r.x && v.y === r.y)));
+    const drift = [...s.rocks.values()].find((r) => !r.surface)!;
+    drift.body.setTranslation({ x: 40, y: 70 }, true);
+    assert.ok(
+        [...radarRocks(s)].every((r) => r.x !== 4000 || r.y !== 7000),
+        'drifting beyond map does not create unreachable radar resources',
+    );
+    s.area = 'surface';
+    move(s, M.surface);
+    const ground = [...radarRocks(s)];
+    assert.ok(ground.length > 40, 'ground radar still shows actual deposits');
+    assert.ok(
+        ground.every((r) => Math.hypot(r.x - M.surface.x, r.y - M.surface.y) < s.sectorRadius),
+    );
     s.dispose();
 });

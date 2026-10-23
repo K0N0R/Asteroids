@@ -6,10 +6,14 @@ import { Typography } from '@components/typography';
 import { Box } from '@components/box';
 import { GameSettings } from '@systems/gameSettings';
 import { SoundSliderOption } from '@components/soundSliderOption';
+import { developmentControls } from '../../../game/state/development';
+import { STORY_SECTORS, type StorySectorId } from '../../../game/state/story';
+import { button, clear, label, panel } from '../../../game/ui/primitives';
 
 export class ConfigurationPopup extends BasePopup<undefined> {
     private soundSlider: SoundSliderOption;
     private musicSlider: SoundSliderOption;
+    private developmentPanel = new PIXI.Container();
     constructor() {
         super();
         const backdrop = new PIXI.Graphics()
@@ -107,6 +111,80 @@ export class ConfigurationPopup extends BasePopup<undefined> {
                 onClick: () => this.promise.resolve(),
             }),
         );
+        this.addChild(this.developmentPanel);
+    }
+    override show() {
+        clear(this.developmentPanel);
+        const actions = developmentControls.actions;
+        if (!actions) return;
+        const host = this.developmentPanel;
+        panel(host, 1200, 130, 360, 690);
+        label(host, 'NARZĘDZIA TESTOWE', 1222, 157, 16, C.gold);
+        label(
+            host,
+            actions.active()
+                ? 'Osobny zapis testowy jest aktywny.'
+                : 'Wybór sektora tworzy osobny zapis testowy.',
+            1222,
+            190,
+            16,
+            C.muted,
+            310,
+        );
+        const run = (action: () => void) => {
+            this.promise.resolve();
+            action();
+        };
+        button(
+            host,
+            'Powrót do bazy',
+            1222,
+            247,
+            316,
+            () => run(actions.returnToBase),
+            false,
+            actions.canReturn(),
+            42,
+        );
+        label(host, 'PRZEJDŹ DO SEKTORA · BEZ BLOKAD', 1222, 314, 13, C.mint);
+        (Object.keys(STORY_SECTORS) as StorySectorId[]).forEach((id, i) => {
+            button(
+                host,
+                STORY_SECTORS[id].shortName,
+                1222 + (i % 2) * 162,
+                346 + Math.floor(i / 2) * 49,
+                154,
+                () => run(() => actions.chooseSector(id)),
+                false,
+                true,
+                40,
+                15,
+            );
+        });
+        button(
+            host,
+            'Wróć do zwykłej kampanii',
+            1222,
+            704,
+            316,
+            () => run(actions.leave),
+            false,
+            actions.active(),
+            42,
+            15,
+        );
+        label(
+            host,
+            'Powrót kończy wyprawę bez utraty statku.\nWybór sektora nie zmienia zwykłego zapisu.',
+            1222,
+            763,
+            13,
+            C.muted,
+            312,
+        );
+    }
+    override hide() {
+        clear(this.developmentPanel);
     }
     update(deltaMS: number) {
         this.soundSlider.update(deltaMS);

@@ -95,6 +95,7 @@ export class StationSentries {
             if (!this.drones.has(id)) this.launch(id, state);
         });
         for (const drone of this.drones.values()) {
+            if (!drone.body.isEnabled()) continue;
             let p = sentryPosition(drone);
             const distance = Math.hypot(p.x, p.y);
             if (distance > D.leash) {

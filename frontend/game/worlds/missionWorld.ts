@@ -1,5 +1,6 @@
 import { releaseSceneBuffers } from '../../core/systems/renderMemory';
 import { MARS_ACT } from '../state/marsAct';
+import { PHOBOS_MAZE_BANDS, PHOBOS_ORBIT_BANDS } from './phobosMaze';
 import { MarsMoonSurfaceView } from '../graphics/marsMoonSurface';
 import { AnomalyCloudView } from '../graphics/anomalyCloudView';
 import { lunarShipmentView } from '../graphics/lunarShipmentView';
@@ -196,7 +197,7 @@ export class MissionWorld extends Container {
         directed = true,
     ) {
         super();
-        this.direction = new FlightDirection(directed);
+        this.direction = new FlightDirection(directed && !simulation.transferActive);
         this.eventMode = 'none';
         const viewportMask = new Graphics().rect(0, 0, 1600, 900).fill(0xffffff);
         this.addChild(viewportMask);
@@ -236,6 +237,7 @@ export class MissionWorld extends Container {
             w = simulation.sector.landmarks.find((l) => l.kind === 'wreck');
         if (w) wreck.position.set(w.x, w.y);
         else wreck.visible = false;
+        if (simulation.marsAct) wreck.visible = false;
         this.camera.addChild(
             wreck,
             this.rockLayer,
@@ -374,7 +376,13 @@ export class MissionWorld extends Container {
     private routeSignature = '';
     private syncRoutes() {
         const signature = JSON.stringify([
-            this.simulation.marsAct ? [this.simulation.area, this.simulation.marsOrbit] : null,
+            this.simulation.marsAct
+                ? [
+                      this.simulation.area,
+                      this.simulation.marsOrbit,
+                      this.simulation.hyperdrive.active,
+                  ]
+                : null,
             this.simulation.sector.hyperlanes,
             this.simulation.sector.regions,
         ]);
@@ -384,7 +392,7 @@ export class MissionWorld extends Container {
         for (const item of this.gateLabels) destroyDisplayTree(item.view);
         this.gateLabels = [];
         for (const region of this.simulation.sector.regions.filter(
-            (r) => !this.simulation.marsAct || this.simulation.inCurrentMap(r),
+            (r) => !this.simulation.marsAct || this.simulation.inVisibleMap(r),
         ))
             this.routes
                 .circle(region.x, region.y, region.radius)
@@ -398,7 +406,7 @@ export class MissionWorld extends Container {
             for (const point of [lane.a, lane.b]) {
                 if (
                     this.simulation.marsAct &&
-                    (this.simulation.area === 'surface' || !this.simulation.inCurrentMap(point))
+                    (this.simulation.area === 'surface' || !this.simulation.inVisibleMap(point))
                 )
                     continue;
                 this.routes
@@ -539,6 +547,11 @@ export class MissionWorld extends Container {
     update(deltaMS: number, input: FlightInput) {
         if (this.simulation.pendingChoice) return;
         if (this.direction.phase === 'launch') {
+            this.accumulator += Math.min(deltaMS / 1000, 0.1);
+            while (this.accumulator >= GAME.step) {
+                this.simulation.stepCinematic();
+                this.accumulator -= GAME.step;
+            }
             this.clock += Math.min(deltaMS / 1000, 0.1);
             this.updateDirection(deltaMS, input);
             this.render(1, Math.min(deltaMS / 1000, 0.1));
@@ -550,10 +563,11 @@ export class MissionWorld extends Container {
         this.accumulator += Math.min(deltaMS / 1000, 0.1);
         this.clock += deltaMS / 1000;
         while (this.accumulator >= GAME.step) {
-            this.simulation.step(input);
+            if (this.simulation.ended === 'returned') this.simulation.stepCinematic();
+            else this.simulation.step(input);
             this.accumulator -= GAME.step;
             if (
-                this.simulation.ended ||
+                (this.simulation.ended && this.simulation.ended !== 'returned') ||
                 this.simulation.pendingChoice ||
                 this.simulation.lunarStationRequested
             ) {
@@ -777,7 +791,10 @@ export class MissionWorld extends Container {
             }
         }
     }
-    private inView(point: Point, margin = 0) {
+    private inView(point: Point, margin = 0, scriptedTow = false) {
+        const s = this.simulation;
+        if (!scriptedTow && (s.marsAct || s.area === 'surface') && !s.inVisibleMap(point, margin))
+            return false;
         const delta = rotateVector(
             { x: point.x - this.shipView.x, y: point.y - this.shipView.y },
             this.camera.rotation,
@@ -790,28 +807,35 @@ export class MissionWorld extends Container {
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
             p = s.position;
+        this.home.visible = s.area === 'orbit' && (!s.marsAct || s.inVisibleMap({ x: 0, y: 0 }));
+        this.shield.visible = this.home.visible;
+        this.navigation.visible = !s.transferActive;
         if (s.marsAct) {
-            const key = `${s.area}/${s.marsOrbit}`;
+            const key = s.area;
             if (key !== this.marsCloudKey) {
                 if (this.marsCloud) destroyDisplayTree(this.marsCloud);
                 this.marsCloud = null;
                 this.marsCloudKey = key;
-                if (s.marsAnomalies.length)
+                if (s.area === 'orbit')
                     this.marsCloud = this.camera.addChildAt(
-                        new AnomalyCloudView(s.marsAnomalies),
+                        new AnomalyCloudView([...PHOBOS_MAZE_BANDS, ...PHOBOS_ORBIT_BANDS]),
                         0,
                     );
             }
         }
         for (const cloud of [this.marsCloud, this.jupiterCloud]) {
             if (!cloud) continue;
-            cloud.visible = s.hyperdrive.state !== 'transit';
+            // A globe-to-surface zoom covers tens of thousands of world units.
+            // Orbital mist belongs in the orbital shot, not in the surface approach.
+            cloud.visible = !s.transferActive;
             if (cloud.visible)
                 cloud.update(
                     p,
-                    960 / this.camera.scale.x,
-                    580 / this.camera.scale.y,
+                    960 / this.backgroundZoom,
+                    580 / this.backgroundZoom,
                     this.camera.rotation,
+                    this.clock,
+                    s.hyperdrive.active && s.hyperdrive.transfer ? [s.hyperdrive.target] : [],
                 );
         }
         if (this.factoryView && s.enemyFactory) {
@@ -857,6 +881,7 @@ export class MissionWorld extends Container {
             this.camera.addChildAt(this.moon, 0);
             this.moonPrepared = true;
         }
+        this.moon.visible = s.campaign.story?.sector !== 'mars' && !!s.surfaceUnlocked;
         this.moon.update(
             s.area === 'surface' || s.transferActive,
             s.buildStage,
@@ -1776,7 +1801,7 @@ export class MissionWorld extends Container {
                 },
                 item.id,
             );
-            view.visible = this.inView(p);
+            view.visible = this.inView(p, 0, s.salvage.towing.has(item.id));
             if (!view.visible) continue;
             view.position.copyFrom(p);
             view.scale.set(s.salvage.towing.has(item.id) ? transferScale : 1);
@@ -1848,6 +1873,18 @@ export class MissionWorld extends Container {
                 this.rocks.delete(id);
             }
         for (const rock of s.rocks.values()) {
+            const raw = rock.body.translation(),
+                point = { x: raw.x * GAME.pixelsPerMeter, y: raw.y * GAME.pixelsPerMeter };
+            const visible = this.inView(point, rock.radius * 1.2 + 40);
+            if (!visible) {
+                const cached = this.rocks.get(rock.id);
+                if (cached && this.inView(point, rock.radius + 800)) cached.visible = false;
+                else if (cached) {
+                    cached.destroy();
+                    this.rocks.delete(rock.id);
+                }
+                continue;
+            }
             let view = this.rocks.get(rock.id);
             if (!view) {
                 if (rock.surface) {
@@ -1944,6 +1981,7 @@ export class MissionWorld extends Container {
                 this.effectLayer.addChild(view);
             }
             view.position.set(bullet.x, bullet.y);
+            view.visible = this.inView(bullet);
             view.rotation = Math.atan2(bullet.vy, bullet.vx);
             if (bullet.explosive === 'grenade') {
                 view.rotation += (ATLAS_WEAPONS.grenade.life - bullet.life) * 12;
@@ -1975,6 +2013,7 @@ export class MissionWorld extends Container {
             if (RESOURCES[item.kind].category === 'PIERWIASTKI')
                 view.scale.set(Math.min(2.2, 1 + Math.log2(Math.max(1, item.amount)) * 0.2));
             view.position.set(item.x, item.y);
+            view.visible = this.inView(item);
             view.alpha = 0.8 + Math.sin(this.clock * 3 + item.id) * 0.2;
         }
         this.navigation.clear();
