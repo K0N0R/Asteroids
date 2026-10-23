@@ -34,7 +34,8 @@ const idle: FlightInput = {
 const empty = { ore: 0, parts: 0 };
 function ready(built = false) {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS.filter(
         (t) => t.act <= 3 && t.required && !VENUS_EXPANSION_TASKS.includes(t.id),
     )) {

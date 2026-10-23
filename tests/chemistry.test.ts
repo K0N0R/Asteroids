@@ -41,7 +41,7 @@ test('all item identifiers have one storage route; element names always include 
 });
 test('material processes preserve element composition per portion', () => {
     for (const [id, recipe] of Object.entries(RECIPES).filter(
-        ([, r]) => r.category === 'laboratory',
+        ([, r]) => r.category === 'laboratory' && r.output in MATERIAL_COMPOSITION,
     )) {
         const r: ProcessRecipe = recipe;
         assert.notEqual(r.output, 'kit');
@@ -57,21 +57,23 @@ test('material processes preserve element composition per portion', () => {
 });
 test('water batches commit inputs and outputs once and survive saving without workers', () => {
     const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     c.bank = { ore: 0, parts: 0, hydrogen: 20, oxygen: 10 };
     assert.equal(Object.hasOwn(c, 'crew'), false);
-    assert.equal(maxProduction(c, 'water'), 10);
-    assert.ok(manufacture(c, 'water', 5));
-    assert.equal(c.bank.water, 5);
-    assert.equal(c.bank.hydrogen, 10);
-    assert.equal(c.bank.oxygen, 5);
+    assert.equal(maxProduction(c, 'water'), 5);
+    assert.ok(manufacture(c, 'water', 2));
+    assert.equal(c.bank.water, 4);
+    assert.equal(c.bank.hydrogen, 12);
+    assert.equal(c.bank.oxygen, 6);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
-    assert.ok(manufacture(c, 'water', 5));
+    assert.ok(manufacture(c, 'water', 3));
     const snapshot = structuredClone(c);
     assert.equal(manufacture(c, 'water'), false);
     assert.deepEqual(c, snapshot);
 });
 test('invalid batches and unknown recipes cannot mutate inventory', () => {
     const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     c.bank = { ore: 0, parts: 0, hydrogen: 100, oxygen: 100 };
     for (const count of [0, -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
         const before = structuredClone(c);
@@ -88,14 +90,16 @@ test('invalid batches and unknown recipes cannot mutate inventory', () => {
 });
 test('a missing ingredient never partially consumes the others', () => {
     const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     c.bank = { ore: 999, parts: 0, hydrogen: 12, oxygen: 2 };
     const before = structuredClone(c);
     assert.equal(manufacture(c, 'water', 3), false);
     assert.deepEqual(c, before);
-    assert.equal(maxProduction(c, 'water'), 2);
+    assert.equal(maxProduction(c, 'water'), 1);
 });
 test('production is manual at the station and flight cannot start a batch or generate delayed outputs', () => {
     const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     c.bank = { ore: 0, parts: 0, hydrogen: 20, oxygen: 10 };
     assert.ok(beginRun(c, 8));
     const before = structuredClone(c.bank);
@@ -112,7 +116,9 @@ test('production is manual at the station and flight cannot start a batch or gen
 });
 test('six basic part families can be manually produced from elemental stock', () => {
     const c = newCampaign();
-    c.station.workshop = 1;
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.bank = {
         ore: 5000,
         parts: 0,
@@ -126,13 +132,9 @@ test('six basic part families can be manually produced from elemental stock', ()
     };
     for (const [recipe, count] of [
         ['steel', 20],
-        ['copper', 10],
-        ['silicon', 5],
         ['silica', 5],
         ['water', 5],
-        ['oxygen', 5],
         ['plating', 5],
-        ['conductors', 10],
         ['electronics', 4],
         ['machinery', 2],
         ['lifeSupport', 1],
@@ -160,11 +162,13 @@ test('workshop and story unlocks remain independent of stock and cannot be bypas
     const before = structuredClone(c);
     assert.equal(manufacture(c, 'kineticPlate'), false);
     assert.deepEqual(c, before);
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.equal(manufacture(c, 'kineticPlate'), false);
 });
 test('unlimited storage accepts all new materials and parts without overflow', () => {
     const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     c.bank.ore = 2_000_000;
     beginRun(c, 5);
     const cargo = { ore: 0, parts: 2, water: 3, electronics: 4, nitrogen: 5 };
@@ -190,6 +194,7 @@ test('direct station transfer accepts each catalog item once, even with a large 
 });
 test('pre-refactor saves are rejected and invalid item quantities are not normalized', () => {
     const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     assert.equal(parseCampaign(JSON.stringify({ ...c, version: 49 })), null);
     for (const value of [-1, 0.1, '2', Number.MAX_SAFE_INTEGER + 1]) {
         assert.equal(
@@ -204,7 +209,8 @@ test('pre-refactor saves are rejected and invalid item quantities are not normal
 });
 test('repair kit production respects whole-batch limits, including max selection', () => {
     const c = newCampaign();
-    c.bank = { ore: 0, parts: 100, conductors: 100 };
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
+    c.bank = { ore: 0, parts: 0, steel: 100, copperOre: 100 };
     assert.equal(maxProduction(c, 'kit'), 9);
     const before = structuredClone(c);
     assert.equal(manufacture(c, 'kit', 10), false);
@@ -215,7 +221,8 @@ test('repair kit production respects whole-batch limits, including max selection
 });
 
 test('manufactured parts remain in the station warehouse during an ordinary departure and return', () => {
-    const c = newStoryCampaign();
+    const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     c.bank = { ore: 99, parts: 0, carbon: 1 };
     assert.ok(manufacture(c, 'steel'));
     assert.ok(manufacture(c, 'plating'));
@@ -236,6 +243,7 @@ test('manufactured parts remain in the station warehouse during an ordinary depa
 
 test('Mule self-repair leaves prepared repair kits untouched', () => {
     const c = newCampaign();
+    c.station.laboratoryLevel = c.station.workshopLevel = 1;
     c.ship!.hull = 'mule';
     c.repairKits = 5;
     assert.ok(beginRun(c, 8));

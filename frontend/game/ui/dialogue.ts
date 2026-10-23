@@ -41,7 +41,7 @@ export function dialogueView(playback: DialoguePlayback, advance: () => void) {
     text.label = 'dialogue-text';
     label(
         root,
-        `${playback.index + 1} / ${playback.definition.lines.length} · Enter / Spacja`,
+        `${playback.index + 1} / ${playback.definition.lines.length} · Enter`,
         330,
         815,
         14,

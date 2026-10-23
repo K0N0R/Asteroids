@@ -62,19 +62,22 @@ export function moduleOffer(
     const next = project ? Math.max(1, Math.min(3, previewLevel)) : Math.min(3, current + 1);
     const cost = current >= 3 ? {} : moduleParts(key, next - 1);
     const active = c.ship?.id === ship.id;
-    const reason = project
-        ? 'Podgląd projektu · moduły zamontujesz po zbudowaniu statku.'
-        : current >= 3
-          ? 'Najwyższy poziom tego modułu.'
-          : c.activeRun
-            ? 'Montaż dostępny po powrocie do bazy.'
-            : !active
-              ? 'Ustaw ten statek jako aktywny, aby montować ulepszenia.'
-              : next > c.station.workshop + 1
-                ? `Wymagane zaplecze produkcyjne ${next === 2 ? 'I' : 'II'}.`
-                : !canAffordEquipment(c.bank, cost)
-                  ? 'Skompletuj części do ulepszenia.'
-                  : null;
+    const reason =
+        ship.hull === 'prospector'
+            ? 'Prospector 0 · statek startowy i awaryjny, bez ulepszeń.'
+            : project
+              ? 'Podgląd projektu · moduły zamontujesz po zbudowaniu statku.'
+              : current >= 3
+                ? 'Najwyższy poziom tego modułu.'
+                : c.activeRun
+                  ? 'Montaż dostępny po powrocie do bazy.'
+                  : !active
+                    ? 'Ustaw ten statek jako aktywny, aby montować ulepszenia.'
+                    : next > c.station.workshopLevel
+                      ? `Wymagany Warsztat ${['0', 'I', 'II', 'III'][next]}.`
+                      : !canAffordEquipment(c.bank, cost)
+                        ? 'Skompletuj części do ulepszenia.'
+                        : null;
     return { current, next, cost, active, reason, comparison: moduleComparison(ship, key, next) };
 }
 /** Spacious ingredient cards, reused by hulls, modules and armament variants. */
@@ -139,7 +142,7 @@ export function hangarScreen(
     if (!ships.some((ship) => ship.id === state.shipId))
         state.shipId = c.ship?.id ?? ships[0]?.id ?? null;
     const catalogue = (Object.keys(HULLS) as HullId[]).filter(
-        (id) => !('salvageOnly' in HULLS[id]),
+        (id) => id !== 'prospector' && !('salvageOnly' in HULLS[id]),
     );
     const entries = project ? catalogue : ships;
     const pageCount = Math.max(1, Math.ceil(entries.length / 6));
@@ -182,7 +185,7 @@ export function hangarScreen(
             typeof entry === 'string'
                 ? hullUnlockReason(c, hull)
                     ? 'Projekt zablokowany'
-                    : `Zaplecze ${['0', 'I', 'II'][HULLS[hull].workshop]}`
+                    : `Warsztat ${['0', 'I', 'II', 'III'][HULLS[hull].workshop]}`
                 : c.ship?.id === entry.id
                   ? '● Aktywny'
                   : 'W rezerwie',
@@ -245,10 +248,14 @@ export function hangarScreen(
         thumbnail.position.set(1460, 282);
         ui.addChild(thumbnail);
     }
-    const tabs = project
-        ? (['stats', 'construction', 'upgrades', 'variants'] as const)
-        : (['stats', 'upgrades', 'variants'] as const);
-    if (!project && state.tab === 'construction') state.tab = 'stats';
+    const tabs =
+        ship.hull === 'prospector'
+            ? (['stats'] as const)
+            : project
+              ? (['stats', 'construction', 'upgrades', 'variants'] as const)
+              : (['stats', 'upgrades', 'variants'] as const);
+    if ((!project && state.tab === 'construction') || ship.hull === 'prospector')
+        state.tab = 'stats';
     const tabWidth = (950 - (tabs.length - 1) * 14) / tabs.length;
     tabs.forEach((tab, i) => {
         const names = {
@@ -365,18 +372,21 @@ function constructionScreen(ui: Container, c: Campaign, ship: Ship, actions: Han
     label(ui, 'CZĘŚCI DO BUDOWY · MAGAZYN / WYMÓG', 580, 412, 13, C.mint);
     hangarRequirements(ui, c, HULL_CONSTRUCTION[ship.hull], 580, 441, 950, actions.openRecipe);
     const story = hullUnlockReason(c, ship.hull),
-        tech = c.station.workshop < HULLS[ship.hull].workshop,
+        tech = c.station.workshopLevel < HULLS[ship.hull].workshop,
         full = ownedShips(c).length >= FLEET_LIMIT;
-    const reason = c.activeRun
-        ? 'Budowa dostępna po powrocie do bazy.'
-        : story ||
-          (tech
-              ? 'Rozbuduj zaplecze, aby budować ten projekt.'
-              : full
-                ? 'Hangar pełny · zwolnij miejsce we flocie.'
-                : hasHullParts(c.bank, ship.hull)
-                  ? 'Komplet części gotowy.'
-                  : 'Skompletuj części w warsztacie.');
+    const reason =
+        ship.hull === 'prospector'
+            ? 'Prospector 0 nie podlega produkcji.'
+            : c.activeRun
+              ? 'Budowa dostępna po powrocie do bazy.'
+              : story ||
+                (tech
+                    ? 'Rozbuduj zaplecze, aby budować ten projekt.'
+                    : full
+                      ? 'Hangar pełny · zwolnij miejsce we flocie.'
+                      : hasHullParts(c.bank, ship.hull)
+                        ? 'Komplet części gotowy.'
+                        : 'Skompletuj części w warsztacie.');
     label(ui, reason, 580, 693, 16, story || tech || full ? C.gold : C.muted, 930);
     button(
         ui,
@@ -612,7 +622,7 @@ function variantScreen(
             C.cyan,
             900,
         );
-    const tech = c.station.workshop < WEAPONS[state.variant].workshop;
+    const tech = c.station.workshopLevel < WEAPONS[state.variant].workshop;
     label(
         ui,
         project

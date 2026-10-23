@@ -45,7 +45,7 @@ function earthReady() {
     c.bank.ore = 24;
     contributeStory(c, 'earth-supply');
     returning(c, ['relay']);
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshopLevel]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     beginRun(c, 1);
@@ -303,7 +303,7 @@ test('a fresh starter can mine, scan, dock, build the workshop and open the Moon
     assert.ok(c.bank.ore >= 24);
     contributeStory(c, 'earth-supply');
     assert.equal(storyRadius(c.story!), 7500);
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshopLevel]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     assert.equal(generateStorySector(c.story!).hyperlanes.length, 2);

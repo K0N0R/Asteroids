@@ -23,7 +23,7 @@ const idle: FlightInput = {
 };
 function ready() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.laboratoryLevel = 1;
     const claim = (id: string) => {
         if (c.story!.claimed.includes(id)) return;
         const t = STORY_TASKS.find((t) => t.id === id)!;
@@ -31,7 +31,7 @@ function ready() {
         c.story!.progress[id] = t.target;
         c.story!.claimed.push(id);
     };
-    claim('earth-workshop');
+    claim('earth-supply');
     claim('lunar-survey');
     for (const t of LUNAR_PROCESSING) c.bank[t.resource] = t.target;
     return c;
@@ -44,13 +44,13 @@ function launch() {
 }
 test('packing requires all parts atomically and stores equipment in a parcel instead of ship cargo', () => {
     const c = ready();
-    c.bank.electronics!--;
+    c.bank.silica!--;
     const bank = { ...c.bank };
     assert.ok(constructionLoadLock(c));
     assert.equal(beginRun(c, 1, null, true), false);
     assert.deepEqual(c.bank, bank);
     assert.equal(c.lunarShipment, null);
-    c.bank.electronics!++;
+    c.bank.silica!++;
     assert.equal(constructionLoadLock(c), null);
     assert.equal(beginRun(c, 1, null, true), true);
     assert.ok(c.lunarShipment);
@@ -159,7 +159,7 @@ test('parcel travels through the Earth-Moon hypergate and retains one tow and on
         item.body.setTranslation({ x: lane.a.x / 100, y: (lane.a.y + 130) / 100 }, true);
         s.step(idle);
         assert.equal(s.hyperdriveLock, null);
-        s.step({ ...idle, hyperdrive: true });
+        for (let i = 0; i < 121; i++) s.step({ ...idle, target: lane.a, interact: true });
         for (let i = 0; i < 200; i++) s.step(idle);
         assert.equal(s.ended, null);
         assert.equal(s.hyperdrive.state, 'idle');

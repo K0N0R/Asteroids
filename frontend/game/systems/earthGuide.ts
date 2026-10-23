@@ -35,10 +35,18 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
         };
     if (c.activeRun?.mission?.task === 'earth-relay' && !claimed.includes('earth-relay'))
         return relay();
-    if (!claimed.includes('earth-supply') && !claimed.includes('earth-materials')) {
+    if (!claimed.includes('earth-supply')) {
         const missing = Object.entries(STARTER_MATERIALS).filter(
             ([id, count]) => (c.bank[id as ResourceId] ?? 0) < count,
         );
+        if (!missing.length)
+            return {
+                ...home,
+                id: 'laboratory',
+                title: 'Laboratorium stacji',
+                message:
+                    'Materiały są na miejscu. Wróć do Satuk 15 i zamontuj Laboratorium I w Rozbudowie stacji.',
+            };
         const cargoCompletes = missing.every(
             ([id, count]) =>
                 (c.bank[id as ResourceId] ?? 0) + (cargo[id as ResourceId] ?? 0) >= count,
@@ -57,25 +65,17 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
             id: 'mining',
             title: 'Wydobycie',
             message:
-                'Lecę na skraj złoża. Celuj myszą w skały i wydobywaj prawym przyciskiem. Potrzebujemy 4 Fe, 1 C, 4 Cu, 3 Si i 2 O. Zaczekam, jeśli zostaniesz z tyłu.',
+                'Lecę na skraj złoża. Celuj myszą w skały i wydobywaj prawym przyciskiem. Do Laboratorium potrzebujemy 8 Fe, 2 Cu i 2 Si. Zaczekam, jeśli zostaniesz z tyłu.',
         };
     }
     if (!claimed.includes('earth-relay')) return relay();
-    if (!claimed.includes('earth-workshop'))
-        return {
-            ...home,
-            id: 'workshop',
-            title: 'Warsztat stacji',
-            message:
-                'Zaopatrzenie i łączność gotowe. Wróć do pierścienia i przytrzymaj E, potem zamontuj zaplecze I w Rozbudowie stacji.',
-        };
     return {
         x: EARTH_MOON_LANE.a.x + 240,
         y: EARTH_MOON_LANE.a.y + 100,
         id: 'moon-gate',
         title: 'Śluza na Księżyc',
         message:
-            'Przy śluzie na Księżyc wyhamuj i naciśnij spację. Prospector może wykonać ten skok. Na miejscu odszukaj sondę księżycową i zsynchronizuj ją przez E.',
+            'Przy śluzie na Księżyc wyhamuj i przytrzymaj F przez 2 sekundy. Prospector może wykonać ten skok. Na miejscu odszukaj sondę księżycową i zsynchronizuj ją przez F.',
     };
 }
 function relay(): GuideGoal {
@@ -85,7 +85,7 @@ function relay(): GuideGoal {
         id: 'relay',
         title: 'Przekaźnik orbitalny',
         message:
-            'Leć do przekaźnika. Zatrzymaj się, naciśnij E i dopasuj trzy kanały. Potwierdzenie przyjdzie przez radio. Ja czekam obok; samo dotarcie mojego statku nie zalicza zadania.',
+            'Leć do przekaźnika. Zatrzymaj się, naciśnij F i dopasuj trzy kanały. Potwierdzenie przyjdzie przez radio. Ja czekam obok; samo dotarcie mojego statku nie zalicza zadania.',
     };
 }
 

@@ -108,15 +108,15 @@ export class SalvageFleet {
     }
     attach(item: SalvageBody, ship: RAPIER.RigidBody) {
         if (this.full || this.towing.has(item.id) || !this.items.has(item.id)) return false;
-        const anchor = {
-            x: -28,
-            y:
-                this.capacity === 1
-                    ? 0
-                    : [...this.ropes.values()].some((rope) => rope.anchor.y === -26)
-                      ? 26
-                      : -26,
-        };
+        const used = new Set([...this.ropes.values()].map((rope) => rope.anchor.y));
+        const slots =
+            this.capacity === 1
+                ? [0]
+                : Array.from(
+                      { length: this.capacity },
+                      (_, i) => (i - (this.capacity - 1) / 2) * 52,
+                  );
+        const anchor = { x: -28, y: slots.find((y) => !used.has(y)) ?? 0 };
         const joint = this.world.createImpulseJoint(
             RAPIER.JointData.rope(2.3, { x: anchor.x / P, y: anchor.y / P }, { x: 0, y: 0 }),
             ship,

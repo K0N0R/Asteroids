@@ -34,7 +34,8 @@ function unlocked() {
     }
     c.story!.progress['earth-workshop'] = 1;
     c.story!.claimed.push('earth-workshop');
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     return c;
 }
 test('station equipment uses named manufactured parts, never raw elements', () => {
@@ -63,11 +64,11 @@ test('the first workshop can be manufactured from elements at level zero without
         ['machinery', 1],
         ['electronics', 1],
     ] as const) {
-        assert.equal(c.station.workshop, 0);
+        assert.equal(c.station.workshopLevel, 0);
         assert.ok(manufacture(c, recipe, count), recipe);
     }
     assert.ok(buyUpgrade(c, 'workshop'));
-    assert.equal(c.station.workshop, 1);
+    assert.equal(c.station.workshopLevel, 1);
     for (const id of Object.keys(WORKSHOP_CONSTRUCTION[0]))
         assert.equal(c.bank[id as keyof typeof c.bank], 0);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
@@ -83,7 +84,7 @@ test('Earth contains every bootstrap element before installing the first worksho
     }
     for (const id of ['ore', 'carbon', 'copperOre', 'crystals', 'oxygen'] as const)
         assert.ok((total[id] ?? 0) > 0, id);
-    assert.equal(c.station.workshop, 0);
+    assert.equal(c.station.workshopLevel, 0);
 });
 test('both workshop levels require each part atomically and enforce flight and maximum locks', () => {
     const c = newStoryCampaign();
@@ -155,7 +156,8 @@ test('rebuilding charges only lost drones, preserves damaged survivors and canno
 });
 test('both kinetic tiers require their whole parts bill and never consume raw silicon', () => {
     const c = unlocked();
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.station.shield = true;
     for (const task of STORY_TASKS.filter(
         (t) => (t.act <= 3 && t.required) || t.id === 'mercury-survey',

@@ -1,3 +1,4 @@
+import { grantStoryTasks } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import RAPIER from '@dimforge/rapier2d-compat';
@@ -33,13 +34,15 @@ const idle: FlightInput = {
 };
 function ready(surveyed = false) {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const task of STORY_TASKS.filter(
         (t) => t.required && (t.act <= 5 || (surveyed && t.id === 'belt-survey')),
     )) {
         c.story!.progress[task.id] = task.target;
         c.story!.claimed.push(task.id);
     }
+    grantStoryTasks(c, c.story!.claimed);
     c.story!.sector = 'mars';
     assert.ok(beltPassageReady(c.story!));
     assert.ok(travelStory(c, 'belt'));

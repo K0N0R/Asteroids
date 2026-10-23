@@ -118,8 +118,7 @@ export class MissionHud extends Container {
             sim.outerSector
         )
             this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
-        if (sim.aegis || sim.hullId === 'widmo' || sim.hullId === 'mule')
-            this.supportStatus = label(this, '', 80, 166, 14, C.cyan, 600);
+        this.supportStatus = label(this, '', 80, 166, 14, C.cyan, 900);
         if (sim.anomalyMission) this.anomalyStatus = label(this, '', 40, 215, 16, 0xda8cf1, 760);
         if (sim.rescueOperation) this.rescueStatus = label(this, '', 40, 245, 16, C.gold, 720);
         if (sim.miningEscort) this.convoyStatus = label(this, '', 40, 215, 14, C.gold, 760);
@@ -158,9 +157,9 @@ export class MissionHud extends Container {
                     : sim.hullId === 'stinger'
                       ? 'lekka'
                       : sim.hullId === 'phoenix'
-                        ? 'laser'
+                        ? 'działka'
                         : sim.hullId === 'widmo'
-                          ? 'dash'
+                          ? 'działko'
                           : 'ogień',
             355,
             845,
@@ -173,24 +172,27 @@ export class MissionHud extends Container {
                 : sim.isAtlas || sim.hullId === 'fighter'
                   ? 'granaty'
                   : sim.aegis
-                    ? 'impuls'
+                    ? 'lasery'
                     : sim.hullId === 'widmo'
-                      ? 'kamuflaż'
+                      ? 'dash'
                       : sim.hullId === 'mule'
                         ? 'naprawa'
                         : sim.hullId === 'stinger'
-                          ? 'AP'
+                          ? 'rakieta'
                           : sim.hullId === 'phoenix'
-                            ? 'rakieta'
-                            : 'laser',
+                            ? 'promienie'
+                            : sim.hullId === 'tug'
+                              ? 'EMP'
+                              : 'laser',
             453,
             845,
         );
         keyHint(this, ', / .', 'cel', 552, 845, 52);
-        keyHint(this, 'H', 'hol', 654, 845, 30);
-        keyHint(this, sim.stationLogistics ? 'E/C' : 'E', 'akcja', 752, 845);
+        keyHint(this, 'F', 'hol', 654, 845, 30);
+        keyHint(this, sim.stationLogistics ? 'F/C' : 'F', 'akcja / śluza', 752, 845);
         keyHint(this, 'R', 'naprawa', 857, 845);
-        keyHint(this, 'SPACE', 'śluza', 970, 845, 65);
+        if (sim.abilities.readout)
+            keyHint(this, sim.hullConfig.workshop === 3 ? 'Q / E' : 'Q', 'zdolności', 970, 845, 65);
 
         const details = keyHint(this, 'TAB', 'pokład', 1170, 845, 40);
         details.eventMode = 'static';
@@ -521,17 +523,14 @@ export class MissionHud extends Container {
         );
         this.health.setText(`${Math.ceil(s.hull)} / ${s.maxHull}`);
         this.health.setColor(C.red);
-        if (s.aegis)
-            this.supportStatus?.setText(
-                `Impuls ${s.aegis.cooldown > 0 ? `${Math.ceil(s.aegis.cooldown)} s` : 'gotowy'} · dron ${s.aegis.drone ? `${Math.ceil(s.aegis.drone.hull)}/${Math.round(s.aegis.droneHull)}` : 'zniszczony'}${!s.aegis.drone ? ` · zestawy ${s.repairKits}` : ''}`,
-            );
-        else if (s.hullId === 'widmo')
-            this.supportStatus?.setText(
-                s.opticalCloak
-                    ? `Kamuflaż ${s.opticalCloakTime.toFixed(1)} s`
-                    : `Kamuflaż ${s.opticalCloakCooldown > 1e-8 ? `odnowienie ${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy'}`,
-            );
-        else if (s.hullId === 'mule') this.supportStatus?.setText('Muł · R: darmowa samonaprawa');
+        this.supportStatus?.setText(
+            s.abilities.readout ||
+                (s.hullId === 'tug'
+                    ? `PPM · EMP ${Math.ceil(s.abilities.cooldowns.emp)} s · hol ${s.salvage.towing.size}/${s.salvage.capacity}`
+                    : s.hullId === 'mule'
+                      ? 'PPM · darmowa samonaprawa'
+                      : ''),
+        );
         this.meters
             .clear()
             .poly([47, 43, 65, 43, 65, 55, 56, 65, 47, 55])
@@ -599,6 +598,10 @@ export class MissionHud extends Container {
         ])
             if (status) status.visible = false;
         if (s.marsAct && this.orderStatus) this.orderStatus.visible = true;
+        if (this.supportStatus)
+            this.supportStatus.visible = !!(
+                s.abilities.readout || ['tug', 'mule'].includes(s.hullId)
+            );
         const towedIds = [...s.salvage.towing.keys()].join(',');
         if (this.towedIds !== towedIds) {
             this.towedIds = towedIds;

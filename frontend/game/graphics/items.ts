@@ -26,10 +26,6 @@ export function itemIllustration(id: ResourceId | 'kit') {
         atom(0, -7, 'O', RESOURCES.oxygen.color, 30);
         atom(-48, 31, 'H', RESOURCES.hydrogen.color, 22);
         atom(48, 31, 'H', RESOURCES.hydrogen.color, 22);
-    } else if (id === 'oxygenGas') {
-        g.roundRect(-32, -5, 64, 10, 5).fill(0xabc6da);
-        atom(-29, 0, 'O', color);
-        atom(29, 0, 'O', color);
     } else if (id === 'silica') {
         g.moveTo(-94, 0).lineTo(94, 0).stroke({ color: 0xabc6da, width: 7 });
         atom(0, 0, 'Si', RESOURCES.crystals.color, 24);
@@ -38,6 +34,53 @@ export function itemIllustration(id: ResourceId | 'kit') {
         for (const x of [-105, 105]) {
             const dots = label(root, '…', x, -13, 22, 0xabc6da);
             dots.setHorizontalAlign('center');
+        }
+    } else if (id === 'siliconCarbide') {
+        for (const x of [-30, 30])
+            g.moveTo(x, -30).lineTo(x, 30).stroke({ color: 0xabc6da, width: 7 });
+        for (const y of [-30, 30])
+            g.moveTo(-30, y).lineTo(30, y).stroke({ color: 0xabc6da, width: 7 });
+        atom(-30, -30, 'Si', RESOURCES.crystals.color, 24);
+        atom(30, 30, 'Si', RESOURCES.crystals.color, 24);
+        atom(-30, 30, 'C', RESOURCES.carbon.color, 21);
+        atom(30, -30, 'C', RESOURCES.carbon.color, 21);
+    } else if (id === 'alumina') {
+        g.moveTo(-40, 0)
+            .lineTo(0, -38)
+            .lineTo(40, 0)
+            .lineTo(0, 38)
+            .lineTo(-40, 0)
+            .stroke({ color: 0xabc6da, width: 7 });
+        atom(-40, 0, 'Al', RESOURCES.aluminium.color, 25);
+        atom(40, 0, 'Al', RESOURCES.aluminium.color, 25);
+        for (const y of [-38, 0, 38]) atom(0, y, 'O', RESOURCES.oxygen.color, 19);
+    } else if (id === 'anomalyOre' || id === 'stabilizedAnomaly') {
+        if (id === 'stabilizedAnomaly') {
+            g.poly([-54, -28, 0, -58, 54, -28, 54, 28, 0, 58, -54, 28])
+                .fill(0x253a56)
+                .stroke({ color: 0x8be4de, width: 7 });
+            for (const x of [-48, 48]) g.roundRect(x - 7, -16, 14, 32, 4).fill(0xe6b75f);
+        } else {
+            g.ellipse(0, 4, 64, 40).stroke({ color, width: 3, alpha: 0.45 });
+            g.ellipse(0, 4, 45, 58).stroke({ color, width: 2, alpha: 0.3 });
+        }
+        g.poly([-25, -13, 7, -39, 29, -11, 13, 36, -20, 22])
+            .fill(0x8c60c2)
+            .stroke({ color: 0xe3b5ff, width: 3 });
+        g.poly([7, -39, 5, 0, 29, -11, 13, 36, 5, 0, -20, 22]).stroke({
+            color: 0xeacaff,
+            width: 2,
+        });
+        g.circle(5, 0, 8).fill(0xf4deff);
+    } else if (id === 'resonantComposite') {
+        for (const y of [20, 0, -20]) {
+            g.poly([-54, y - 15, -8, y - 36, 54, y - 5, 8, y + 20])
+                .fill(y === 0 ? 0x614d99 : 0x374966)
+                .stroke({ color, width: 3 });
+            for (const offset of [-20, 0, 20])
+                g.moveTo(-27 + offset, y - 12)
+                    .lineTo(27 + offset, y + 8)
+                    .stroke({ color: 0xa4eee3, width: 3, alpha: 0.8 });
         }
     } else if (id === 'steel' || id === 'aluminiumAlloy') {
         const metal = id === 'steel' ? 'ore' : 'aluminium';
@@ -52,17 +95,6 @@ export function itemIllustration(id: ResourceId | 'kit') {
             for (const y of [-35, 35])
                 atom(x, y, RESOURCES[metal].short, RESOURCES[metal].color, 24);
         atom(0, 0, RESOURCES[additive].short, RESOURCES[additive].color, id === 'steel' ? 13 : 24);
-    } else if (id === 'pureCopper' || id === 'pureSilicon') {
-        const element = id === 'pureCopper' ? 'copperOre' : 'crystals';
-        atom(0, 0, RESOURCES[element].short, RESOURCES[element].color, 43);
-        g.roundRect(18, -29, 12, 5, 2.5).fill(0xf5fafb);
-    } else if (id === 'conductors') {
-        // Exposed copper cable coil, distinct from an assembled circuit board.
-        g.roundRect(-62, -32, 20, 64, 7).fill(0x596c88);
-        g.roundRect(42, -32, 20, 64, 7).fill(0x596c88);
-        for (let i = 0; i < 5; i++)
-            g.ellipse(-32 + i * 16, 0, 13, 34).stroke({ color: 0xe6a16d, width: 9 });
-        g.moveTo(56, 0).lineTo(76, 0).lineTo(76, 27).stroke({ color: 0xe6a16d, width: 7 });
     } else if (id === 'electronics') {
         g.roundRect(-60, -43, 120, 86, 17).fill(0x328b88);
         for (let i = 0; i < 4; i++) {

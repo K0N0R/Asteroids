@@ -49,6 +49,9 @@ export class MiningEscort extends ResearchEscort {
         );
         this.previous = this.position;
     }
+    override get vulnerable() {
+        return this.state !== 'destroyed' && this.state !== 'failed';
+    }
     get cargoUsed() {
         return resourceTotal(this.cargo);
     }
@@ -61,7 +64,7 @@ export class MiningEscort extends ResearchEscort {
         if (this.state === 'complete') return 'Dostawy zakończone · odbierz instalacje stacji';
         if (!this.processingReady)
             return 'Muł czeka na montaż linii przetwarzania i zasilania stacji';
-        if (this.state === 'idle') return 'Muł przy budowie · N: nawigacja · E: start eskorty';
+        if (this.state === 'idle') return 'Muł przy budowie · N: nawigacja · F: start eskorty';
         if (this.repairProgress)
             return `Muł: naprawa ${Math.floor(this.repairProgress)}/${GAME.repairSeconds} s`;
         if (this.state === 'waiting')
@@ -106,10 +109,6 @@ export class MiningEscort extends ResearchEscort {
         this.beams.length = 0;
         this.underThreat = hostileNear;
         if (this.failed || this.state === 'destroyed' || this.state === 'idle') return false;
-        if (this.state === 'complete') {
-            this.departure += dt;
-            return false;
-        }
         if (
             this.health <= HULLS.mule.health - GAME.repairHull &&
             !hostileNear &&
@@ -128,6 +127,10 @@ export class MiningEscort extends ResearchEscort {
             return false;
         }
         this.repairProgress = 0;
+        if (this.state === 'complete') {
+            this.departure += dt;
+            return false;
+        }
         super.update(dt, player, rocks, true);
         return this.returning && this.state === 'research';
     }

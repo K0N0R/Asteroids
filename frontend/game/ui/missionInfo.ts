@@ -11,6 +11,7 @@ import { button, clear, label, panel, illustrationInBox } from './primitives';
 import { missionObjectives } from './missionReadout';
 import { objectiveMark } from './hudIcons';
 import { STORY_TASKS } from '../state/story';
+import { MARS_ACT } from '../state/marsAct';
 
 export interface MissionInfoData {
     simulation: MissionSimulation;
@@ -83,7 +84,72 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
         label(root, `${s.pilot.role} · poziom ${s.pilot.level}`, 190, 526, 15, C.muted, 260);
         if (pilot) label(root, `${pilot.xp} PD`, 190, 551, 16, C.mint);
         if (s.engineFault) label(root, 'Awaria napędu', 190, 586, 16, C.coral);
-        if (s.prototypes.length) {
+        if (s.salvage.towing.size) {
+            label(
+                root,
+                `HOLOWANIE · ${s.salvage.towing.size}/${s.salvage.capacity}`,
+                190,
+                581,
+                13,
+                C.mint,
+            );
+            [...s.salvage.towing.values()].forEach((item, i) => {
+                const title =
+                    item.source === 'shipment'
+                        ? 'Paczka księżycowa'
+                        : item.source === 'recovery'
+                          ? 'Cel ratunkowy'
+                          : item.id === MARS_ACT.memoryId
+                            ? 'Moduł pamięci'
+                            : 'Wrak';
+                button(
+                    root,
+                    `${s.selectedTow?.id === item.id ? '● ' : ''}${i + 1}. ${title}`,
+                    190,
+                    607 + i * 23,
+                    260,
+                    () => {
+                        s.selectTow(item.id);
+                        this.show(data);
+                    },
+                    s.selectedTow?.id === item.id,
+                    true,
+                    22,
+                    12,
+                );
+            });
+            const canRelease = !s.hyperdrive.active && !s.transferActive;
+            button(
+                root,
+                'ODEPNIJ WYBRANY',
+                190,
+                726,
+                140,
+                () => {
+                    s.releaseWreck();
+                    this.show(data);
+                },
+                false,
+                canRelease,
+                23,
+                10,
+            );
+            button(
+                root,
+                'ODEPNIJ WSZYSTKIE',
+                335,
+                726,
+                115,
+                () => {
+                    s.releaseWreck(true);
+                    this.show(data);
+                },
+                false,
+                canRelease,
+                23,
+                9,
+            );
+        } else if (s.prototypes.length) {
             label(root, 'MODUŁY WYPRAWY', 190, 626, 12, C.muted);
             s.prototypes
                 .slice(0, 3)

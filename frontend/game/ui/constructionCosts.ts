@@ -21,17 +21,16 @@ export function constructionCosts(
             new Graphics().roundRect(x, rowY, 222, 46, 8).fill({ color: C.ink, alpha: 0.24 }),
         );
         illustrationInBox(ui, itemIllustration(id), x + 8, rowY + 8, 27, 27);
-        label(ui, RESOURCES[id].name, x + 43, rowY + 5, 14, C.text, 171);
+        const title =
+            id === 'stabilizedAnomaly'
+                ? 'Materiał anomalii (MA)'
+                : id === 'resonantComposite'
+                  ? 'Kompozyt (KR)'
+                  : RESOURCES[id].name;
+        label(ui, title, x + 43, rowY + 5, 13, C.text, 171);
         const need = bill[id]!,
             have = bank[id] ?? 0;
-        label(
-            ui,
-            `${Math.min(have, need)} / ${need}`,
-            x + 43,
-            rowY + 26,
-            13,
-            have >= need ? C.mint : C.gold,
-        );
+        label(ui, `${have} / ${need}`, x + 43, rowY + 26, 13, have >= need ? C.mint : C.gold);
         const recipe = RECIPE_IDS.find((recipe) => RECIPES[recipe].output === id);
         if (recipe && openRecipe)
             button(

@@ -120,6 +120,7 @@ test('loss grants no XP, a saved capsule preserves skills, and the rescuer alone
     trainPilot(c, pilot.id, 'mining');
     trainPilot(c, pilot.id, 'survival');
     const expected = structuredClone(pilot);
+    c.ship!.hull = 'swift';
     let seed = 0;
     while (
         !(

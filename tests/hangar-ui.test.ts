@@ -23,7 +23,8 @@ function walk(root: Container): Container[] {
 }
 function ready() {
     const c = newCampaign();
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const id of RESOURCE_IDS) c.bank[id] = 1000;
     return c;
 }
@@ -150,7 +151,8 @@ test('six module tabs show one offer; activation, facility, missing parts and ma
         click(t.ui, 'hangar-upgrade');
         assert.equal(t.calls.upgrade, 1);
         t.c.ship!.armor = 1;
-        t.c.station.workshop = 0;
+        t.c.station.workshopLevel = 0;
+        c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
         assert.match(moduleOffer(t.c, t.c.ship!, 'armor').reason!, /zaplecze/);
         t.c.ship!.armor = 3;
         t.render();

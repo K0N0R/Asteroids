@@ -1,7 +1,6 @@
+import { installStationProject, stationProjectCost } from './stationProgression';
 import { cargoCapacity } from '../config';
-import { migrateMarsLayout } from './marsLayoutMigration';
 import { nearestMarsOrbit } from '../worlds/marsLayout';
-import { newMarsProgress } from './marsAct';
 import {
     packLunarShipment,
     lunarShipmentPending,
@@ -102,7 +101,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 66;
+    version: 67;
     story: StoryProgress | null;
     bank: Cargo;
     lunarStation: { bank: Cargo };
@@ -125,7 +124,10 @@ export interface Campaign {
         Record<'lunar-rescue' | 'jupiter-recovery', Point & { stabilized: boolean; health: number }>
     >;
     station: {
-        workshop: number;
+        workshopLevel: number;
+        laboratoryLevel: number;
+        extraction: boolean;
+        anomalySampleDelivered: boolean;
         storage: number;
         cargoBays?: number;
         shield: boolean;
@@ -197,7 +199,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 66,
+        version: 67,
         story: null,
         bank: { ore: 0, parts: 0 },
         lunarStation: { bank: { ore: 0, parts: 0 } },
@@ -211,7 +213,10 @@ export function newCampaign(): Campaign {
         rescueSites: {},
         magneticRelays: [],
         station: {
-            workshop: 0,
+            workshopLevel: 0,
+            laboratoryLevel: 0,
+            extraction: false,
+            anomalySampleDelivered: false,
             storage: 0,
             shield: false,
             shieldLevel: 0,
@@ -247,7 +252,7 @@ const cargo = (value: unknown): value is Cargo =>
 export function parseCampaign(json: string | null): Campaign | null {
     try {
         const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 66 || !cargo(p.bank) || !object(p.station)) return null;
+        if (!object(p) || p.version !== 67 || !cargo(p.bank) || !object(p.station)) return null;
         // Starter hulls are destroyed on signal loss; keep any independently surviving capsule.
         // Apply the same rule to old beacons so saved wrecks cannot fund repeated free starters.
         if (Array.isArray(p.recoverySignals)) {
@@ -264,67 +269,14 @@ export function parseCampaign(json: string | null): Campaign | null {
             if (object(p.activeRun) && removed.has(p.activeRun.recoveryId))
                 p.activeRun.recoveryId = null;
         }
-        // Upgrade the previous journal in place; keep inventory, pilots, ships and later acts.
-        if (
-            object(p.story) &&
-            p.story.version === 29 &&
-            object(p.story.progress) &&
-            Array.isArray(p.story.claimed)
-        ) {
-            const retired = [
-                'mars-trail',
-                'mars-patrol',
-                'mars-belt',
-                'mars-factory',
-                'mars-reserve',
-            ];
-            const finished = p.story.claimed.includes('mars-belt');
-            for (const id of retired) delete p.story.progress[id];
-            p.story.claimed = p.story.claimed.filter((id) => !retired.includes(id as string));
-            for (const task of STORY_TASKS)
-                if (!(task.id in p.story.progress)) p.story.progress[task.id] = 0;
-            p.story.mars = newMarsProgress();
-            if (finished) {
-                Object.assign(p.story.mars as object, {
-                    landingBlocked: true,
-                    ambushEntered: true,
-                    baseNeutralized: true,
-                    memoryDelivered: true,
-                    aiIdentified: true,
-                    yardDestroyed: true,
-                    researchSites: 3,
-                    researchWaves: 3,
-                    kills: [
-                        71000,
-                        71001,
-                        71002,
-                        ...Array.from({ length: 12 }, (_, i) => 72000 + i),
-                    ],
-                });
-                p.station.shield = true;
-                for (const task of STORY_TASKS.filter(
-                    (task) =>
-                        (task.act === 2 && task.sector === 'mars' && task.required) ||
-                        task.id === 'mars-landing-blocked',
-                )) {
-                    p.story.progress[task.id] = task.target;
-                    if (!(p.story.claimed as string[]).includes(task.id))
-                        (p.story.claimed as string[]).push(task.id);
-                }
-            }
-            p.story.version = 30;
-            if (
-                object(p.activeRun) &&
-                object(p.activeRun.mission) &&
-                retired.includes(p.activeRun.mission.task as string)
-            )
-                delete p.activeRun.mission;
-        }
-
-        migrateMarsLayout(p);
         if (!object(p.lunarStation) || !cargo(p.lunarStation.bank)) return null;
         if (
-            !integer(p.station.workshop, 2) ||
+            !integer(p.station.workshopLevel, 3) ||
+            !integer(p.station.laboratoryLevel, 3) ||
+            (p.station.workshopLevel as number) > (p.station.laboratoryLevel as number) ||
+            (p.station.laboratoryLevel as number) > (p.station.workshopLevel as number) + 1 ||
+            typeof p.station.extraction !== 'boolean' ||
+            typeof p.station.anomalySampleDelivered !== 'boolean' ||
             !integer(p.station.storage, 3) ||
             (p.station.cargoBays !== undefined && !integer(p.station.cargoBays, 3)) ||
             typeof p.station.shield !== 'boolean' ||
@@ -335,8 +287,7 @@ export function parseCampaign(json: string | null): Campaign | null {
             return null;
         if (
             p.station.sentries !== null &&
-            (!p.station.shield ||
-                !Array.isArray(p.station.sentries) ||
+            (!Array.isArray(p.station.sentries) ||
                 p.station.sentries.length !== STATION_DRONES.count ||
                 !p.station.sentries.every(
                     (drone) =>
@@ -462,7 +413,13 @@ export function parseCampaign(json: string | null): Campaign | null {
             ship.weapons.every((w) => typeof w === 'string' && Object.hasOwn(WEAPONS, w)) &&
             new Set(ship.weapons).size === ship.weapons.length &&
             ship.weapons.includes('standard') &&
-            ship.weapons.includes(ship.weapon);
+            ship.weapons.includes(ship.weapon) &&
+            (ship.hull !== 'prospector' ||
+                (['engine', 'cargo', 'drill', 'armor', 'shield', 'handling'].every(
+                    (key) => ship[key] === 0,
+                ) &&
+                    ship.weapon === 'standard' &&
+                    ship.weapons.length === 1));
         if (
             (p.ship !== null && !validShip(p.ship)) ||
             !Array.isArray(p.reserveShips) ||
@@ -654,7 +611,7 @@ export function parseCampaign(json: string | null): Campaign | null {
             p.activeRun.seed !== STORY_SECTORS[p.story.sector].seed
         )
             return null;
-        if (p.story?.claimed.includes('earth-workshop') && (p.station.workshop as number) < 1)
+        if (p.story?.claimed.includes('earth-workshop') && (p.station.workshopLevel as number) < 1)
             return null;
         if (!p.story && object(p.activeRun) && p.activeRun.sector !== undefined) return null;
         if (object(p.activeRun) && p.activeRun.mission !== undefined) {
@@ -697,6 +654,7 @@ export function ownedShips(c: Campaign) {
     return [...(c.ship ? [c.ship] : []), ...c.reserveShips];
 }
 export function scrapRefund(ship: Ship): Cargo {
+    if (ship.hull === 'prospector') return { ore: 0, parts: 0 };
     const spent: Cargo = { ore: 0, parts: 0, ...HULL_CONSTRUCTION[ship.hull] };
     for (const key of ['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const) {
         for (let level = 0; level < ship[key]; level++) {
@@ -752,19 +710,20 @@ export function upgradePrice(c: Campaign, upgrade: Upgrade): Cargo {
     return {
         ore: 0,
         parts: 0,
-        ...(upgrade === 'workshop' ? WORKSHOP_CONSTRUCTION[c.station.workshop] : {}),
+        ...(upgrade === 'workshop' ? stationProjectCost(c, 'workshop') : {}),
     };
 }
 export function buyUpgrade(c: Campaign, upgrade: Upgrade): boolean {
-    if (c.activeRun || upgrade === 'storage') return false;
-    const station = upgrade === 'workshop';
-    if (!station && !c.ship) return false;
-    const level = upgrade === 'workshop' ? c.station[upgrade] : c.ship![upgrade];
-    const limit = station ? WORKSHOP_CONSTRUCTION.length : c.station.workshop + 1;
-    const price = upgradePrice(c, upgrade);
-    if (level >= limit || !spendEquipment(c.bank, price)) return false;
-    if (upgrade === 'workshop') c.station[upgrade]++;
-    else c.ship![upgrade]++;
+    if (upgrade === 'workshop') return installStationProject(c, 'workshop');
+    if (c.activeRun || upgrade === 'storage' || !c.ship || c.ship.hull === 'prospector')
+        return false;
+    const level = c.ship[upgrade];
+    if (
+        level >= Math.min(3, c.station.workshopLevel) ||
+        !spendEquipment(c.bank, upgradePrice(c, upgrade))
+    )
+        return false;
+    c.ship[upgrade]++;
     return true;
 }
 export function hirePilot(c: Campaign, archetype: number): boolean {
@@ -776,12 +735,12 @@ export function hirePilot(c: Campaign, archetype: number): boolean {
     c.selectedPilot = pilot.id;
     return true;
 }
-export function buyShip(c: Campaign, hull: HullId = 'prospector'): boolean {
+export function buyShip(c: Campaign, hull: HullId = 'swift'): boolean {
     if (c.activeRun || !Object.hasOwn(HULLS, hull) || ownedShips(c).length >= FLEET_LIMIT)
         return false;
     const config = HULLS[hull];
-    if ('salvageOnly' in config || !hullUnlocked(c, hull)) return false;
-    if (c.station.workshop < config.workshop || !hasHullParts(c.bank, hull)) return false;
+    if (hull === 'prospector' || 'salvageOnly' in config || !hullUnlocked(c, hull)) return false;
+    if (c.station.workshopLevel < config.workshop || !hasHullParts(c.bank, hull)) return false;
     for (const id of RESOURCE_IDS) {
         const amount = (HULL_CONSTRUCTION[hull] as Readonly<ResourceStore>)[id] ?? 0;
         if (amount) c.bank[id] = (c.bank[id] ?? 0) - amount;
@@ -798,7 +757,7 @@ export function emergencyKit(c: Campaign): boolean {
         changed = true;
     }
     // A stock of raw elements cannot replace a ship needed to gather and process resources.
-    if (!c.ship && !hasHullParts(c.bank, 'prospector')) {
+    if (!c.ship) {
         c.ship = newShip(c.nextShipId++);
         changed = true;
     }
@@ -931,11 +890,13 @@ export function deliverSalvage(
             description += ` · odbudowano ${HULLS[ship.hull].name} #${ship.id}`;
         } else {
             // Upgrade a docked reserve; never change the active ship's loadout mid-flight.
-            const options = c.reserveShips.flatMap((ship) =>
-                (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const)
-                    .filter((key) => ship[key] < Math.min(3, c.station.workshop + 1))
-                    .map((key) => ({ ship, key })),
-            );
+            const options = c.reserveShips
+                .filter((ship) => ship.hull !== 'prospector')
+                .flatMap((ship) =>
+                    (['engine', 'handling', 'cargo', 'drill', 'armor', 'shield'] as const)
+                        .filter((key) => ship[key] < Math.min(3, c.station.workshopLevel))
+                        .map((key) => ({ ship, key })),
+                );
             if (options.length && (!c.story || c.story.mars.aiIdentified)) {
                 const { ship, key } = options[Math.floor(rng() * options.length)];
                 ship[key]++;
@@ -1061,13 +1022,16 @@ export function finishRun(
             data.includes('outpost')
         ) {
             const weapon = WEAPONS[equipment];
-            if (c.ship!.weapons.includes(equipment)) {
+            if (c.ship!.hull === 'prospector' || c.ship!.weapons.includes(equipment)) {
                 const bill: ResourceStore = WEAPON_PARTS[equipment];
                 for (const id of RESOURCE_IDS) {
                     const count = Math.floor((bill[id] ?? 0) / 2);
                     if (count) result.reward[id] = (result.reward[id] ?? 0) + count;
                 }
-                result.equipmentText = `Duplikat ${weapon.name} rozebrano na części.`;
+                result.equipmentText =
+                    c.ship!.hull === 'prospector'
+                        ? `${weapon.name} rozebrano na części · Prospector 0 zachowuje wyposażenie startowe.`
+                        : `Duplikat ${weapon.name} rozebrano na części.`;
             } else {
                 c.ship!.weapons.push(equipment);
                 result.equipmentText = `Odzyskano ${weapon.name} · dostępne w Hangar → Uzbrojenie.`;
@@ -1125,6 +1089,8 @@ export function finishRun(
             available -= amount;
             accepted += amount;
         }
+        if ((collected.anomalyOre ?? 0) > 0 && c.station.extraction)
+            c.station.anomalySampleDelivered = true;
         result.overflow = resourceTotal(collected) + resourceTotal(result.reward) - accepted;
         c.recovered++;
         if (active.sector && c.story) {
@@ -1256,7 +1222,7 @@ export function finishRun(
         result.pilotProgress.points = pilotPoints(pilot);
     }
     c.activeRun = null;
-    if (c.story?.mars.memoryDelivered && !c.story.mars.aiIdentified) syncStory(c);
+    if (c.story) syncStory(c);
     return result;
 }
 

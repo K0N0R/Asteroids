@@ -34,7 +34,7 @@ export const SANDBOX_SCENARIOS = {
     },
     infiltration: {
         name: 'Infiltracja',
-        detail: 'Wykradnij dane z Cerbera i wróć. 0 wskazuje terminal, E pobiera, G przekierowuje zasilanie.',
+        detail: 'Wykradnij dane z Cerbera i wróć. 0 wskazuje terminal, F pobiera, G przekierowuje zasilanie.',
         target: -1,
     },
     escort: {
@@ -77,6 +77,10 @@ export function normalizeSandboxConfig(input: SandboxConfig): SandboxConfig {
         result[key] = Number.isFinite(input[key])
             ? Math.max(0, Math.min(3, Math.round(input[key])))
             : 0;
+    if (result.hull === 'prospector') {
+        for (const key of MODULE_KEYS) result[key] = 0;
+        result.weapon = 'standard';
+    }
     return result;
 }
 
@@ -203,7 +207,10 @@ export class SandboxRun {
         for (const key of MODULE_KEYS) c.ship[key] = this.config[key];
         c.pilots = [newPilot(1, 3)];
         c.station = {
-            workshop: 2,
+            workshopLevel: 3,
+            laboratoryLevel: 3,
+            extraction: true,
+            anomalySampleDelivered: true,
             storage: 3,
             shield: true,
             shieldLevel: 0,

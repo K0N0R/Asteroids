@@ -35,7 +35,8 @@ test('reset and complete preview preserve hull identity and clamp individual lev
 test('a maximum preview never changes the price or level of a real upgrade', () => {
     const c = newCampaign();
     c.ship!.armor = 1;
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.bank = { ore: 1000, parts: 1000, crystals: 100 };
     const price = upgradePrice(c, 'armor');
     const visual = previewModules(c.ship!, 'all', 'armor', 3);

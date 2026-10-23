@@ -85,7 +85,8 @@ test('abandoned physical wreck position survives loss and a new ordinary sortie'
 
 test('lunar rescue coexists with construction escort without selecting a mission or blocking the surface passage', () => {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     grant(c, 'earth-workshop');
     grant(c, 'earth-route');
     grant(c, 'lunar-survey');

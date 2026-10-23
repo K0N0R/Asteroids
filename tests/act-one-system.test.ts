@@ -51,7 +51,8 @@ function ready(probe = false) {
     const c = newStoryCampaign();
     claim(c, 'earth-supply');
     claim(c, 'earth-relay');
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     syncStory(c);
     if (probe) {
         claim(c, 'earth-route');
@@ -163,7 +164,7 @@ test('actual Earth satellite tuning opens gates live; stock Prospector arrives a
         assert.equal(s.sector.hyperlanes.length, 3);
         assert.equal(c.activeRun, run);
         assert.equal(c.story!.sector, 'earth');
-        assert.equal(c.station.workshop, 0);
+        assert.equal(c.station.workshopLevel, 0);
         assert.equal(c.ship!.hull, 'prospector');
         assert.ok(parseCampaign(JSON.stringify(c)));
     } finally {

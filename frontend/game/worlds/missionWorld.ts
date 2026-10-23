@@ -87,6 +87,8 @@ export class MissionWorld extends Container {
     private moonPrepared = false;
     private transfer = new LunarTransferView();
     private routes = new Graphics();
+    private extractionInk = new Graphics();
+    private extractionLabels: ReturnType<typeof worldLabel>[] = [];
     private gateLabels: { view: ReturnType<typeof label>; origin: Point }[] = [];
     private journeyOverlay = new Container();
     private journeyInk = new Graphics();
@@ -232,6 +234,12 @@ export class MissionWorld extends Container {
         }
         this.camera.addChild(this.navigation, this.routes, this.shield, this.home);
         this.syncRoutes();
+        this.camera.addChild(this.extractionInk);
+        for (const node of simulation.extraction.nodes) {
+            this.extractionLabels.push(
+                worldLabel(this.camera, 'Urobek anomalii', node.x, node.y - 125, 16, 0xe8abcf),
+            );
+        }
         this.homeTitle = worldLabel(this.home, simulation.stationName, 0, 165, 18, C.mint);
         const wreck = wreckView(),
             w = simulation.sector.landmarks.find((l) => l.kind === 'wreck');
@@ -340,7 +348,7 @@ export class MissionWorld extends Container {
         );
         this.terminalLabel = worldLabel(
             this.camera,
-            'E',
+            'F',
             outpost.terminal.x,
             outpost.terminal.y,
             20,
@@ -416,7 +424,7 @@ export class MissionWorld extends Container {
                     .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
                 const view = worldLabel(
                     this.camera,
-                    `K · Śluza / ${lane.name}`,
+                    `Śluza / ${lane.name} · F`,
                     point.x,
                     point.y + 135,
                     16,
@@ -1517,7 +1525,7 @@ export class MissionWorld extends Container {
                 (!s.storyMode && (!security.sabotaged || !security.equipmentSecured)));
         this.outpostLabel.rotation = -this.camera.rotation;
         this.outpostLabel.position.copyFrom(rotateVector({ x: 0, y: -134 }, -this.camera.rotation));
-        this.terminalLabel.setText(s.terminalPuzzle?.mode === 'power' ? 'G' : 'E');
+        this.terminalLabel.setText(s.terminalPuzzle?.mode === 'power' ? 'G' : 'F');
         this.terminalLabel.rotation = -this.camera.rotation;
         const terminalOffset = rotateVector({ x: 0, y: 36 }, -this.camera.rotation);
         this.terminalLabel.position.set(
@@ -1849,6 +1857,31 @@ export class MissionWorld extends Container {
                         .stroke({ color: C.mint, width: 3 });
             }
         }
+        this.extractionInk.clear();
+        s.extraction.nodes.forEach((node, index) => {
+            const available = node.remaining > 0;
+            this.extractionInk
+                .circle(node.x, node.y, 100)
+                .fill({ color: 0x6c3f68, alpha: available ? 0.2 : 0.05 });
+            for (let i = 0; i < 9; i++) {
+                const angle = (i * Math.PI * 2) / 9,
+                    wobble = Math.sin(s.elapsed + i) * 7;
+                this.extractionInk
+                    .moveTo(node.x, node.y)
+                    .quadraticCurveTo(
+                        node.x + Math.cos(angle + 0.5) * 50,
+                        node.y + Math.sin(angle + 0.5) * 50,
+                        node.x + Math.cos(angle) * (85 + wobble),
+                        node.y + Math.sin(angle) * (85 + wobble),
+                    )
+                    .stroke({ color: 0xd195ad, width: 3, alpha: available ? 0.75 : 0.15 });
+            }
+            const text = this.extractionLabels[index];
+            text.setText(`Urobek anomalii · ${node.remaining} / 32`);
+            text.rotation = -this.camera.rotation;
+            text.visible = this.inView(node, 170) && s.area === 'orbit';
+        });
+        this.extractionInk.visible = s.area === 'orbit';
         this.mineralMarker.clear();
         const scannedRock = s.mineralTarget;
         if (scannedRock) {
@@ -2029,7 +2062,7 @@ export class MissionWorld extends Container {
                 view = surveySiteView('relay');
                 const title = worldLabel(
                     view,
-                    `${relay.name} · E synchronizacja`,
+                    `${relay.name} · F synchronizacja`,
                     0,
                     110,
                     16,

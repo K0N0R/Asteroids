@@ -76,7 +76,8 @@ test('only the synchronized Earth satellite expands protection; old south and we
         c.story!.progress[id] = t.target;
         c.story!.claimed.push(id);
     }
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
     try {

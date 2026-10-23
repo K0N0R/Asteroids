@@ -25,7 +25,8 @@ const idle: FlightInput = {
 const empty = { ore: 0, parts: 0 };
 function ready() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS.filter((t) => t.required && t.act === 1)) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);

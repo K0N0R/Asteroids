@@ -18,9 +18,8 @@ export function stationShieldLock(c: Campaign): string | null {
     if (!c.story) return 'Tryb testowy korzysta z pełnej osłony od początku.';
     if (c.station.shield) return 'Generator już zamontowany.';
     if (c.activeRun) return 'Montaż jest dostępny po powrocie do stacji.';
-    if (c.story && !c.story.claimed.includes('earth-workshop'))
-        return 'Ukończ rozwój zaplecza Satuk 15 w sektorze Ziemi.';
-    if (c.station.workshop < 1) return 'Wymagane zaplecze produkcyjne I.';
+    if (!c.story.claimed.includes('lunar-attack')) return 'Najpierw zakończ misję księżycową.';
+    if (c.station.workshopLevel < 1) return 'Wymagane zaplecze produkcyjne I.';
     if (!canAffordEquipment(c.bank, STATION_SHIELD.cost))
         return 'Brakuje części do montażu generatora.';
     return null;

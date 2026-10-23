@@ -25,7 +25,11 @@ test('each missing weapon part prevents the whole payment; huge raw stocks canno
     for (const weapon of ['pulse', 'rail'] as const) {
         for (const id of Object.keys(WEAPON_PARTS[weapon])) {
             const c = newCampaign();
-            c.station.workshop = 2;
+            c.station.workshopLevel = 3;
+            c.station.laboratoryLevel = Math.max(
+                c.station.laboratoryLevel,
+                c.station.workshopLevel,
+            );
             c.bank = {
                 ore: 1_000_000,
                 parts: 0,
@@ -41,7 +45,8 @@ test('each missing weapon part prevents the whole payment; huge raw stocks canno
 });
 test('equipment refunds sum investment before rounding and never refund raw elements', () => {
     const c = newCampaign();
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.bank = {
         ore: 0,
         parts: 100,

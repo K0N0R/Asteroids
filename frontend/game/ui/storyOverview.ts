@@ -30,7 +30,10 @@ export function storyOverview(
         setFilter?: (filter: 'active' | 'completed') => void;
         setPage?: (page: number) => void;
         openRecipe?: (id: RecipeId) => void;
-        openDestination?: (tab: 'station' | 'hangar') => void;
+        openDestination?: (
+            tab: 'station' | 'hangar',
+            project?: 'laboratory' | 'workshop' | 'shield' | 'extraction',
+        ) => void;
     },
 ) {
     const p = c.story!;

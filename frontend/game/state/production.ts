@@ -10,11 +10,15 @@ export interface ProductionScope {
     canAccess?: () => boolean;
 }
 export const SATUK_PRODUCTION: ProductionScope = { site: 'satuk' };
-function productionContext(c: Campaign, scope: ProductionScope) {
+function productionContext(
+    c: Campaign,
+    scope: ProductionScope,
+    category: 'laboratory' | 'workshop' = 'workshop',
+) {
     if (scope.site === 'satuk')
         return {
             bank: c.bank,
-            level: c.station.workshop,
+            level: category === 'laboratory' ? c.station.laboratoryLevel : c.station.workshopLevel,
             blocked: c.activeRun ? 'Produkcja dostępna po powrocie do bazy.' : null,
         };
     const ready =
@@ -24,7 +28,7 @@ function productionContext(c: Campaign, scope: ProductionScope) {
         scope.canAccess?.();
     return {
         bank: c.lunarStation.bank,
-        level: c.story && lunarConstructionReady(c.story) ? 1 : 0,
+        level: ready ? (category === 'laboratory' ? 1 : Math.min(1, c.station.workshopLevel)) : 0,
         blocked: ready ? null : 'Produkcja wymaga postoju przy działającej bazie księżycowej.',
     };
 }
@@ -35,7 +39,7 @@ export function productionPreview(
     batches = 1,
     scope: ProductionScope = SATUK_PRODUCTION,
 ) {
-    const context = productionContext(c, scope);
+    const context = productionContext(c, scope, RECIPES[id].category);
     const recipe: ProcessRecipe = RECIPES[id];
     const outputHave = recipe.output === 'kit' ? c.repairKits : (context.bank[recipe.output] ?? 0);
     return {
@@ -57,15 +61,15 @@ export function productionLock(
 ): string | null {
     if (!Object.hasOwn(RECIPES, id)) return 'Nieznany przepis.';
     if (!Number.isSafeInteger(batches) || batches <= 0) return 'Wybierz poprawną liczbę partii.';
-    const context = productionContext(c, scope);
+    const context = productionContext(c, scope, RECIPES[id].category);
     if (context.blocked) return context.blocked;
     const recipe: ProcessRecipe = RECIPES[id];
     if (context.level < recipe.level)
-        return `Wymagane zaplecze produkcyjne ${recipe.level === 1 ? 'I' : 'II'}.`;
+        return `Wymagane ${recipe.category === 'laboratory' ? 'Laboratorium' : 'Warsztat'} ${['0', 'I', 'II', 'III'][recipe.level]}.`;
     if (
         (id === 'kineticPlate' || id === 'kineticModule') &&
         c.story &&
-        !c.story.claimed.includes('mercury-survey')
+        !c.story.claimed.includes('mercury-technology')
     )
         return 'Najpierw badania na Merkurym.';
     if (recipe.output === 'kit' && c.repairKits + recipe.amount * batches > REPAIR_KITS.kitLimit)
@@ -89,8 +93,8 @@ export function maxProduction(
     id: RecipeId,
     scope: ProductionScope = SATUK_PRODUCTION,
 ) {
-    const context = productionContext(c, scope);
     if (!Object.hasOwn(RECIPES, id)) return 0;
+    const context = productionContext(c, scope, RECIPES[id].category);
     const recipe: ProcessRecipe = RECIPES[id];
     let count = Math.min(
         ...RESOURCE_IDS.filter((r) => (recipe.inputs[r] ?? 0) > 0).map((r) =>
@@ -117,8 +121,8 @@ export function manufacture(
     batches = 1,
     scope: ProductionScope = SATUK_PRODUCTION,
 ) {
-    const context = productionContext(c, scope);
     if (productionLock(c, id, batches, scope)) return false;
+    const context = productionContext(c, scope, RECIPES[id].category);
     const recipe: ProcessRecipe = RECIPES[id];
     for (const resource of RESOURCE_IDS) {
         const amount = (recipe.inputs[resource] ?? 0) * batches;
@@ -129,5 +133,11 @@ export function manufacture(
     return true;
 }
 export function availableProcesses(c: Campaign) {
-    return RECIPE_IDS.filter((id) => RECIPES[id].level <= c.station.workshop);
+    return RECIPE_IDS.filter(
+        (id) =>
+            RECIPES[id].level <=
+            (RECIPES[id].category === 'laboratory'
+                ? c.station.laboratoryLevel
+                : c.station.workshopLevel),
+    );
 }

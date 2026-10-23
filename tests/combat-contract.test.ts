@@ -22,7 +22,8 @@ const idle: FlightInput = {
 function ready() {
     const c = newCampaign();
     c.recovered = 1;
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.ship!.hull = 'fighter';
     assert.ok(selectContract(c, 5));
     return c;
@@ -32,7 +33,8 @@ test('combat contract unlocks after a safe return and workshop I, and cannot be 
     assert.equal(selectContract(c, 5), false);
     c.recovered = 1;
     assert.equal(selectContract(c, 5), false);
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.ok(selectContract(c, 5));
     assert.ok(beginRun(c, 7));
     assert.equal(selectContract(c, 0), false);

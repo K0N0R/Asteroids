@@ -1,6 +1,5 @@
 import { cargoCapacity } from '../config';
 import {
-    AEGIS,
     ARMAMENT_KITS,
     ATLAS_WEAPONS,
     HULLS,
@@ -57,7 +56,10 @@ export function moduleComparison(
             value = (l) => Math.round(config.shield.capacity * (1 + l * 0.25));
             break;
         case 'handling':
-            if (source.hull === 'widmo') {
+            if (source.hull === 'tug') {
+                title = 'Sloty holowania';
+                value = (l) => 2 + l;
+            } else if (source.hull === 'widmo') {
                 title = 'Siła dasha';
                 value = (l) => PHASE_DASH.damage * kit.power * (1 + l * 0.25);
             } else if (source.hull === 'harpoon') {
@@ -65,8 +67,8 @@ export function moduleComparison(
                 unit = ' m';
                 value = (l) => HARPOON_ARMS.reach * (1 + l * 0.15) * config.size;
             } else if (source.hull === 'aegis') {
-                title = 'Kadłub drona';
-                value = (l) => AEGIS.droneHull * (1 + l * 0.25);
+                title = 'Skręt';
+                value = (l) => config.turnSpeed * (1 + l * 0.2);
             } else if (source.hull === 'atlas' || source.hull === 'phoenix') {
                 title = 'Siła rakiety';
                 value = (l) => ATLAS_WEAPONS.rocket.damage * kit.power * (1 + l * 0.25);
@@ -80,6 +82,10 @@ export function moduleComparison(
                 title = 'Odnowienie maskowania';
                 unit = ' s';
                 value = (l) => WIDMO.cooldown / (1 + l * 0.2);
+            } else if (source.hull === 'tug') {
+                title = 'Siła odpychania EMP';
+                unit = '%';
+                value = (l) => 100 * (1 + l * 0.25);
             } else if (source.hull === 'atlas' || source.hull === 'fighter') {
                 title = 'Granaty w salwie';
                 value = (l) => 1 + l;

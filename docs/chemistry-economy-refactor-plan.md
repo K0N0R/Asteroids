@@ -1,5 +1,11 @@
 # Plan refaktoru gospodarki: pierwiastki, chemia i produkcja
 
+## Nadrzędne uzupełnienie autora — 2026-10-23
+
+[Nowy plan rozwoju stacji i receptur](station-progression-rebalance-plan.md) zastępuje sprzeczne założenia tego dokumentu: na starcie nie ma działających zakładów; pierwszy quest buduje Laboratorium z pierwiastków, misja księżycowa działa bez produkcji części, a Warsztat I pojawia się dopiero po niej. Usuwamy oczyszczanie Cu/Si, przygotowanie tlenu i przewodniki wraz z produktami. Wyższe zakłady mają osobne poziomy, a części wymagają składników anomalii po technologii Merkurego. Liczby i odblokowania z nowego planu wdrożono w roboczej wersji 0.131.0; [stan weryfikacji i pozostałe prace](implementation-v0.131.md).
+
+[Flota i sterowanie](fleet-progression-controls-plan.md): Prospector 0 bez produkcji i ulepszeń, projekty statków zależne od tieru zamiast questów, interakcje i śluzy na F, Q/E dla zdolności; Spacja i K odpięte. Poniżej pozostaje kontekst wcześniejszego projektu.
+
 Status: plan do kolejnych wdrożeń, z ustaleniami autora z 2026-10-19. Dokładne receptury i balans pozostają propozycją. Wersja 0.81 wdraża pierwszy fundament; poniższy plan nadal opisuje także zakres niewdrożony. Aktualny stan i pozostałe prace: `plan-current.md`, sekcja „Wdrożenie 0.81”.
 Zakres autora zastępuje stare ograniczenia magazynu, zatrudnianie pracowników i produkcję podczas wyprawy. Bez migracji starych zapisów.
 

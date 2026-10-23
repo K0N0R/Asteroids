@@ -1,3 +1,5 @@
+import { installStationProject } from '../frontend/game/state/stationProgression';
+import { syncStory } from '../frontend/game/state/story';
 import { grantLunarProcessing } from './fleet-fixtures';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,8 +31,10 @@ const idle: FlightInput = {
 };
 function ready() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
-    for (const t of STORY_TASKS.filter((t) => t.act === 1 && t.required && t.kind !== 'assault')) {
+    c.station.laboratoryLevel = 1;
+    for (const t of STORY_TASKS.filter(
+        (t) => t.act === 1 && t.required && t.kind !== 'assault' && t.kind !== 'workshop',
+    )) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
     }
@@ -105,7 +109,7 @@ function win(s: MissionSimulation) {
     );
 }
 
-test('the starter ship can repel real AI waves; radio confirmation completes Act I and rewards once', () => {
+test('the starter ship can repel real AI waves; radio confirmation opens workshop construction and rewards once', () => {
     const c = ready();
     beginRun(c, 1);
     const s = new MissionSimulation(c, c.activeRun!.seed);
@@ -116,7 +120,7 @@ test('the starter ship can repel real AI waves; radio confirmation completes Act
         assert.equal(s.enemyKills, s.lunarAssault.totalEnemies);
         assert.ok(s.lunarAssault.health > 0);
         assert.equal(c.story!.progress['lunar-attack'], 1);
-        assert.equal(actOneComplete(c.story!), true);
+        assert.equal(actOneComplete(c.story!), false);
         assert.ok(storyObjectives(c, [], true).find((t) => t.id === 'lunar-attack')!.complete);
         assert.equal(
             storyVisibleTasks(c.story!).some((t) => t.id === 'lunar-defense'),
@@ -145,10 +149,16 @@ test('the starter ship can repel real AI waves; radio confirmation completes Act
             assaultWon: true,
             kills: s.enemyKills,
         })!;
-        assert.ok(actOneComplete(c.story!));
-        assert.ok(result.reason.includes('Akt I ukończony'));
+        assert.equal(actOneComplete(c.story!), false);
+        assert.equal(c.reserveShips.filter((ship) => ship.hull === 'mule').length, 1);
         assert.equal(c.bank.ore, 40);
-        assert.equal(c.bank.parts, 8);
+        assert.equal(c.bank.parts, 0);
+        assert.equal(c.bank.steel, 8);
+        c.bank.silica = 2;
+        c.bank.copperOre = 2;
+        assert.ok(installStationProject(c, 'workshop'));
+        syncStory(c);
+        assert.equal(actOneComplete(c.story!), true);
         assert.ok(parseCampaign(JSON.stringify(c)));
         assert.equal(
             finishRun(c, true, s.cargo, s.elapsed, 'again', 0, { assaultWon: true }),
@@ -236,8 +246,8 @@ test('refresh after radio confirmation preserves Act I and its reward before doc
         win(s);
         const restored = parseCampaign(JSON.stringify(c))!;
         finishRun(restored, false, { ore: 0, parts: 0 }, 10, 'refresh', 0, { assaultWon: true });
-        assert.equal(actOneComplete(restored.story!), true);
-        assert.deepEqual(restored.bank, { ore: 40, parts: 8 });
+        assert.equal(actOneComplete(restored.story!), false);
+        assert.deepEqual(restored.bank, { ore: 40, parts: 0, steel: 8 });
     } finally {
         s.dispose();
     }

@@ -29,7 +29,8 @@ const idle: FlightInput = {
 test('station expansion and ship modules require manufactured parts instead of raw silicon', () => {
     const c = newCampaign();
     c.bank = { ore: 500, parts: 80, propulsion: 6, storageFrames: 3 };
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.ok(buyUpgrade(c, 'engine'));
     assert.deepEqual(upgradePrice(c, 'engine'), {
         ore: 0,

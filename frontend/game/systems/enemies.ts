@@ -24,6 +24,7 @@ export interface Enemy extends EnemySpec {
     hitFlash: number;
     impactCooldown: number;
     weaponDisabled?: number;
+    empImmunity?: number;
     thrusting: boolean;
     lastSeen: Point;
     routeIndex: number;
@@ -216,6 +217,7 @@ export class EnemyFleet {
             enemy.previous = p;
             enemy.previousAngle = enemy.body.rotation();
             enemy.cooldown = Math.max(0, enemy.cooldown - dt);
+            enemy.empImmunity = Math.max(0, (enemy.empImmunity ?? 0) - dt);
             enemy.weaponDisabled = Math.max(0, (enemy.weaponDisabled ?? 0) - dt);
             enemy.impactCooldown = Math.max(0, enemy.impactCooldown - dt);
             enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);

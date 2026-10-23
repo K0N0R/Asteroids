@@ -47,7 +47,7 @@ function lunarReady() {
     contributeStory(c, 'earth-supply');
     beginRun(c, 1);
     finishRun(c, true, { ore: 0, parts: 0 }, 10, 'dock', 1, { data: ['relay'] });
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshopLevel]);
     buyUpgrade(c, 'workshop');
     syncStory(c);
     beginRun(c, 1);

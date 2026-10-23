@@ -44,7 +44,11 @@ test('only unfinished Earth training has a second Prospector, without taking a r
         if (profile !== 'legacy') {
             grant(c, 'earth-route');
             grant(c, 'earth-workshop');
-            c.station.workshop = 1;
+            c.station.workshopLevel = 1;
+            c.station.laboratoryLevel = Math.max(
+                c.station.laboratoryLevel,
+                c.station.workshopLevel,
+            );
             if (profile === 'moon') c.story!.sector = 'lunar';
         }
         beginRun(c, 1);
@@ -67,7 +71,8 @@ test('goals follow the real task, carried resources and selected mission without
     grant(c, 'earth-relay');
     assert.equal(earthGuideGoal(c, empty).id, 'workshop');
     grant(c, 'earth-workshop');
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.equal(earthGuideGoal(c, empty).id, 'moon-gate');
     grant(c, 'earth-route');
     assert.equal(earthGuideGoal(c, empty).id, 'return');

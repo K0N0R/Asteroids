@@ -24,7 +24,8 @@ const idle: FlightInput = {
 };
 function ready(theatre: 'lunar' | 'venus') {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     const completed = STORY_TASKS.filter(
         (t) =>
             t.required &&

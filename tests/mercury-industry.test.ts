@@ -35,7 +35,8 @@ const idle: FlightInput = {
 };
 function ready(hull: HullId = 'harpoon') {
     const c = newStoryCampaign();
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.station.storage = 1;
     c.station.shield = true;
     c.ship = newShip(1, hull);
@@ -189,7 +190,8 @@ test('locked and in-flight installs are atomic, and a lost sortie never delivers
     assert.deepEqual(c, snapshot);
     finishRun(c, false, { ore: 0, parts: 0, mercuryOre: 6 }, 5, 'loss');
     assert.equal(c.bank.mercuryOre, undefined);
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.equal(installKineticUpgrade(c, 'shield'), false);
     assert.equal(c.bank.kineticModules, 1);
     assert.equal(storySectorComplete(c.story!, 'mercury'), false);

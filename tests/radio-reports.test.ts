@@ -34,7 +34,8 @@ function ready(sector: StorySectorId, target: string) {
         c.story!.progress[id] = t.target;
         if (!c.story!.claimed.includes(id)) c.story!.claimed.push(id);
     }
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS.filter(
         (t) => t.required && (t.act < task.act || (sector === 'neptune' && t.sector === 'uranus')),
     ))

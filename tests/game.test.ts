@@ -102,7 +102,7 @@ test('upgrade costs and workshop limits are enforced without partial charges', (
     const bank = { ...c.bank };
     assert.equal(buyUpgrade(c, 'engine'), false);
     assert.deepEqual(c.bank, bank);
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshopLevel]);
     assert.ok(buyUpgrade(c, 'workshop'));
     fundEquipment(c, upgradePrice(c, 'engine'));
     assert.ok(buyUpgrade(c, 'engine'));
@@ -120,7 +120,8 @@ test('unlimited station storage accepts every item without overflow', () => {
 test('all module levels require the whole parts bill and never consume raw elements', () => {
     for (const upgrade of Object.keys(MODULE_PARTS) as (keyof typeof MODULE_PARTS)[]) {
         const c = newCampaign();
-        c.station.workshop = 2;
+        c.station.workshopLevel = 3;
+        c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
         for (let level = 1; level <= 3; level++) {
             const price = upgradePrice(c, upgrade);
             assert.equal(price.ore, 0);
@@ -392,7 +393,8 @@ test('wreck salvage is awarded once and an ended mission cannot keep updating', 
 test('buying and selecting hulls keeps each ship loadout and charges exactly once', () => {
     const c = newCampaign();
     c.bank = { ore: 140, parts: 9 };
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.ship!.cargo = 1;
     const original = c.ship!.id;
     fundHull(c, 'swift');
@@ -427,7 +429,8 @@ test('ship purchases enforce workshop, bank, fleet capacity and active-run locks
     assert.equal(c.bank.ore, 140);
     fundHull(c, 'swift');
     fundHull(c, 'prospector', 5);
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     fundHull(c, 'swift');
     assert.ok(buyShip(c, 'swift'));
     while (ownedShips(c).length < 6) assert.ok(buyShip(c, 'prospector'));
@@ -443,7 +446,8 @@ test('ship purchases enforce workshop, bank, fleet capacity and active-run locks
 test('death removes the selected ship but leaves upgraded reserves and the mechanic', () => {
     const c = newCampaign();
     c.bank = { ore: 120, parts: 8 };
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.ship!.engine = 1;
     const reserve = c.ship!.id;
     fundHull(c, 'swift');
@@ -477,7 +481,8 @@ test('emergency recovery uses a reserve ship before granting a new free hull', (
 test('fleet saves roundtrip and reject unknown hulls or duplicate ship identities', () => {
     const c = newCampaign();
     c.bank = { ore: 100, parts: 8 };
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     fundHull(c, 'swift');
     buyShip(c, 'swift');
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);

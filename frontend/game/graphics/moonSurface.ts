@@ -83,7 +83,7 @@ export class MoonSurfaceView extends Container {
                     .stroke({ color: C.mint, width: 5 }),
             );
             this.addTitle(g, title, { x: 0, y: 0 }, { x: 0, y: 170 }, 20, C.cyan, 260);
-            this.addTitle(g, 'E · 2 s', { x: 0, y: 0 }, { x: 0, y: 201 }, 16, C.muted);
+            this.addTitle(g, 'F · 2 s', { x: 0, y: 0 }, { x: 0, y: 201 }, 16, C.muted);
             host.addChild(g);
         };
         gate(this.orbitGate, MOON.entrance.x, MOON.entrance.y, 'Podejście do Księżyca');

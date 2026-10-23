@@ -24,7 +24,8 @@ function grant(c: ReturnType<typeof newStoryCampaign>, id: string) {
 }
 function ready(survey = false) {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     grant(c, 'earth-workshop');
     grant(c, 'earth-route');
     assert.ok(travelStory(c, 'lunar'));

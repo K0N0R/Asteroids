@@ -13,7 +13,8 @@ function ready() {
     const c = newCampaign();
     c.recovered = 1;
     c.contractCompletions[2] = 1;
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.ok(selectContract(c, 6));
     return c;
 }

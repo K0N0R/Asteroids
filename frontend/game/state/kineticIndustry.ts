@@ -13,10 +13,17 @@ export const REINFORCED_BAY_COST = {
 export function kineticInstallationLock(c: Campaign, kind: 'shield' | 'storage'): string | null {
     if (kind === 'storage') return 'Magazyn jest bez limitu; nie wymaga rozbudowy.';
     if (c.activeRun) return 'Montaż po powrocie do stacji.';
-    if (c.story && !c.story.claimed.includes('mercury-survey')) return 'Najpierw zwiad Merkurego.';
-    if (c.station.workshop < 2) return 'Wymagany warsztat II.';
+    if (c.story && !c.story.claimed.includes('mercury-technology'))
+        return 'Najpierw technologia Merkurego.';
+    if (c.station.workshopLevel < 2) return 'Wymagany warsztat II.';
     if (kind === 'shield' && !c.station.shield)
         return 'Najpierw zamontuj podstawowy generator tarczy.';
+    if (
+        c.station.shieldLevel === 1 &&
+        c.story &&
+        !['mars-base-defense', 'mars-corridor'].every((id) => c.story!.claimed.includes(id))
+    )
+        return 'Najpierw zabezpiecz bazę i korytarz Marsa.';
     const level = kind === 'shield' ? c.station.shieldLevel : c.station.reinforcedBays;
     if (level >= 2) return 'Osiągnięto poziom II.';
     const cost: ResourceStore =

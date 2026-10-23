@@ -1,30 +1,18 @@
 import { HULLS, type HullId } from '../config';
 import type { Campaign } from './campaign';
-
-export const HULL_UNLOCKS: Partial<Record<HullId, { task: string; label: string }>> = {
-    mule: {
-        task: 'lunar-commission',
-        label: 'Ukończ dostawy i odbiór instalacji stacji księżycowej',
-    },
-    tug: { task: 'mars-shields', label: 'Zbuduj tarcze Satuk 15 w akcie II' },
-    fighter: { task: 'mars-shields', label: 'Zbuduj tarcze Satuk 15 w akcie II' },
-    falcon: { task: 'earth-debrief', label: 'Zatwierdź ziemską odprawę przed Wenus' },
-    widmo: { task: 'venus-build', label: 'Zbuduj placówkę Wenus' },
-    harpoon: { task: 'venus-shield', label: 'Przygotuj osłonę przed wyprawą na Merkurego' },
-    aegis: { task: 'mercury-technology', label: 'Zabezpiecz technologię z Merkurego' },
-    atlas: { task: 'mars-base-build', label: 'Zbuduj bazę marsjańską' },
-    stinger: { task: 'belt-exit', label: 'Potwierdź przejście pasa asteroid' },
-    phoenix: { task: 'jupiter-observations', label: 'Zabezpiecz pakiet obserwacyjny Jowisza' },
-};
+/** Project availability follows production technology; no hull-specific quests. */
+export const HULL_UNLOCKS = {};
 export function hullUnlocked(c: Campaign, hull: HullId) {
     return (
-        !c.story ||
-        hull === 'prospector' ||
-        hull === 'swift' ||
-        !!(HULL_UNLOCKS[hull] && c.story.claimed.includes(HULL_UNLOCKS[hull]!.task))
+        hull !== 'prospector' &&
+        !('salvageOnly' in HULLS[hull]) &&
+        c.station.workshopLevel >= HULLS[hull].workshop
     );
 }
 export function hullUnlockReason(c: Campaign, hull: HullId) {
+    if (hull === 'prospector') return 'Statek startowy i awaryjny · bez produkcji i ulepszeń';
     if ('salvageOnly' in HULLS[hull]) return 'Kadłub wyłącznie z odzysku';
-    return hullUnlocked(c, hull) ? '' : (HULL_UNLOCKS[hull]?.label ?? 'Projekt nieodblokowany');
+    return hullUnlocked(c, hull)
+        ? ''
+        : `Wymagany Warsztat ${['0', 'I', 'II', 'III'][HULLS[hull].workshop]}`;
 }

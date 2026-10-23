@@ -7,7 +7,8 @@ import { solarSystem, SOLAR_MAP } from '../frontend/game/ui/solarSystem';
 import { destroyDisplayTree } from '../frontend/core/systems/destroyDisplayTree';
 function unlocked() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS) {
         c.story!.progress[t.id] = t.target;
         if (!c.story!.claimed.includes(t.id)) c.story!.claimed.push(t.id);

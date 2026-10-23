@@ -43,7 +43,7 @@ function ready() {
     finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock', c.activeRun!.repairKits, {
         data: ['relay'],
     });
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshopLevel]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     beginRun(c, 1);

@@ -37,7 +37,7 @@ function ready() {
         });
     };
     report('relay');
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshopLevel]);
     buyUpgrade(c, 'workshop');
     syncStory(c);
     report('archive');

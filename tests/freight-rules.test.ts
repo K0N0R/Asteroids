@@ -21,7 +21,8 @@ before(async () => RAPIER.init());
 const idle = { target: { x: 0, y: 0 }, thrust: false, brake: false, fire: false, interact: false };
 function ready() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     function claim(id: string) {
         const t = STORY_TASKS.find((t) => t.id === id)!;
         for (const d of t.dependencies) if (!c.story!.claimed.includes(d)) claim(d);

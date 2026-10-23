@@ -39,8 +39,7 @@ export function stationDronesLock(c: Campaign): string | null {
             return 'Brakuje części do odbudowy utraconych dronów.';
         return null;
     }
-    if (!c.station.shield) return 'Najpierw zamontuj generator tarczy stacji.';
-    if (!c.story.claimed.includes('earth-workshop') || c.station.workshop < 1)
+    if (!c.story.claimed.includes('lunar-attack') || c.station.workshopLevel < 1)
         return 'Wymagane zaplecze Satuk 15 poziomu I.';
     if (!canAffordEquipment(c.bank, STATION_DRONES.cost))
         return 'Brakuje części do montażu hangaru.';

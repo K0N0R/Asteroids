@@ -1,3 +1,4 @@
+import { grantStoryTasks } from './fleet-fixtures';
 import { MARS_CONSTRUCTION } from '../frontend/game/state/orbitalConstruction';
 import { grantOrbitalSupplies } from './fleet-fixtures';
 import { before, test } from 'node:test';
@@ -39,11 +40,14 @@ const idle: FlightInput = {
 };
 function ready(built = false) {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS.filter((t) => t.act <= 4 && t.required)) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
     }
+    grantStoryTasks(c, c.story!.claimed);
+    grantStoryTasks(c, ['mars-workshop-ii']);
     c.story!.sector = 'mars';
     c.bank = { ore: 40, parts: 10 };
     if (built) {

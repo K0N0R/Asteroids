@@ -1,3 +1,4 @@
+import { grantStoryTasks } from './fleet-fixtures';
 import { fundEquipment } from './fleet-fixtures';
 import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
@@ -24,15 +25,7 @@ before(async () => RAPIER.init());
 
 function ready() {
     const c = newStoryCampaign();
-    c.bank.ore = 24;
-    contributeStory(c, 'earth-supply');
-    beginRun(c, 1);
-    finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock', c.activeRun!.repairKits, {
-        data: ['relay'],
-    });
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
-    assert.ok(buyUpgrade(c, 'workshop'));
-    syncStory(c);
+    grantStoryTasks(c, ['earth-workshop']);
     c.station.shield = true;
     c.bank = {
         ore: 80,
@@ -49,8 +42,7 @@ test('sentry hangar validates requirements atomically and installs exactly three
     for (const mutate of [
         (c: ReturnType<typeof ready>) => (c.story = null),
         (c: ReturnType<typeof ready>) => c.story!.claimed.splice(0),
-        (c: ReturnType<typeof ready>) => (c.station.workshop = 0),
-        (c: ReturnType<typeof ready>) => (c.station.shield = false),
+        (c: ReturnType<typeof ready>) => (c.station.workshopLevel = 0),
         (c: ReturnType<typeof ready>) => (c.bank.electronics = 2),
         (c: ReturnType<typeof ready>) => (c.bank.parts = 8),
         (c: ReturnType<typeof ready>) => (c.bank.powerModules = 2),
@@ -64,6 +56,7 @@ test('sentry hangar validates requirements atomically and installs exactly three
         assert.deepEqual(c, snapshot);
     }
     const c = ready();
+    c.station.shield = false; // Hangar is independent of the station shield.
     assert.ok(installStationDrones(c));
     assert.deepEqual(c.bank, {
         ore: 80,

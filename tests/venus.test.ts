@@ -1,3 +1,4 @@
+import { grantStoryTasks } from './fleet-fixtures';
 import { VENUS_CONSTRUCTION } from '../frontend/game/state/orbitalConstruction';
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,13 +44,15 @@ const idle: FlightInput = {
 };
 function marsReported() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS.filter(
         (t) => t.required && (t.act === 1 || (t.sector === 'mars' && t.act === 2)),
     )) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
     }
+    grantStoryTasks(c, c.story!.claimed);
     c.story!.sector = 'mars';
     assert.ok(parseCampaign(JSON.stringify(c)));
     return c;

@@ -24,7 +24,7 @@ export class MarsMoonSurfaceView extends Container {
             );
             const title = worldLabel(
                 gate,
-                `${body.name} · ${i ? '1 · orbita' : 'E · lądowanie'}`,
+                `${body.name} · ${i ? '1 · orbita' : 'F · lądowanie'}`,
                 0,
                 170,
                 18,

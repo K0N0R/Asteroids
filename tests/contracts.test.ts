@@ -94,7 +94,8 @@ test('contract selection and launch enforce progression, IDs and active mission 
     assert.equal(c.contractCompletions[2], 1);
     assert.equal(selectContract(c, 3), false);
     assert.match(contractLockReason(c, 3), /warsztat/);
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.ok(selectContract(c, 3));
 });
 
@@ -156,7 +157,8 @@ test('survey payouts preserve all cargo and rewards in unlimited storage', () =>
 test('the advanced contract pays for both distinct sites and completed missions persist after a later death', () => {
     const c = surveyCampaign();
     c.contractCompletions[2] = 1;
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.ok(selectContract(c, 3));
     beginRun(c, 27);
     finishRun(c, true, { ore: 4, parts: 0 }, 10, 'dock', 0, { data: ['archive'] });

@@ -73,7 +73,8 @@ function grant(c: ReturnType<typeof newStoryCampaign>, id: string) {
 test('new campaign offers only Prospector and Swift, while legacy shops keep all normal hulls and economic requirements', () => {
     const c = newStoryCampaign();
     c.bank = { ore: 9999, parts: 9999 };
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.deepEqual(
         (Object.keys(HULLS) as HullId[]).filter((h) => hullUnlocked(c, h)),
         ['prospector', 'swift'],
@@ -86,7 +87,11 @@ test('new campaign offers only Prospector and Swift, while legacy shops keep all
     assert.ok(buyShip(c, 'swift'));
     const legacy = newCampaign();
     legacy.bank = { ore: 9999, parts: 9999 };
-    legacy.station.workshop = 2;
+    legacy.station.workshopLevel = 3;
+    legacy.station.laboratoryLevel = Math.max(
+        legacy.station.laboratoryLevel,
+        legacy.station.workshopLevel,
+    );
     fundHull(legacy, 'aegis');
     assert.ok(buyShip(legacy, 'aegis'));
     assert.equal(buyShip(legacy, 'lancer'), false);
@@ -104,7 +109,7 @@ test('every normal hull has a campaign unlock and lunar construction opens Mule 
     contributeStory(c, 'earth-supply');
     beginRun(c, 1);
     finishRun(c, true, empty, 1, 'dock', c.activeRun!.repairKits, { data: ['relay'] });
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
+    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshopLevel]);
     assert.ok(buyUpgrade(c, 'workshop'));
     syncStory(c);
     assert.equal(hullUnlocked(c, 'mule'), false);
@@ -185,7 +190,8 @@ test('stock Prospector cannot dock before a selected scan, flies the real relay,
 
 test('combat orders require the remaining patrol count and distinguish Neptune from final boss reports', () => {
     const c = newStoryCampaign();
-    c.station.workshop = 2;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const task of STORY_TASKS.filter((t) => t.required && t.act <= 3)) grant(c, task.id);
     grant(c, 'mercury-survey');
     assert.ok(travelStory(c, 'mercury'));
@@ -195,7 +201,8 @@ test('combat orders require the remaining patrol count and distinguish Neptune f
     assert.equal(finishRun(c, true, empty, 1, 'dock', 0, { patrolKills: 1 }), null);
     assert.ok(finishRun(c, true, empty, 1, 'dock', 0, { patrolKills: 2 }));
     const n = newStoryCampaign();
-    n.station.workshop = 2;
+    n.station.workshopLevel = 3;
+    n.station.laboratoryLevel = Math.max(n.station.laboratoryLevel, n.station.workshopLevel);
     for (const task of STORY_TASKS.filter(
         (t) =>
             t.required &&

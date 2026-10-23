@@ -41,6 +41,7 @@ function arena(
     handling = 0,
 ) {
     const c = newCampaign();
+    c.station.workshopLevel = c.station.laboratoryLevel = 3;
     c.ship!.hull = hull;
     c.ship!.weapon = weapon;
     c.ship!.drill = drill;
@@ -58,6 +59,7 @@ function arena(
 
 test('Swift is an entry scout with gun, laser and passive radar jamming; Widmo is advanced', () => {
     const c = newCampaign();
+    c.station.workshopLevel = c.station.laboratoryLevel = 3;
     c.bank = { ore: 35, parts: 2 };
     fundHull(c, 'swift');
     assert.ok(buyShip(c, 'swift'));
@@ -66,7 +68,7 @@ test('Swift is an entry scout with gun, laser and passive radar jamming; Widmo i
     assert.ok(HULLS.swift.maxSpeed > HULLS.prospector.maxSpeed);
     assert.ok(HULLS.swift.radarJamming > 0.5);
     assert.equal(HULLS.widmo.workshop, 2);
-    assert.equal(HULLS.widmo.guns.length, 0);
+    assert.equal(HULLS.widmo.guns.length, 1);
     assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });
 
@@ -93,8 +95,13 @@ test('enemy wreck bonuses are seeded, saved, credited once and can rebuild both 
             upgraded = false;
         for (let seed = 0; seed < 40; seed++) {
             const c = newCampaign();
-            c.station.workshop = 2;
-            c.reserveShips = [newShip(2)];
+            c.station.workshopLevel = c.station.laboratoryLevel = 3;
+            c.station.workshopLevel = 3;
+            c.station.laboratoryLevel = Math.max(
+                c.station.laboratoryLevel,
+                c.station.workshopLevel,
+            );
+            c.reserveShips = [newShip(2, 'swift')];
             c.nextShipId = 3;
             assert.ok(beginRun(c, seed));
             const copy = parseCampaign(JSON.stringify(c))!;
@@ -126,8 +133,10 @@ test('enemy wreck bonuses are seeded, saved, credited once and can rebuild both 
 
 test('a full hangar converts rebuild chances to reserve upgrades and never exceeds fleet capacity', () => {
     const c = newCampaign();
-    c.station.workshop = 2;
-    c.reserveShips = Array.from({ length: FLEET_LIMIT - 1 }, (_, i) => newShip(i + 2));
+    c.station.workshopLevel = c.station.laboratoryLevel = 3;
+    c.station.workshopLevel = 3;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
+    c.reserveShips = Array.from({ length: FLEET_LIMIT - 1 }, (_, i) => newShip(i + 2, 'swift'));
     c.nextShipId = FLEET_LIMIT + 1;
     beginRun(c, 71);
     for (let id = 1; id < 20; id++) assert.ok(deliverSalvage(c, id, 'lancer'));
@@ -145,10 +154,12 @@ test('a full hangar converts rebuild chances to reserve upgrades and never excee
 });
 
 test('every hull can buy and switch role-specific armament variants only in base', () => {
-    for (const hull of Object.keys(HULLS) as HullId[]) {
+    for (const hull of (Object.keys(HULLS) as HullId[]).filter((hull) => hull !== 'prospector')) {
         const c = newCampaign();
+        c.station.workshopLevel = c.station.laboratoryLevel = 3;
         c.ship!.hull = hull;
-        c.station.workshop = 2;
+        c.station.workshopLevel = 3;
+        c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
         c.bank = { ore: 100, parts: 20 };
         fundEquipment(c, WEAPON_PARTS.pulse);
         assert.ok(equipWeapon(c, 'pulse'), hull);
@@ -163,7 +174,7 @@ test('every hull can buy and switch role-specific armament variants only in base
     }
 });
 
-test('Widmo dash sweeps through an enemy once, has no guns, and cannot repeat while held', () => {
+test('Widmo dash sweeps through an enemy once, retains its bow cannon, and cannot repeat while held', () => {
     const { sim } = arena();
     try {
         sim.enemies.add([
@@ -173,17 +184,17 @@ test('Widmo dash sweeps through an enemy once, has no guns, and cannot repeat wh
         enemy.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
         enemy.health = 1000;
         enemy.cooldown = 999;
-        sim.step({ ...idle, mine: true, fire: true });
-        for (let frame = 0; frame < 30; frame++) sim.step({ ...idle, fire: true });
+        sim.step({ ...idle, mine: true });
+        for (let frame = 0; frame < 30; frame++) sim.step({ ...idle, mine: true });
         assert.ok(sim.position.x > 3450);
         assert.equal(enemy.health, 1000 - PHASE_DASH.damage);
         assert.equal(sim.shipCollider.isSensor(), false);
-        assert.equal(sim.opticalCloak, true);
+        assert.equal(sim.opticalCloak, false);
         assert.equal(
             [...sim.bullets.values()].filter((bullet) => bullet.team === 'player').length,
             0,
         );
-        for (let frame = 0; frame < 310; frame++) sim.step({ ...idle, fire: true });
+        for (let frame = 0; frame < 310; frame++) sim.step({ ...idle, mine: true });
         assert.equal(sim.dashCooldown, 0);
         assert.equal(sim.dashTime, 0);
     } finally {
@@ -204,7 +215,7 @@ test('larger phase blades hit enemies just outside the base blade span', () => {
             enemy.body.setTranslation({ x: 32, y: edge / 100 }, true);
             enemy.health = 1000;
             enemy.cooldown = 999;
-            sim.step({ ...idle, fire: true });
+            sim.step({ ...idle, mine: true });
             for (let i = 0; i < 30; i++) sim.step(idle);
             assert.equal(enemy.health, handling ? 1000 - sim.dashDamage : 1000);
         } finally {
@@ -236,7 +247,7 @@ test('dash crosses a reinforced wall and damages it once per use until it breaks
             sim.step(idle);
             sim.dashCooldown = 0;
             const target = { x: center.x - n.x * 450, y: center.y - n.y * 450 };
-            sim.step({ ...idle, fire: true, target });
+            sim.step({ ...idle, mine: true, target });
             for (let frame = 0; frame < 25; frame++) sim.step(idle);
             assert.ok((sim.position.x - center.x) * n.x + (sim.position.y - center.y) * n.y < -100);
             if (use < 2)
@@ -280,7 +291,7 @@ test('special armament changes actual mining power, beam reach and dash cooldown
         }
         const dash = arena('widmo', weapon).sim;
         try {
-            dash.step({ ...idle, fire: true });
+            dash.step({ ...idle, mine: true });
             assert.equal(dash.dashCooldown, PHASE_DASH.cooldown * ARMAMENT_KITS[weapon].cooldown);
         } finally {
             dash.dispose();
@@ -308,6 +319,7 @@ test('special armament changes actual mining power, beam reach and dash cooldown
 test('mining variants change damage to real asteroids, rather than only hangar statistics', () => {
     for (const weapon of ['standard', 'pulse', 'rail'] as const) {
         const c = newCampaign();
+        c.station.workshopLevel = c.station.laboratoryLevel = 3;
         c.ship!.hull = 'mule';
         c.ship!.weapon = weapon;
         const sim = new MissionSimulation(c, 71);
@@ -346,7 +358,7 @@ test('phase drive clears an occupied landing point forwards without teleporting 
             RAPIER.ColliderDesc.cuboid(3, 5).setTranslation(35, 0),
         );
         sim.fortressColliders.add(wall.handle);
-        sim.step({ ...idle, fire: true });
+        sim.step({ ...idle, mine: true });
         let previous = sim.position.x;
         for (let frame = 0; frame < 65; frame++) {
             sim.step(idle);
@@ -363,6 +375,7 @@ test('phase drive clears an occupied landing point forwards without teleporting 
 
 test('Widmo faces its dash, records a fading trail and upgrades blades independently of cloak', () => {
     const c = newCampaign();
+    c.station.workshopLevel = c.station.laboratoryLevel = 3;
     c.ship!.hull = 'widmo';
     c.ship!.handling = 2;
     c.ship!.drill = 3;
@@ -373,7 +386,7 @@ test('Widmo faces its dash, records a fading trail and upgrades blades independe
         sim.rocks.clear();
         sim.ship.setTranslation({ x: 30, y: 0 }, true);
         const target = { x: 3000, y: 3000 };
-        sim.step({ ...idle, target, fire: true });
+        sim.step({ ...idle, target, mine: true });
         assert.ok(Math.abs(sim.ship.rotation() - Math.PI / 2) < 0.001);
         assert.equal(sim.dashDamage, PHASE_DASH.damage * 1.5);
         assert.equal(sim.dashCooldown, PHASE_DASH.cooldown / 1.3);
@@ -388,6 +401,7 @@ test('Widmo faces its dash, records a fading trail and upgrades blades independe
 
 test('phase blades chip an asteroid once per dash at a fraction of combat damage', () => {
     const c = newCampaign();
+    c.station.workshopLevel = c.station.laboratoryLevel = 3;
     c.ship!.hull = 'widmo';
     beginRun(c, 71);
     const sim = new MissionSimulation(c, 71);
@@ -403,7 +417,7 @@ test('phase blades chip an asteroid once per dash at a fraction of combat damage
         rock.body.setLinvel({ x: 0, y: 0 }, true);
         rock.health = 1000;
         sim.ship.setTranslation({ x: 30, y: 0 }, true);
-        sim.step({ ...idle, fire: true });
+        sim.step({ ...idle, mine: true });
         for (let i = 0; i < 30; i++) sim.step(idle);
         assert.ok(Math.abs(rock.health - (1000 - sim.dashDamage * 0.12)) < 0.001);
     } finally {

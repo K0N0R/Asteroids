@@ -23,11 +23,10 @@ const idle: FlightInput = {
 };
 function foundationCampaign() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.laboratoryLevel = 1;
     for (const id of [
         'earth-supply',
         'earth-relay',
-        'earth-workshop',
         'earth-route',
         'lunar-survey',
         'lunar-foundation',
@@ -91,7 +90,7 @@ test('unopposed waves damage the construction and failure can be retried without
         assert.equal(s.lunarDefense.threats.size, 0);
         assert.equal([...s.rocks.values()].filter((r) => r.defense).length, 0);
         assert.equal(s.loot.size, 0);
-        assert.equal(c.story!.progress['lunar-foundation'], 160);
+        assert.equal(c.story!.progress['lunar-foundation'], 80);
         assert.equal(c.story!.progress['lunar-defense'], 0);
         assert.deepEqual(c.bank, { ore: 0, parts: 0 });
         for (let i = 0; i < 125; i++) s.step({ ...idle, sabotage: true });
@@ -147,13 +146,13 @@ test('the stock Prospector can defend all three waves using actual flight and we
         assert.ok(s.lunarDefense.health > 0);
         assert.ok(s.lunarDefense.destroyed >= 6);
         assert.equal(c.story!.progress['lunar-defense'], 1);
-        assert.deepEqual(c.bank, { ore: 20, parts: 4 });
+        assert.deepEqual(c.bank, { ore: 20, parts: 0, steel: 4 });
         assert.equal(recordLunarDefense(c), null);
         assert.ok(parseCampaign(JSON.stringify(c)));
         assert.ok(s.deliveryRevision > 1);
         finishRun(c, false, s.cargo, s.elapsed, 'lost', 0, { lossPosition: s.position });
         assert.equal(c.story!.progress['lunar-defense'], 1);
-        assert.deepEqual(c.bank, { ore: 20, parts: 4 });
+        assert.deepEqual(c.bank, { ore: 20, parts: 0, steel: 4 });
     } finally {
         s.dispose();
     }
@@ -177,7 +176,7 @@ test('leaving the surface aborts the attempt and removes only its own threats', 
         assert.equal(s.lunarDefense.threats.size, 0);
         assert.equal([...s.rocks.values()].filter((r) => !r.defense).length, ordinary);
         assert.equal(c.story!.progress['lunar-defense'], 0);
-        assert.equal(c.story!.progress['lunar-foundation'], 160);
+        assert.equal(c.story!.progress['lunar-foundation'], 80);
     } finally {
         s.dispose();
     }
@@ -195,7 +194,7 @@ test('defense requires foundations, a deliberate quiet start and cannot be start
         c.story!.progress['lunar-foundation'] = 0;
         for (let i = 0; i < 150; i++) s.step({ ...idle, sabotage: true });
         assert.equal(s.lunarDefense.state, 'idle');
-        c.story!.progress['lunar-foundation'] = 160;
+        c.story!.progress['lunar-foundation'] = 80;
         c.story!.claimed.push('lunar-foundation');
         recordLunarDefense(c);
         for (let i = 0; i < 150; i++) s.step({ ...idle, sabotage: true });
@@ -218,7 +217,7 @@ test('refresh during a wave keeps construction deliveries but does not grant a d
         assert.ok(restored);
         finishRun(restored, false, { ore: 0, parts: 0 }, 0, 'refresh');
         assert.equal(restored.story!.progress['lunar-defense'], 0);
-        assert.equal(restored.story!.progress['lunar-foundation'], 160);
+        assert.equal(restored.story!.progress['lunar-foundation'], 80);
         assert.deepEqual(restored.bank, { ore: 0, parts: 0 });
         assert.ok(parseCampaign(JSON.stringify(restored)));
     } finally {

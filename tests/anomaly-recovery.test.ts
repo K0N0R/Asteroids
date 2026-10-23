@@ -31,7 +31,8 @@ const idle: FlightInput = {
 };
 function ready(survey = true, mission = true) {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.station.shield = true;
     Object.assign(c.story!.mars, {
         landingBlocked: true,

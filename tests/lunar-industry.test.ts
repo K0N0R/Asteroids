@@ -27,7 +27,8 @@ const idle = {
 };
 function ready(hull: 'prospector' | 'mule' = 'prospector') {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.repairKits = 0;
     c.ship!.hull = hull;
     for (const t of STORY_TASKS.filter(
@@ -108,7 +109,8 @@ test('production checks physical access on every action and never borrows remote
 test('lunar technology cannot inherit the remote workshop tier or bypass research', () => {
     const { c, sim, scope } = ready();
     try {
-        c.station.workshop = 2;
+        c.station.workshopLevel = 3;
+        c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
         c.lunarStation.bank = {
             ore: 0,
             parts: 20,

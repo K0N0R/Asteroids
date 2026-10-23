@@ -1,3 +1,4 @@
+import { grantStoryTasks } from './fleet-fixtures';
 import { fundEquipment } from './fleet-fixtures';
 import { WORKSHOP_CONSTRUCTION } from '../frontend/game/state/stationConstruction';
 import { before, test } from 'node:test';
@@ -23,15 +24,7 @@ before(async () => RAPIER.init());
 const idle = { target: { x: 0, y: 0 }, thrust: false, brake: true, fire: false, interact: false };
 function ready() {
     const c = newStoryCampaign();
-    c.bank.ore = 24;
-    contributeStory(c, 'earth-supply');
-    beginRun(c, 1);
-    finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock', c.activeRun!.repairKits, {
-        data: ['relay'],
-    });
-    fundEquipment(c, WORKSHOP_CONSTRUCTION[c.station.workshop]);
-    assert.ok(buyUpgrade(c, 'workshop'));
-    syncStory(c);
+    grantStoryTasks(c, ['earth-workshop']);
     c.bank = { ore: 50, parts: 10, powerModules: 3, electronics: 3, storageFrames: 2 };
     return c;
 }
@@ -51,7 +44,7 @@ function clear(sim: MissionSimulation) {
 test('station shield enforces unlock, workshop, parts and one-time installation without partial spending', () => {
     for (const mutate of [
         (c: ReturnType<typeof ready>) => c.story!.claimed.splice(0),
-        (c: ReturnType<typeof ready>) => (c.station.workshop = 0),
+        (c: ReturnType<typeof ready>) => (c.station.workshopLevel = 0),
         (c: ReturnType<typeof ready>) => (c.bank.electronics = 2),
         (c: ReturnType<typeof ready>) => (c.bank.parts = 5),
         (c: ReturnType<typeof ready>) => (c.bank.powerModules = 2),

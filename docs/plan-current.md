@@ -1,8 +1,18 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-23, wersja 0.130.
+Stan: 2026-10-23, wersja robocza 0.131.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Wdrożenie robocze 0.131 — gospodarka, flota i sterowanie
+
+Ustalenia z 2026-10-23: pierwszy quest buduje Laboratorium I z pierwiastków; misja księżycowa działa przed Warsztatem i może dać ocalałego Muła. Dopiero po niej budujemy Warsztat I i otwieramy produkcję części oraz wszystkich statków I. Laboratorium i Warsztat rozwijamy osobno; usuwamy oczyszczanie Cu/Si, przygotowanie tlenu i przewodniki. Wyższe części wymagają materiałów anomalii po technologii z Merkurego. Proponowane granice: II po Merkurym, III po Jowiszu. [Pełne receptury, koszty, przebieg misji i refaktor Rozbudowy stacji](station-progression-rebalance-plan.md).
+
+Prospector: tier 0, bez produkcji i ulepszeń. Tier I: Swift, Muł, Manta, Bastion, Harpun. II: Sokół, Widmo, Atlas z Q. III: Aegis, Żądło, Feniks z Q/E. Projekty zależą od tieru, bez osobnych questów; tarcze Marsa nie otwierają Bastiona/Manty. Nowe role i zdolności, EMP oraz wielohol Manty: [plan floty i sterowania](fleet-progression-controls-plan.md).
+
+Interakcje oraz śluzy przechodzą na **F**. **Spacja i K są całkowicie odpięte**, etykiety śluz bez K. Q/E służą zdolnościom odpowiednich tierów. Mechaniki są zaimplementowane. Build produkcyjny i kontrola typów przechodzą; pełna regresja nadal wymaga pracy. [Stan wdrożenia, weryfikacja i pozostałe zadania](implementation-v0.131.md).
+
+Poniższe wpisy wdrożeń opisują historię; ich zasady produkcji Prospectora, questowych odblokowań statków, paczki części księżycowych i sterowania nie są wymaganiami nowego planu.
 
 ## Wdrożenie 0.130 — zasoby na radarze i nowy układ Fobosa
 

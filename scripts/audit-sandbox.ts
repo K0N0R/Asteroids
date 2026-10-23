@@ -192,7 +192,7 @@ async function main() {
     console.log(`Saved ${rows.length} attempts to dist/audit/sandbox-balance.json`);
     const c = newCampaign();
     const progression: object[] = [];
-    for (let sortie = 0; sortie < 24 && c.station.workshop < 2; sortie++) {
+    for (let sortie = 0; sortie < 24 && c.station.workshopLevel < 2; sortie++) {
         buyUpgrade(c, 'workshop');
         if (c.bank.parts < 12) {
             manufacture(c, 'steel');
@@ -246,7 +246,7 @@ async function main() {
         JSON.stringify(
             {
                 method: 'Fresh ordinary campaign; real generated sectors, scripted mining and return; actual rewards, staff jobs, purchases and save roundtrips; no resources injected. Controller is not an optimal player.',
-                workshop: c.station.workshop,
+                workshop: c.station.workshopLevel,
                 bank: c.bank,
                 progression,
             },
@@ -254,8 +254,8 @@ async function main() {
             2,
         ),
     );
-    console.log(`Progression: ${progression.length} sorties, workshop ${c.station.workshop}`);
-    assert.equal(c.station.workshop, 2, 'Scripted economy route must reach workshop II');
+    console.log(`Progression: ${progression.length} sorties, workshop ${c.station.workshopLevel}`);
+    assert.equal(c.station.workshopLevel, 2, 'Scripted economy route must reach workshop II');
 }
 main().catch((error) => {
     console.error(error);

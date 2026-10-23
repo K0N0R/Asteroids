@@ -23,7 +23,8 @@ import { MOON } from '../frontend/game/worlds/moon';
 before(async () => RAPIER.init());
 function ready() {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS.filter(
         (t) => (t.sector === 'earth' && t.act === 1 && t.required) || t.id === 'lunar-survey',
     )) {

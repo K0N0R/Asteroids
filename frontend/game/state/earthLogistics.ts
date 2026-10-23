@@ -42,6 +42,8 @@ export function receiveStationCargo(c: Campaign, cargo: Cargo) {
         free -= n;
     }
     if (!resourceTotal(accepted)) return null;
+    if ((accepted.anomalyOre ?? 0) > 0 && c.station.extraction)
+        c.station.anomalySampleDelivered = true;
     recordCargoDelivery(c, accepted);
     const change = syncStory(c)!;
     titles.push(...change.titles);

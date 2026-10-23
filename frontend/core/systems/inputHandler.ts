@@ -8,10 +8,11 @@ const defaultKeysConfiguration = {
     RIGHT: 'd',
     BRAKE: 's',
     BOOST: 'shift',
-    HYPERDRIVE: 'space',
+    ABILITY_Q: 'q',
+    ABILITY_E: 'e',
     UNLOAD: 'c',
-    INTERACT: 'e',
-    TOW: 'h',
+    INTERACT: 'f',
+
     REPAIR: 'r',
     SABOTAGE: 'g',
 };
@@ -56,14 +57,34 @@ export class InputHandlerBase {
                       ? '['
                       : evt.code === 'BracketRight'
                         ? ']'
-                        : evt.key.toLowerCase();
+                        : /^Key[A-Z]$/.test(evt.code)
+                          ? evt.code.slice(3).toLowerCase()
+                          : evt.key.toLowerCase();
+            if (key === 'space' || key === 'k') {
+                if (GameState.state === 'gameplay') evt.preventDefault();
+                return;
+            }
             if (
-                ['w', 'a', 's', 'd', 'shift', 'e', 'h', 'r', 'c', 'g', ',', '.', '[', ']'].includes(
-                    key,
-                )
+                [
+                    'w',
+                    'a',
+                    's',
+                    'd',
+                    'shift',
+                    'q',
+                    'e',
+                    'f',
+                    'h',
+                    'r',
+                    'c',
+                    'g',
+                    ',',
+                    '.',
+                    '[',
+                    ']',
+                ].includes(key)
             )
                 evt.preventDefault();
-            if (key === 'space' && GameState.state === 'gameplay') evt.preventDefault();
             if (['tab', 'f6', 'f7'].includes(key) && GameState.state === 'gameplay')
                 evt.preventDefault();
             this.pressedKeys.add(key);
@@ -77,7 +98,10 @@ export class InputHandlerBase {
                       ? '['
                       : evt.code === 'BracketRight'
                         ? ']'
-                        : evt.key.toLowerCase();
+                        : /^Key[A-Z]$/.test(evt.code)
+                          ? evt.code.slice(3).toLowerCase()
+                          : evt.key.toLowerCase();
+            if (key === 'space' || key === 'k') return;
             this.pressedKeys.delete(key);
             Bus.emit('input', { name: 'keyup', data: key });
         });

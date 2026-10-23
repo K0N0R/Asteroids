@@ -37,6 +37,7 @@ export class SandboxSetup extends Container {
     }
     private render() {
         clear(this);
+        this.config = normalizeSandboxConfig(this.config);
         const c = this.config;
         const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: 0x020810, alpha: 0.95 });
         shade.eventMode = 'static';
@@ -102,7 +103,7 @@ export class SandboxSetup extends Container {
                         this.render();
                     },
                     c[key] === level,
-                    true,
+                    c.hull !== 'prospector' || level === 0,
                     30,
                 );
         });
@@ -186,7 +187,7 @@ export class SandboxSetup extends Container {
                     this.render();
                 },
                 c.weapon === weapon,
-                true,
+                c.hull !== 'prospector' || weapon === 'standard',
                 35,
             ),
         );

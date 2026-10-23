@@ -1,3 +1,4 @@
+import { grantStoryTasks } from './fleet-fixtures';
 import { manufacture } from '../frontend/game/state/production';
 import { solveTerminal } from './terminal-test-helper';
 import { before, test } from 'node:test';
@@ -37,7 +38,8 @@ const idle: FlightInput = {
 };
 function ready(prepared = false) {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const t of STORY_TASKS.filter(
         (t) =>
             t.required &&
@@ -47,6 +49,7 @@ function ready(prepared = false) {
         c.story!.progress[t.id] = t.target;
         c.story!.claimed.push(t.id);
     }
+    grantStoryTasks(c, c.story!.claimed);
     assert.ok(travelStory(c, 'pluto'));
     c.bank = { ...empty };
     assert.ok(parseCampaign(JSON.stringify(c)));

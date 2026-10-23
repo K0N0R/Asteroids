@@ -51,14 +51,21 @@ export const HULL_CONSTRUCTION = Object.fromEntries(
             base.lightPlating = base.parts;
             delete base.parts;
         }
-        return [hull, Object.freeze(tieredBill(base, (HULLS[hull].workshop + 1) as PartTier))];
+        return [
+            hull,
+            Object.freeze(
+                hull === 'prospector'
+                    ? {}
+                    : tieredBill(base, Math.max(1, HULLS[hull].workshop) as PartTier),
+            ),
+        ];
     }),
 ) as Record<HullId, Readonly<ResourceStore>>;
 export function hullPartIds(hull: HullId) {
     return Object.keys(HULL_CONSTRUCTION[hull]) as (keyof ResourceStore)[];
 }
 export function hasHullParts(bank: Readonly<ResourceStore>, hull: HullId) {
-    if (!Object.hasOwn(HULL_CONSTRUCTION, hull)) return false;
+    if (hull === 'prospector' || !Object.hasOwn(HULL_CONSTRUCTION, hull)) return false;
     return hullPartIds(hull).every(
         (id) =>
             Number.isSafeInteger(bank[id] ?? 0) &&

@@ -7,11 +7,11 @@ export function contractLockReason(c: Campaign, id: number): string {
     if (contract.unlock === 'return' && c.recovered < 1) return 'Wróć raz do bazy';
     if (contract.unlock === 'combat') {
         if (c.recovered < 1) return 'Wróć raz do bazy';
-        if (c.station.workshop < 1) return 'Wymagany warsztat I';
+        if (c.station.workshopLevel < 1) return 'Wymagany warsztat I';
     }
     if (contract.unlock === 'research') {
         if (!c.contractCompletions[2]) return 'Wykonaj Nasłuch sektora';
-        if (c.station.workshop < 1) return 'Wymagany warsztat I';
+        if (c.station.workshopLevel < 1) return 'Wymagany warsztat I';
     }
     return '';
 }

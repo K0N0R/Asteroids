@@ -1,3 +1,5 @@
+import { stationScreen, newStationScreenState } from './station';
+import type { StationProject } from '../state/stationProgression';
 import { hangarScreen, newHangarState, type HangarState } from './hangar';
 import { pilotScreen } from './pilots';
 import { milkyWayView } from '../graphics/milkyWayView';
@@ -80,6 +82,7 @@ export interface LobbyActions {
     ) => void;
     equipWeapon: (weapon: WeaponId) => void;
     upgrade: (upgrade: Upgrade) => void;
+    installStationProject: (project: StationProject) => void;
     hire: (archetype: number) => void;
     selectPilot: (id: number) => void;
     trainPilot: (id: number, skill: PilotSkillId) => void;
@@ -122,7 +125,7 @@ export class LobbyView extends Container {
     private pilotMode: 'roster' | 'recruit' = 'roster';
     private chosenPilotId: number | null = null;
     private recruit = 0;
-    private stationSection: 'facilities' | 'shield' | 'drones' = 'facilities';
+    private stationState = newStationScreenState();
     private recipeHistory: { tab: LobbyTab; recipe?: RecipeId }[] = [];
     private laboratoryRecipe: RecipeId = 'water';
     private workshopRecipe: RecipeId = 'plating';
@@ -175,10 +178,14 @@ export class LobbyView extends Container {
             this.refresh();
         }
     }
-    private openDestination(tab: 'station' | 'hangar') {
+    private openDestination(
+        tab: 'station' | 'hangar',
+        project?: 'laboratory' | 'workshop' | 'shield' | 'extraction',
+    ) {
         this.recipeHistory.push({ tab: this.tab });
         this.tab = tab;
-        if (tab === 'station') this.stationSection = 'facilities';
+        if (tab === 'station')
+            this.stationState = { ...newStationScreenState(), project: project ?? 'laboratory' };
         else {
             this.hangarState.tab = 'upgrades';
         }
@@ -186,6 +193,8 @@ export class LobbyView extends Container {
     }
     private get productionNavigation() {
         return {
+            openStation: (project: 'laboratory' | 'workshop') =>
+                this.openDestination('station', project),
             openRecipe: (id: RecipeId) => {
                 this.recipeHistory.push({
                     tab: this.tab,
@@ -292,7 +301,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.130', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.131', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {
@@ -424,7 +433,7 @@ export class LobbyView extends Container {
             );
             label(
                 ui,
-                'Podejmij istniejącą paczkę na hol. Części zostały już zapakowane.',
+                'Podejmij istniejącą paczkę na hol. Materiały zostały już zapakowane.',
                 1072,
                 693,
                 13,
@@ -520,7 +529,7 @@ export class LobbyView extends Container {
             );
             storyOverview(ui, this.campaign, {
                 openRecipe: this.productionNavigation.openRecipe,
-                openDestination: (tab) => this.openDestination(tab),
+                openDestination: (tab, project) => this.openDestination(tab, project),
                 contribute: this.actions.contribute,
                 briefing: this.actions.briefing,
                 station: () => this.go('station'),
@@ -674,86 +683,18 @@ export class LobbyView extends Container {
         });
     }
     private station(ui: Container) {
-        const c = this.campaign,
-            level = c.station.workshop,
-            limit = 2;
-        const price = upgradePrice(c, 'workshop');
-        this.section('Rozbudowa stacji', 'Ulepszaj zaplecze i wyposażenie stacji.');
-        const sections = [
-            { id: 'facilities', title: 'Zaplecze' },
-            { id: 'shield', title: 'Tarcze stacji' },
-            { id: 'drones', title: 'Drony' },
-        ] as const;
-        sections.forEach((section, i) => {
-            button(
-                ui,
-                section.title,
-                280 + i * 245,
-                218,
-                235,
-                () => {
-                    this.stationSection = section.id;
-                    this.refresh();
-                },
-                this.stationSection === section.id,
-                true,
-                38,
-                16,
-            );
+        this.section(
+            'Rozbudowa stacji',
+            'Rozwijaj osobno Laboratorium, Warsztat i wyposażenie Satuk 15.',
+        );
+        stationScreen(ui, this.campaign, this.stationState, {
+            refresh: () => this.refresh(),
+            install: this.actions.installStationProject,
+            openRecipe: this.productionNavigation.openRecipe,
+            shield: this.actions.installStationShield,
+            kineticShield: this.actions.installKineticShield,
+            drones: this.actions.installStationDrones,
         });
-        if (this.stationSection === 'shield') {
-            stationShieldContent(
-                ui,
-                c,
-                this.actions.installStationShield,
-                this.actions.installKineticShield,
-                this.productionNavigation.openRecipe,
-            );
-            return;
-        }
-        if (this.stationSection === 'drones') {
-            stationDronesContent(
-                ui,
-                c,
-                this.actions.installStationDrones,
-                this.productionNavigation.openRecipe,
-            );
-            return;
-        }
-        this.art(fittedScene(productionBayScene(level), 650, 350), 640, 520);
-        label(ui, 'ZAPLECZE PRODUKCYJNE', 640, 755, 16, C.mint).setHorizontalAlign('center');
-        label(ui, 'ROZWÓJ TECHNOLOGII', 1072, 244, 13, C.muted);
-        label(ui, 'Zaplecze produkcyjne', 1072, 276, 30, C.text, 456);
-        label(ui, `Poziom ${level} / ${limit}`, 1072, 326, 18, C.mint);
-        segments(ui, level, limit, 1072, 367, 456);
-        label(ui, `Moduły statku do poziomu ${level + 1}`, 1072, 405, 24, C.text, 456);
-        label(
-            ui,
-            level === 0
-                ? 'Podstawowa produkcja jest już dostępna. Rozbudowa I odblokuje części tieru II i nowe kadłuby.'
-                : level < limit
-                  ? 'Rozbudowa II odblokuje części tieru III, osłony i najwyższe ulepszenia statków.'
-                  : 'Najwyższy poziom zaplecza.',
-            1072,
-            447,
-            17,
-            C.muted,
-            456,
-        );
-        if (level < limit)
-            constructionCosts(ui, c.bank, price, 542, this.productionNavigation.openRecipe);
-        else label(ui, 'MAKSYMALNY POZIOM', 1072, 649, 12, C.muted);
-        button(
-            ui,
-            level >= limit ? 'MAKSYMALNY POZIOM' : 'ROZBUDUJ ZAPLECZE →',
-            1072,
-            STATION_LAYOUT.actionY,
-            456,
-            () => this.actions.upgrade('workshop'),
-            true,
-            !c.activeRun && level < limit && canAffordEquipment(c.bank, price),
-            STATION_LAYOUT.actionHeight,
-        );
     }
     private pilots(ui: Container) {
         this.section(
@@ -798,7 +739,7 @@ export class LobbyView extends Container {
             'Pierwiastki, materiały i części przechowywane na stacji. Pojemność bez limitu.',
             false,
         );
-        const categoryOrder = { PIERWIASTKI: 0, MATERIAŁY: 1, CZĘŚCI: 2 };
+        const categoryOrder = { PIERWIASTKI: 0, MATERIAŁY: 1, ANOMALIA: 2, CZĘŚCI: 3 };
         const entries = RESOURCE_IDS.filter((id) => (c.bank[id] ?? 0) > 0).sort(
             (a, b) => categoryOrder[RESOURCES[a].category] - categoryOrder[RESOURCES[b].category],
         );
@@ -1055,7 +996,7 @@ export class LobbyView extends Container {
             20,
             signal.ship ? C.text : C.muted,
         );
-        label(ui, '6 · cel    E · podjęcie    1 · powrót', 1072, 616, 16, C.muted);
+        label(ui, '6 · cel    F · podjęcie    1 · powrót', 1072, 616, 16, C.muted);
         label(
             ui,
             `${sectorName} · ${signal.area === 'surface' ? 'powierzchnia' : 'orbita'} · ${Math.round(signal.x)}, ${Math.round(signal.y)}`,

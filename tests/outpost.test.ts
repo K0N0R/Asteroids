@@ -30,7 +30,8 @@ function campaign(hull: 'prospector' | 'swift' | 'widmo' = 'swift') {
     const c = newCampaign();
     c.ship = newShip(1, hull);
     c.recovered = 1;
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.contractCompletions[2] = 1;
     assert.ok(selectContract(c, 4));
     assert.ok(beginRun(c, 71));

@@ -10,7 +10,10 @@ import { button, illustrationInBox, label, panel } from './primitives';
 
 export interface QuestCardActions {
     openRecipe?: (id: RecipeId) => void;
-    openDestination?: (tab: 'station' | 'hangar') => void;
+    openDestination?: (
+        tab: 'station' | 'hangar',
+        project?: 'laboratory' | 'workshop' | 'shield' | 'extraction',
+    ) => void;
     contribute?: (id: string) => void;
     briefing?: () => void;
 }
@@ -57,10 +60,7 @@ export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCard
                   (task.requirements
                       ? Object.entries(task.requirements).map(([id, need]) => ({
                             resource: id as ResourceId,
-                            have:
-                                task.id === 'earth-supply' && p.claimed.includes('earth-materials')
-                                    ? need
-                                    : (c.bank[id as ResourceId] ?? 0),
+                            have: c.bank[id as ResourceId] ?? 0,
                             need,
                         }))
                       : task.kind === 'delivery' && task.resource
@@ -106,7 +106,8 @@ export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCard
     const destination =
         task.id === 'earth-ship-upgrade'
             ? 'hangar'
-            : ['earth-supply', 'earth-workshop', 'mars-shields'].includes(task.id) ||
+            : task.stationProject ||
+                ['earth-supply', 'earth-workshop', 'mars-shields'].includes(task.id) ||
                 task.kind === 'kineticShield'
               ? 'station'
               : null;
@@ -115,7 +116,16 @@ export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCard
         : destination && actions.openDestination
           ? {
                 title: destination === 'hangar' ? 'OTWÓRZ HANGAR →' : 'ROZBUDOWA STACJI →',
-                run: () => actions.openDestination?.(destination),
+                run: () =>
+                    actions.openDestination?.(
+                        destination,
+                        task.stationProject ??
+                            (task.id === 'earth-supply'
+                                ? 'laboratory'
+                                : task.id === 'earth-workshop'
+                                  ? 'workshop'
+                                  : 'shield'),
+                    ),
                 enabled: true,
             }
           : storyTaskAvailable(p, task) &&
@@ -257,7 +267,7 @@ export function questCard(
     if (layout.stage)
         label(
             card,
-            'Zaplecze stacji I · 0/1',
+            'Laboratorium I · do zamontowania',
             PADDING,
             layout.stageY,
             16,

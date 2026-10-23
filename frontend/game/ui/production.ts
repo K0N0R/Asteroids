@@ -11,6 +11,7 @@ import { button, label, panel, illustrationInBox, STATION_LAYOUT } from './primi
 export interface ProductionNavigation {
     openRecipe: (id: RecipeId) => void;
     back?: () => void;
+    openStation?: (project: 'laboratory' | 'workshop') => void;
 }
 interface ProductionActions {
     manufacture: (kind: RecipeId, batches: number) => void;
@@ -48,7 +49,52 @@ function processOverview(
     scope?: ProductionScope,
     navigation?: ProductionNavigation,
 ) {
-    const ids = RECIPE_IDS.filter((id) => RECIPES[id].category === category);
+    const siteLevel =
+        category === 'laboratory' ? c.station.laboratoryLevel : c.station.workshopLevel;
+    const installed = scope?.site === 'lunar' ? Math.min(1, siteLevel) : siteLevel;
+    if (!installed) {
+        panel(ui, 280, STATION_LAYOUT.top, 1280, 591);
+        label(
+            ui,
+            `Najpierw uruchom ${category === 'laboratory' ? 'Laboratorium' : 'Warsztat'}`,
+            320,
+            270,
+            30,
+            C.text,
+            1100,
+        );
+        label(
+            ui,
+            category === 'laboratory'
+                ? 'Pierwszy quest: zbierz pierwiastki i zamontuj Laboratorium I w Rozbudowie stacji.'
+                : 'Po zakończeniu misji księżycowej przygotuj materiały i zamontuj Warsztat I w Rozbudowie stacji.',
+            320,
+            335,
+            20,
+            C.muted,
+            1100,
+        );
+        if (scope?.site !== 'lunar' && navigation?.openStation)
+            button(
+                ui,
+                'ROZBUDOWA STACJI →',
+                320,
+                430,
+                350,
+                () => navigation.openStation?.(category),
+                true,
+                true,
+                44,
+                18,
+            );
+        return;
+    }
+    const knownLevel = installed;
+    const ids = RECIPE_IDS.filter(
+        (id) =>
+            RECIPES[id].category === category &&
+            (RECIPES[id].level <= knownLevel || id === selected),
+    );
     const id = ids.includes(selected) ? selected : ids[0];
     const recipe: ProcessRecipe = RECIPES[id];
     panel(ui, 280, STATION_LAYOUT.top, 285, 591);
@@ -74,7 +120,7 @@ function processOverview(
                     if (first) select(first);
                 },
                 tier === index + 1,
-                true,
+                index + 1 <= knownLevel,
                 30,
                 12,
             ),
@@ -98,15 +144,21 @@ function processOverview(
     panel(details, 585, STATION_LAYOUT.top, 430, 591);
     label(details, recipe.title, 609, 244, 25, C.text, 382);
     label(details, 'PROCES', 609, 295, 13, C.mint);
-    illustrationInBox(details, ingredientIllustration(recipe.inputs), 625, 330, 350, 155);
-    label(details, 'SKŁADNIK', 609, 510, 12, C.muted);
-    label(details, 'MASZ', 862, 510, 12, C.muted);
-    label(details, 'POTRZEBA', 925, 510, 12, C.muted);
+    illustrationInBox(details, ingredientIllustration(recipe.inputs), 625, 330, 350, 110);
+    label(details, 'SKŁADNIK', 609, 460, 12, C.muted);
+    label(details, 'MASZ', 862, 460, 12, C.muted);
+    label(details, 'POTRZEBA', 925, 460, 12, C.muted);
     preview.ingredients.forEach((row, i) => {
-        const y = 539 + i * 32;
+        const y = 488 + i * 40;
         const source = RECIPE_IDS.find((sourceId) => RECIPES[sourceId].output === row.resource);
         const canNavigate = !!source && !!navigation;
-        label(details, RESOURCES[row.resource].name, 609, y, 15, C.text, canNavigate ? 162 : 239);
+        const name =
+            row.resource === 'stabilizedAnomaly'
+                ? 'MA · materiał anomalii'
+                : row.resource === 'resonantComposite'
+                  ? 'KR · kompozyt rezonansowy'
+                  : RESOURCES[row.resource].name;
+        label(details, name, 609, y, 14, C.text, canNavigate ? 162 : 239);
         if (source && navigation)
             button(
                 details,
@@ -123,8 +175,8 @@ function processOverview(
         label(details, `${row.have}`, 862, y, 17, row.have < row.need ? C.coral : C.mint);
         label(details, `${row.need}`, 947, y, 17, C.gold);
     });
-    label(details, recipe.equation ?? 'Ciekawostka', 609, 664, 19, C.cyan, 382);
-    label(details, recipe.explanation, 609, 708, 15, C.muted, 382);
+    label(details, recipe.equation ?? 'Ciekawostka', 609, 694, 19, C.cyan, 382);
+    label(details, recipe.explanation, 609, 730, 15, C.muted, 382);
     label(details, output, 1072, 244, 25, C.text, 456);
     label(
         details,

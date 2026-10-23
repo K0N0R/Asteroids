@@ -1,4 +1,30 @@
 export const RESOURCES = {
+    siliconCarbide: {
+        name: 'Węglik krzemu (SiC)',
+        short: 'SiC',
+        category: 'MATERIAŁY',
+        color: 0xa1c7de,
+    },
+    alumina: {
+        name: 'Ceramika tlenkowa (Al₂O₃)',
+        short: 'Al₂O₃',
+        category: 'MATERIAŁY',
+        color: 0xd4dcec,
+    },
+    anomalyOre: { name: 'Urobek anomalii', short: 'UA', category: 'ANOMALIA', color: 0xe69775 },
+    stabilizedAnomaly: {
+        name: 'Stabilizowany materiał anomalii',
+        short: 'MA',
+        category: 'ANOMALIA',
+        color: 0xc58fdc,
+    },
+    resonantComposite: {
+        name: 'Kompozyt rezonansowy',
+        short: 'KR',
+        category: 'ANOMALIA',
+        color: 0x8cdddc,
+    },
+
     hydrogen: { name: 'Wodór (H)', short: 'H', category: 'PIERWIASTKI', color: 0x9ddff5 },
     mercuryOre: { name: 'Tytan (Ti)', short: 'Ti', category: 'PIERWIASTKI', color: 0xa6d2df },
     kineticPlates: {
@@ -16,12 +42,6 @@ export const RESOURCES = {
         category: 'CZĘŚCI',
         color: 0xe5bd6d,
     },
-    conductors: {
-        name: 'Przewodniki miedziane',
-        short: 'P',
-        category: 'CZĘŚCI',
-        color: 0xe6a16d,
-    },
     powerModules: { name: 'Układ zasilania I', short: 'MZ', category: 'CZĘŚCI', color: 0x83c9ef },
     storageFrames: {
         name: 'Maszyneria I',
@@ -36,7 +56,6 @@ export const RESOURCES = {
     magnesium: { name: 'Magnez (Mg)', short: 'Mg', category: 'PIERWIASTKI', color: 0xa9dfb5 },
     nitrogen: { name: 'Azot (N)', short: 'N', category: 'PIERWIASTKI', color: 0x8ca9ff },
     water: { name: 'Woda (H₂O)', short: 'H₂O', category: 'MATERIAŁY', color: 0x79d5ed },
-    oxygenGas: { name: 'Tlen gazowy (O₂)', short: 'O₂', category: 'MATERIAŁY', color: 0xf08e95 },
     silica: { name: 'Krzemionka (SiO₂)', short: 'SiO₂', category: 'MATERIAŁY', color: 0xdcc9ef },
     steel: { name: 'Stal', short: 'Stal', category: 'MATERIAŁY', color: 0xa4bed1 },
     aluminiumAlloy: {
@@ -44,18 +63,6 @@ export const RESOURCES = {
         short: 'Al–Mg',
         category: 'MATERIAŁY',
         color: 0xb7ddda,
-    },
-    pureCopper: {
-        name: 'Oczyszczona miedź',
-        short: 'Cu cz.',
-        category: 'MATERIAŁY',
-        color: 0xd48c62,
-    },
-    pureSilicon: {
-        name: 'Oczyszczony krzem',
-        short: 'Si cz.',
-        category: 'MATERIAŁY',
-        color: 0xc2a0ec,
     },
     electronics: { name: 'Elektronika I', short: 'E I', category: 'CZĘŚCI', color: 0x8edabc },
     lifeSupport: {
@@ -138,13 +145,18 @@ export const RESOURCES = {
 } as const;
 export type ResourceId = keyof typeof RESOURCES;
 export const STORAGE_PRIORITY: readonly ResourceId[] = [
+    'siliconCarbide',
+    'alumina',
+    'anomalyOre',
+    'stabilizedAnomaly',
+    'resonantComposite',
+
     'hydrogen',
     'kineticModules',
     'kineticPlates',
     'mercuryOre',
     'storageFrames',
     'powerModules',
-    'conductors',
     'crystals',
     'parts',
     'copperOre',
@@ -155,12 +167,9 @@ export const STORAGE_PRIORITY: readonly ResourceId[] = [
     'magnesium',
     'nitrogen',
     'water',
-    'oxygenGas',
     'silica',
     'steel',
     'aluminiumAlloy',
-    'pureCopper',
-    'pureSilicon',
     'electronics',
     'lifeSupport',
     'propulsion',

@@ -72,7 +72,7 @@ test('all first-ship parts can be made by hand from elements at starting facilit
         ['power', 1],
     ] as const)
         assert.ok(manufacture(c, recipe, count), `${recipe}: ${productionLock(c, recipe, count)}`);
-    assert.equal(c.station.workshop, 0);
+    assert.equal(c.station.workshopLevel, 0);
     assert.ok(hasHullParts(c.bank, 'prospector'));
     assert.ok(buyShip(c));
     assert.equal(c.reserveShips.length, 1);
@@ -80,7 +80,8 @@ test('all first-ship parts can be made by hand from elements at starting facilit
 test('building respects story, fleet and flight locks without changing inventories or identities', () => {
     for (const mode of ['story', 'fleet', 'flight'] as const) {
         const c = newStoryCampaign();
-        c.station.workshop = 2;
+        c.station.workshopLevel = 3;
+        c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
         fundHull(c, 'aegis');
         fundHull(c, 'swift');
         if (mode === 'fleet') {

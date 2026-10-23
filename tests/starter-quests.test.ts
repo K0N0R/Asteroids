@@ -46,7 +46,7 @@ test('first supply asks for the complete level-zero raw bill and preserves every
         assert.ok(manufacture(c, recipe, batches), recipe);
     const beforeUpgradeXp = c.pilots[0].xp;
     assert.ok(buyUpgrade(c, 'workshop'));
-    assert.equal(c.station.workshop, 1);
+    assert.equal(c.station.workshopLevel, 1);
     syncStory(c);
     assert.ok(c.story!.claimed.includes('earth-supply'));
     assert.equal(c.pilots[0].xp, beforeUpgradeXp + 40);

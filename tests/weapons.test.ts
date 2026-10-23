@@ -28,15 +28,18 @@ const idle: FlightInput = {
 function ready() {
     const c = newCampaign();
     c.bank = { ore: 100, parts: 20, electronics: 3, powerModules: 4, storageFrames: 3 };
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     return c;
 }
 
 test('weapon purchases require the workshop and enough resources, charge once and switch freely', () => {
     const c = ready();
-    c.station.workshop = 0;
+    c.station.workshopLevel = 0;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     assert.equal(equipWeapon(c, 'rail'), false);
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.bank.parts = 2;
     assert.equal(equipWeapon(c, 'rail'), false);
     assert.equal(c.bank.ore, 100);

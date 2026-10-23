@@ -42,7 +42,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'operations',
-                text: 'Przyda nam się też sprawne zaplecze. Zbierz materiały i rozbuduj stację. Ty zdecyduj, od czego zaczniesz. Listę potrzebnych rzeczy znajdziesz w zadaniach.',
+                text: 'Najpierw uruchom Laboratorium: zbierz 8 żelaza, 2 miedzi i 2 krzemu, a potem zamontuj je w Rozbudowie stacji. Przygotujemy tam materiały do placówki księżycowej.',
             },
         ],
     },
@@ -72,7 +72,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
         title: 'Kierunek: Księżyc',
         sector: 'earth',
         after: ['earth-open-orbit'],
-        tasks: ['earth-workshop', 'earth-route'],
+        tasks: ['earth-supply', 'earth-route'],
         lines: [
             {
                 speaker: 'operations',
@@ -97,7 +97,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'science',
-                text: 'Sprawdzę zapis ich sygnałów. Ty przygotuj statek. Nie odcinamy tras do Ziemi ani Księżyca, więc do zaległych spraw będzie można wrócić.',
+                text: 'Sprawdzę zapis ich sygnałów. Ty uruchom Warsztat I z materiałów Laboratorium. Otworzy produkcję części i pięciu projektów statków. Nie odcinamy tras do Ziemi ani Księżyca, więc do zaległych spraw będzie można wrócić.',
             },
         ],
     },
@@ -278,7 +278,7 @@ export class DialoguePlayback {
             this.held.delete(key);
             return false;
         }
-        if (!['enter', 'space'].includes(key) || this.held.has(key)) return false;
+        if (key !== 'enter' || this.held.has(key)) return false;
         this.held.add(key);
         return this.interact();
     }

@@ -221,7 +221,7 @@ export interface HullDefinition {
 }
 export const HULLS = {
     prospector: {
-        name: 'Prospector I',
+        name: 'Prospector',
         role: 'Początkowy',
         detail: 'Prosty owalny kadłub: jeden silnik, działko i krótki laser.',
         health: GAME.hull,
@@ -259,7 +259,7 @@ export const HULLS = {
         maxSpeed: 520,
         size: 0.9,
         miningPower: 1,
-        workshop: 0,
+        workshop: 1,
         recovery: 0.18,
         boost: 1.6,
         radarJamming: 0.6,
@@ -339,8 +339,8 @@ export const HULLS = {
     },
     tug: {
         name: 'Manta',
-        role: 'Holowniczy',
-        detail: 'Wytrzymała płaszczka z dwoma silnikami. Holuje dwie jednostki jednocześnie.',
+        role: 'Ciężki bojowy holownik',
+        detail: 'LPM: działko na ogonie. PPM: granat EMP blokujący ostrzał i odpychający asteroidy. Dwa rozwijane sloty holowania, bez lasera.',
         health: 230,
         shield: { capacity: 80, regen: 7, delay: 5.5 },
         cargo: 75,
@@ -354,13 +354,13 @@ export const HULLS = {
         recovery: 0.3,
         boost: 1.25,
         radarJamming: 0.25,
-        guns: [{ x: 24, y: -20 }],
-        lasers: [{ x: 24, y: 20 }],
+        guns: [{ x: -28, y: 0 }],
+        lasers: [],
         engines: [
             { x: 12, y: -37 },
             { x: 12, y: 37 },
         ],
-        laserRange: 320,
+        laserRange: 0,
         grabbers: [
             { x: 0, y: -30 },
             { x: 0, y: 30 },
@@ -371,8 +371,8 @@ export const HULLS = {
     },
     falcon: {
         name: 'Sokół',
-        role: 'Szybki transport',
-        detail: 'Mocny boost i ciche włamanie: 45 s na terminal, połowa śladu po błędzie.',
+        role: 'Uniwersalny bojowy',
+        detail: 'LPM: działka. PPM: laser. Q: granat EMP. Uniwersalny statek bojowy z szybkim boostem.',
         health: 125,
         shield: { capacity: 65, regen: 8, delay: 4.5 },
         cargo: 75,
@@ -382,7 +382,7 @@ export const HULLS = {
         maxSpeed: 560,
         size: 1.1,
         miningPower: 1,
-        workshop: 1,
+        workshop: 2,
         recovery: 0.22,
         boost: 2.1,
         radarJamming: 0.4,
@@ -404,7 +404,7 @@ export const HULLS = {
     widmo: {
         name: 'Widmo',
         role: 'Infiltrator fazowy',
-        detail: 'LPM: fazowy dash przez struktury i wrogów. PPM: kamuflaż optyczny.',
+        detail: 'LPM: działko dziobowe. PPM: ofensywny dash. Q: kamuflaż optyczny.',
         health: 60,
         shield: { capacity: 35, regen: 9, delay: 3.5 },
         cargo: 30,
@@ -418,7 +418,7 @@ export const HULLS = {
         recovery: 0.18,
         boost: 1.6,
         radarJamming: 0.6,
-        guns: [],
+        guns: [{ x: 38, y: 0 }],
         lasers: [],
         engines: [{ x: -32, y: 0 }],
         laserRange: 0,
@@ -430,7 +430,7 @@ export const HULLS = {
     atlas: {
         name: 'Atlas',
         role: 'Grenadier',
-        detail: 'LPM: rakieta z namierzaniem celu po 3 s. PPM: krótkodystansowe granaty obszarowe.',
+        detail: 'LPM: rakieta. PPM: granaty wybuchowe. Q: shockwave zadający obrażenia statkom i odpychający asteroidy.',
         health: 200,
         shield: { capacity: 90, regen: 5, delay: 7 },
         cargo: 188,
@@ -474,7 +474,7 @@ export const HULLS = {
         maxSpeed: 430,
         size: 1.15,
         miningPower: 1,
-        workshop: 2,
+        workshop: 1,
         recovery: 0.3,
         boost: 1.4,
         radarJamming: 0.35,
@@ -498,7 +498,7 @@ export const HULLS = {
     aegis: {
         name: 'Aegis',
         role: 'Obrońca eskorty',
-        detail: 'Energetyczne działko wyłącza broń wroga. Impuls tarcz i reaktywny dron osłaniają sojuszników.',
+        detail: 'LPM: działko energetyczne. PPM: dwa krótkie lasery. Q: wzmocnienie tarcz. E: shockwave. Dwa chwytaki.',
         health: 145,
         shield: { capacity: 120, regen: 8, delay: 5 },
         cargo: 75,
@@ -508,18 +508,24 @@ export const HULLS = {
         maxSpeed: 340,
         size: 1.15,
         miningPower: 1,
-        workshop: 2,
+        workshop: 3,
         recovery: 0.3,
         boost: 1.35,
         radarJamming: 0,
         guns: [{ x: 45, y: 0 }],
-        lasers: [],
+        lasers: [
+            { x: 2, y: -28 },
+            { x: 2, y: 28 },
+        ],
         engines: [
             { x: -36, y: -24 },
             { x: -36, y: 24 },
         ],
-        laserRange: 0,
-        grabbers: [{ x: -24, y: 0 }],
+        laserRange: 170,
+        grabbers: [
+            { x: -24, y: -20 },
+            { x: -24, y: 20 },
+        ],
         grabberRange: 230,
         towPickupSpeed: 1,
         hitbox: [40, 37],
@@ -527,7 +533,7 @@ export const HULLS = {
     stinger: {
         name: 'Żądło',
         role: 'Glass cannon',
-        detail: 'Cztery działka. LPM: amunicja przeciw lekkim dronom. PPM: amunicja przeciwpancerna. Bez lasera.',
+        detail: 'LPM: rapid fire. PPM: rakieta. Q: niewidzialność. E: granat EMP. Potężny ostrzał kosztem odporności.',
         health: 55,
         shield: { capacity: 20, regen: 7, delay: 5 },
         cargo: 25,
@@ -537,7 +543,7 @@ export const HULLS = {
         maxSpeed: 680,
         size: 0.95,
         miningPower: 0.8,
-        workshop: 2,
+        workshop: 3,
         recovery: 0.14,
         boost: 1.95,
         radarJamming: 0,
@@ -561,7 +567,7 @@ export const HULLS = {
     phoenix: {
         name: 'Feniks',
         role: 'Uniwersalny szturmowiec',
-        detail: 'Laser bojowy i rakieta. Terminal: natychmiastowe przełamanie kosztem alarmu i pościgu.',
+        detail: 'LPM: dwa działka skrzydłowe. PPM: dwa promienie podpalające. Q: rakieta. E: shockwave.',
         health: 95,
         shield: { capacity: 55, regen: 8, delay: 4.5 },
         cargo: 69,
@@ -571,17 +577,23 @@ export const HULLS = {
         maxSpeed: 540,
         size: 1.05,
         miningPower: 1,
-        workshop: 2,
+        workshop: 3,
         recovery: 0.2,
         boost: 1.7,
         radarJamming: 0,
-        guns: [],
-        lasers: [{ x: 42, y: 0 }],
+        guns: [
+            { x: 8, y: -31 },
+            { x: 8, y: 31 },
+        ],
+        lasers: [
+            { x: 30, y: -18 },
+            { x: 30, y: 18 },
+        ],
         engines: [
             { x: -27, y: -20 },
             { x: -27, y: 20 },
         ],
-        laserRange: 700,
+        laserRange: 420,
         grabbers: [
             { x: -8, y: -27 },
             { x: -8, y: 27 },
@@ -653,7 +665,7 @@ export const HULLS = {
 } as const satisfies Record<string, HullDefinition>;
 export type HullId = keyof typeof HULLS;
 
-export const PHOENIX = { laserDamage: 30, rockDamage: 110, burnDamage: 8, burnSeconds: 3 } as const;
+export const PHOENIX = { laserDamage: 30, rockDamage: 110, burnDamage: 8, burnSeconds: 4 } as const;
 
 export const STINGER_AMMO = {
     light: { damage: 8, interval: 0.24, speed: 1250, life: 0.9, patrol: 1.5, lancer: 0.4 },
@@ -784,6 +796,7 @@ export const AEGIS = {
 } as const;
 
 export const ATLAS_WEAPONS = {
+    emp: { speed: 320, life: 0.7, radius: 160, damage: 0, interval: 6, spread: 0 },
     launcher: { x: 34, y: 0, length: 35 },
     lockTime: 3,
     rocket: { speed: 240, life: 12, radius: 180, damage: 160, interval: 1.8, turn: 2.8 },
@@ -792,19 +805,31 @@ export const ATLAS_WEAPONS = {
 
 export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
     const definition = UPGRADES[upgrade];
+    if (hull === 'tug' && upgrade === 'handling')
+        return {
+            ...definition,
+            title: 'Sterowanie i holowanie',
+            detail: '+1 slot holowania i zwrotność +20% / poziom; baza 2, maksimum 5 holi',
+        };
+    if (hull === 'tug' && upgrade === 'drill')
+        return {
+            ...definition,
+            title: 'Projektor EMP',
+            detail: 'Impuls odpychania asteroid +25% / poziom; bez obrażeń skał',
+        };
     if ((hull === 'raider' || hull === 'lancer') && upgrade === 'drill')
         return { ...definition, title: 'Układ bojowy', detail: 'Obrażenia działek +25% / poziom' };
     if (hull === 'stinger' && upgrade === 'drill')
         return {
             ...definition,
             title: 'Układ amunicji',
-            detail: 'Obrażenia obu rodzajów pocisków +25% / poziom',
+            detail: 'Obrażenia rapid fire +25% / poziom',
         };
     if (hull === 'phoenix' && upgrade === 'drill')
         return {
             ...definition,
             title: 'Projektor bojowy',
-            detail: 'Wiązka, podpalenie i wydobycie +25% / poziom',
+            detail: 'Wiązki bojowe i podpalenie +25% / poziom',
         };
     if (hull === 'widmo' && upgrade === 'handling')
         return {
@@ -822,13 +847,13 @@ export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
         return {
             ...definition,
             title: 'Ogniwo energetyczne',
-            detail: 'Obrażenia działka +25% / poziom',
+            detail: 'Obrażenia działka i moc laserów +25% / poziom',
         };
     if (hull === 'aegis' && upgrade === 'handling')
         return {
             ...definition,
-            title: 'System drona',
-            detail: 'Atak i kadłub drona +25%, manewry +20% / poziom',
+            title: 'Sterowanie obrońcy',
+            detail: 'Zwrotność +20% / poziom',
         };
     if (hull === 'aegis' && upgrade === 'shield')
         return {
@@ -948,7 +973,7 @@ export const CONTRACTS: readonly ContractDefinition[] = [
     },
     {
         title: 'Eskorta Keplera',
-        detail: 'Podejdź do statku badawczego. E rozpoczyna eskortę. Osłaniaj Keplera w locie i podczas badań, potem wróć z danymi.',
+        detail: 'Podejdź do statku badawczego. F rozpoczyna eskortę. Osłaniaj Keplera w locie i podczas badań, potem wróć z danymi.',
         ore: 0,
         parts: 0,
         rewardOre: 36,
@@ -1009,7 +1034,7 @@ export function armamentName(hull: HullId, weapon: WeaponId) {
               : hull === 'harpoon'
                 ? 'Szczęki odzysku'
                 : hull === 'aegis'
-                  ? 'Ogniwo EMP'
+                  ? 'Ogniwo energetyczne'
                   : hull === 'atlas'
                     ? 'Arsenał rakietowy'
                     : hull === 'phoenix'

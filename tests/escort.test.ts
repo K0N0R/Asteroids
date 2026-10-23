@@ -12,7 +12,8 @@ const idle = { target: { x: 0, y: 0 }, thrust: false, brake: false, fire: false,
 function campaign() {
     const c = newCampaign();
     c.contractCompletions[2] = 1;
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     c.recovered = 1;
     assert.ok(selectContract(c, 7));
     beginRun(c, 71);

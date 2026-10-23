@@ -53,10 +53,10 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             ['W / A / D', 'Przyspieszanie / skręt w lewo / skręt w prawo'],
             ['S / SHIFT', 'Hamowanie i wsteczny / boost podczas lotu W'],
             ['MYSZ', 'Celowanie niezależnie od kadłuba'],
-            ['LPM / PPM', 'Broń / narzędzie; Widmo: kamuflaż 3 s; Mule: lasery / zestaw'],
-            ['E / H / J', 'Interakcja / podłącz hol / zwolnij hol'],
+            ['LPM / PPM', 'Uzbrojenie / narzędzie przypisane do kadłuba'],
+            ['F / J', 'Interakcje i śluzy / zwolnij hol'],
             [', / .', 'Poprzedni / następny cel nawigacji'],
-            ['R', 'Naprawa; Widmo: LPM dash / PPM kamuflaż optyczny'],
+            ['Q / E', 'Zdolności statków II / III; R: naprawa'],
             ['TAB', 'Pokład · szczegóły statku, pilot, prototypy i załoga'],
         ];
         controls.forEach(([key, detail], i) => {

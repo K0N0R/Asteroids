@@ -22,13 +22,13 @@ export function stationShieldContent(
     const level = c.station.shieldLevel;
     const nextCost = KINETIC_SHIELD_COSTS[level];
     const g = new Graphics(),
-        x = 640,
+        x = 800,
         y = 515;
-    const radius = active ? 220 : 68;
-    g.circle(x, y, 220).stroke({ color: C.line, width: 2, alpha: 0.6 });
+    const radius = active ? 180 : 68;
+    g.circle(x, y, 185).stroke({ color: C.line, width: 2, alpha: 0.6 });
     g.circle(x, y, radius).fill({ color: C.cyan, alpha: 0.07 }).stroke({ color: C.cyan, width: 3 });
     for (let i = 0; i < level; i++)
-        g.circle(x, y, 230 + i * 10).stroke({ color: 0x91b8ef, width: 4, alpha: 0.6 });
+        g.circle(x, y, 185 + i * 8).stroke({ color: 0x91b8ef, width: 4, alpha: 0.6 });
     g.circle(x, y, 44).fill(C.ink).stroke({ color: C.mint, width: 3 });
     g.circle(x, y, 16).fill(C.cyan);
     for (let i = 0; i < 8; i++) {
@@ -126,9 +126,9 @@ export function stationDronesContent(
     openRecipe?: (id: RecipeId) => void,
 ) {
     const diagram = new Graphics();
-    const x = 640,
+    const x = 800,
         y = 515;
-    diagram.circle(x, y, 220).stroke({ color: C.line, width: 2, alpha: 0.6 });
+    diagram.circle(x, y, 185).stroke({ color: C.line, width: 2, alpha: 0.6 });
     diagram
         .beginPath()
         .circle(x, y, 120)

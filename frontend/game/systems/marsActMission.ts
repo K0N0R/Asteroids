@@ -77,7 +77,7 @@ export class MarsActMission {
             this.s.campaign.story!.claimed.includes('mars-sector-secure') &&
             this.p.researchSites < 3
         )
-            return `Kepler · pomiar ${this.p.researchSites + 1}/3 · ${e?.state === 'destroyed' ? 'jednostka utracona, wróć po nową' : e?.state === 'idle' ? 'E przy statku: rozpocznij eskortę' : e?.state === 'research' ? `skan ${Math.floor(e.researchProgress)}/12 s` : (e?.state ?? 'przygotowanie')}`;
+            return `Kepler · pomiar ${this.p.researchSites + 1}/3 · ${e?.state === 'destroyed' ? 'jednostka utracona, wróć po nową' : e?.state === 'idle' ? 'F przy statku: rozpocznij eskortę' : e?.state === 'research' ? `skan ${Math.floor(e.researchProgress)}/12 s` : (e?.state ?? 'przygotowanie')}`;
         return marsSecurityObjective(this.s.campaign.story!);
     }
     get context() {
@@ -89,7 +89,7 @@ export class MarsActMission {
         )
             return this.s.enemyFactory?.active
                 ? 'Alarm instalacji · zniszcz rdzeń i odeprzyj posiłki'
-                : 'E · szybkie włamanie: ułóż ścieżkę · uważaj na obracający się skaner';
+                : 'F · szybkie włamanie: ułóż ścieżkę · uważaj na obracający się skaner';
         return '';
     }
     private say(id: string, text: string) {

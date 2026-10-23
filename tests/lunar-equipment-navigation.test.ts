@@ -23,7 +23,8 @@ import { mineralDeposit } from '../frontend/game/worlds/mineralDeposits';
 before(async () => RAPIER.init());
 function ready(probe = true) {
     const c = newStoryCampaign();
-    c.station.workshop = 1;
+    c.station.workshopLevel = 1;
+    c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     const claim = (id: string) => {
         const task = STORY_TASKS.find((task) => task.id === id)!;
         for (const dependency of task.dependencies)

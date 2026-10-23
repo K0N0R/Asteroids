@@ -113,7 +113,7 @@ test('Earth briefings follow real mission reports, survive saves and replay with
     finishSequence(d);
     assert.equal(finishSequence(d), 'earth-open-orbit');
     assert.equal(pendingDialogue(d), null);
-    assert.equal(d.station.workshop, 1);
+    assert.equal(d.station.workshopLevel, 1);
     assert.equal(pendingDialogue(d), null);
     beginRun(d, 1);
     assert.ok(recordMoonArrival(d));

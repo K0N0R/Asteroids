@@ -2,26 +2,31 @@ import type { ResourceId } from './resources';
 
 type Delivery = { id: string; resource: ResourceId; target: number; title: string };
 export const MARS_CONSTRUCTION = [
-    { id: 'mars-base-ore', resource: 'parts', target: 12, title: 'Poszycie bazy marsjańskiej' },
+    { id: 'mars-base-ore', resource: 'partsII', target: 12, title: 'Poszycie bazy marsjańskiej' },
     {
         id: 'mars-base-parts',
-        resource: 'storageFrames',
+        resource: 'storageFramesII',
         target: 6,
         title: 'Maszyneria bazy marsjańskiej',
     },
     {
         id: 'mars-base-electronics',
-        resource: 'electronics',
+        resource: 'electronicsII',
         target: 4,
         title: 'Sterowanie bazy marsjańskiej',
     },
     {
         id: 'mars-base-power',
-        resource: 'powerModules',
+        resource: 'powerModulesII',
         target: 4,
         title: 'Zasilanie bazy marsjańskiej',
     },
-    { id: 'mars-base-life', resource: 'lifeSupport', target: 4, title: 'Zaplecze życia na Marsie' },
+    {
+        id: 'mars-base-life',
+        resource: 'lifeSupportII',
+        target: 4,
+        title: 'Zaplecze życia na Marsie',
+    },
 ] as const satisfies readonly Delivery[];
 export const VENUS_CONSTRUCTION = [
     { id: 'venus-stockpile', resource: 'parts', target: 8, title: 'Poszycie placówki Wenus' },

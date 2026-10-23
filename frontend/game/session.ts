@@ -1,3 +1,4 @@
+import { installStationProject } from './state/stationProgression';
 import { cargoReceipt } from './ui/cargoReceipt';
 import { LunarStationView } from './ui/lunarStation';
 import { RESOURCE_IDS, RESOURCES } from './state/resources';
@@ -225,6 +226,11 @@ export class GameSession {
                     () => scrapShip(this.campaign, id),
                     'Kadłub zezłomowany. Odzyskane materiały trafiły do magazynu.',
                 ),
+            installStationProject: (project) =>
+                this.change(
+                    () => installStationProject(this.campaign, project),
+                    'Urządzenie zamontowane. Nowe projekty są dostępne.',
+                ),
             installKineticShield: () =>
                 this.change(
                     () => installKineticUpgrade(this.campaign, 'shield'),
@@ -335,14 +341,6 @@ export class GameSession {
                     !PopupContainer.hasActivePopup()
                 )
                     this.mission.simulation.releaseWreck();
-                if (
-                    message.name === 'keydown' &&
-                    message.data === 'c' &&
-                    this.mission &&
-                    !this.hasOverlay &&
-                    !PopupContainer.hasActivePopup()
-                )
-                    this.mission.simulation.toggleCloak();
                 if (
                     message.name === 'focus-lost' &&
                     this.mission &&
@@ -795,7 +793,7 @@ export class GameSession {
                               ? 'Jowisz: zwiad · terminal po zwiadzie · patrole · pakiet po raportach · powrót.'
                               : simulation.beltSector
                                 ? 'Pas asteroid: pomiary · przeszkody po zwiadzie · granica po oczyszczeniu · powrót.'
-                                : 'Satuk 15: złoże · przekaźnik · E odczyt / dokowanie. Zadania możesz realizować równolegle.',
+                                : 'Satuk 15: złoże · przekaźnik · F odczyt / dokowanie. Zadania możesz realizować równolegle.',
                 );
             this.hud.cameraAngle = this.mission.camera.rotation;
             this.worldHost.addChild(this.mission);
@@ -894,12 +892,8 @@ export class GameSession {
         const elapsedBefore = simInput.elapsed;
         this.mission.update(deltaMS, {
             unload: InputHandler.isKeyPressed('UNLOAD'),
-            hyperdrive:
-                !simInput.terminalPuzzle &&
-                !simInput.relayTuning &&
-                !simInput.rescueOperation?.repair &&
-                !simInput.transferActive &&
-                InputHandler.isKeyPressed('HYPERDRIVE'),
+            abilityQ: !tuning && InputHandler.isKeyPressed('ABILITY_Q'),
+            abilityE: !tuning && InputHandler.isKeyPressed('ABILITY_E'),
             target: tuning ? simInput.position : local,
             thrust: !tuning && InputHandler.isKeyPressed('THRUST'),
             brake: !tuning && InputHandler.isKeyPressed('BRAKE'),
@@ -911,7 +905,7 @@ export class GameSession {
             fire: !tuning && InputHandler.primaryPressed && InputHandler.pointerInCanvas,
             mine: !tuning && InputHandler.secondaryPressed && InputHandler.pointerInCanvas,
             interact: !tuning && InputHandler.isKeyPressed('INTERACT'),
-            tow: !tuning && InputHandler.isKeyPressed('TOW'),
+            tow: !tuning && InputHandler.isKeyPressed('INTERACT'),
             repair: !tuning && InputHandler.isKeyPressed('REPAIR'),
             sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });
