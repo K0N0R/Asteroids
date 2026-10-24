@@ -24,17 +24,16 @@ export class Core {
 
     update(ticker: PIXI.Ticker) {
         FrameDiagnostics.frame();
-        if (ticker.deltaMS > 100) {
-            return;
-        }
-        UiTime.update(ticker.deltaMS);
-        EffectsManager.updateUi(ticker.deltaMS);
-        this.uiContainer?.update(ticker.deltaMS);
-        this.popupContainer.update(ticker.deltaMS);
+        // Slow frames must still advance the game; dropping them can lock a busy scene forever.
+        const deltaMS = Math.max(0, Math.min(100, ticker.deltaMS));
+        UiTime.update(deltaMS);
+        EffectsManager.updateUi(deltaMS);
+        this.uiContainer?.update(deltaMS);
+        this.popupContainer.update(deltaMS);
 
         if (GameState.state === 'initialization') {
         } else {
-            const scaledDeltaMS = ticker.deltaMS * this.timeScale;
+            const scaledDeltaMS = deltaMS * this.timeScale;
 
             if (!PopupContainer.hasActivePopup()) {
                 WorldTime.update(scaledDeltaMS);
@@ -42,7 +41,7 @@ export class Core {
             }
             this.worldContainer?.update(scaledDeltaMS);
         }
-        this.background.update(ticker.deltaMS);
+        this.background.update(deltaMS);
     }
 
     async init() {

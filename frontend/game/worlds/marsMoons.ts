@@ -1,7 +1,7 @@
 import { MARS_ACT } from '../state/marsAct';
 import type { Point } from './sector';
 
-/** Separate flight spaces, reached through the same hold-E transfer as the Moon. */
+/** Separate flight spaces, reached through the same hold-F transfer as the Moon. */
 export const MARS_MOONS = {
     phobos: {
         id: 'phobos',

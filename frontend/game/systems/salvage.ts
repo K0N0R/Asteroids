@@ -1,3 +1,4 @@
+import { INTERACTION_SECONDS } from './interactionTarget';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { GAME } from '../config';
 import { random, type Point } from '../worlds/sector';
@@ -7,7 +8,7 @@ export const SALVAGE = {
     limit: 12,
     range: 160,
     speed: 80,
-    seconds: 3,
+    seconds: INTERACTION_SECONDS,
     shipment: { health: 100, radius: 34, ore: 0, parts: 0, crystals: 0 },
     satellite: { health: 80, radius: 35, ore: 0, parts: 0, crystals: 0 },
     patrol: { health: 70, radius: 24, ore: 8, parts: 4, crystals: 0 },

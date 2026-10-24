@@ -1,4 +1,4 @@
-import { Container, ImageSource, Rectangle, MeshPlane, Texture, Sprite } from 'pixi.js';
+import { Container, ImageSource, MeshPlane, Texture, Sprite } from 'pixi.js';
 import type { Point } from '../worlds/sector';
 import { rasterAnomaly, type AnomalyWindow } from './anomalyRaster';
 import {
@@ -50,6 +50,7 @@ export class AnomalyCloudView extends Container {
     private tiles = new Map<string, Tile>();
     private wanted = new Map<string, Job>();
     private pending: Job | null = null;
+    private pendingSince = 0;
     private ready: { job: Job; raster: Raster } | null = null;
     private range = '';
     private haze: { sprite: Sprite; texture: Texture; raster: HTMLCanvasElement } | null = null;
@@ -103,8 +104,11 @@ export class AnomalyCloudView extends Container {
             try {
                 this.worker = new Worker(url);
                 workers++;
-                this.worker.onmessage = ({ data }: { data: { bitmap: ImageBitmap; ms: number } }) =>
-                    this.receive(data.bitmap, data.ms);
+                const worker = this.worker;
+                worker.onmessage = ({ data }: { data: { bitmap: ImageBitmap; ms: number } }) => {
+                    if (this.worker !== worker) release(data.bitmap);
+                    else this.receive(data.bitmap, data.ms);
+                };
                 this.worker.onerror = (event) => {
                     event.preventDefault();
                     this.stopWorker();
@@ -114,7 +118,7 @@ export class AnomalyCloudView extends Container {
                 };
                 this.worker.postMessage({ init: true, polygons, seed });
             } catch {
-                this.worker = null;
+                this.stopWorker();
             } finally {
                 URL.revokeObjectURL(url);
             }
@@ -153,6 +157,13 @@ export class AnomalyCloudView extends Container {
         time = 0,
         previews: readonly Point[] = [],
     ) {
+        // A missing worker reply must not permanently strand the visible tile queue.
+        if (this.pending && performance.now() - this.pendingSince > 4000) {
+            this.stopWorker();
+            if (this.fallback !== null) clearTimeout(this.fallback);
+            this.fallback = null;
+            this.pending = null;
+        }
         const ranges = [center, ...previews].map((p) =>
                 anomalyTileRange(p, halfWidth, halfHeight, angle),
             ),
@@ -182,7 +193,8 @@ export class AnomalyCloudView extends Container {
                     Math.hypot(a.x + SIZE / 2 - center.x, a.y + SIZE / 2 - center.y) -
                     Math.hypot(b.x + SIZE / 2 - center.x, b.y + SIZE / 2 - center.y),
             );
-            for (const job of jobs) this.wanted.set(job.key, job);
+            // Bound GPU memory even during an unusually wide camera shot.
+            for (const job of jobs.slice(0, 64)) this.wanted.set(job.key, job);
             for (const [key, tile] of this.tiles) if (!this.wanted.has(key)) this.remove(key, tile);
         }
         // At most one small texture is published per frame; never upload a full viewport.
@@ -192,7 +204,6 @@ export class AnomalyCloudView extends Container {
             if (this.wanted.has(job.key)) {
                 const texture = new Texture({
                         source: new ImageSource({ resource: raster }),
-                        frame: new Rectangle(BLEED, BLEED, SIZE, SIZE),
                     }),
                     sprite = new OwnedAnomalyMesh({ texture, verticesX: 9, verticesY: 9 });
                 sprite.position.set(job.x, job.y);
@@ -206,8 +217,8 @@ export class AnomalyCloudView extends Container {
             const buffer = tile.sprite.geometry.getBuffer('aPosition');
             for (let y = 0; y < 9; y++)
                 for (let x = 0; x < 9; x++) {
-                    const lx = (x * SIZE) / 8,
-                        ly = (y * SIZE) / 8,
+                    const lx = (x * (SIZE + 2 * BLEED)) / 8 - BLEED,
+                        ly = (y * (SIZE + 2 * BLEED)) / 8 - BLEED,
                         d = anomalyDrift(tile.x + lx, tile.y + ly, time),
                         i = (y * 9 + x) * 2;
                     buffer.data[i] = lx + d.x;
@@ -219,6 +230,7 @@ export class AnomalyCloudView extends Container {
         const job = [...this.wanted.values()].find((j) => !this.tiles.has(j.key));
         if (!job) return;
         this.pending = job;
+        this.pendingSince = performance.now();
         const window: AnomalyWindow = {
             x: job.x - BLEED,
             y: job.y - BLEED,
@@ -232,7 +244,7 @@ export class AnomalyCloudView extends Container {
                 if (this.destroyed) return;
                 const start = performance.now();
                 this.receive(
-                    rasterAnomaly(this.polygons, this.seed, window),
+                    rasterAnomaly(this.polygons, this.seed, { ...window, resolution: 0.5 }),
                     performance.now() - start,
                 );
             }, 0);

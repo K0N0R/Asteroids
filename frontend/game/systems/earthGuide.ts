@@ -75,7 +75,7 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
         id: 'moon-gate',
         title: 'Śluza na Księżyc',
         message:
-            'Przy śluzie na Księżyc wyhamuj i przytrzymaj F przez 2 sekundy. Prospector może wykonać ten skok. Na miejscu odszukaj sondę księżycową i zsynchronizuj ją przez F.',
+            'Przy śluzie na Księżyc wyhamuj i przytrzymaj F przez 1 sekundę. Prospector może wykonać ten skok. Na miejscu odszukaj sondę księżycową i zsynchronizuj ją przez F.',
     };
 }
 function relay(): GuideGoal {
@@ -85,7 +85,7 @@ function relay(): GuideGoal {
         id: 'relay',
         title: 'Przekaźnik orbitalny',
         message:
-            'Leć do przekaźnika. Zatrzymaj się, naciśnij F i dopasuj trzy kanały. Potwierdzenie przyjdzie przez radio. Ja czekam obok; samo dotarcie mojego statku nie zalicza zadania.',
+            'Leć do przekaźnika. Zatrzymaj się, przytrzymaj F i dopasuj trzy kanały. Potwierdzenie przyjdzie przez radio. Ja czekam obok; samo dotarcie mojego statku nie zalicza zadania.',
     };
 }
 

@@ -1,3 +1,4 @@
+import { ShipAbilityHud } from './shipAbilityHud';
 import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { RESOURCE_IDS, RESOURCES, resourceSummary, resourceTotal } from '../state/resources';
 import { salvagePosition } from '../systems/salvage';
@@ -69,7 +70,10 @@ export class MissionHud extends Container {
     private arrow = new Graphics();
     private throttle = 0;
     private areaRevision = 0;
-    private supportStatus: Typography | null = null;
+    private abilitiesHud: ShipAbilityHud;
+    private noticePanel = new Container();
+    private noticeInk = new Graphics();
+    private noticeText: Typography;
     private orderStatus: Typography | null = null;
     private defenseStatus: Typography | null = null;
     private convoyStatus: Typography | null = null;
@@ -118,7 +122,13 @@ export class MissionHud extends Container {
             sim.outerSector
         )
             this.defenseStatus = label(this, '', 40, 185, 16, C.gold, 720);
-        this.supportStatus = label(this, '', 80, 166, 14, C.cyan, 900);
+        this.abilitiesHud = new ShipAbilityHud(sim);
+        this.addChild(this.abilitiesHud);
+        this.noticePanel.addChild(this.noticeInk);
+        label(this.noticePanel, 'INFO · ZNIKA AUTOMATYCZNIE', 580, 23, 10, C.gold);
+        this.noticeText = label(this.noticePanel, '', 580, 42, 14, C.text, 610);
+        this.noticePanel.eventMode = 'none';
+        this.addChild(this.noticePanel);
         if (sim.anomalyMission) this.anomalyStatus = label(this, '', 40, 215, 16, 0xda8cf1, 760);
         if (sim.rescueOperation) this.rescueStatus = label(this, '', 40, 245, 16, C.gold, 720);
         if (sim.miningEscort) this.convoyStatus = label(this, '', 40, 215, 14, C.gold, 760);
@@ -140,65 +150,23 @@ export class MissionHud extends Container {
         if (sim.missionStatus) this.orderStatus = label(this, '', 40, 235, 15, C.mint, 700);
         this.mineralTitle = label(this, '', 40, 650, 17, C.cyan, 740);
         this.mineralContents = label(this, '', 40, 684, 16, C.text, 740);
-        this.mineralHint = label(this, '', 40, 750, 13, C.muted, 740);
-        this.context = label(this, '', 40, 797, 18, C.mint, 670);
-        keyHint(this, 'WASD', 'lot', 40, 845, 54);
-        keyHint(this, 'SHIFT', 'boost', 145, 845, 54);
-        mouseHint(this, null, 'cel', 277, 845);
-        mouseHint(
-            this,
-            'left',
-            sim.harpoonArms
-                ? 'zacisk'
-                : sim.isAtlas
-                  ? 'rakieta'
-                  : sim.hullId === 'mule'
-                    ? 'lasery'
-                    : sim.hullId === 'stinger'
-                      ? 'lekka'
-                      : sim.hullId === 'phoenix'
-                        ? 'działka'
-                        : sim.hullId === 'widmo'
-                          ? 'działko'
-                          : 'ogień',
-            355,
-            845,
-        );
-        mouseHint(
-            this,
-            'right',
-            sim.harpoonArms
-                ? 'ramiona'
-                : sim.isAtlas || sim.hullId === 'fighter'
-                  ? 'granaty'
-                  : sim.aegis
-                    ? 'lasery'
-                    : sim.hullId === 'widmo'
-                      ? 'dash'
-                      : sim.hullId === 'mule'
-                        ? 'naprawa'
-                        : sim.hullId === 'stinger'
-                          ? 'rakieta'
-                          : sim.hullId === 'phoenix'
-                            ? 'promienie'
-                            : sim.hullId === 'tug'
-                              ? 'EMP'
-                              : 'laser',
-            453,
-            845,
-        );
-        keyHint(this, ', / .', 'cel', 552, 845, 52);
-        keyHint(this, 'F', 'hol', 654, 845, 30);
-        keyHint(this, sim.stationLogistics ? 'F/C' : 'F', 'akcja / śluza', 752, 845);
-        keyHint(this, 'R', 'naprawa', 857, 845);
-        if (sim.abilities.readout)
-            keyHint(this, sim.hullConfig.workshop === 3 ? 'Q / E' : 'Q', 'zdolności', 970, 845, 65);
-
-        const details = keyHint(this, 'TAB', 'pokład', 1170, 845, 40);
+        this.mineralHint = label(this, '', 40, 728, 13, C.muted, 740);
+        this.context = label(this, '', 40, 763, 16, C.mint, 670);
+        keyHint(this, 'WASD', 'lot', 805, 812, 54);
+        keyHint(this, 'SHIFT', 'boost', 920, 812, 54);
+        mouseHint(this, null, 'cel', 1045, 812);
+        keyHint(this, ', / .', 'wybór', 1110, 812, 52);
+        keyHint(this, 'R', 'naprawa', 1220, 812);
+        keyHint(this, 'C', 'ładunek', 1335, 812);
+        keyHint(this, 'G', 'obrona', 1450, 812);
+        keyHint(this, 'F', 'interakcja · 1 s', 805, 856);
+        keyHint(this, 'H', 'hol · 1 s', 1000, 856);
+        keyHint(this, 'J', 'puść', 1140, 856);
+        const details = keyHint(this, 'TAB', 'pokład', 1250, 856, 40);
         details.eventMode = 'static';
         details.cursor = 'pointer';
         details.on('pointerdown', openDetails);
-        keyHint(this, 'ESC', 'pauza', 1400, 845, 40);
+        keyHint(this, 'ESC', 'pauza', 1450, 856, 40);
         this.refresh();
     }
     trackEnemy() {
@@ -523,14 +491,15 @@ export class MissionHud extends Container {
         );
         this.health.setText(`${Math.ceil(s.hull)} / ${s.maxHull}`);
         this.health.setColor(C.red);
-        this.supportStatus?.setText(
-            s.abilities.readout ||
-                (s.hullId === 'tug'
-                    ? `PPM · EMP ${Math.ceil(s.abilities.cooldowns.emp)} s · hol ${s.salvage.towing.size}/${s.salvage.capacity}`
-                    : s.hullId === 'mule'
-                      ? 'PPM · darmowa samonaprawa'
-                      : ''),
-        );
+        this.abilitiesHud.update();
+        this.noticePanel.visible = s.noticeTime > 0 && !!s.notice && !s.interactionProgress;
+        this.noticeText.setText(s.notice);
+        this.noticeInk
+            .clear()
+            .roundRect(564, 14, 660, 92, 12)
+            .fill({ color: C.panel, alpha: 0.9 })
+            .rect(580, 98, Math.max(0, Math.min(1, s.noticeTime / 3)) * 625, 2)
+            .fill(C.gold);
         this.meters
             .clear()
             .poly([47, 43, 65, 43, 65, 55, 56, 65, 47, 55])
@@ -589,7 +558,6 @@ export class MissionHud extends Container {
         this.orderStatus?.setText(s.missionStatus);
         for (const status of [
             this.guideStatus,
-            this.supportStatus,
             this.defenseStatus,
             this.convoyStatus,
             this.rescueStatus,
@@ -598,10 +566,6 @@ export class MissionHud extends Container {
         ])
             if (status) status.visible = false;
         if (s.marsAct && this.orderStatus) this.orderStatus.visible = true;
-        if (this.supportStatus)
-            this.supportStatus.visible = !!(
-                s.abilities.readout || ['tug', 'mule'].includes(s.hullId)
-            );
         const towedIds = [...s.salvage.towing.keys()].join(',');
         if (this.towedIds !== towedIds) {
             this.towedIds = towedIds;

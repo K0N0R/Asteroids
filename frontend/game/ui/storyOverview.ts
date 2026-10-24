@@ -25,6 +25,7 @@ export function storyOverview(
         contribute?: (id: string) => void;
         briefing?: () => void;
         station: () => void;
+        solar?: () => void;
         page?: number;
         filter?: 'active' | 'completed';
         setFilter?: (filter: 'active' | 'completed') => void;
@@ -57,15 +58,19 @@ export function storyOverview(
             15,
         ),
     );
-    if (!tasks.length)
+    if (!tasks.length) {
         label(
             ui,
-            filter === 'active' ? 'Brak aktywnych zadań.' : 'Brak ukończonych zadań.',
+            filter === 'active' ? storyNextStep(p) : 'Brak ukończonych zadań.',
             300,
             288,
             22,
             C.muted,
+            660,
         );
+        if (filter === 'active')
+            button(ui, 'OTWÓRZ UKŁAD SŁONECZNY →', 300, 420, 420, () => actions.solar?.(), true);
+    }
 
     const layouts = tasks.map((task) => questCardLayout(c, task, actions));
     const pages = questPages(

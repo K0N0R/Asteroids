@@ -36,6 +36,7 @@ import {
 } from './resources';
 import { recordCargoDelivery } from './earthLogistics';
 import { validDialogueHistory } from './dialogues';
+import { validRadio, type RadioJournal } from './communications';
 import {
     capacity,
     storageCapacity,
@@ -372,7 +373,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'lunar',
         act: 1,
         title: 'Ochrona budowy przed asteroidami',
-        detail: 'Po fundamentach: przy budowie przytrzymaj G przez 2 s. Obroń konstrukcję przed trzema falami asteroid.',
+        detail: 'Po fundamentach: przy budowie przytrzymaj G przez 1 s. Obroń konstrukcję przed trzema falami asteroid.',
         required: false,
         kind: 'defense',
         target: 1,
@@ -568,7 +569,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 3,
         title: 'Budowa placówki',
         required: true,
-        detail: 'Po pomiarach i dostarczeniu części leć na plac budowy. Przytrzymaj F przez 2 s przy nieruchomym statku. Materiały są już opłacone.',
+        detail: 'Po pomiarach i dostarczeniu części leć na plac budowy. Przytrzymaj F przez 1 s przy nieruchomym statku. Materiały są już opłacone.',
         kind: 'construction',
         target: 1,
         dependencies: ['venus-site', ...VENUS_CONSTRUCTION.map((t) => t.id)],
@@ -604,7 +605,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 3,
         title: 'Obrona przygotowań',
         required: true,
-        detail: 'Po budowie: G przez 2 s przy placówce rozpoczyna atak AI. Odeprzyj trzy kontakty i poczekaj na potwierdzenie radiowe. Osłonę możesz przygotować równolegle.',
+        detail: 'Po budowie: G przez 1 s przy placówce rozpoczyna atak AI. Odeprzyj trzy kontakty i poczekaj na potwierdzenie radiowe. Osłonę możesz przygotować równolegle.',
         kind: 'assault',
         target: 1,
         dependencies: ['venus-build'],
@@ -776,7 +777,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 5,
         title: 'Montaż bazy marsjańskiej',
         required: true,
-        detail: 'Po dostawach leć do bazy. Przytrzymaj F przez 2 s przy spokojnym statku. Materiały zostały już opłacone.',
+        detail: 'Po dostawach leć do bazy. Przytrzymaj F przez 1 s przy spokojnym statku. Materiały zostały już opłacone.',
         kind: 'construction',
         target: 1,
         dependencies: MARS_CONSTRUCTION.map((t) => t.id),
@@ -788,7 +789,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         act: 5,
         title: 'Obrona bazy marsjańskiej',
         required: true,
-        detail: 'Po montażu: G przez 2 s przy bazie rozpoczyna trzy kontakty AI. Obroń obiekt i poczekaj na potwierdzenie radiowe Satuk 15.',
+        detail: 'Po montażu: G przez 1 s przy bazie rozpoczyna trzy kontakty AI. Obroń obiekt i poczekaj na potwierdzenie radiowe Satuk 15.',
         kind: 'assault',
         target: 1,
         dependencies: ['mars-base-build'],
@@ -907,7 +908,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['jupiter-survey'],
         reward: { ore: 24, parts: 6 },
-        detail: 'Leć do terminala chronionego węzła. Przytrzymaj F przez 4 s bez alarmu. G wyłącza skaner na 20 s. Wróć z danymi.',
+        detail: 'Leć do terminala chronionego węzła. Przytrzymaj F przez 1 s bez alarmu. G wyłącza skaner na 20 s. Wróć z danymi.',
     },
     {
         id: 'jupiter-observations',
@@ -933,7 +934,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['jupiter-survey'],
         reward: { ore: 32, parts: 10 },
-        detail: 'Wybierz sondę i podłącz hol przez F. Dostarcz ją do Satuk 15 bezpieczną trasą, omijając skażone pasma.',
+        detail: 'Wybierz sondę i podłącz hol przez H. Dostarcz ją do Satuk 15 bezpieczną trasą, omijając skażone pasma.',
     },
     {
         id: 'jupiter-reserve',
@@ -1109,7 +1110,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['neptune-base'],
         reward: { ore: 50, parts: 16 },
-        detail: 'Po raporcie z bazy leć do rejonu starcia. G przez 2 s rozpoczyna dwufazową walkę. Zmuś ciężką jednostkę do odwrotu i poczekaj na potwierdzenie radiowe.',
+        detail: 'Po raporcie z bazy leć do rejonu starcia. G przez 1 s rozpoczyna dwufazową walkę. Zmuś ciężką jednostkę do odwrotu i poczekaj na potwierdzenie radiowe.',
     },
     {
         id: 'neptune-route',
@@ -1185,7 +1186,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         target: 1,
         dependencies: ['pluto-base', 'pluto-patrol'],
         reward: { ore: 60, parts: 20 },
-        detail: 'Po obu raportach leć do rejonu starcia. G przez 2 s rozpoczyna walkę z trzema fazami. Unieszkodliw jednostkę i wróć bezpiecznie do Satuk 15.',
+        detail: 'Po obu raportach leć do rejonu starcia. G przez 1 s rozpoczyna walkę z trzema fazami. Unieszkodliw jednostkę i wróć bezpiecznie do Satuk 15.',
     },
     {
         id: 'pluto-record',
@@ -1226,6 +1227,7 @@ export interface StoryProgress {
     mars: MarsProgress;
     lunarMule: 'active' | 'destroyed' | 'transferred';
     dialogues: string[];
+    radio?: RadioJournal;
     sector: StorySectorId;
     progress: Record<string, number>;
     claimed: string[];
@@ -1381,7 +1383,7 @@ export function storyNextStep(p: StoryProgress) {
         if (!p.claimed.includes('pluto-survey'))
             return 'Rozpoznaj Plutona. Wróć z odczytem, aby otworzyć bazę i kontakty na podejściu.';
         return plutoFinaleReady(p)
-            ? 'Leć do finałowego starcia. Zatrzymaj się i przytrzymaj G przez 2 s. Pokonaj trzy fazy i poczekaj na potwierdzenie radiowe. Dalsze pomiary są opcjonalne.'
+            ? 'Leć do finałowego starcia. Zatrzymaj się i przytrzymaj G przez 1 s. Pokonaj trzy fazy i poczekaj na potwierdzenie radiowe. Dalsze pomiary są opcjonalne.'
             : 'Zbierz dane bazy i odeprzyj kontakty w dowolnej kolejności. Oba raporty otwierają rejon finałowego starcia. Dalsze pomiary są opcjonalne.';
     }
 
@@ -1403,7 +1405,7 @@ export function storyNextStep(p: StoryProgress) {
             return 'Leć do terminala bazy. Pobierz dane bez alarmu i poczekaj na potwierdzenie radiowe Satuk 15.';
         return p.claimed.includes('neptune-boss')
             ? 'Starcie odparte. Leć do zewnętrznej trasy. Zbierz odczyt i wróć.'
-            : 'Leć do rejonu starcia. Zatrzymaj się i przytrzymaj G przez 2 s. Zmuś jednostkę do odwrotu. Opuszczenie rejonu przerywa próbę; raport potwierdza radio.';
+            : 'Leć do rejonu starcia. Zatrzymaj się i przytrzymaj G przez 1 s. Zmuś jednostkę do odwrotu. Opuszczenie rejonu przerywa próbę; raport potwierdza radio.';
     }
     if (p.sector === 'saturn') {
         if (storySectorComplete(p, 'saturn'))
@@ -1445,12 +1447,12 @@ export function storyNextStep(p: StoryProgress) {
             return 'Przygotuj ceramikę i stabilizowany materiał anomalii w Laboratorium II. Zamontuj Warsztat II, aby tworzyć części II i statki tego tieru.';
         if (!p.claimed.includes('mars-base-build'))
             return marsBaseReady(p)
-                ? 'Materiały gotowe. Wyrusz do bazy i przytrzymaj F przez 2 s, aby ją zamontować.'
+                ? 'Materiały gotowe. Wyrusz do bazy i przytrzymaj F przez 1 s, aby ją zamontować.'
                 : 'Wyprodukuj pięć kompletów części i załaduj manifest. Dostarcz wyposażenie do bazy marsjańskiej przez C lub F; dostawy częściowe pozostają na budowie.';
         if (p.claimed.includes('mars-base-defense'))
             return 'Baza obroniona. Odeprzyj kontakty w dalszym korytarzu. Wyniki walk potwierdza radio.';
         if (p.claimed.includes('mars-corridor'))
-            return 'Korytarz zabezpieczony. Obroń bazę: G przez 2 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio.';
+            return 'Korytarz zabezpieczony. Obroń bazę: G przez 1 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio.';
         return 'Obroń bazę przez G przy obiekcie i zabezpiecz dalszy korytarz. Te cele możesz wykonywać równolegle; raporty potwierdza radio.';
     }
     if (beltTechnologyReady(p))
@@ -1468,10 +1470,10 @@ export function storyNextStep(p: StoryProgress) {
             return p.claimed.includes('venus-defense')
                 ? 'Placówka obroniona. Dostarcz brakujące części osłony słonecznej do placówki, aby zakończyć przygotowania.'
                 : solarShieldReady(p)
-                  ? 'Osłona gotowa. Obroń placówkę: G przez 2 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio Satuk 15.'
-                  : 'Dostarcz części osłony do placówki i obroń placówkę: G przez 2 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio.';
+                  ? 'Osłona gotowa. Obroń placówkę: G przez 1 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio Satuk 15.'
+                  : 'Dostarcz części osłony do placówki i obroń placówkę: G przez 1 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio.';
         if (venusPreparationComplete(p))
-            return 'Miejsce i materiały przygotowane. Wyrusz do placówki i przytrzymaj F przez 2 s, aby ją zbudować.';
+            return 'Miejsce i materiały przygotowane. Wyrusz do placówki i przytrzymaj F przez 1 s, aby ją zbudować.';
         return p.claimed.includes('venus-survey')
             ? 'Wykonaj pomiary miejsca pod placówkę i dostarcz manifest części przez C lub F. Te cele możesz realizować równolegle.'
             : 'Rozpoznaj orbitę Wenus i wróć z odczytem. Zwiad otworzy dalszy obszar oraz przygotowania placówki.';
@@ -1547,6 +1549,7 @@ export function validStory(value: unknown): value is StoryProgress {
     const p = value as StoryProgress;
     if (
         p.version !== 32 ||
+        (p.radio !== undefined && !validRadio(p.radio)) ||
         !validMarsProgress(p.mars) ||
         !['active', 'destroyed', 'transferred'].includes(p.lunarMule) ||
         !Object.hasOwn(STORY_SECTORS, p.sector) ||

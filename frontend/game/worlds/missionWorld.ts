@@ -1,3 +1,5 @@
+import { enqueueRadio } from '../state/communications';
+import { INTERACTION_SECONDS } from '../systems/interactionTarget';
 import { releaseSceneBuffers } from '../../core/systems/renderMemory';
 import { MARS_ACT } from '../state/marsAct';
 import { PHOBOS_MAZE_BANDS, PHOBOS_ORBIT_BANDS } from './phobosMaze';
@@ -76,6 +78,7 @@ const interpolate = (a: number, b: number, t: number) => a + (b - a) * t;
 export class MissionWorld extends Container {
     readonly direction: FlightDirection;
     private directionView = new FlightDirectionView();
+    private lastRadioCue: object | null = null;
     get returnFinished() {
         return this.direction.returnFinished;
     }
@@ -129,6 +132,7 @@ export class MissionWorld extends Container {
     readonly camera = new Container();
     readonly shipView;
     private dashGhosts: Container[] = [];
+    private cloakTrail: { x: number; y: number; angle: number; time: number }[] = [];
     private dashTrailView = new Container();
     private magneticRelayViews = new Map<number, Container>();
     private rocks = new Map<number, Graphics>();
@@ -165,6 +169,7 @@ export class MissionWorld extends Container {
     private kineticView = new Graphics();
     private atlasLockView = new Graphics();
     private burningView = new Graphics();
+    private nextSmallImpact = 0;
     private supportShields = new Graphics();
     private supportDrone = new Container();
     private sentryViews = new Map<number, StationSentryView>();
@@ -177,6 +182,7 @@ export class MissionWorld extends Container {
     private accumulator = 0;
     private clock = 0;
     private navigation = new Graphics();
+    private interactionRing = new Graphics({ label: 'interaction-progress-ring' });
     private home = stationView();
     private homeTitle: ReturnType<typeof worldLabel>;
     private recoveryViews = new Map<number, Container>();
@@ -255,16 +261,10 @@ export class MissionWorld extends Container {
         );
         if (modules.hull === 'widmo') {
             const trail = this.dashTrailView;
-            for (let i = 0; i < 22; i++) {
+            for (let i = 0; i < 12; i++) {
                 const ghost = new Container();
-                // Offset translucent silhouettes soften the afterimage without a filter
-                // render target, which clips large transformed world coordinates.
-                for (const offset of [-1.2, 0, 1.2]) {
-                    const silhouette = shipHull('widmo', modules);
-                    silhouette.position.set(offset, -offset);
-                    silhouette.alpha = 0.34;
-                    ghost.addChild(silhouette);
-                }
+                // Bounded, reusable silhouettes need no offscreen filter textures.
+                ghost.addChild(shipHull('widmo', modules));
                 ghost.scale.set(simulation.hullConfig.size);
                 ghost.visible = false;
                 this.dashGhosts.push(ghost);
@@ -365,7 +365,7 @@ export class MissionWorld extends Container {
             this.cacheViews.set(cache.id, view);
             this.camera.addChildAt(view, 2);
         }
-        this.camera.addChild(this.recoveryRing);
+        this.camera.addChild(this.recoveryRing, this.interactionRing);
         this.solarGlare.visible = simulation.mercurySector;
         this.solarGlare.alpha = 0;
         this.journeyOverlay.addChildAt(this.journeyInk, 0);
@@ -596,6 +596,12 @@ export class MissionWorld extends Container {
         for (const event of this.simulation.events.splice(0)) {
             this.audio.event(event, this.simulation.position, this.simulation.elapsed);
             if (event.kind === 'shot' || !this.inView(event)) continue;
+            // Continuous beams and burning can emit several tiny hits per physics step.
+            // Their beams/flames already animate every frame; limit extra spark allocations.
+            if (event.kind === 'hit' && (event.strength ?? 12) < 2) {
+                if (this.clock < this.nextSmallImpact) continue;
+                this.nextSmallImpact = this.clock + 0.06;
+            }
             if (
                 (event.kind === 'explosion' || event.kind === 'shield') &&
                 this.particles.length < 800
@@ -760,6 +766,14 @@ export class MissionWorld extends Container {
                               };
                           }),
         });
+        const cue = this.direction.cue;
+        if (cue && cue !== this.lastRadioCue) {
+            this.lastRadioCue = cue;
+            if (s.campaign.story) {
+                if (enqueueRadio(s.campaign.story, { speaker: cue.speaker, text: cue.text }))
+                    s.deliveryRevision++;
+            } else s.radioMessages.push(cue.text);
+        }
     }
     private applyDirection() {
         const d = this.direction,
@@ -785,7 +799,7 @@ export class MissionWorld extends Container {
             this.camera.pivot.set(this.shipView.x * framing, this.shipView.y * framing);
             this.camera.scale.set(1 + (1 - travel) * 0.35);
         } else {
-            this.shipView.alpha = 1;
+            this.shipView.alpha = s.dashTime > 0 ? 0.25 : s.opticalCloak ? 0.3 : 1;
             if (
                 d.cue?.focus &&
                 d.focusWeight > 0.001 &&
@@ -1041,13 +1055,34 @@ export class MissionWorld extends Container {
             s.ship.angvel(),
         );
         this.dashTrailView.position.copyFrom(this.shipView.position);
+        while (this.cloakTrail.length && this.clock - this.cloakTrail[0].time > 0.5)
+            this.cloakTrail.shift();
+        const lastTrail = this.cloakTrail[this.cloakTrail.length - 1];
+        if (
+            s.hullId === 'widmo' &&
+            s.opticalCloak &&
+            s.speed > 5 &&
+            (!lastTrail || this.clock - lastTrail.time >= 0.05)
+        ) {
+            this.cloakTrail.push({
+                x: this.shipView.x,
+                y: this.shipView.y,
+                angle: this.shipView.rotation,
+                time: this.clock,
+            });
+            if (this.cloakTrail.length > this.dashGhosts.length) this.cloakTrail.shift();
+        }
         this.dashGhosts.forEach((ghost, i) => {
             const sample = s.dashTrail[s.dashTrail.length - 1 - i];
-            ghost.visible = !!sample;
-            if (sample) {
-                ghost.position.set(sample.x - this.shipView.x, sample.y - this.shipView.y);
-                ghost.rotation = sample.angle;
-                ghost.alpha = 0.3 * (1 - sample.age / 0.36) ** 2;
+            const cloak = this.cloakTrail[this.cloakTrail.length - 1 - i];
+            const point = sample ?? cloak;
+            ghost.visible = !!point;
+            if (point) {
+                ghost.position.set(point.x - this.shipView.x, point.y - this.shipView.y);
+                ghost.rotation = point.angle;
+                ghost.alpha = sample
+                    ? 0.3 * (1 - sample.age / 0.36) ** 2
+                    : 0.12 * (1 - (this.clock - cloak.time) / 0.5) ** 2;
             }
         });
         this.shipView.alpha = s.dashTime > 0 ? 0.25 : s.opticalCloak ? 0.3 : 1;
@@ -1455,7 +1490,7 @@ export class MissionWorld extends Container {
                         cache.y,
                         62,
                         -Math.PI / 2,
-                        -Math.PI / 2 + (s.cacheProgress / CACHE.seconds) * Math.PI * 2,
+                        -Math.PI / 2 + (s.cacheProgress / INTERACTION_SECONDS) * Math.PI * 2,
                     )
                     .stroke({ color: C.mint, width: 4 });
         }
@@ -1852,7 +1887,7 @@ export class MissionWorld extends Container {
                             p.y,
                             55,
                             -Math.PI / 2,
-                            -Math.PI / 2 + (s.salvageProgress / 3) * Math.PI * 2,
+                            -Math.PI / 2 + (s.salvageProgress / INTERACTION_SECONDS) * Math.PI * 2,
                         )
                         .stroke({ color: C.mint, width: 3 });
             }
@@ -2150,12 +2185,27 @@ export class MissionWorld extends Container {
                     0,
                     GAME.dockRadius + 10,
                     -Math.PI / 2,
-                    -Math.PI / 2 + (s.dockProgress / 1.2) * Math.PI * 2,
+                    -Math.PI / 2 + (s.dockProgress / INTERACTION_SECONDS) * Math.PI * 2,
                 )
                 .stroke({ color: C.mint, width: 4 });
         this.navigation
             .circle(s.mapCenter.x, s.mapCenter.y, s.sectorRadius)
             .stroke({ color: C.red, width: 10, alpha: 0.5 });
+        const interaction = s.interactionProgress;
+        this.interactionRing.clear();
+        this.interactionRing.visible = !s.transferActive && !s.ended && !this.direction.active;
+        this.camera.setChildIndex(this.interactionRing, this.camera.children.length - 1);
+        if (interaction) {
+            const { x, y } = interaction.target;
+            const radius = 44 / this.camera.scale.x;
+            this.interactionRing
+                .circle(x, y, radius)
+                .fill({ color: C.ink, alpha: 0.6 })
+                .stroke({ color: C.cyan, width: 2 / this.camera.scale.x, alpha: 0.4 })
+                .beginPath()
+                .arc(x, y, radius, -Math.PI / 2, -Math.PI / 2 + interaction.fraction * Math.PI * 2)
+                .stroke({ color: C.mint, width: 5 / this.camera.scale.x });
+        }
         const v = s.velocity;
         if (s.speed > 15)
             this.navigation

@@ -1,3 +1,4 @@
+import { enqueueRadio, acknowledgeRadio } from './state/communications';
 import { installStationProject } from './state/stationProgression';
 import { cargoReceipt } from './ui/cargoReceipt';
 import { LunarStationView } from './ui/lunarStation';
@@ -13,6 +14,7 @@ import { resourceSummary } from './state/resources';
 import {
     DialoguePlayback,
     pendingDialogue,
+    dialogueObsolete,
     latestDialogue,
     completeDialogue,
     type DialogueDefinition,
@@ -27,6 +29,7 @@ import {
     travelStory,
     storyObjectives,
     storyAct,
+    storyNextStep,
     type StoryChange,
 } from './state/story';
 import { destroyDisplayTree } from '../core/systems/destroyDisplayTree';
@@ -131,6 +134,8 @@ export class GameSession {
     private interactionPanel: Container | null = null;
     private interactionRevision = -1;
     private interactionModel: object | null = null;
+    private communications = new Container();
+    private dialogueQueue: DialogueDefinition[] = [];
     private dialogue: DialoguePlayback | null = null;
     private dialoguePanel: ReturnType<typeof dialogueView> | null = null;
     private launching = false;
@@ -166,7 +171,7 @@ export class GameSession {
         this.lobby = new LobbyView(this.campaign, {
             replayDialogue: () => {
                 const d = latestDialogue(this.campaign);
-                if (d) this.openDialogue(d);
+                if (d && !this.dialogue) this.openDialogue(d);
             },
             openSandbox: () => this.openSandbox(),
             switchProfile: () => this.switchProfile(),
@@ -266,20 +271,26 @@ export class GameSession {
                 );
             },
         });
-        this.uiHost.addChild(this.lobby, this.overlay);
+        this.uiHost.addChild(this.lobby, this.overlay, this.communications);
         this.lobby.refresh(this.saves.warning);
         this.background.setRegion(this.campaign.story?.sector ?? null);
         if (interrupted) this.showResult(interrupted);
         Bus.subscribe(
             'input',
             (message) => {
-                if (this.dialogue) {
+                if (
+                    this.dialogue &&
+                    (message.name === 'keydown' || message.name === 'keyup') &&
+                    message.data === 'enter'
+                ) {
+                    const previousIndex = this.dialogue.index;
                     if (
                         (!PopupContainer.hasActivePopup() || message.name === 'keyup') &&
-                        (message.name === 'keydown' || message.name === 'keyup') &&
                         this.dialogue.key(message.data, message.name === 'keydown')
-                    )
+                    ) {
+                        this.acknowledgeRadioAdvance(previousIndex);
                         this.renderDialogue();
+                    }
                     return;
                 }
                 if (
@@ -352,16 +363,19 @@ export class GameSession {
             this,
         );
     }
-    private openDialogue(definition: DialogueDefinition, radio = false) {
-        if (
-            this.hasOverlay ||
-            (this.mission && !radio) ||
-            this.launching ||
-            PopupContainer.hasActivePopup()
-        )
+    private openDialogue(definition: DialogueDefinition) {
+        if (!definition.lines.length) return;
+        if (this.dialogue) {
+            if (definition.id === this.dialogue.definition.id && definition.id !== 'radio-report')
+                return;
+            if (
+                !this.dialogueQueue.some(
+                    (entry) => entry.id === definition.id && entry.id !== 'radio-report',
+                )
+            )
+                this.dialogueQueue.push(definition);
             return;
-        this.hasOverlay = true;
-        InputHandler.clear();
+        }
         this.dialogue = new DialoguePlayback(definition);
         this.renderDialogue();
     }
@@ -376,28 +390,60 @@ export class GameSession {
             this.dialoguePanel.update(0);
             return;
         }
-        clear(this.overlay);
+        clear(this.communications);
         this.dialoguePanel = null;
         if (playback.complete) {
             if (playback.definition.id !== 'radio-report')
                 completeDialogue(this.campaign, playback.definition.id);
+            else if (this.campaign.story)
+                acknowledgeRadio(this.campaign.story, playback.definition.lines);
             this.saves.save(this.campaign);
             this.dialogue = null;
-            this.hasOverlay = false;
-            InputHandler.clear();
-            if (this.mission) return;
+            const next = this.dialogueQueue.shift();
+            if (next) this.openDialogue(next);
+            if (this.mission || this.hasOverlay || this.launching) return;
             this.lobby.refresh(
                 this.saves.warning || 'Odprawa zakończona. Cele dostępne w panelu wyprawy.',
             );
             return;
         }
-        this.dialoguePanel = this.overlay.addChild(
+        this.dialoguePanel = this.communications.addChild(
             dialogueView(playback, () => {
                 if (PopupContainer.hasActivePopup() || this.dialogue !== playback) return;
+                const previousIndex = playback.index;
                 playback.interact();
+                this.acknowledgeRadioAdvance(previousIndex);
                 this.renderDialogue();
             }),
         );
+    }
+    private acknowledgeRadioAdvance(previousIndex: number) {
+        const playback = this.dialogue;
+        if (
+            !playback ||
+            playback.definition.id !== 'radio-report' ||
+            playback.index === previousIndex ||
+            !this.campaign.story
+        )
+            return;
+        const line = playback.definition.lines[previousIndex];
+        if (line) {
+            acknowledgeRadio(this.campaign.story, [line]);
+            this.saves.save(this.campaign);
+        }
+    }
+    private showPendingRadio() {
+        if (this.dialogue || this.hasOverlay || PopupContainer.hasActivePopup()) return;
+        const lines = this.campaign.story?.radio?.pending;
+        if (lines?.length)
+            this.openDialogue({
+                id: 'radio-report',
+                title: 'Łączność Satuk 15',
+                sector: 'earth',
+                after: [],
+                tasks: [],
+                lines: [...lines],
+            });
     }
     private storyMessage(change: StoryChange, fallback: string) {
         return `${change.titles.length ? `Ukończono: ${change.titles.join(' · ')}.` : fallback}${change.overflow ? ` Magazyn pełny: nadwyżka ${change.overflow}.` : ''}`;
@@ -476,6 +522,8 @@ export class GameSession {
         this.hud = null;
         this.dialogue = null;
         this.dialoguePanel = null;
+        this.dialogueQueue = [];
+        clear(this.communications);
         this.hasOverlay = false;
         this.lunarStationOpen = false;
         clear(this.overlay);
@@ -782,19 +830,7 @@ export class GameSession {
                     : undefined,
             );
             if (this.campaign.story)
-                simulation.setNotice(
-                    this.campaign.story?.sector === 'pluto'
-                        ? 'Akt X: zwiad · baza / osłona · finał po obu raportach: G 2 s · dodatkowy odczyt · powrót.'
-                        : simulation.outerSector
-                          ? 'Akt IX: zwiad · baza po zwiadzie · kontakty · dalsza trasa · Neptun: starcie / G 2 s.'
-                          : simulation.saturnSector
-                            ? 'Saturn: złoże · zwiad · kryształy po zwiadzie · patrol · trasa po raportach · powrót.'
-                            : simulation.jupiterSector
-                              ? 'Jowisz: zwiad · terminal po zwiadzie · patrole · pakiet po raportach · powrót.'
-                              : simulation.beltSector
-                                ? 'Pas asteroid: pomiary · przeszkody po zwiadzie · granica po oczyszczeniu · powrót.'
-                                : 'Satuk 15: złoże · przekaźnik · F odczyt / dokowanie. Zadania możesz realizować równolegle.',
-                );
+                simulation.radioMessages.push(storyNextStep(this.campaign.story));
             this.hud.cameraAngle = this.mission.camera.rotation;
             this.worldHost.addChild(this.mission);
             this.uiHost.addChildAt(this.hud, 0);
@@ -853,7 +889,18 @@ export class GameSession {
         );
     }
     update(deltaMS: number) {
-        if (this.dialogue && !PopupContainer.hasActivePopup()) this.dialoguePanel?.update(deltaMS);
+        if (
+            this.dialogue &&
+            this.campaign.story &&
+            this.dialogue.definition.id !== 'radio-report' &&
+            dialogueObsolete(this.campaign.story, this.dialogue.definition)
+        ) {
+            this.dialogue = null;
+            this.dialoguePanel = null;
+            clear(this.communications);
+        }
+        this.communications.visible = !this.hasOverlay && !PopupContainer.hasActivePopup();
+        if (this.dialogue && this.communications.visible) this.dialoguePanel?.update(deltaMS);
         this.background.setFlight(!!this.mission);
         if (this.mission) {
             this.background.lunarTransfer = this.mission.simulation.transferActive;
@@ -869,7 +916,8 @@ export class GameSession {
             this.lobby.update(deltaMS);
             if (!this.hasOverlay && !this.launching && !PopupContainer.hasActivePopup()) {
                 const d = pendingDialogue(this.campaign);
-                if (d) this.openDialogue(d);
+                if (d && !this.dialogue) this.openDialogue(d);
+                this.showPendingRadio();
             }
             return;
         }
@@ -905,7 +953,7 @@ export class GameSession {
             fire: !tuning && InputHandler.primaryPressed && InputHandler.pointerInCanvas,
             mine: !tuning && InputHandler.secondaryPressed && InputHandler.pointerInCanvas,
             interact: !tuning && InputHandler.isKeyPressed('INTERACT'),
-            tow: !tuning && InputHandler.isKeyPressed('INTERACT'),
+            tow: !tuning && InputHandler.isKeyPressed('TOW'),
             repair: !tuning && InputHandler.isKeyPressed('REPAIR'),
             sabotage: !tuning && InputHandler.isKeyPressed('SABOTAGE'),
         });
@@ -969,26 +1017,36 @@ export class GameSession {
             !sim.relayTuning &&
             !sim.pendingChoice
         ) {
-            this.hud?.update(101);
-            this.openDialogue(
-                {
+            if (this.campaign.story) {
+                let changed = false;
+                for (const text of sim.radioMessages.splice(0))
+                    changed =
+                        enqueueRadio(this.campaign.story, { speaker: 'operations', text }) ||
+                        changed;
+                for (const text of sim.guideMessages.splice(0))
+                    changed =
+                        enqueueRadio(this.campaign.story, { speaker: 'guide', text }) || changed;
+                if (changed) this.saves.save(this.campaign);
+            } else {
+                const lines = [
+                    ...sim.radioMessages
+                        .splice(0)
+                        .map((text) => ({ speaker: 'operations' as const, text })),
+                    ...sim.guideMessages
+                        .splice(0)
+                        .map((text) => ({ speaker: 'guide' as const, text })),
+                ];
+                this.openDialogue({
                     id: 'radio-report',
-                    title: 'Potwierdzenie Satuk 15',
+                    title: 'Łączność',
                     sector: 'earth',
                     after: [],
                     tasks: [],
-                    lines: [
-                        ...sim.radioMessages
-                            .splice(0)
-                            .map((text) => ({ speaker: 'operations' as const, text })),
-                        ...sim.guideMessages
-                            .splice(0)
-                            .map((text) => ({ speaker: 'guide' as const, text })),
-                    ],
-                },
-                true,
-            );
+                    lines,
+                });
+            }
         }
+        this.showPendingRadio();
         if (sim.pendingChoice && !sim.ended) this.showPrototypeChoice();
         if (sim.ended === 'destroyed' && !this.mission.deathFinished) return;
         if (sim.ended === 'returned' && !this.mission.returnFinished) return;

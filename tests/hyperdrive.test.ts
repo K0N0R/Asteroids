@@ -42,11 +42,11 @@ function advance(s: MissionSimulation, frames: number, input: Partial<FlightInpu
     }
 }
 
-test('Prospector 0 opens a gate by holding F for two seconds, with no facility or fuel charge', () => {
+test('Prospector 0 opens a gate by holding F for one second, with no facility or fuel charge', () => {
     const s = run();
     try {
         const bank = structuredClone(s.campaign.bank);
-        advance(s, 119, { interact: true });
+        advance(s, 59, { interact: true });
         assert.equal(s.hyperdrive.active, false);
         advance(s, 1, { interact: true });
         assert.equal(s.hyperdrive.state, 'charging');
@@ -68,12 +68,12 @@ test('Prospector 0 opens a gate by holding F for two seconds, with no facility o
 test('releasing F before the gate timer finishes resets progress and leaves collisions enabled', () => {
     const s = run();
     try {
-        advance(s, 100, { interact: true });
+        advance(s, 40, { interact: true });
         s.step(idle);
         assert.equal(s.gateInteractionProgress, 0);
         assert.equal(s.hyperdrive.active, false);
         assert.equal(s.shipCollider.isEnabled(), true);
-        advance(s, 119, { interact: true });
+        advance(s, 59, { interact: true });
         assert.equal(s.hyperdrive.active, false);
     } finally {
         s.dispose();
@@ -90,7 +90,7 @@ test('removed jump input cannot initiate or cancel a gate transit and F outside 
         assert.equal(s.hyperdrive.active, false);
         s.step(idle);
         s.ship.setTranslation({ x: 10, y: 0 }, true);
-        advance(s, 120, { interact: true });
+        advance(s, 60, { interact: true });
         advance(s, 210, { hyperdrive: true });
         assert.equal(s.hyperdrive.active, false);
         assert.ok(Math.abs(s.position.x - 2000) < 1);
@@ -113,7 +113,7 @@ test('all five Manta tows cross an obstructed gate with stable identities, healt
         }
         const health = [...s.salvage.towing.values()].map((item) => item.health),
             hull = s.hull;
-        advance(s, 120, { interact: true });
+        advance(s, 60, { interact: true });
         assert.equal(s.shipCollider.isEnabled(), false);
         assert.ok([...s.salvage.towing.values()].every((item) => !item.collider.isEnabled()));
         s.world.createCollider(RAPIER.ColliderDesc.ball(1).setTranslation(15, 0));
@@ -150,7 +150,7 @@ test('all five Manta tows cross an obstructed gate with stable identities, healt
 test('a Q press during transit is consumed and requires release before it can activate after arrival', () => {
     const s = run('atlas');
     try {
-        advance(s, 120, { interact: true });
+        advance(s, 60, { interact: true });
         advance(s, 210, { abilityQ: true });
         assert.equal(s.abilities.cooldowns.shockwave, 0);
         s.step({ ...idle, abilityQ: false });

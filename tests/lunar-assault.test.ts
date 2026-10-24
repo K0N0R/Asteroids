@@ -127,9 +127,11 @@ test('the starter ship can repel real AI waves; radio confirmation opens worksho
             false,
         );
         assert.equal(c.story!.claimed.includes('lunar-defense'), false);
-        assert.equal(s.loot.size, 0);
+        assert.equal([...s.loot.values()].filter((item) => item.source !== 'asteroid').length, 0);
         assert.equal(
-            [...s.salvage.items.values()].filter((item) => item.source !== 'recovery').length,
+            [...s.salvage.items.values()].filter((item) =>
+                ['patrol', 'lancer'].includes(item.source),
+            ).length,
             0,
         );
         // Fly through the surface exit, then verify docking settlement.
@@ -151,7 +153,11 @@ test('the starter ship can repel real AI waves; radio confirmation opens worksho
         })!;
         assert.equal(actOneComplete(c.story!), false);
         assert.equal(c.reserveShips.filter((ship) => ship.hull === 'mule').length, 1);
-        assert.equal(c.bank.ore, 40);
+        assert.equal(
+            c.bank.ore,
+            40 + s.cargo.ore,
+            'reward and physically mined ore are both delivered',
+        );
         assert.equal(c.bank.parts, 0);
         assert.equal(c.bank.steel, 8);
         c.bank.silica = 2;

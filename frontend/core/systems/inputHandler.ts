@@ -12,6 +12,7 @@ const defaultKeysConfiguration = {
     ABILITY_E: 'e',
     UNLOAD: 'c',
     INTERACT: 'f',
+    TOW: 'h',
 
     REPAIR: 'r',
     SABOTAGE: 'g',

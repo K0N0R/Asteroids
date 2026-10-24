@@ -269,8 +269,9 @@ export class MarsActMission {
     }
     private updateBase(input: FlightInput, dt: number) {
         const s = this.s,
-            pressed = input.interact && !this.interactHeld;
-        this.interactHeld = input.interact;
+            pressed =
+                input.interact && (s.interactionProgress?.fraction ?? 0) >= 1 && !this.interactHeld;
+        this.interactHeld = input.interact && (s.interactionProgress?.fraction ?? 0) >= 1;
         const seen = this.security.sees(
             s.position,
             s.elapsed,

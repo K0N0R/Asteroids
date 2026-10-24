@@ -158,10 +158,24 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
     },
 ];
 
+/** Earlier instructions expire when their objective has already been completed. */
+export function dialogueObsolete(p: StoryProgress, definition: DialogueDefinition) {
+    const superseded: Record<string, string> = {
+        'earth-command': 'earth-relay',
+        'earth-open-orbit': 'lunar-survey',
+        'earth-lunar-route': 'lunar-commission',
+        'earth-act-one-finale': 'earth-workshop',
+        'mars-offensive': 'mars-anomaly-research',
+    };
+    return !!superseded[definition.id] && p.claimed.includes(superseded[definition.id]);
+}
 export function dialogueReady(p: StoryProgress, definition: DialogueDefinition) {
     return (
-        definition.after.every((id) => p.dialogues.includes(id)) &&
-        definition.tasks.every((id) => p.claimed.includes(id))
+        definition.after.every(
+            (id) =>
+                p.dialogues.includes(id) ||
+                dialogueObsolete(p, DIALOGUES.find((d) => d.id === id)!),
+        ) && definition.tasks.every((id) => p.claimed.includes(id))
     );
 }
 export function pendingDialogue(c: Campaign) {
@@ -169,7 +183,11 @@ export function pendingDialogue(c: Campaign) {
     if (!p || c.activeRun) return null;
     return (
         DIALOGUES.find(
-            (d) => d.sector === p.sector && !p.dialogues.includes(d.id) && dialogueReady(p, d),
+            (d) =>
+                d.sector === p.sector &&
+                !p.dialogues.includes(d.id) &&
+                !dialogueObsolete(p, d) &&
+                dialogueReady(p, d),
         ) ?? null
     );
 }
@@ -184,15 +202,7 @@ export function latestDialogue(c: Campaign) {
 export function completeDialogue(c: Campaign, id: string) {
     const p = c.story,
         d = DIALOGUES.find((d) => d.id === id);
-    if (
-        !p ||
-        !d ||
-        c.activeRun ||
-        p.sector !== d.sector ||
-        p.dialogues.includes(id) ||
-        !dialogueReady(p, d)
-    )
-        return false;
+    if (!p || !d || p.dialogues.includes(id) || !dialogueReady(p, d)) return false;
     p.dialogues.push(id);
     return true;
 }

@@ -1,5 +1,13 @@
 # Orbit · Asteroids
 
+## HUD i stabilność 0.133
+
+Ikony pokazują wyłącznie zdolności danego kadłuba, bez powielonych podpisów. Klawisze i odliczanie są wyśrodkowane, a kamuflaż przyciemnia statek i zostawia krótką smugę. Poprawiono zwalnianie tekstów i buforów po restartach sandboxa, ograniczono iskry ciągłych trafień i usunięto pomijanie aktualizacji przy wolnych klatkach. [Zakres, pomiary i ograniczenia](docs/implementation-v0.133.md).
+
+## Poprawki po testach 0.132
+
+Holowanie na **H**, pozostałe interakcje na **F**; przytrzymanie trwa **1 s** i pokazuje narastający okrąg. Nowy HUD prezentuje zdolności aktywne i pasywne z tooltipami. Łączność fabularna działa podczas lotu, czeka na potwierdzenie i zachowuje kolejkę w zapisie kampanii. Poprawiono oznaczenia podróży, podgląd zamontowanych zakładów, komunikaty ukończenia aktu, streaming anomalii i dźwięki silników zależne od tieru. [Zakres i walidacja](docs/implementation-v0.132.md).
+
 ## Wdrożenie robocze 0.131
 
 Osobne poziomy Laboratorium i Warsztatu I–III, nowy początek kampanii oraz rebalans wszystkich 21 receptur części. Warsztat I powstaje po Księżycu, II po technologii Merkurego i pierwszej próbce anomalii, III po badaniach Jowisza. Prospector jest nieprodukowanym i nieulepszanym starterem 0; projekty floty otwierają tiery zakładów. Nowe zestawy LPM/PPM/Q/E, EMP i holowanie Manty do pięciu obiektów. Interakcje i śluzy: **F**, Spacja i K bez przypisania.
@@ -205,10 +213,11 @@ Buduje i uruchamia wersję produkcyjną, bez automatycznego odświeżania. Sam b
 | LPM / PPM | Uzbrojenie lub narzędzie przypisane do kadłuba; [pełna tabela floty](docs/fleet-progression-controls-plan.md) |
 | Q | Zdolność statków II i III |
 | E | Druga zdolność statków III |
-| F | Interakcje, dokowanie, skany, terminale, paczki i podpinanie holu |
-| F przy śluzie | Przytrzymanie 2 s rozpoczyna animowany przelot; ponowny przelot wymaga puszczenia F |
+| F | Interakcje, dokowanie, skany i terminale · przytrzymanie 1 s |
+| H | Podpinanie każdego holu, także paczek, sond i promów · przytrzymanie 1 s |
+| F przy śluzie | Przytrzymanie 1 s rozpoczyna animowany przelot; ponowny przelot wymaga puszczenia F |
 | C | Transfer ładunku przy stacji lub budowie |
-| R | Naprawa kadłuba / napędu; Muł naprawia się bez zestawów, także przez PPM |
+| R | Naprawa kadłuba / napędu; Muł naprawia się bez zestawów |
 | J | Odpięcie wybranego holu; wybór obiektu i odpięcie wszystkich w panelu Tab |
 | G | Przygotowanie obrony albo połączenie z układem sabotażu terminala |
 | , / . | Poprzedni / następny cel nawigacji |

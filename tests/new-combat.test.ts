@@ -226,7 +226,7 @@ test('tier I Manta can tow five independent objects after three handling upgrade
         s.dispose();
     }
 });
-test('gates accept a two-second F interaction and ignore the removed hyperdrive input', () => {
+test('gates accept a one-second F interaction and ignore the removed hyperdrive input', () => {
     const s = run('swift');
     try {
         s.sector.hyperlanes = [{ name: 'Próba', a: { x: 1000, y: 0 }, b: { x: 2000, y: 0 } }];
@@ -237,9 +237,9 @@ test('gates accept a two-second F interaction and ignore the removed hyperdrive 
         }
         advance(s, 150, { hyperdrive: true });
         assert.equal(s.hyperdrive.active, false);
-        advance(s, 110, { interact: true });
+        advance(s, 59, { interact: true });
         assert.equal(s.hyperdrive.active, false);
-        advance(s, 11, { interact: true });
+        advance(s, 1, { interact: true });
         assert.equal(s.hyperdrive.state, 'charging');
         advance(s, 200, { interact: true });
         assert.ok(Math.hypot(s.position.x - 2000, s.position.y) < 2);
@@ -270,11 +270,11 @@ test('fatal damage to lunar Mule is persisted before the next sortie', () => {
         next.dispose();
     }
 });
-test('F alone attaches a wreck without invoking a second world interaction', () => {
+test('H alone attaches a wreck without invoking a second world interaction', () => {
     const s = run('tug');
     try {
         const wreck = s.salvage.add(88990, 'patrol', { x: 1080, y: 0 }, { x: 0, y: 0 })!;
-        advance(s, 190, { interact: true, target: { x: 1080, y: 0 } });
+        advance(s, 60, { tow: true, target: { x: 1080, y: 0 } });
         assert.equal(s.salvage.towing.has(wreck.id), true);
         assert.equal(s.hyperdrive.active, false);
     } finally {

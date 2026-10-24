@@ -1,4 +1,5 @@
-import { Container, Graphics } from 'pixi.js';
+import { travelBeacon } from './travelBeacon';
+import { Container } from 'pixi.js';
 import { marsMoonView } from './marsMoons';
 import { MARS_MOONS } from '../worlds/marsMoons';
 import { phobosOrbitSecured } from '../state/marsAct';
@@ -15,16 +16,10 @@ export class MarsMoonSurfaceView extends Container {
         const gates = [body.entrance, body.exit].map((point, i) => {
             const gate = new Container();
             gate.position.copyFrom(point);
-            gate.addChild(
-                new Graphics()
-                    .circle(0, 0, 145)
-                    .fill({ color: C.cyan, alpha: 0.05 })
-                    .circle(0, 0, 110)
-                    .stroke({ color: C.cyan, width: 3, alpha: 0.7 }),
-            );
+            gate.addChild(travelBeacon());
             const title = worldLabel(
                 gate,
-                `${body.name} · ${i ? '1 · orbita' : 'F · lądowanie'}`,
+                `${body.name} · ${i ? 'F · orbita' : 'F · lądowanie'}`,
                 0,
                 170,
                 18,

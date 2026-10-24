@@ -7,6 +7,10 @@ export function anomalyTileRange(
     halfHeight: number,
     angle: number,
 ) {
+    // Camera transitions and a corrupt/stale zoom must not enqueue millions of tiles.
+    halfWidth = Number.isFinite(halfWidth) ? Math.min(4096, Math.max(1, halfWidth)) : 960;
+    halfHeight = Number.isFinite(halfHeight) ? Math.min(3072, Math.max(1, halfHeight)) : 580;
+    angle = Number.isFinite(angle) ? angle : 0;
     const c = Math.abs(Math.cos(angle)),
         s = Math.abs(Math.sin(angle));
     const w = halfWidth * c + halfHeight * s + ANOMALY_TILE_SIZE;

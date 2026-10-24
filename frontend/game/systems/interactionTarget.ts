@@ -1,3 +1,5 @@
+export const INTERACTION_SECONDS = 1;
+
 import type { Point } from '../worlds/sector';
 export interface InteractionTarget extends Point {
     id: string;

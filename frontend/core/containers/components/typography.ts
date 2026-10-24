@@ -1,4 +1,5 @@
 import * as PIXI from 'pixi.js';
+import { bindTextRendererCleanup } from '../../systems/renderMemory';
 
 type TTypographyHorizontalAlign = 'left' | 'center' | 'right';
 type TTypographyVerticalAlign = 'top' | 'center' | 'bottom';
@@ -51,6 +52,7 @@ export class Typography extends PIXI.Container {
             },
         });
         this.text.scale.set(1 / this.scaleRatio);
+        bindTextRendererCleanup(this.text);
 
         this.text.anchor.set(
             this.getHorizontalAnchor(config.horizontalAlign),

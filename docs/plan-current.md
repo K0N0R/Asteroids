@@ -1,8 +1,16 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-23, wersja robocza 0.131.
+Stan: 2026-10-24, wersja robocza 0.133.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Poprawki HUD i stabilności 0.133
+
+Usunięto nieistniejący laser Lancera i Raidera, powielone podpisy przy ikonach oraz stary tekst zdolności Widma. Wyśrodkowano oznaczenia i odnowienie. Kamuflaż ma przezroczystą sylwetkę i ograniczoną smugę. Naprawiono narastanie subskrypcji tekstów po restartach, zwalnianie metadanych buforów oraz zatrzymywanie aktualizacji przy klatkach ponad 100 ms. Ciągłe trafienia mają ograniczoną częstość dodatkowych iskier. [Weryfikacja i ograniczenia](implementation-v0.133.md).
+
+## Poprawki po testach 0.132
+
+H obsługuje wszystkie rodzaje holu; F pozostałe interakcje. Wspólne przytrzymanie 1 s i okrąg postępu obejmują śluzy, bazy, dokowanie, skany, połączenia terminali i holowanie. Nowy HUD zdolności, trwała łączność bez pauzy, odróżnienie informacji chwilowych, odświeżone znaczniki podróży, poprawione widoki zamontowanych zakładów i prowadzenie do kolejnego aktu. Anomalia ma limit kafelków, miękkie łączenia i odzyskiwanie kolejki po awarii workera; silniki mają barwę zależną od tieru oraz wygaszanie pętli po zatrzymaniu aktualizacji. [Szczegóły i ograniczenia walidacji](implementation-v0.132.md).
 
 ## Wdrożenie robocze 0.131 — gospodarka, flota i sterowanie
 

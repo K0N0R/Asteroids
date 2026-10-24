@@ -1221,7 +1221,7 @@ test('maneuvering modules are purchased per ship, affect actual rotation and are
         base.dispose();
     }
 });
-test('Harpoon halves wreck and rescue pickup time without changing calm-flight requirements', () => {
+test('all hulls use one-second wreck and rescue pickup without changing calm-flight requirements', () => {
     for (const hull of ['prospector', 'atlas', 'harpoon'] as const) {
         const c = newCampaign();
         c.ship!.hull = hull;
@@ -1230,9 +1230,9 @@ test('Harpoon halves wreck and rescue pickup time without changing calm-flight r
             clean(sim);
             sim.ship.setTranslation({ x: 30, y: 0 }, true);
             const wreck = sim.salvage.add(999, 'patrol', { x: 3100, y: 0 }, { x: 0, y: 0 })!;
-            const seconds = hull === 'harpoon' ? 1.5 : 3;
+            const seconds = 1;
             assert.equal(sim.salvageSeconds, seconds);
-            assert.equal(sim.recoverySeconds, hull === 'harpoon' ? 2 : 4);
+            assert.equal(sim.recoverySeconds, 1);
             assert.ok(flightHint(sim).includes(`${seconds} s`));
             for (let frame = 0; frame < seconds * 30; frame++) sim.step({ ...idle, tow: true });
             assert.equal(sim.salvage.towed, null);

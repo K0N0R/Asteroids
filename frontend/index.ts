@@ -1,4 +1,5 @@
-import '@pixi/sound';
+import { Filter, webaudio } from '@pixi/sound';
+import { configureMissionAudioEnvelopes } from './game/systems/audio';
 import * as PIXI from 'pixi.js';
 import { SoundManager } from '@systems/soundManager';
 import { GameSettings } from '@systems/gameSettings';
@@ -11,6 +12,23 @@ import { Core } from './core/core';
 import { preload } from './core/preload';
 import { prepreload } from './core/prepreload';
 import RAPIER from '@dimforge/rapier2d-compat';
+
+configureMissionAudioEnvelopes((sound) => {
+    const context = sound.pixiSound.context;
+    if (
+        !(context instanceof webaudio.WebAudioContext) ||
+        !(sound.instance instanceof webaudio.WebAudioInstance)
+    )
+        return null;
+    const node = context.audioContext.createGain();
+    const filter = new Filter(node);
+    sound.instance.filters = [filter];
+    return {
+        gain: node.gain,
+        now: () => context.audioContext.currentTime,
+        destroy: () => filter.destroy(),
+    };
+});
 
 const init = async () => {
     const core = new Core();

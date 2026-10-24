@@ -78,9 +78,9 @@ export function missionObjectives(
 
 // Only actionable context belongs on the flight HUD. Explanations live under Tab.
 export function flightHint(s: MissionSimulation) {
-    if (s.interaction.requiresRelease) return 'Puść F, aby wybrać nowy cel interakcji.';
+    if (s.interaction.requiresRelease) return 'Puść F / H, aby wybrać nowy cel interakcji.';
     if (s.interaction.target?.kind === 'tow')
-        return `F · ${s.interaction.target.name} · podłączanie holu`;
+        return `H · ${s.interaction.target.name} · podłączanie holu ${Math.round((s.interactionProgress?.fraction ?? 0) * 100)}%`;
     const gate = s.nearestHypergate;
     if (
         (!s.interaction.target || s.interaction.target.kind === 'gate') &&
@@ -89,7 +89,7 @@ export function flightHint(s: MissionSimulation) {
     )
         return s.hyperdrive.active
             ? 'Przelot śluzą'
-            : `F · ${gate.name} · przytrzymaj 2 s${s.hyperdriveLock ? ` · ${s.hyperdriveLock}` : ''}`;
+            : `F · ${gate.name} · przytrzymaj 1 s${s.hyperdriveLock ? ` · ${s.hyperdriveLock}` : ''}`;
     if (s.extraction.target)
         return `Ekstrakcja anomalii · ${Math.floor((s.extraction.progress / 2) * 100)}%`;
     if (s.marsAct?.context) return s.marsAct.context;
@@ -141,7 +141,7 @@ export function flightHint(s: MissionSimulation) {
             return `S · wyhamuj przy ${r.probe ? 'sondzie' : 'promie'} do prędkości poniżej 60 m/s`;
         if (r.state === 'ready' && s.salvage.full) return 'Hol zajęty · J zwolnij inny wrak';
         if (r.attachProgress > 0)
-            return `F · podłączanie holu ${Math.floor((r.attachProgress / 3) * 100)}%`;
+            return `H · podłączanie holu ${Math.floor((r.attachProgress / 1) * 100)}%`;
         return r.status;
     }
     if (s.cargoTransferRemaining > 0 || s.canTransferCargo) return s.context;
@@ -154,8 +154,8 @@ export function flightHint(s: MissionSimulation) {
     if (s.pendingChoice) return '';
     if (s.escort?.state === 'idle' && s.nearbyEscort)
         return s.escort.startProgress > 0
-            ? `F Eskorta · ${percent(s.escort.startProgress, 2)}`
-            : `F Rozpocznij eskortę: ${s.escortName} · 2 s`;
+            ? `F Eskorta · ${percent(s.escort.startProgress, 1)}`
+            : `F Rozpocznij eskortę: ${s.escortName} · 1 s`;
     if (s.miningEscort && s.area === 'surface') return s.miningEscort.status;
     if (s.escort?.state === 'waiting')
         return s.escort.waitingReason === 'player'
@@ -169,12 +169,12 @@ export function flightHint(s: MissionSimulation) {
         return `F  Magazyn · ${percent(s.outpost.equipmentProgress, OUTPOST.equipmentSeconds)}`;
     if (s.repairProgress > 0) return `R  Naprawa · ${percent(s.repairProgress, s.repairSeconds)}`;
     if (s.salvageProgress > 0)
-        return `F Holowanie ${s.marsAct && s.salvageTarget === MARS_ACT.memoryId ? 'modułu pamięci' : 'wraku'} · ${percent(s.salvageProgress, s.salvageSeconds)}`;
+        return `H Holowanie ${s.marsAct && s.salvageTarget === MARS_ACT.memoryId ? 'modułu pamięci' : 'wraku'} · ${percent(s.salvageProgress, s.salvageSeconds)}`;
     if (s.recoveryProgress > 0)
-        return `F  Odzysk · ${percent(s.recoveryProgress, s.recoverySeconds)}`;
+        return `H  Odzysk · ${percent(s.recoveryProgress, s.recoverySeconds)}`;
     if (s.scanProgress > 0) return `F  Skan · ${percent(s.scanProgress, SCAN.seconds)}`;
     if (s.cacheProgress > 0) return `F  Skrytka · ${percent(s.cacheProgress, CACHE.seconds)}`;
-    if (s.dockProgress > 0) return `F  Dokowanie · ${percent(s.dockProgress, 1.2)}`;
+    if (s.dockProgress > 0) return `F  Dokowanie · ${percent(s.dockProgress, 1)}`;
     const signal = s.recoverySignal,
         p = s.position;
     if (
@@ -187,11 +187,11 @@ export function flightHint(s: MissionSimulation) {
             ? 'J Zwolnij wrak, aby podjąć cel ratunkowy'
             : s.speed > RECOVERY.speed
               ? 'S  Wyhamuj do odzysku · <80 m/s'
-              : `F  Podejmij cel · przytrzymaj ${s.recoverySeconds} s`;
+              : `H  Podejmij cel · przytrzymaj ${s.recoverySeconds} s`;
     if (s.nearbyWreck)
         return s.speed > 80
             ? 'S Wyhamuj przy wraku · <80 m/s'
-            : `F Holuj ${s.marsAct && s.nearbyWreck.id === MARS_ACT.memoryId ? 'moduł pamięci · wymagany do analizy' : s.marsAct ? 'wrak · odzysk opcjonalny' : 'wrak'} · przytrzymaj ${s.salvageSeconds} s`;
+            : `H Holuj ${s.marsAct && s.nearbyWreck.id === MARS_ACT.memoryId ? 'moduł pamięci · wymagany do analizy' : s.marsAct ? 'wrak · odzysk opcjonalny' : 'wrak'} · przytrzymaj ${s.salvageSeconds} s`;
     if (s.salvage.towed) {
         const item = s.salvage.towed;
         if (s.distanceHome > 350)
@@ -202,7 +202,7 @@ export function flightHint(s: MissionSimulation) {
     if (s.nearbyCache)
         return s.speed > CACHE.speed
             ? 'S  Wyhamuj przy skrytce · <60 m/s'
-            : 'F  Otwórz skrytkę · przytrzymaj 2,5 s';
+            : 'F  Otwórz skrytkę · przytrzymaj 1 s';
     if (s.nearbyOutpost) {
         if (s.speed > OUTPOST.interactSpeed) return 'S  Wyhamuj przy terminalu · <60 m/s';
         const sabotage = s.outpost.sabotaged ? '' : ' · G  Zasilanie: minigra';
@@ -216,7 +216,7 @@ export function flightHint(s: MissionSimulation) {
                         ? 'Magazyn wymaga 3 wolnych miejsc w ładowni'
                         : !s.outpost.equipmentArmed
                           ? 'Puść F · dostęp do magazynu'
-                          : `F  Zabierz ${WEAPONS[s.outpostEquipment].name} · 5 s / 3 miejsca`
+                          : `F  Zabierz ${WEAPONS[s.outpostEquipment].name} · 1 s / 3 miejsca`
                     : 'F  Otwórz obwód terminala';
         if (s.outpost.disabledTime > 0)
             return `${action} · skaner wyłączony ${Math.ceil(s.outpost.disabledTime)} s`;
@@ -235,7 +235,7 @@ export function flightHint(s: MissionSimulation) {
             ? 'S  Wyhamuj do skanu · <60 m/s'
             : s.relayRequired
               ? 'F  Otwórz strojenie łączności'
-              : 'F  Skanuj · przytrzymaj 3 s';
+              : 'F  Skanuj · przytrzymaj 1 s';
     if (s.stationShieldActive && s.distanceHome >= 350 && s.distanceHome < s.stationSafeRadius)
         return `${s.stationName} · bezpieczny obszar tarczy`;
     if (s.distanceHome < 350) {
@@ -255,7 +255,5 @@ export function flightHint(s: MissionSimulation) {
         return 'F  Przeszukaj wrak';
     if (s.cargoUsed >= s.cargoCapacity) return 'Ładownia pełna · powrót do bazy';
     if (s.hull < s.maxHull && s.repairKits > 0) return 'R  Napraw kadłub · przytrzymaj 5 s';
-    if (s.hullId === 'widmo')
-        return `PPM Dash ${s.dashCooldown > 0 ? `${Math.ceil(s.dashCooldown)} s` : 'gotowy'} · Q Kamuflaż ${s.opticalCloak ? 'aktywny' : s.opticalCloakCooldown > 0 ? `${Math.ceil(s.opticalCloakCooldown)} s` : 'gotowy'}`;
     return '';
 }

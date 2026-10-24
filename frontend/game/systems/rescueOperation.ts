@@ -1,3 +1,4 @@
+import { INTERACTION_SECONDS } from './interactionTarget';
 import { salvagePosition, type SalvageFleet, type SalvageBody } from './salvage';
 import { ANOMALY } from './anomalyField';
 import { RescueRepair } from './rescueRepair';
@@ -7,7 +8,7 @@ export const RESCUE_OPERATION = {
     id: -90001,
     site: { x: 1050, y: -700 },
     range: 170,
-    attachSeconds: 3,
+    attachSeconds: INTERACTION_SECONDS,
 } as const;
 export class RescueOperation {
     readonly item: SalvageBody;
@@ -57,7 +58,7 @@ export class RescueOperation {
                 case 'towing':
                     return 'Sonda na holu · wróć bezpiecznym korytarzem do Satuk 15 · J: odłącz';
                 default:
-                    return 'Sonda · bezpieczny objazd · F przez 3 s: hol';
+                    return 'Sonda · bezpieczny objazd · H przez 1 s: hol';
             }
         }
         switch (this.state) {
@@ -70,7 +71,7 @@ export class RescueOperation {
             case 'repair':
                 return 'Zabezpieczanie obwodów promu · świat nadal działa';
             case 'ready':
-                return 'Prom zabezpieczony · podejdź i przytrzymaj F przez 3 s, aby podłączyć hol';
+                return 'Prom zabezpieczony · podejdź i przytrzymaj H przez 1 s, aby podłączyć hol';
             default:
                 return 'Sygnał SOS · N: prom · F przy promie: zabezpiecz obwody';
         }

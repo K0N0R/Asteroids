@@ -1,6 +1,7 @@
+import { INTERACTION_SECONDS } from './interactionTarget';
 import { random } from '../worlds/sector';
 
-export const CACHE = { radius: 150, speed: 60, seconds: 2.5 } as const;
+export const CACHE = { radius: 150, speed: 60, seconds: INTERACTION_SECONDS } as const;
 export const PROTOTYPES = {
     drive: {
         name: 'Napęd impulsowy',

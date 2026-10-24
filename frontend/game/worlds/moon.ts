@@ -1,3 +1,4 @@
+import { INTERACTION_SECONDS } from '../systems/interactionTarget';
 import type { Point } from './sector';
 
 // Separate coordinate space keeps both maps alive for the duration of one sortie.
@@ -9,9 +10,9 @@ export const MOON = {
     construction: { x: 24300, y: 24000 },
     quarry: { x: 23900, y: 24650 },
     copperRidge: { x: 25450, y: 22600 },
-    transferSeconds: 2,
+    transferSeconds: INTERACTION_SECONDS,
     arrivalSeconds: 3.2,
-    deliverySeconds: 2,
+    deliverySeconds: INTERACTION_SECONDS,
 } as const;
 export function moonDistance(p: Point) {
     return Math.hypot(p.x - MOON.center.x, p.y - MOON.center.y);

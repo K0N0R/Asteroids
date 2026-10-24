@@ -1,3 +1,4 @@
+import { INTERACTION_SECONDS } from './systems/interactionTarget';
 export const GAME = {
     step: 1 / 60,
     pixelsPerMeter: 100,
@@ -160,14 +161,19 @@ export const ENEMY_MINES = {
     limitPerLayer: 4,
     limit: 20,
 } as const;
-export const RECOVERY = { signalLimit: 10000, radius: 160, speed: 80, seconds: 4 } as const;
-export const SCAN = { radius: 180, speed: 60, seconds: 3 } as const;
+export const RECOVERY = {
+    signalLimit: 10000,
+    radius: 160,
+    speed: 80,
+    seconds: INTERACTION_SECONDS,
+} as const;
+export const SCAN = { radius: 180, speed: 60, seconds: INTERACTION_SECONDS } as const;
 export const OUTPOST = {
     radius: 100,
     terminalDistance: 260,
     interactRadius: 100,
     interactSpeed: 60,
-    equipmentSeconds: 5,
+    equipmentSeconds: INTERACTION_SECONDS,
     equipmentSlots: 3,
     disabledSeconds: 20,
     scanRange: 560,
@@ -492,7 +498,7 @@ export const HULLS = {
             { x: 8, y: 18 },
         ],
         grabberRange: 300,
-        towPickupSpeed: 2,
+        towPickupSpeed: 1,
         hitbox: [35, 18],
     },
     aegis: {

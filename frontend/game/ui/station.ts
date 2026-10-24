@@ -141,29 +141,29 @@ export function stationScreen(
                 )
                 .map((hull) => HULLS[hull].name),
         );
-    label(ui, 'ODBLOKUJE', 1072, 290, 13, C.mint);
+    const installed = selected <= current;
+    label(ui, installed ? 'UDOSTĘPNIA' : 'ODBLOKUJE', 1072, 290, 13, C.mint);
     label(ui, outputs.join(' · '), 1072, 320, 16, C.text, 456);
     const isNext = selected === current + 1;
-    const lock =
-        current >= limit
-            ? 'Najwyższy poziom urządzenia.'
-            : !isNext
-              ? 'Zamontuj poprzedni poziom; to podgląd projektu.'
-              : stationProjectLock(c, id);
+    const lock = installed
+        ? 'Poziom zamontowany · urządzenie jest gotowe do pracy.'
+        : !isNext
+          ? 'Zamontuj poprzedni poziom; to podgląd projektu.'
+          : stationProjectLock(c, id);
     label(
         ui,
         lock ?? 'Komplet materiałów · gotowe do montażu',
         1072,
         435,
         15,
-        lock ? C.gold : C.mint,
+        installed || !lock ? C.mint : C.gold,
         456,
     );
-    if (current < limit)
+    if (!installed)
         constructionCosts(ui, c.bank, stationProjectCost(preview, id), 480, actions.openRecipe);
     button(
         ui,
-        current >= limit ? 'ZAMONTOWANO' : `ZAMONTUJ ${id === 'extraction' ? 'ADAPTER' : tierName}`,
+        installed ? 'ZAMONTOWANO' : `ZAMONTUJ ${id === 'extraction' ? 'ADAPTER' : tierName}`,
         1072,
         STATION_LAYOUT.actionY,
         456,

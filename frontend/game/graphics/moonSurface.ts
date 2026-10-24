@@ -1,3 +1,4 @@
+import { travelBeacon } from './travelBeacon';
 import { drawLunarBase } from './lunarBase';
 import { Container, Graphics } from 'pixi.js';
 import { MOON } from '../worlds/moon';
@@ -74,16 +75,9 @@ export class MoonSurfaceView extends Container {
         const gate = (host: Container, x: number, y: number, title: string) => {
             const g = new Container();
             g.position.set(x, y);
-            g.addChild(
-                new Graphics()
-                    .circle(0, 0, 145)
-                    .fill({ color: C.cyan, alpha: 0.04 })
-                    .beginPath()
-                    .poly([-40, 15, 0, -25, 40, 15])
-                    .stroke({ color: C.mint, width: 5 }),
-            );
+            g.addChild(travelBeacon());
             this.addTitle(g, title, { x: 0, y: 0 }, { x: 0, y: 170 }, 20, C.cyan, 260);
-            this.addTitle(g, 'F · 2 s', { x: 0, y: 0 }, { x: 0, y: 201 }, 16, C.muted);
+            this.addTitle(g, 'F · 1 s', { x: 0, y: 0 }, { x: 0, y: 201 }, 16, C.muted);
             host.addChild(g);
         };
         gate(this.orbitGate, MOON.entrance.x, MOON.entrance.y, 'Podejście do Księżyca');
@@ -210,10 +204,10 @@ export class MoonSurfaceView extends Container {
         this.status!.setText(
             [
                 delivered.every(Boolean)
-                    ? 'Produkcja lokalna gotowa · E: Muł'
+                    ? 'Produkcja lokalna gotowa · F: Muł'
                     : 'Budowa · dostarcz części modułów',
                 'Rozbudowa · Żelazo (Fe) i Węgiel (C)',
-                'Instalacje gotowe · E odbiór',
+                'Instalacje gotowe · F odbiór',
                 'Stacja księżycowa · odbiór zakończony',
             ][stage],
         );

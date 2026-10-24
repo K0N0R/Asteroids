@@ -301,7 +301,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.131', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.133', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {
@@ -528,6 +528,7 @@ export class LobbyView extends Container {
                                           : 'Akt I · Rozbuduj Satuk 15, nawiąż łączność i przygotuj stację na Księżycu.',
             );
             storyOverview(ui, this.campaign, {
+                solar: () => this.go('solar'),
                 openRecipe: this.productionNavigation.openRecipe,
                 openDestination: (tab, project) => this.openDestination(tab, project),
                 contribute: this.actions.contribute,

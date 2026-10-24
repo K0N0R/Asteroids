@@ -7,6 +7,45 @@ import { destroyDisplayTree } from '../frontend/core/systems/destroyDisplayTree'
 import { CelestialLayer } from '../frontend/game/graphics/celestialLayer';
 import { celestialBodiesFor } from '../frontend/game/worlds/celestialBodies';
 import { MissionInfoPopup } from '../frontend/game/ui/missionInfo';
+import { Typography } from '../frontend/core/containers/components/typography';
+import { Text } from 'pixi.js';
+
+test('destroyed text leaves no renderer resolution subscription across repeated scene restarts', () => {
+    const runner = {
+        items: [] as unknown[],
+        add(item: unknown) {
+            this.items.push(item);
+        },
+        remove(item: unknown) {
+            this.items.splice(this.items.indexOf(item), 1);
+        },
+    };
+    const renderer = { runners: { resolutionChange: runner } };
+    let returned = 0;
+    for (let restart = 0; restart < 30; restart++) {
+        const root = new Container();
+        for (let i = 0; i < 50; i++) {
+            const label = root.addChild(new Typography({ text: `Label ${i}` }));
+            const text = label.children[0] as Text;
+            const batch = {
+                _renderer: renderer as typeof renderer | null,
+                resolutionChange() {},
+                destroy() {
+                    this._renderer = null;
+                    returned++;
+                },
+            };
+            runner.add(batch);
+            (text as unknown as { _gpuData: Record<string, unknown> })._gpuData = { test: batch };
+        }
+        assert.equal(runner.items.length, 50);
+        // Cover both teardown paths used by menus and scenes.
+        if (restart % 2) root.destroy({ children: true });
+        else destroyDisplayTree(root);
+        assert.equal(runner.items.length, 0);
+    }
+    assert.equal(returned, 1500, 'native GPU cleanup still releases every text texture');
+});
 test('unchanged scenery reuses existing planet views instead of rebuilding render caches', () => {
     const layer = new CelestialLayer(),
         specs = celestialBodiesFor('mars');
@@ -25,6 +64,10 @@ test('scene cleanup releases free render textures without destroying live textur
     TexturePool.returnTexture(idle);
     releaseSceneBuffers();
     assert.ok(idle.destroyed);
+    assert.equal(
+        (TexturePool as unknown as { _poolKeyHash: Record<number, number> })._poolKeyHash[idle.uid],
+        undefined,
+    );
     assert.equal(live.destroyed, false);
     TexturePool.returnTexture(live);
     releaseSceneBuffers();

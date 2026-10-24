@@ -6,58 +6,63 @@ import { STORY_PORTRAITS } from '../graphics/portraitAppearance';
 import { button, label, panel } from './primitives';
 import { dialogueTick } from '../systems/audio';
 
-/** A modal bottom panel; only the explicit next control advances the sequence. */
+/** Nonblocking radio card. Only its controls receive pointer events; messages wait for acknowledgement. */
 export function dialogueView(playback: DialoguePlayback, advance: () => void) {
     const root = new Container(),
         line = playback.line;
     const lineIndex = playback.index;
     if (!line) return Object.assign(root, { lineIndex, update: (_deltaMS: number) => {} });
-    const shade = new Graphics().rect(0, 0, 1600, 900).fill({ color: C.ink, alpha: 0.62 });
-    shade.eventMode = 'static';
-    root.addChild(shade);
-    panel(root, 80, 600, 1440, 265);
-    label(root, `ŁĄCZNOŚĆ / ${playback.definition.title.toUpperCase()}`, 110, 570, 15, C.mint);
-    const speaker = SPEAKERS[line.speaker],
-        portrait = portraitView(STORY_PORTRAITS[line.speaker]);
-    portrait.position.set(205, 725);
-    portrait.scale.set(0.62);
-    root.addChild(portrait);
-    label(root, speaker.role, 330, 623, 12, C.mint);
-    label(root, speaker.name, 330, 645, 25, C.text);
     // Wrap the complete sentence once so words do not jump as letters appear.
     const wrapped = Array.from(
         CanvasTextMetrics.measureText(
             line.text,
             new TextStyle({
                 fontFamily: 'Trebuchet MS',
-                fontSize: 46,
+                fontSize: 34,
                 fontWeight: '600',
                 wordWrap: true,
-                wordWrapWidth: 2240,
+                wordWrapWidth: 1000,
             }),
         ).lines.join('\n'),
     );
-    const text = label(root, '', 330, 690, 23, C.text);
+    const extraHeight = Math.max(0, wrapped.join('').split('\n').length * 22 + 168 - 272);
+    root.y = -extraHeight;
+    root.eventMode = 'passive';
+    root.on(
+        'pointerdown',
+        (event) => 'stopPropagation' in event.nativeEvent && event.nativeEvent.stopPropagation(),
+    );
+    panel(root, 32, 460, 660, 272 + extraHeight);
+    root.addChild(new Graphics().roundRect(32, 460, 4, 272 + extraHeight, 2).fill(C.mint));
+    label(root, 'ŁĄCZNOŚĆ NA ŻYWO · CZEKA NA POTWIERDZENIE', 54, 478, 12, C.mint);
+    const speaker = SPEAKERS[line.speaker],
+        portrait = portraitView(STORY_PORTRAITS[line.speaker]);
+    portrait.position.set(100, 564);
+    portrait.scale.set(0.3);
+    root.addChild(portrait);
+    label(root, speaker.role, 156, 507, 11, C.mint);
+    label(root, speaker.name, 156, 529, 23, C.text);
+    const text = label(root, '', 156, 568, 17, C.text);
     text.label = 'dialogue-text';
     label(
         root,
         `${playback.index + 1} / ${playback.definition.lines.length} · Enter`,
-        330,
-        815,
-        14,
+        54,
+        696 + extraHeight,
+        12,
         C.muted,
     );
     const next = button(
         root,
-        playback.index + 1 === playback.definition.lines.length ? 'ZAKOŃCZ ODPRAWĘ →' : 'DALEJ →',
-        1220,
-        803,
-        270,
+        playback.index + 1 === playback.definition.lines.length ? 'ZAMKNIJ WIADOMOŚĆ' : 'DALEJ →',
+        448,
+        681 + extraHeight,
+        222,
         advance,
         true,
         true,
-        42,
-        16,
+        34,
+        14,
     );
     const caption = next.children[1] as ReturnType<typeof label>;
     const final = playback.index + 1 === playback.definition.lines.length;
@@ -72,7 +77,7 @@ export function dialogueView(playback: DialoguePlayback, advance: () => void) {
         }
         if (wasTyping !== playback.typing) {
             caption.setText(
-                playback.typing ? 'POKAŻ CAŁOŚĆ' : final ? 'ZAKOŃCZ ODPRAWĘ →' : 'DALEJ →',
+                playback.typing ? 'POKAŻ CAŁOŚĆ' : final ? 'ZAMKNIJ WIADOMOŚĆ' : 'DALEJ →',
             );
             wasTyping = playback.typing;
         }

@@ -1,3 +1,4 @@
+import { INTERACTION_SECONDS } from './interactionTarget';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { GAME, DRONES } from '../config';
 import type { Point } from '../worlds/sector';
@@ -8,7 +9,7 @@ export const ESCORT = {
     speed: 125,
     range: 650,
     startRange: 160,
-    startSeconds: 2,
+    startSeconds: INTERACTION_SECONDS,
     researchSeconds: 12,
 } as const;
 export type EscortState =

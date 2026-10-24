@@ -1,5 +1,11 @@
 import type { Point } from '../worlds/sector';
-export type AnomalyWindow = { x: number; y: number; width: number; height: number };
+export type AnomalyWindow = {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    resolution?: number;
+};
 /** Self-contained so the identical rasterizer can run in an OffscreenCanvas worker. */
 export function rasterAnomaly(
     polygons: readonly (readonly Point[])[],
@@ -14,8 +20,8 @@ export function rasterAnomaly(
         return c;
     };
     const { x: x0, y: y0, width, height } = window,
-        resolution = 1;
-    const canvas = makeCanvas(width, height);
+        resolution = window.resolution ?? 1;
+    const canvas = makeCanvas(Math.ceil(width * resolution), Math.ceil(height * resolution));
     const ctx = canvas.getContext('2d') as
         | CanvasRenderingContext2D
         | OffscreenCanvasRenderingContext2D;
@@ -124,6 +130,23 @@ export function rasterAnomaly(
     ctx.filter = `blur(${Math.max(1, 30 * resolution)}px)`;
     ctx.drawImage(mask, 0, 0);
     ctx.filter = 'none';
+    // Neighbouring tiles overlap by 128 px. Complementary feathering prevents a
+    // hard rectangular edge when a neighbour is still streaming or being replaced.
+    const fade = 128 * resolution;
+    const horizontal = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    horizontal.addColorStop(0, 'transparent');
+    horizontal.addColorStop(fade / canvas.width, 'white');
+    horizontal.addColorStop(1 - fade / canvas.width, 'white');
+    horizontal.addColorStop(1, 'transparent');
+    ctx.fillStyle = horizontal;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const vertical = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    vertical.addColorStop(0, 'transparent');
+    vertical.addColorStop(fade / canvas.height, 'white');
+    vertical.addColorStop(1 - fade / canvas.height, 'white');
+    vertical.addColorStop(1, 'transparent');
+    ctx.fillStyle = vertical;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     return canvas;
 }

@@ -55,7 +55,7 @@ export class OrbitalOutpostView extends Container {
         this.title.setText(
             !built
                 ? s.orbitalBuildReady
-                    ? 'Plac budowy · F przez 2 s'
+                    ? 'Plac budowy · F przez 1 s'
                     : 'Plac budowy · zgromadź materiały'
                 : a.active
                   ? `${s.marsBaseSector ? 'Baza' : 'Placówka'} · ${a.health}/180 HP`

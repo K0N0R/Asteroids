@@ -93,3 +93,11 @@ test('anomaly worker publishes small tiles only on update and releases textures,
         globalThis.OffscreenCanvas = originalCanvas;
     }
 });
+
+test('camera zoom out and invalid zoom keep anomaly tile work bounded', () => {
+    for (const zoom of [Infinity, NaN, 1e9]) {
+        const r = anomalyTileRange({ x: 0, y: 0 }, zoom, zoom, 0.7);
+        assert.ok(Number.isFinite(r.left));
+        assert.ok((r.right - r.left + 1) * (r.bottom - r.top + 1) < 600);
+    }
+});

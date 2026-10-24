@@ -54,7 +54,7 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             ['S / SHIFT', 'Hamowanie i wsteczny / boost podczas lotu W'],
             ['MYSZ', 'Celowanie niezależnie od kadłuba'],
             ['LPM / PPM', 'Uzbrojenie / narzędzie przypisane do kadłuba'],
-            ['F / J', 'Interakcje i śluzy / zwolnij hol'],
+            ['F / H / J', 'Interakcje i śluzy / holowanie / zwolnij hol'],
             [', / .', 'Poprzedni / następny cel nawigacji'],
             ['Q / E', 'Zdolności statków II / III; R: naprawa'],
             ['TAB', 'Pokład · szczegóły statku, pilot, prototypy i załoga'],

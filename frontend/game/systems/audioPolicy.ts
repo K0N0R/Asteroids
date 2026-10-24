@@ -81,6 +81,23 @@ export interface AudioPort<H> {
     play(cue: SoundCue, volume: number, loop: boolean): H | undefined;
     stop(handle: H): void;
     volume(handle: H, volume: number): void;
+    speed?(handle: H, speed: number): void;
+    active?(handle: H): boolean;
+}
+/** Larger drives have a lower, heavier engine tone; boost shifts within the same profile. */
+export function engineSpeed(tier: number, boosting = false, fault = false) {
+    const base = [1.22, 1.04, 0.86, 0.7][Math.max(0, Math.min(3, Math.floor(tier)))] ?? 1.04;
+    return base * (boosting ? 1.12 : 1) * (fault ? 0.82 : 1);
+}
+/** This envelope runs on the audio clock even when JavaScript stops advancing. */
+export function scheduleAudioLease(
+    gain: Pick<AudioParam, 'cancelScheduledValues' | 'setValueAtTime' | 'linearRampToValueAtTime'>,
+    now: number,
+) {
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(1, now);
+    gain.setValueAtTime(1, now + 0.35);
+    gain.linearRampToValueAtTime(0, now + 0.5);
 }
 export class MissionAudio<H> {
     private loops = new Map<SoundCue, H>();
@@ -98,6 +115,7 @@ export class MissionAudio<H> {
         thrusting: boolean;
         boosting: boolean;
         engineFault: boolean;
+        hullConfig?: { workshop: number };
         laserBeams: readonly unknown[];
         repairProgress: number;
         position?: { x: number; y: number };
@@ -180,7 +198,11 @@ export class MissionAudio<H> {
             ['alarm', warning, 1],
         ];
         for (const [cue, active, multiplier] of desired) {
-            const handle = this.loops.get(cue);
+            let handle = this.loops.get(cue);
+            if (handle !== undefined && this.port.active && !this.port.active(handle)) {
+                this.loops.delete(cue);
+                handle = undefined;
+            }
             if (!active) {
                 if (handle) {
                     this.port.stop(handle);
@@ -189,10 +211,31 @@ export class MissionAudio<H> {
                 continue;
             }
             const volume = CUES[cue].volume * multiplier;
-            if (handle) this.port.volume(handle, volume);
-            else {
+            if (handle) {
+                this.port.volume(handle, volume);
+                if (cue === 'engine')
+                    this.port.speed?.(
+                        handle,
+                        engineSpeed(
+                            state.hullConfig?.workshop ?? 1,
+                            state.boosting,
+                            state.engineFault,
+                        ),
+                    );
+            } else {
                 const created = this.port.play(cue, volume, true);
-                if (created) this.loops.set(cue, created);
+                if (created) {
+                    this.loops.set(cue, created);
+                    if (cue === 'engine')
+                        this.port.speed?.(
+                            created,
+                            engineSpeed(
+                                state.hullConfig?.workshop ?? 1,
+                                state.boosting,
+                                state.engineFault,
+                            ),
+                        );
+                }
             }
         }
     }
