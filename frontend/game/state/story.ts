@@ -482,7 +482,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'mars',
         act: 2,
         title: 'Osłona ekspedycji naukowej',
-        detail: 'Eskortuj Keplera do trzech punktów pomiarowych na orbicie Marsa. Odeprzyj ograniczone fale niedobitków. Zniszczoną jednostkę zastąpi kolejna wyprawa.',
+        detail: 'Osłaniaj Keplera podczas trzech skanów anomalii: na północ od Satuk 15, przy wejściu do labiryntu i w jego korytarzu. Po pomiarach eskortuj statek z danymi z powrotem do Satuk 15. Sukces wymaga jego bezpiecznego powrotu.',
         required: true,
         kind: 'event',
         target: 1,
@@ -1631,7 +1631,7 @@ function settle(c: Campaign): StoryChange {
         }
         if (task.id === 'mars-asteroid-yard' && p.mars.yardDestroyed) p.progress[task.id] = 1;
         if (task.id === 'mars-sector-secure' && marsThreatsCleared(p)) p.progress[task.id] = 1;
-        if (task.id === 'mars-anomaly-research' && p.mars.researchSites === 3)
+        if (task.id === 'mars-anomaly-research' && p.mars.researchReturned === true)
             p.progress[task.id] = 1;
         if (task.id === 'mars-probe' && p.mars.probeDelivered) p.progress[task.id] = 1;
         if (task.id === 'venus-shield' && VENUS_SHIELD.every((t) => p.claimed.includes(t.id)))

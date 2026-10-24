@@ -1,9 +1,15 @@
+import { MarsResearchEscort } from './marsResearchEscort';
 import { INTERACTION_SECONDS } from './interactionTarget';
 import { ShipAbilities, ABILITY_COOLDOWNS, type Ability } from './shipAbilities';
 import { AnomalyExtraction } from './anomalyExtraction';
 import { InteractionLatch, type InteractionTarget } from './interactionTarget';
 import { MarsActMission } from './marsActMission';
-import { MARS_ACT, marsArea } from '../state/marsAct';
+import {
+    MARS_ACT,
+    marsArea,
+    marsResearchComplete,
+    prepareMarsResearchSortie,
+} from '../state/marsAct';
 import { marsAnomaliesFor } from '../worlds/marsSystem';
 import { MARS_MAPS, marsOrbitAt, nearestMarsOrbit, type MarsOrbitId } from '../worlds/marsLayout';
 import { MARS_MOONS, marsSurfaceAt } from '../worlds/marsMoons';
@@ -610,14 +616,14 @@ export class MissionSimulation {
     private lunarTurretCooldown = 0;
     private stationCollider: RAPIER.Collider | null = null;
     private assaultSequence = 100000;
-    private combatCamera: { angle: number; zoom: number } | null = null;
-    setCombatCamera(angle: number, zoom: number) {
+    private combatCamera: { angle: number; zoom: number; center?: Point } | null = null;
+    setCombatCamera(angle: number, zoom: number, center?: Point) {
         if (Number.isFinite(angle) && Number.isFinite(zoom) && zoom > 0)
-            this.combatCamera = { angle, zoom };
+            this.combatCamera = { angle, zoom, center: center && { x: center.x, y: center.y } };
     }
     get combatView(): CombatView {
         return {
-            center: this.position,
+            center: this.combatCamera?.center ?? this.position,
             angle: this.combatCamera?.angle ?? -Math.PI / 2 - this.ship.rotation(),
             zoom: this.combatCamera?.zoom ?? 0.64,
         };
@@ -648,6 +654,7 @@ export class MissionSimulation {
         private readonly seed: number,
         sector?: ReturnType<typeof generateSector>,
     ) {
+        if (campaign.story) prepareMarsResearchSortie(campaign.story);
         this.sector =
             sector ?? (campaign.story ? generateStorySector(campaign.story) : generateSector(seed));
         this.storyPatrolKills = campaign.activeRun?.reportedPatrolKills ?? 0;
@@ -843,8 +850,8 @@ export class MissionSimulation {
                 ? new MiningEscort(this.world)
                 : marsAct &&
                     campaign.story!.claimed.includes('mars-sector-secure') &&
-                    campaign.story!.mars.researchSites < 3
-                  ? new ResearchEscort(this.world, {
+                    !marsResearchComplete(campaign.story!)
+                  ? new MarsResearchEscort(this.world, {
                         ...MARS_ACT.research[campaign.story!.mars.researchSites % 3],
                     })
                   : !campaign.story && campaign.activeRun?.contract === 7
@@ -906,11 +913,11 @@ export class MissionSimulation {
             this.escort ||
             p?.sector !== 'mars' ||
             !p.claimed.includes('mars-sector-secure') ||
-            p.mars.researchSites >= 3
+            marsResearchComplete(p)
         )
             return;
-        this.escort = new ResearchEscort(this.world, {
-            ...MARS_ACT.research[p.mars.researchSites],
+        this.escort = new MarsResearchEscort(this.world, {
+            ...MARS_ACT.research[Math.min(2, p.mars.researchSites)],
         });
         this.escort.ambushed = true;
     }
@@ -2569,13 +2576,19 @@ export class MissionSimulation {
                 .map((r) => ({ ...r.body.translation(), radius: r.radius }))
                 .map((r) => ({ x: r.x * P, y: r.y * P, radius: r.radius }));
             obstacles.push({ ...this.sector.outpost, radius: OUTPOST.radius });
-            const hostileNear = [...this.enemies.enemies.values()].some(
-                (e) =>
-                    Math.hypot(
-                        enemyPosition(e).x - this.escort!.position.x,
-                        enemyPosition(e).y - this.escort!.position.y,
-                    ) < 750,
-            );
+            const hostileNear =
+                (this.escort instanceof MarsResearchEscort &&
+                    !this.escort.returning &&
+                    this.campaign.story!.mars.researchWaves <=
+                        this.campaign.story!.mars.researchSites) ||
+                [...this.enemies.enemies.values()].some(
+                    (e) =>
+                        e.body.isEnabled() &&
+                        Math.hypot(
+                            enemyPosition(e).x - this.escort!.position.x,
+                            enemyPosition(e).y - this.escort!.position.y,
+                        ) < 750,
+                );
             const completed = this.escort.update(dt, this.position, obstacles, hostileNear);
             if (this.miningEscort) this.updateMiningEscort(dt, hostileNear);
             if (
@@ -2663,6 +2676,7 @@ export class MissionSimulation {
             this.stationSafeRadius,
             this.sentries.allies,
         );
+        this.marsAct?.researchWaves.beforePhysics(dt);
         if (
             !chasingBefore &&
             [...this.enemies.enemies.values()].some((enemy) => enemy.state === 'chase')
@@ -2696,6 +2710,7 @@ export class MissionSimulation {
         this.updateDash(input, dt);
         const dashFrom = { ...this.position };
         this.world.step(this.queue);
+        this.marsAct?.researchWaves.afterPhysics();
         if (this.anomalyMission && this.area === 'orbit' && !hyperFrame) {
             const damage = this.anomalyExposure.step(
                 dashFrom,

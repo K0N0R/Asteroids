@@ -188,6 +188,7 @@ test('security requires surviving patrols to be eliminated but never ship wreck 
     assert.equal(storySectorUnlocked(c.story!, 'venus'), false);
     c.story!.mars.researchWaves = 3;
     c.story!.mars.researchSites = 3;
+    c.story!.mars.researchReturned = true;
     syncStory(c);
     assert.ok(acknowledgeStoryBriefing(c));
     assert.ok(storySectorUnlocked(c.story!, 'venus'));
@@ -229,7 +230,7 @@ test('silent terminal route neutralizes the base without production or radio com
     assert.ok(parseCampaign(JSON.stringify(c)));
     s.dispose();
 });
-test('research waves remain finite and survive a later sortie through stable identities', () => {
+test('research waves remain finite and a retry launches its wave offscreen only on approach', () => {
     const c = ready();
     ai(c);
     c.story!.mars.yardDestroyed = true;
@@ -248,8 +249,9 @@ test('research waves remain finite and survive a later sortie through stable ide
     c.bank.ore = 0;
     emergencyKit(c);
     const retry = spawn(c);
-    assert.ok(retry.enemies.enemies.has(74011));
+    assert.ok(!retry.enemies.enemies.has(74011));
     assert.ok(!retry.enemies.enemies.has(74010));
+    assert.equal(c.story!.mars.researchWaves, 0);
     assert.equal(c.story!.mars.researchSites, 0);
     retry.dispose();
 });
@@ -351,7 +353,12 @@ test('the actual simulation completes three separate escorted measurements and u
         assert.equal(s.ended, null);
         assert.equal(c.story!.mars.researchSites, site + 1);
     }
-    assert.equal(c.story!.mars.researchWaves, 3);
+    assert.equal(c.story!.mars.researchWaves, 4);
+    assert.ok(!c.story!.claimed.includes('mars-anomaly-research'));
+    move(s, { x: 140, y: 80 });
+    s.escort!.body.setTranslation({ x: 1.4, y: 0 }, true);
+    s.escort!.body.setLinvel({ x: 0, y: 0 }, true);
+    s.step(idle);
     assert.ok(c.story!.claimed.includes('mars-anomaly-research'));
     s.dispose();
     finishRun(c, true, { ore: 0, parts: 0 }, 1, 'dock');

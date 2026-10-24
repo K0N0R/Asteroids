@@ -136,8 +136,8 @@ export const MARS_ACT = {
     oldShip: { x: 30700, y: 1000 },
     oldShipId: -73003,
     research: [
-        { x: 0, y: -2350 },
-        { x: 2850, y: 1300 },
+        { x: 0, y: -2550 },
+        { x: 2850, y: 1100 },
         { x: 5200, y: -200 },
     ],
     memoryId: -73001,
@@ -168,7 +168,9 @@ export function marsSecurityObjective(p: StoryProgress) {
     if (p.claimed.includes('mars-sector-secure'))
         return p.mars.researchSites < 3
             ? 'Osłaniaj ekspedycję naukową Keplera'
-            : marsResearchComplete(p) ? 'Ekspedycja wróciła · odbierz odprawę w Satuk 15' : 'Osłaniaj powrót Keplera do Satuk 15';
+            : marsResearchComplete(p)
+              ? 'Ekspedycja wróciła · odbierz odprawę w Satuk 15'
+              : 'Osłaniaj powrót Keplera do Satuk 15';
     if (!p.mars.landingBlocked) return 'Rozpoznaj barierę lądowania na Marsie';
     if (!phobosRouteOpen(p)) return 'Zbuduj tarcze Satuk 15';
     if (!phobosOrbitSecured(p))
@@ -198,13 +200,14 @@ export function marsResearchComplete(p: StoryProgress) {
 }
 /** Start the unfinished leg from Satuk. A lost return requires repeating the final scan. */
 export function prepareMarsResearchSortie(p: StoryProgress) {
-    if (p.sector !== 'mars' || !p.claimed.includes('mars-sector-secure') || marsResearchComplete(p)) return;
+    if (p.sector !== 'mars' || !p.claimed.includes('mars-sector-secure') || marsResearchComplete(p))
+        return;
     p.mars.researchSites = Math.min(2, p.mars.researchSites);
     p.mars.researchWaves = Math.min(p.mars.researchSites, p.mars.researchWaves);
     p.mars.researchReturned = false;
     const first = 74010 + p.mars.researchSites * 10;
-    p.mars.kills = p.mars.kills.filter(id => id < first || id >= 74050);
-    p.mars.announcements = p.mars.announcements.filter(id => {
+    p.mars.kills = p.mars.kills.filter((id) => id < first || id >= 74050);
+    p.mars.announcements = p.mars.announcements.filter((id) => {
         if (id.startsWith('wave-')) return Number(id.slice(5)) < p.mars.researchSites;
         if (id.startsWith('measure-')) return Number(id.slice(8)) <= p.mars.researchSites;
         return id !== 'research-home';

@@ -1,8 +1,16 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-24, wersja robocza 0.135.
+Stan: 2026-10-24, wersja robocza 0.137.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Start aktów od początku 0.137
+
+Narzędzia ESC zastępują swobodne przełączanie sektora świeżymi początkami aktów I–X. Poprzednie wymagane zadania są ukończone, a wybrany etap ma wyzerowane misje, świat, łączność i odpowiednie zakłady oraz flotę. Normalne blokady odkrywania pozostają aktywne. Dostępny jest reset bieżącego etapu, osobny Akt V na Marsie i dodatkowe wejścia na Księżyc oraz Neptuna. Wszystko działa w oddzielnym zapisie testowym. [Zakres i testy](implementation-v0.137.md).
+
+## Ekspedycja naukowa Marsa 0.136
+
+Kepler wykonuje trzy pomiary przy brzegach anomalii, po czym fizycznie wraca do Satuk 15. Ostatni nalot następuje na kursie powrotnym; sukces wymaga doprowadzenia jednostki z danymi do stacji. Statek i drony korzystają z tras sprawdzanych względem pola anomalii i skał. Naloty powstają tylko poza aktualnym obróconym widokiem kamery i w bezpiecznych korytarzach, bez pojawiania się przy punkcie badania. Skanowanie ma ruchomą wiązkę, stożek sensora i impulsy na rzeczywistym brzegu anomalii. [Szczegóły i walidacja](implementation-v0.136.md).
 
 ## Stabilność WebGL i poprawki Fobosa 0.135
 

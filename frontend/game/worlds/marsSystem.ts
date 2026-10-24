@@ -118,16 +118,6 @@ export function marsRequiredFleet(p: StoryProgress): EnemySpec[] {
             ...make(e.id, e.x, e.y, e.kind as EnemySpec['kind']),
             factorySpawn: true,
         })),
-        ...Array.from({ length: p.mars.researchWaves }, (_, index) =>
-            Array.from({ length: index + 2 }, (_, i) =>
-                make(
-                    74010 + index * 10 + i,
-                    M.research[index].x + Math.cos(i * 2.4) * 650,
-                    M.research[index].y + Math.sin(i * 2.4) * 650,
-                    i === index + 1 ? 'lancer' : 'patrol',
-                ),
-            ),
-        ).flat(),
     ].filter((e) => !p.mars.kills.includes(e.id));
 }
 export function generateMarsActSector(p: StoryProgress) {

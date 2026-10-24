@@ -6,8 +6,7 @@ import { Typography } from '@components/typography';
 import { Box } from '@components/box';
 import { GameSettings } from '@systems/gameSettings';
 import { SoundSliderOption } from '@components/soundSliderOption';
-import { developmentControls } from '../../../game/state/development';
-import { STORY_SECTORS, type StorySectorId } from '../../../game/state/story';
+import { developmentControls, DEVELOPMENT_STARTS } from '../../../game/state/development';
 import { button, clear, label, panel } from '../../../game/ui/primitives';
 
 export class ConfigurationPopup extends BasePopup<undefined> {
@@ -118,13 +117,14 @@ export class ConfigurationPopup extends BasePopup<undefined> {
         const actions = developmentControls.actions;
         if (!actions) return;
         const host = this.developmentPanel;
+        const current = DEVELOPMENT_STARTS.find((s) => s.id === actions.currentStart())!;
         panel(host, 1200, 130, 360, 690);
         label(host, 'NARZĘDZIA TESTOWE', 1222, 157, 16, C.gold);
         label(
             host,
             actions.active()
-                ? 'Osobny zapis testowy jest aktywny.'
-                : 'Wybór sektora tworzy osobny zapis testowy.',
+                ? `Test: ${current.label}. Każdy start zeruje wybrany etap.`
+                : 'Świeży początek aktu w osobnym zapisie testowym.',
             1222,
             190,
             16,
@@ -146,15 +146,27 @@ export class ConfigurationPopup extends BasePopup<undefined> {
             actions.canReturn(),
             42,
         );
-        label(host, 'PRZEJDŹ DO SEKTORA · BEZ BLOKAD', 1222, 314, 13, C.mint);
-        (Object.keys(STORY_SECTORS) as StorySectorId[]).forEach((id, i) => {
+        button(
+            host,
+            'Resetuj bieżący akt / etap',
+            1222,
+            296,
+            316,
+            () => run(actions.resetCurrent),
+            false,
+            true,
+            34,
+            15,
+        );
+        label(host, 'START AKTU / ETAPU OD POCZĄTKU', 1222, 345, 13, C.mint);
+        DEVELOPMENT_STARTS.forEach((start, i) => {
             button(
                 host,
-                STORY_SECTORS[id].shortName,
+                start.label,
                 1222 + (i % 2) * 162,
-                346 + Math.floor(i / 2) * 49,
+                374 + Math.floor(i / 2) * 49,
                 154,
-                () => run(() => actions.chooseSector(id)),
+                () => run(() => actions.startAct(start.id)),
                 false,
                 true,
                 40,
@@ -175,7 +187,7 @@ export class ConfigurationPopup extends BasePopup<undefined> {
         );
         label(
             host,
-            'Powrót kończy wyprawę bez utraty statku.\nWybór sektora nie zmienia zwykłego zapisu.',
+            'Każdy start zeruje osobny zapis testowy.\nZwykła kampania pozostaje bez zmian.',
             1222,
             763,
             13,

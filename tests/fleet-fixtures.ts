@@ -81,8 +81,11 @@ export function grantStoryTasks(c: Campaign, ids: readonly string[]) {
                 ...MARS_YARD_PATROLS,
             ]),
         ];
-    if (story.claimed.includes('mars-anomaly-research'))
-        mars.researchWaves = mars.researchSites = 3;
+    if (story.claimed.includes('mars-anomaly-research')) {
+        mars.researchSites = 3;
+        mars.researchWaves = 4;
+        mars.researchReturned = true;
+    }
 }
 
 export function grantOrbitalSupplies(

@@ -1,9 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { newStoryCampaign, parseCampaign, SaveRepository } from '../frontend/game/state/campaign';
-import { developmentCopy, DEVELOPMENT_SAVE_KEY } from '../frontend/game/state/development';
+import {
+    createDevelopmentAct,
+    currentDevelopmentStart,
+    DEVELOPMENT_STARTS,
+    DEVELOPMENT_SAVE_KEY,
+} from '../frontend/game/state/development';
 import {
     STORY_SECTORS,
+    syncStory,
     storySectorUnlocked,
     storyTaskAvailable,
     STORY_TASKS,
@@ -15,21 +21,78 @@ import { PHOBOS_MAZE_GATE } from '../frontend/game/worlds/phobosMaze';
 import { MARS_GATES, MARS_MAPS } from '../frontend/game/worlds/marsLayout';
 import { anomalyDrift } from '../frontend/game/graphics/anomalyCloudView';
 
-test('every sector can be tested from a fresh save without completing previous acts or mutating the source', () => {
-    const c = newStoryCampaign(),
-        before = JSON.stringify(c);
-    for (const id of Object.keys(STORY_SECTORS) as StorySectorId[]) {
-        const copy = developmentCopy(c, id);
-        assert.equal(copy.story!.sector, id);
-        assert.ok(storySectorUnlocked(copy.story!, id));
-        assert.ok(parseCampaign(JSON.stringify(copy)), id);
-        assert.equal(copy.story!.claimed.length, 0, 'no invented completed quests');
+test('each act starts with previous history, fresh current missions, normal locks and valid saves', () => {
+    for (const start of DEVELOPMENT_STARTS) {
+        const c = createDevelopmentAct(start.id),
+            p = c.story!;
+        assert.equal(p.sector, start.sector);
+        assert.ok(!p.development, 'normal progression instead of bypassing locks');
+        assert.equal(currentDevelopmentStart(c), start.id);
+        assert.ok(storySectorUnlocked(p, start.sector));
+        assert.ok(parseCampaign(JSON.stringify(c)), start.id);
+        syncStory(c);
+        const current = STORY_TASKS.filter(
+            (t) =>
+                t.act === start.act &&
+                (start.id === 'moon'
+                    ? t.sector === 'lunar'
+                    : start.id === 'neptune'
+                      ? t.sector === 'neptune'
+                      : true),
+        );
+        assert.ok(current.length);
+        for (const t of current) {
+            assert.equal(p.progress[t.id], 0, `${start.id}: ${t.id}`);
+            assert.ok(!p.claimed.includes(t.id));
+        }
+        for (const t of STORY_TASKS.filter((t) => t.act > start.act))
+            assert.equal(p.progress[t.id], 0, `${start.id}: future ${t.id}`);
+        assert.equal(c.activeRun, null);
+        assert.deepEqual(c.recoverySignals, []);
+        assert.deepEqual(c.worldSalvage, []);
+        assert.deepEqual(c.rescueSites, {});
+        assert.equal(c.lunarShipment, null);
     }
-    assert.equal(JSON.stringify(c), before);
-    const mars = developmentCopy(c, 'mars');
+    const mars = createDevelopmentAct('act-2');
+    assert.equal(mars.station.workshopLevel, 1);
+    assert.equal(mars.station.laboratoryLevel, 1);
+    assert.equal(mars.station.shield, false);
+    assert.equal(mars.story!.mars.ambushEntered, false);
+    assert.equal(mars.story!.mars.researchSites, 0);
     assert.ok(storyTaskAvailable(mars.story!, STORY_TASKS.find((t) => t.id === 'mars-shields')!));
-    assert.equal(storySectorUnlocked(c.story!, 'mars'), false);
+    assert.equal(storySectorUnlocked(mars.story!, 'venus'), false);
+    const earth = createDevelopmentAct('act-1');
+    assert.deepEqual(earth, newStoryCampaign());
+    const moon = createDevelopmentAct('moon');
+    assert.equal(moon.station.workshopLevel, 0);
+    assert.equal(
+        storyTaskAvailable(moon.story!, STORY_TASKS.find((t) => t.id === 'earth-workshop')!),
+        false,
+    );
+    const returnMars = createDevelopmentAct('act-5');
+    assert.ok(returnMars.story!.claimed.includes('mercury-technology'));
+    assert.ok(returnMars.story!.claimed.includes('mars-anomaly-research'));
+    assert.equal(returnMars.station.extraction, false);
+    assert.equal(returnMars.station.workshopLevel, 1);
 });
+test('restarting after dirty progress regenerates the same act without carrying later resources or devices', () => {
+    const first = createDevelopmentAct('act-2'),
+        dirty = structuredClone(first);
+    dirty.story!.mars.researchSites = 3;
+    dirty.story!.mars.announcements.push('anomaly');
+    dirty.station.laboratoryLevel = dirty.station.workshopLevel = 3;
+    dirty.station.extraction = true;
+    dirty.bank.resonantComposite = 999;
+    dirty.story!.radio = {
+        pending: [{ speaker: 'science', text: 'Stary komunikat' }],
+        acknowledged: [],
+    };
+    const reset = createDevelopmentAct(currentDevelopmentStart(dirty));
+    assert.deepEqual(reset, first);
+    assert.equal(reset.bank.resonantComposite, undefined);
+    assert.equal(reset.story!.radio, undefined);
+});
+
 test('normal and test repositories remain separate after a test save is updated', () => {
     const storage = new Map<string, string>(),
         io = {
@@ -43,7 +106,7 @@ test('normal and test repositories remain separate after a test save is updated'
     const c = normal.load();
     normal.save(c);
     const saved = storage.get('normal');
-    const copy = developmentCopy(c, 'pluto');
+    const copy = createDevelopmentAct('act-10');
     testSlot.save(copy);
     assert.equal(storage.get('normal'), saved);
     assert.equal(testSlot.load().story!.sector, 'pluto');

@@ -306,7 +306,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.135', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.137', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {

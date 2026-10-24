@@ -50,7 +50,7 @@ test('seeded anomalies have clear research space and convoy routes avoid deposit
 test('escort launches only after a calm continuous hold and waits when the player abandons it', () => {
     const sim = new MissionSimulation(campaign(), 71);
     try {
-        for (let i = 0; i < 60; i++) sim.step({ ...idle, interact: true });
+        for (let i = 0; i < 30; i++) sim.step({ ...idle, interact: true });
         assert.ok(sim.escort!.startProgress > 0);
         sim.step({ ...idle, interact: true, fire: true });
         assert.equal(sim.escort!.startProgress, 0);

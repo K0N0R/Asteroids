@@ -82,7 +82,10 @@ import {
     DEVELOPMENT_SAVE_KEY,
     DEVELOPMENT_MODE_KEY,
     developmentControls,
-    developmentCopy,
+    createDevelopmentAct,
+    currentDevelopmentStart,
+    DEVELOPMENT_STARTS,
+    type DevelopmentStartId,
 } from './state/development';
 import type { StorySectorId } from './state/story';
 
@@ -157,7 +160,9 @@ export class GameSession {
         developmentControls.actions = {
             canReturn: () => !!this.mission,
             returnToBase: () => this.technicalReturn(),
-            chooseSector: (sector) => this.developmentTravel(sector),
+            startAct: (id) => this.developmentStart(id),
+            currentStart: () => currentDevelopmentStart(this.campaign),
+            resetCurrent: () => this.developmentStart(currentDevelopmentStart(this.campaign)),
             leave: () => this.leaveDevelopment(),
             active: () => this.developmentMode,
         };
@@ -571,12 +576,30 @@ export class GameSession {
         GameState.goToLobby();
         InputHandler.clear();
     }
-    private developmentTravel(sector: StorySectorId) {
+    private clearDevelopmentPresentation() {
+        this.dialogue = null;
+        this.dialoguePanel = null;
+        this.dialogueQueue = [];
+        clear(this.communications);
+        clear(this.overlay);
+        this.hasOverlay = false;
+        this.lunarStationOpen = false;
+        this.sandboxSetup = null;
+        this.syncInteractionPanel();
+        this.background.camera = { x: 0, y: 0 };
+        this.background.surface = false;
+        this.background.lunarTransfer = false;
+        this.lobby.visible = true;
+        GameState.goToLobby();
+        InputHandler.clear();
+    }
+    private developmentStart(id: DevelopmentStartId) {
         if (this.launching) return;
+        const copy = createDevelopmentAct(id);
+        const start = DEVELOPMENT_STARTS.find((s) => s.id === id)!;
         this.technicalReturn();
+        this.clearDevelopmentPresentation();
         this.saves.save(this.campaign);
-        const source = this.campaign.story ? this.campaign : newStoryCampaign();
-        const copy = developmentCopy(source, sector);
         this.developmentMode = true;
         try {
             localStorage.setItem(DEVELOPMENT_MODE_KEY, 'true');
@@ -584,18 +607,17 @@ export class GameSession {
             /* Session-only mode. */
         }
         Object.assign(this.campaign, copy);
-        this.saves.save(this.campaign);
-        this.background.setRegion(sector);
+        if (this.saves.save(this.campaign)) this.saves.warning = '';
+        this.background.setRegion(start.sector);
         this.lobby.resetProfile();
         this.lobby.refresh(
-            'TRYB TESTOWY · ' +
-                STORY_SECTORS[sector].name +
-                ' · wybierz statek i wyleć. ESC: powrót do kampanii.',
+            `TRYB TESTOWY · ${start.label} od początku. Misje i świat zresetowane. Wyleć do sektora.`,
         );
     }
     private leaveDevelopment() {
         if (!this.developmentMode || this.launching) return;
         this.technicalReturn();
+        this.clearDevelopmentPresentation();
         this.saves.save(this.campaign);
         this.developmentMode = false;
         try {

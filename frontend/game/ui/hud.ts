@@ -473,13 +473,15 @@ export class MissionHud extends Container {
                     ? 2
                     : this.sim.factoryMission
                       ? 4
-                      : this.sim.campaign.story!.claimed.includes('mars-sector-secure')
-                        ? 15
-                        : mars.baseNeutralized
-                          ? 14
-                          : mars.baseDiscovered
-                            ? 6
-                            : 17;
+                      : this.sim.campaign.story!.claimed.includes('mars-anomaly-research')
+                        ? 0
+                        : this.sim.campaign.story!.claimed.includes('mars-sector-secure')
+                          ? 15
+                          : mars.baseNeutralized
+                            ? 14
+                            : mars.baseDiscovered
+                              ? 6
+                              : 17;
                 if (this.target === 14) this.trackWreck();
             }
         }
@@ -575,14 +577,14 @@ export class MissionHud extends Container {
             this.recoveryWasSecured = true;
             this.target = 0;
         }
-        if (s.surveyData.size !== this.lastSurveyCount) {
+        if (!s.marsAct && s.surveyData.size !== this.lastSurveyCount) {
             this.lastSurveyCount = s.surveyData.size;
             const nextSite = CONTRACTS[this.contract].sites.find((site) => !s.surveyData.has(site));
             if (CONTRACTS[this.contract].sites.length && (!s.recoverySignal || s.recoverySecured))
                 this.target = nextSite ? SCAN_SITES[nextSite].key - 1 : 0;
         }
         const kills = CONTRACTS[this.contract].kills;
-        if (kills && !this.combatComplete && s.enemyKills >= kills) {
+        if (!s.marsAct && kills && !this.combatComplete && s.enemyKills >= kills) {
             this.combatComplete = true;
             this.target = s.recoverySignal && !s.recoverySecured ? 5 : 0;
         }

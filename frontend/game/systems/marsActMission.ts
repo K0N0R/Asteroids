@@ -1,3 +1,5 @@
+import { MarsResearchEscort } from './marsResearchEscort';
+import { MarsResearchWaves } from './marsResearchWaves';
 import { GAME } from '../config';
 import { syncStory } from '../state/story';
 import {
@@ -8,6 +10,7 @@ import {
     phobosRouteOpen,
     phobosOrbitSecured,
     marsSecurityObjective,
+    marsResearchComplete,
 } from '../state/marsAct';
 import { marsSystemLanes, marsSystemZones, generateMarsActSector } from '../worlds/marsSystem';
 import { ANOMALY } from './anomalyField';
@@ -21,6 +24,7 @@ import { OutpostSecurity } from './outpost';
 import { TerminalPuzzle, type TerminalAction } from './terminalPuzzle';
 
 export class MarsActMission {
+    readonly researchWaves: MarsResearchWaves;
     readonly security = new OutpostSecurity({
         ...M.base,
         name: 'Instalacja Fobosa',
@@ -35,6 +39,7 @@ export class MarsActMission {
     private warned = '';
     private lastAllowed: Point = { x: 240, y: 0 };
     constructor(private s: MissionSimulation) {
+        this.researchWaves = new MarsResearchWaves(s, (id, text) => this.say(id, text));
         const factory = s.enemyFactory;
         if (factory) {
             factory.launched = this.p.reinforcements.length;
@@ -77,9 +82,28 @@ export class MarsActMission {
         const e = this.s.escort;
         if (
             this.s.campaign.story!.claimed.includes('mars-sector-secure') &&
-            this.p.researchSites < 3
-        )
-            return `Kepler · pomiar ${this.p.researchSites + 1}/3 · ${e?.state === 'destroyed' ? 'jednostka utracona, wróć po nową' : e?.state === 'idle' ? 'F przy statku: rozpocznij eskortę' : e?.state === 'research' ? `skan ${Math.floor(e.researchProgress)}/12 s` : (e?.state ?? 'przygotowanie')}`;
+            !marsResearchComplete(this.s.campaign.story!)
+        ) {
+            if (e?.state === 'destroyed')
+                return 'Kepler utracony · wróć do Satuk 15 po nową jednostkę';
+            const waiting =
+                e?.waitingReason === 'player'
+                    ? 'zbliż się do Keplera'
+                    : 'oczekiwanie na wolną trasę';
+            if (e instanceof MarsResearchEscort && e.returning)
+                return `Kepler · powrót do Satuk 15 · ${e.state === 'waiting' ? waiting : 'osłaniaj transport danych'}`;
+            const action =
+                e?.state === 'idle'
+                    ? 'F przy statku: rozpocznij eskortę'
+                    : e?.state === 'research'
+                      ? e.scanning
+                          ? `skan ${Math.floor(e.researchProgress)}/12 s`
+                          : 'skan wstrzymany · osłaniaj Keplera'
+                      : e?.state === 'waiting'
+                        ? waiting
+                        : 'lot do stanowiska';
+            return `Kepler · pomiar ${this.p.researchSites + 1}/3 · ${action}`;
+        }
         return marsSecurityObjective(this.s.campaign.story!);
     }
     get context() {
@@ -110,6 +134,7 @@ export class MarsActMission {
             p.mars.aiIdentified,
             p.claimed.includes('mars-sector-secure'),
             p.mars.researchSites,
+            p.mars.researchReturned,
             p.mars.baseNeutralized,
             p.mars.baseDiscovered,
             p.mars.yardDestroyed,
@@ -194,17 +219,26 @@ export class MarsActMission {
     researchCompleted() {
         const s = this.s,
             e = s.escort;
-        if (!e) return;
-        this.p.researchSites = Math.min(3, this.p.researchSites + 1);
-        this.say(
-            `measure-${this.p.researchSites}`,
-            this.p.researchSites === 3
-                ? 'Ivo Nadir: Mamy trzy komplety pomiarów. Wycofujemy ekspedycję. Wróć do Satuk 15 na analizę próbek.'
-                : `Ivo Nadir: Pomiar ${this.p.researchSites}/3 zakończony. Kepler kieruje się do kolejnego miejsca.`,
-        );
-        if (this.p.researchSites < 3) {
-            e.resumeResearch(M.research[this.p.researchSites]);
-            Object.assign(s.sector.researchSite, M.research[this.p.researchSites]);
+        if (!(e instanceof MarsResearchEscort) || e.health <= 0) return;
+        if (e.returning) {
+            if (this.p.researchWaves < 4) return;
+            this.p.researchReturned = true;
+            this.say(
+                'research-home',
+                'Ivo Nadir: Kepler bezpiecznie wrócił do Satuk 15. Dane z trzech skanów są w stacji. Ekspedycja zakończona sukcesem.',
+            );
+        } else {
+            this.p.researchSites = Math.min(3, this.p.researchSites + 1);
+            this.say(
+                `measure-${this.p.researchSites}`,
+                this.p.researchSites === 3
+                    ? 'Ivo Nadir: Trzeci skan zakończony. Kepler wraca z danymi do Satuk 15. Osłaniaj go do samej stacji.'
+                    : `Ivo Nadir: Skan ${this.p.researchSites}/3 zakończony. Kepler leci do kolejnego stanowiska.`,
+            );
+            if (this.p.researchSites < 3) {
+                e.resumeResearch(M.research[this.p.researchSites]);
+                Object.assign(s.sector.researchSite, M.research[this.p.researchSites]);
+            } else e.returnToStation();
         }
         syncStory(s.campaign);
         s.deliveryRevision++;
@@ -423,36 +457,7 @@ export class MarsActMission {
                 );
             }
         }
-        const e = s.escort;
-        if (
-            e &&
-            p.claimed.includes('mars-sector-secure') &&
-            this.p.researchSites < 3 &&
-            ['travel', 'waiting', 'research'].includes(e.state)
-        ) {
-            const index = this.p.researchSites;
-            const near =
-                Math.hypot(e.position.x - M.research[index].x, e.position.y - M.research[index].y) <
-                500;
-            if (near && this.p.researchWaves <= index) {
-                this.p.researchWaves = index + 1;
-                const count = index + 2;
-                s.enemies.add(
-                    Array.from({ length: count }, (_, i) => ({
-                        id: 74010 + index * 10 + i,
-                        x: M.research[index].x + Math.cos(i * 2.4) * 650,
-                        y: M.research[index].y + Math.sin(i * 2.4) * 650,
-                        home: { ...M.research[index] },
-                        phase: 0,
-                        kind: i === count - 1 ? ('lancer' as const) : ('patrol' as const),
-                    })),
-                );
-                this.say(
-                    `wave-${index}`,
-                    'Ada Serrin: Jednostki ukryte w anomaliach wychodzą na przechwycenie Keplera. Osłaniaj statek badawczy!',
-                );
-            }
-        }
+        this.researchWaves.update(dt);
         const change = syncStory(s.campaign);
         if (change?.titles.length) s.deliveryRevision++;
         this.refreshLayout();

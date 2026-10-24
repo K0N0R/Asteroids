@@ -1,0 +1,11 @@
+2026-10-24, localhost:3002/qa-act-starts.html
+Real Core/GameSession/ESC controls; localStorage replaced with a page-local Map.
+1. Primary Act X / Pluto: lab 3, workshop 3, Aegis.
+2. Click II Mars: lab/workshop 1, Swift, shield false, researchSites 0, landingBlocked false, Mars opening briefing.
+3. Dirty test progress: shield true, researchSites 2, landingBlocked true, radio pending 1.
+4. Click Reset current act: shield false, researchSites 0, landingBlocked false, radio pending 0; fresh opening briefing.
+5. Click V Mars: lab/workshop 1, Swift, extraction false, previous researchSites 3, landingBlocked true, no old briefing.
+6. Launch mission; open ESC; reset current: mission false, overlays cleared, radio pending 0.
+7. Leave test: primary Act X / Pluto, lab/workshop 3, Aegis restored.
+At every step: normalUnchanged true (byte comparison), validTest true, no runtime error.
+Console warnings/errors: [].

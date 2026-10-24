@@ -1,5 +1,13 @@
 # Orbit · Asteroids
 
+## Testowanie aktów od początku 0.137
+
+W ESC narzędzia testowe rozpoczynają wybrany akt od jego pierwszych misji. Każdy start tworzy świeży zapis testowy z ukończoną wcześniejszą historią i wyposażeniem właściwym dla tego etapu. Dodano reset bieżącego aktu, osobny Akt V na Marsie oraz wejścia na Księżyc i Neptuna. Zwykłe blokady fabularne działają także w testach. Powrót do kampanii przywraca jej osobny zapis. [Zakres i weryfikacja](docs/implementation-v0.137.md).
+
+## Ekspedycja Keplera 0.136
+
+Trzy skany przy rzeczywistych brzegach anomalii: na północ od Satuk 15, przy wejściu do labiryntu i w jego pierwszym korytarzu. Kepler korzysta z bezpiecznych tras, a skaner ma ruchomą wiązkę i impulsy na badanym obszarze. Cztery fale dronów nadlatują spoza widoku kamery bezpiecznymi korytarzami. Misję kończy dopiero powrót statku z danymi do Satuk 15. [Przebieg i weryfikacja](docs/implementation-v0.136.md).
+
 ## Stabilność WebGL i Fobos 0.135
 
 Anomalie korzystają z ograniczonej, ponownie używanej puli tekstur z buforami RGBA. Po utracie WebGL symulacja i dźwięki zatrzymują się, a grafika jest odtwarzana z zachowanych danych. Zarejestrowana awaria chroni statek i pilota przy ponownym otwarciu gry. Usunięto powielone wskaźniki interakcji i nieaktualny rozkaz podczas eskorty Keplera. Fobos ma jeden wolny patrol, działający terminal F oraz zasadzkę bez uprzedzającego komunikatu. [Weryfikacja i ograniczenia](docs/implementation-v0.135.md).

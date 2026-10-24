@@ -1,3 +1,5 @@
+import { MarsResearchEscort } from '../systems/marsResearchEscort';
+import { drawResearchScan } from '../graphics/researchScan';
 import { interactionOutlineRadius } from '../graphics/interactionOutline';
 import { enqueueRadio } from '../state/communications';
 import { releaseSceneBuffers } from '../../core/systems/renderMemory';
@@ -138,6 +140,7 @@ export class MissionWorld extends Container {
     private rocks = new Map<number, Graphics>();
     private bullets = new Map<number, Graphics>();
     private researchView = researchShipView();
+    private researchScan = new Graphics({ label: 'kepler-anomaly-scan' });
     private guideView: ShipView | null = null;
     private guideMarker = new Graphics();
     private guideLabel: ReturnType<typeof label> | null = null;
@@ -365,7 +368,7 @@ export class MissionWorld extends Container {
             this.cacheViews.set(cache.id, view);
             this.camera.addChildAt(view, 2);
         }
-        this.camera.addChild(this.recoveryRing, this.interactionRing);
+        this.camera.addChild(this.recoveryRing, this.interactionRing, this.researchScan);
         this.solarGlare.visible = simulation.mercurySector;
         this.solarGlare.alpha = 0;
         this.journeyOverlay.addChildAt(this.journeyInk, 0);
@@ -567,7 +570,11 @@ export class MissionWorld extends Container {
             this.applyDirection();
             return;
         }
-        this.simulation.setCombatCamera(this.camera.rotation, this.camera.scale.x);
+        this.simulation.setCombatCamera(
+            this.camera.rotation,
+            this.camera.scale.x,
+            this.camera.pivot,
+        );
         this.accumulator += Math.min(deltaMS / 1000, 0.1);
         this.clock += deltaMS / 1000;
         while (this.accumulator >= GAME.step) {
@@ -1711,6 +1718,7 @@ export class MissionWorld extends Container {
             this.anomalyView.position.copyFrom(s.sector.researchSite);
             this.camera.addChild(this.anomalyView, this.researchView, this.researchStatus);
         }
+        this.researchScan.clear();
         if (s.escort) {
             if (!this.researchView.parent) {
                 this.anomalyView.position.copyFrom(s.sector.researchSite);
@@ -1731,9 +1739,7 @@ export class MissionWorld extends Container {
             this.researchView.rotation =
                 e.previousAngle + angleDifference(e.body.rotation(), e.previousAngle) * alpha;
             this.anomalyView.visible =
-                !s.miningEscort &&
-                (!s.marsAct || (s.area === 'orbit' && s.marsOrbit === 'mars')) &&
-                this.inView(s.sector.researchSite, 180);
+                !s.miningEscort && !s.marsAct && this.inView(s.sector.researchSite, 180);
             this.anomalyView.rotation = this.clock * 0.08;
             this.researchStatus.clear();
             if (this.researchView.visible)
@@ -1744,7 +1750,13 @@ export class MissionWorld extends Container {
                     s.miningEscort ? HULLS.mule.health : 140,
                     C.mint,
                 );
-            if (e.state === 'research' && !s.miningEscort)
+            if (
+                e instanceof MarsResearchEscort &&
+                e.state === 'research' &&
+                this.researchView.visible
+            )
+                drawResearchScan(this.researchScan, p, e.scanTarget, this.clock, e.scanning);
+            if (e.state === 'research' && !s.miningEscort && !s.marsAct)
                 this.researchStatus
                     .beginPath()
                     .arc(

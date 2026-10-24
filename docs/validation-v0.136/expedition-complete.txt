@@ -1,0 +1,12 @@
+Browser tab: 7, Title: "Kepler expedition QA", URL: "http://localhost:3002/qa-mars-research.html".
+1 AXWebArea Kepler expedition QA, URL: localhost:3002/qa-mars-research.html
+	2 container controls
+		3 button Scan I
+		4 button Scan II
+		5 button Scan III
+		6 button Incoming III
+		7 button Full route 4x
+		8 button Stop
+	9 text {"mode":"route","frame":2904,"seconds":194,"site":3,"waves":4,"returned":true,"state":"complete","scanning":false,"progress":0,"position":{"x":170.87464332580566,"y":14.692243933677673},"clearance":2668,"spawned":12,"arrivals":12,"status":"Ekspedycja wróciła · odbierz odprawę w Satuk 15","success":true,"heapMB":156,"peakMB":285,"maxUpdateMS":48,"error":""}
+
+The focused UI element is 7 button Full route 4x

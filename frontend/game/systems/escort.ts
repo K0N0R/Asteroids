@@ -33,9 +33,15 @@ export function clearResearchLeg(a: Point, b: Point, rocks: readonly NavigationR
     });
 }
 // A bounded grid search gives the convoy a route around deposits instead of steering straight into them.
-export function researchPath(from: Point, to: Point, rocks: readonly NavigationRock[], allowed?: (a:Point,b:Point)=>boolean) {
-    const clear = (a:Point,b:Point) => clearResearchLeg(a,b,rocks) && (!allowed || allowed(a,b));
-    if(clear(from,to)) return [{...to}];
+export function researchPath(
+    from: Point,
+    to: Point,
+    rocks: readonly NavigationRock[],
+    allowed?: (a: Point, b: Point) => boolean,
+) {
+    const clear = (a: Point, b: Point) =>
+        clearResearchLeg(a, b, rocks) && (!allowed || allowed(a, b));
+    if (clear(from, to)) return [{ ...to }];
     const size = 100,
         start = { x: Math.round(from.x / size), y: Math.round(from.y / size) },
         goal = { x: Math.round(to.x / size), y: Math.round(to.y / size) };
@@ -114,7 +120,8 @@ export function researchPath(from: Point, to: Point, rocks: readonly NavigationR
                 y < minY ||
                 y > maxY ||
                 blocked.has(k) ||
-                (allowed && !allowed({x:n.x*size,y:n.y*size},{x:x*size,y:y*size})) ||
+                (allowed &&
+                    !allowed({ x: n.x * size, y: n.y * size }, { x: x * size, y: y * size })) ||
                 (dx && dy && (blocked.has(key(n.x + dx, n.y)) || blocked.has(key(n.x, n.y + dy))))
             )
                 continue;
@@ -202,8 +209,15 @@ export class ResearchEscort {
         this.collider.setSensor(true);
         return true;
     }
-    protected allowsTravel(_a:Point,_b:Point) {return true;}
-    protected get researchOnArrival() {return true;}
+    protected allowsTravel(_a: Point, _b: Point) {
+        return true;
+    }
+    protected get arrivalRadius() {
+        return 90;
+    }
+    protected get researchOnArrival() {
+        return true;
+    }
     update(dt: number, player: Point, rocks: readonly NavigationRock[], hostileNear: boolean) {
         this.scanning = false;
         this.previous = this.position;
@@ -221,9 +235,16 @@ export class ResearchEscort {
         if (distance > ESCORT.range) {
             this.state = 'waiting';
             this.waitingReason = 'player';
-        } else if (Math.hypot(p.x - this.destination.x, p.y - this.destination.y) < 90) {
-            if(!this.researchOnArrival) {
-                this.state='complete';this.collider.setSensor(true);this.body.setLinvel({x:0,y:0},true);this.body.setAngvel(0,true);return true;
+        } else if (
+            Math.hypot(p.x - this.destination.x, p.y - this.destination.y) < this.arrivalRadius
+        ) {
+            if (!this.researchOnArrival) {
+                this.state = 'complete';
+                this.waitingReason = null;
+                this.collider.setSensor(true);
+                this.body.setLinvel({ x: 0, y: 0 }, true);
+                this.body.setAngvel(0, true);
+                return true;
             }
             this.state = 'research';
             this.waitingReason = null;
@@ -237,13 +258,17 @@ export class ResearchEscort {
                 return true;
             }
         } else {
-            if (this.path.length && Math.hypot(this.path[0].x - p.x, this.path[0].y - p.y) < 50)
+            if (this.path.length > 1 && Math.hypot(this.path[0].x - p.x, this.path[0].y - p.y) < 50)
                 this.path.shift();
             if (
                 this.replan <= 0 &&
-                (!this.path.length || (!clearResearchLeg(p, this.path[0], rocks) || !this.allowsTravel(p,this.path[0])))
+                (!this.path.length ||
+                    !clearResearchLeg(p, this.path[0], rocks) ||
+                    !this.allowsTravel(p, this.path[0]))
             ) {
-                this.path = researchPath(p, this.destination, rocks, (a,b)=>this.allowsTravel(a,b));
+                this.path = researchPath(p, this.destination, rocks, (a, b) =>
+                    this.allowsTravel(a, b),
+                );
                 this.replan = 1;
             }
             if (!this.path.length) {
