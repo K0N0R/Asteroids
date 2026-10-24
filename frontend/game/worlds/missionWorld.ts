@@ -1,5 +1,5 @@
+import { interactionOutlineRadius } from '../graphics/interactionOutline';
 import { enqueueRadio } from '../state/communications';
-import { INTERACTION_SECONDS } from '../systems/interactionTarget';
 import { releaseSceneBuffers } from '../../core/systems/renderMemory';
 import { MARS_ACT } from '../state/marsAct';
 import { PHOBOS_MAZE_BANDS, PHOBOS_ORBIT_BANDS } from './phobosMaze';
@@ -833,23 +833,25 @@ export class MissionWorld extends Container {
         this.shield.visible = this.home.visible;
         this.navigation.visible = !s.transferActive;
         if (s.marsAct) {
-            const key = s.area;
+            const key = 'mars-system';
             if (key !== this.marsCloudKey) {
                 if (this.marsCloud) destroyDisplayTree(this.marsCloud);
                 this.marsCloud = null;
                 this.marsCloudKey = key;
-                if (s.area === 'orbit')
-                    this.marsCloud = this.camera.addChildAt(
-                        new AnomalyCloudView([...PHOBOS_MAZE_BANDS, ...PHOBOS_ORBIT_BANDS]),
-                        0,
-                    );
+                this.marsCloud = this.camera.addChildAt(
+                    new AnomalyCloudView([...PHOBOS_MAZE_BANDS, ...PHOBOS_ORBIT_BANDS]),
+                    0,
+                );
             }
         }
         for (const cloud of [this.marsCloud, this.jupiterCloud]) {
             if (!cloud) continue;
             // A globe-to-surface zoom covers tens of thousands of world units.
             // Orbital mist belongs in the orbital shot, not in the surface approach.
-            cloud.visible = !s.transferActive;
+            cloud.visible =
+                !s.transferActive &&
+                s.area === 'orbit' &&
+                (!s.marsAct || s.marsOrbit !== 'asteroid');
             if (cloud.visible)
                 cloud.update(
                     p,
@@ -1478,21 +1480,11 @@ export class MissionWorld extends Container {
             title.rotation = -this.camera.rotation;
             title.position.copyFrom(rotateVector({ x: 0, y: 72 }, -this.camera.rotation));
             if (opened) continue;
-            this.cacheRings
-                .beginPath()
-                .circle(cache.x, cache.y, CACHE.radius)
-                .stroke({ color: C.mint, width: 1, alpha: 0.25 });
-            if (s.cacheTarget === cache.id && s.cacheProgress > 0)
+            if (s.interactionProgress?.target.id !== `cache:${cache.id}`)
                 this.cacheRings
                     .beginPath()
-                    .arc(
-                        cache.x,
-                        cache.y,
-                        62,
-                        -Math.PI / 2,
-                        -Math.PI / 2 + (s.cacheProgress / INTERACTION_SECONDS) * Math.PI * 2,
-                    )
-                    .stroke({ color: C.mint, width: 4 });
+                    .circle(cache.x, cache.y, CACHE.radius)
+                    .stroke({ color: C.mint, width: 1, alpha: 0.25 });
         }
         for (const site of s.sector.landmarks) {
             if (!site.siteId) continue;
@@ -1518,22 +1510,13 @@ export class MissionWorld extends Container {
             title.rotation = -this.camera.rotation;
             title.position.copyFrom(rotateVector({ x: 0, y: 103 }, -this.camera.rotation));
             const done = s.surveyData.has(site.siteId);
-            this.surveyRings.circle(site.x, site.y, SCAN.radius).stroke({
-                color: done ? C.mint : C.cyan,
-                width: 1,
-                alpha: done ? 0.35 : 0.2 + Math.sin(this.clock * 2) * 0.08,
-            });
-            if (s.scanTarget === site.siteId && s.scanProgress > 0)
-                this.surveyRings
-                    .beginPath()
-                    .arc(
-                        site.x,
-                        site.y,
-                        95,
-                        -Math.PI / 2,
-                        -Math.PI / 2 + (s.scanProgress / SCAN.seconds) * Math.PI * 2,
-                    )
-                    .stroke({ color: C.mint, width: 4 });
+            if (s.interactionProgress?.target.id !== `site:${site.key}`)
+                this.surveyRings.circle(site.x, site.y, SCAN.radius).stroke({
+                    color: done ? C.mint : C.cyan,
+                    width: 1,
+                    alpha: done ? 0.35 : 0.2 + Math.sin(this.clock * 2) * 0.08,
+                });
+
             if (done)
                 this.surveyRings
                     .moveTo(site.x - 10, site.y - 105)
@@ -1593,20 +1576,11 @@ export class MissionWorld extends Container {
             g.beginPath().circle(0, 0, OUTPOST.scanRange).stroke({ color, width: 1, alpha: 0.08 });
             const tx = outpost.terminal.x - outpost.x,
                 ty = outpost.terminal.y - outpost.y;
-            g.beginPath()
-                .circle(tx, ty, OUTPOST.interactRadius)
-                .stroke({ color: security.secured ? C.mint : color, width: 1, alpha: 0.3 });
-            if (security.equipmentProgress > 0)
+            if (!['terminal', 'mars-terminal'].includes(s.interactionProgress?.target.id ?? ''))
                 g.beginPath()
-                    .arc(
-                        tx,
-                        ty,
-                        48,
-                        -Math.PI / 2,
-                        -Math.PI / 2 +
-                            (security.equipmentProgress / OUTPOST.equipmentSeconds) * Math.PI * 2,
-                    )
-                    .stroke({ color: C.gold, width: 4 });
+                    .circle(tx, ty, OUTPOST.interactRadius)
+                    .stroke({ color: security.secured ? C.mint : color, width: 1, alpha: 0.3 });
+
             if (security.secured && !security.equipmentSecured)
                 g.beginPath()
                     .roundRect(tx + 27, ty - 9, 16, 18, 3)
@@ -1674,21 +1648,11 @@ export class MissionWorld extends Container {
                     .lineTo(p.x, p.y)
                     .stroke({ color: C.mint, width: 2 * transferScale, alpha: 0.6 });
             } else {
-                this.recoveryRing
-                    .beginPath()
-                    .circle(p.x, p.y, RECOVERY.radius)
-                    .stroke({ color: C.gold, width: 1, alpha: 0.2 });
-                if (signal.id === s.recoverySignal?.id && s.recoveryProgress > 0)
+                if (s.interactionProgress?.target.id !== `recovery:${signal.id}`)
                     this.recoveryRing
                         .beginPath()
-                        .arc(
-                            p.x,
-                            p.y,
-                            RECOVERY.radius,
-                            -Math.PI / 2,
-                            -Math.PI / 2 + (s.recoveryProgress / s.recoverySeconds) * Math.PI * 2,
-                        )
-                        .stroke({ color: C.mint, width: 4 });
+                        .circle(p.x, p.y, RECOVERY.radius)
+                        .stroke({ color: C.gold, width: 1, alpha: 0.2 });
             }
         }
         if (s.rescueOperation && !this.rescueShip) {
@@ -1875,21 +1839,11 @@ export class MissionWorld extends Container {
                     )
                     .stroke({ color: C.mint, width: transferScale, alpha: 0.6 });
             } else {
-                this.salvageStatus
-                    .beginPath()
-                    .circle(p.x, p.y, 55)
-                    .stroke({ color: C.gold, width: 1, alpha: 0.25 });
-                if (s.salvageTarget === item.id && s.salvageProgress > 0)
+                if (s.interactionProgress?.target.id !== `tow:${item.id}`)
                     this.salvageStatus
                         .beginPath()
-                        .arc(
-                            p.x,
-                            p.y,
-                            55,
-                            -Math.PI / 2,
-                            -Math.PI / 2 + (s.salvageProgress / INTERACTION_SECONDS) * Math.PI * 2,
-                        )
-                        .stroke({ color: C.mint, width: 3 });
+                        .circle(p.x, p.y, 55)
+                        .stroke({ color: C.gold, width: 1, alpha: 0.25 });
             }
         }
         this.extractionInk.clear();
@@ -2174,20 +2128,11 @@ export class MissionWorld extends Container {
                     .stroke({ color: C.red, alpha: 0.15, width: 2 });
         }
 
-        this.navigation
-            .circle(0, 0, GAME.dockRadius)
-            .stroke({ color: C.mint, width: 1, alpha: 0.3 });
-        if (s.dockProgress > 0)
+        if (s.interactionProgress?.target.id !== 'dock')
             this.navigation
-                .beginPath()
-                .arc(
-                    0,
-                    0,
-                    GAME.dockRadius + 10,
-                    -Math.PI / 2,
-                    -Math.PI / 2 + (s.dockProgress / INTERACTION_SECONDS) * Math.PI * 2,
-                )
-                .stroke({ color: C.mint, width: 4 });
+                .circle(0, 0, GAME.dockRadius)
+                .stroke({ color: C.mint, width: 1, alpha: 0.3 });
+
         this.navigation
             .circle(s.mapCenter.x, s.mapCenter.y, s.sectorRadius)
             .stroke({ color: C.red, width: 10, alpha: 0.5 });
@@ -2197,10 +2142,9 @@ export class MissionWorld extends Container {
         this.camera.setChildIndex(this.interactionRing, this.camera.children.length - 1);
         if (interaction) {
             const { x, y } = interaction.target;
-            const radius = 44 / this.camera.scale.x;
+            const radius = this.interactionRadius(interaction.target.id);
             this.interactionRing
                 .circle(x, y, radius)
-                .fill({ color: C.ink, alpha: 0.6 })
                 .stroke({ color: C.cyan, width: 2 / this.camera.scale.x, alpha: 0.4 })
                 .beginPath()
                 .arc(x, y, radius, -Math.PI / 2, -Math.PI / 2 + interaction.fraction * Math.PI * 2)
@@ -2212,6 +2156,25 @@ export class MissionWorld extends Container {
                 .moveTo(p.x, p.y)
                 .lineTo(p.x + v.x * 0.32, p.y + v.y * 0.32)
                 .stroke({ color: C.cyan, width: 1, alpha: 0.3 });
+    }
+    private interactionRadius(id: string) {
+        let view: Container | undefined | null;
+        const key = Number(id.split(':')[1]);
+        if (id === 'dock') view = this.home;
+        else if (id.startsWith('tow:')) view = this.salvageViews.get(key);
+        else if (id.startsWith('recovery:')) view = this.recoveryViews.get(key);
+        else if (id.startsWith('rescue:')) view = this.rescueShip;
+        else if (id === 'escort') view = this.researchView;
+        else if (id.startsWith('cache:')) view = this.cacheViews.get(key);
+        else if (id.startsWith('site:')) {
+            const site = this.simulation.landmarks.find((s) => s.key === key);
+            if (site?.siteId) view = this.surveyViews.get(site.siteId);
+        }
+        return view
+            ? interactionOutlineRadius(view, this.camera.scale.x)
+            : id.startsWith('gate:') || id.startsWith('site:') || id === 'lunar-station'
+              ? 140
+              : 48;
     }
     dispose() {
         this.audio.pause();

@@ -18,6 +18,7 @@ export interface MarsProgress {
     reinforcements: { id: number; x: number; y: number; kind: string }[];
     researchSites: number;
     researchWaves: number;
+    researchReturned?: boolean;
     quietHack: boolean;
     probeDelivered: boolean;
 }
@@ -38,6 +39,7 @@ export const newMarsProgress = (): MarsProgress => ({
     reinforcements: [],
     researchSites: 0,
     researchWaves: 0,
+    researchReturned: false,
     quietHack: false,
     probeDelivered: false,
 });
@@ -66,6 +68,8 @@ export function validMarsProgress(value: unknown): value is MarsProgress {
                 'wave-0',
                 'wave-1',
                 'wave-2',
+                'wave-3',
+                'research-home',
                 'old-ship-delivery',
             ].includes(id),
         ) &&
@@ -110,7 +114,9 @@ export function validMarsProgress(value: unknown): value is MarsProgress {
         p.researchSites <= 3 &&
         Number.isInteger(p.researchWaves) &&
         p.researchWaves >= p.researchSites &&
-        p.researchWaves <= 3 &&
+        p.researchWaves <= 4 &&
+        (p.researchReturned === undefined || typeof p.researchReturned === 'boolean') &&
+        (!p.researchReturned || p.researchSites === 3) &&
         (!p.memoryDelivered || p.baseNeutralized) &&
         (!p.aiIdentified || p.memoryDelivered) &&
         (!p.yardDestroyed || p.aiIdentified)
@@ -130,15 +136,15 @@ export const MARS_ACT = {
     oldShip: { x: 30700, y: 1000 },
     oldShipId: -73003,
     research: [
-        { x: 1550, y: -1200 },
-        { x: -1650, y: -1700 },
-        { x: -950, y: 1650 },
+        { x: 0, y: -2350 },
+        { x: 2850, y: 1300 },
+        { x: 5200, y: -200 },
     ],
     memoryId: -73001,
     probeId: -73002,
 } as const;
 export const MARS_AMBUSH = [71000, 71001, 71002];
-export const MARS_SURFACE_PATROLS = [71500, 71501, 71502, 71503];
+export const MARS_SURFACE_PATROLS = [71500];
 export const MARS_YARD_PATROLS = Array.from({ length: 12 }, (_, i) => 72000 + i);
 export function phobosRouteOpen(p: StoryProgress) {
     return p.claimed.includes('mars-shields') && p.mars.landingBlocked;
@@ -159,10 +165,20 @@ export function marsThreatsCleared(p: StoryProgress) {
     );
 }
 export function marsSecurityObjective(p: StoryProgress) {
+    if (p.claimed.includes('mars-sector-secure'))
+        return p.mars.researchSites < 3
+            ? 'Osłaniaj ekspedycję naukową Keplera'
+            : marsResearchComplete(p) ? 'Ekspedycja wróciła · odbierz odprawę w Satuk 15' : 'Osłaniaj powrót Keplera do Satuk 15';
     if (!p.mars.landingBlocked) return 'Rozpoznaj barierę lądowania na Marsie';
     if (!phobosRouteOpen(p)) return 'Zbuduj tarcze Satuk 15';
-    if (!phobosOrbitSecured(p)) return 'Zbadaj korytarz i zabezpiecz orbitę Fobosa';
-    if (!p.mars.baseNeutralized) return 'Zneutralizuj ukrytą instalację na Fobosie';
+    if (!phobosOrbitSecured(p))
+        return p.mars.ambushEntered
+            ? 'Odeprzyj atak dronów na orbicie Fobosa'
+            : 'Przeleć korytarzem i zbadaj orbitę Fobosa';
+    if (!p.mars.baseNeutralized)
+        return p.mars.baseDiscovered
+            ? 'Zneutralizuj instalację na Fobosie'
+            : 'Zbadaj powierzchnię Fobosa';
     if (!p.mars.memoryDelivered)
         return 'Odholuj moduł pamięci do Satuk 15 · wraki statków są opcjonalne';
     if (!p.mars.aiIdentified) return 'Wróć do Satuk 15 na analizę danych';
@@ -174,4 +190,23 @@ export function marsArea(p: Point) {
     if (Math.hypot(p.x - MARS_ACT.asteroid.x, p.y - MARS_ACT.asteroid.y) < 2000) return 'asteroid';
     if (Math.hypot(p.x - 30000, p.y) < 3000) return 'phobos';
     return 'orbit';
+}
+
+/** Previously completed expeditions remain complete; partial scans do not imply a safe return. */
+export function marsResearchComplete(p: StoryProgress) {
+    return !!p.mars.researchReturned || p.claimed.includes('mars-anomaly-research');
+}
+/** Start the unfinished leg from Satuk. A lost return requires repeating the final scan. */
+export function prepareMarsResearchSortie(p: StoryProgress) {
+    if (p.sector !== 'mars' || !p.claimed.includes('mars-sector-secure') || marsResearchComplete(p)) return;
+    p.mars.researchSites = Math.min(2, p.mars.researchSites);
+    p.mars.researchWaves = Math.min(p.mars.researchSites, p.mars.researchWaves);
+    p.mars.researchReturned = false;
+    const first = 74010 + p.mars.researchSites * 10;
+    p.mars.kills = p.mars.kills.filter(id => id < first || id >= 74050);
+    p.mars.announcements = p.mars.announcements.filter(id => {
+        if (id.startsWith('wave-')) return Number(id.slice(5)) < p.mars.researchSites;
+        if (id.startsWith('measure-')) return Number(id.slice(8)) <= p.mars.researchSites;
+        return id !== 'research-home';
+    });
 }

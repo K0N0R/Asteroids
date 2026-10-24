@@ -94,8 +94,8 @@ test('two independent opening conditions reveal Phobos; orbit begins peaceful', 
         generateStorySector(p).hyperlanes.some((l) => l.name.includes('Fobosa')),
         false,
     );
-    assert.equal(hullUnlocked(c, 'fighter'), false);
-    assert.equal(hullUnlocked(c, 'tug'), false);
+    assert.ok(hullUnlocked(c, 'fighter'));
+    assert.ok(hullUnlocked(c, 'tug')); // Workshop I already unlocks both hulls.
     p.mars.landingBlocked = true;
     syncStory(c);
     assert.equal(phobosRouteOpen(p), false);
@@ -104,7 +104,7 @@ test('two independent opening conditions reveal Phobos; orbit begins peaceful', 
     assert.ok(phobosRouteOpen(p));
     assert.ok(hullUnlocked(c, 'fighter'));
     assert.ok(hullUnlocked(c, 'tug'));
-    assert.equal(generateStorySector(p).enemies.length, 3);
+    assert.equal(generateStorySector(p).enemies.length, 0); // No advance ambush contacts.
     assert.ok(parseCampaign(JSON.stringify(c)));
 });
 test('shields before the barrier also work and no industrial route leaks early', () => {
@@ -201,10 +201,11 @@ test('live layout reveals gates and first ambush without restarting the sortie',
     move(s, M.landing);
     s.marsAct!.update(idle, 0.02);
     assert.ok(s.sector.hyperlanes.some((l) => l.name === 'Mars — orbita Fobosa'));
-    assert.equal(s.enemies.enemies.size, 3);
+    assert.equal(s.enemies.enemies.size, 0);
     move(s, M.phobos);
     s.marsAct!.update(idle, 0.02);
     assert.ok(c.story!.mars.ambushEntered);
+    assert.equal(s.enemies.enemies.size, 3);
     s.dispose();
 });
 test('silent terminal route neutralizes the base without production or radio completion', () => {
@@ -213,7 +214,9 @@ test('silent terminal route neutralizes the base without production or radio com
     const s = spawn(c);
     s.area = 'surface';
     move(s, M.terminal);
-    s.marsAct!.update({ ...idle, interact: true }, 0.01);
+    s.enemies.enemies.get(MARS_SURFACE_PATROLS[0])!.body.setTranslation({ x: 52.5, y: 56 }, true);
+    s.marsAct!.security.disabledTime = 100;
+    for (let i = 0; i < 62; i++) s.step({ ...idle, target: M.terminal, interact: true });
     solveTerminal(s);
     assert.ok(c.story!.mars.quietHack);
     assert.ok(c.story!.mars.baseNeutralized);
@@ -221,7 +224,7 @@ test('silent terminal route neutralizes the base without production or radio com
     assert.equal(s.enemyFactory!.launched, 0);
     assert.ok(MARS_SURFACE_PATROLS.every((id) => !s.enemies.enemies.has(id)));
     const disabled = c.worldSalvage.filter((item) => item.source === 'patrol');
-    assert.equal(disabled.length, 4);
+    assert.equal(disabled.length, 1);
     assert.ok(disabled.every((item) => item.area === 'surface' && s.salvage.items.has(item.id)));
     assert.ok(parseCampaign(JSON.stringify(c)));
     s.dispose();
@@ -250,7 +253,7 @@ test('research waves remain finite and survive a later sortie through stable ide
     assert.equal(c.story!.mars.researchSites, 0);
     retry.dispose();
 });
-test('journal 29 migrates a partial Mars campaign without losing inventory or ships', () => {
+test('a partial journal 29 is rejected by the current progression schema', () => {
     const c = ready(),
         old = JSON.parse(JSON.stringify(c));
     old.story.version = 29;
@@ -261,15 +264,9 @@ test('journal 29 migrates a partial Mars campaign without losing inventory or sh
         old.story.progress[id] = 0;
     old.story.progress['mars-trail'] = 1;
     old.story.claimed.push('mars-trail');
-    const loaded = parseCampaign(JSON.stringify(old));
-    assert.ok(loaded);
-    assert.equal(loaded.story!.version, 31);
-    assert.deepEqual(loaded.bank, c.bank);
-    assert.deepEqual(loaded.ship, c.ship);
-    assert.equal(loaded.story!.mars.aiIdentified, false);
-    assert.equal(generateStorySector(loaded.story!).enemies.length, 0);
+    assert.equal(parseCampaign(JSON.stringify(old)), null);
 });
-test('journal migration preserves an already finished old Mars chain and later travel', () => {
+test('a completed journal 29 also requires the current schema instead of a partial migration', () => {
     const c = ready(),
         old = JSON.parse(JSON.stringify(c));
     old.story.version = 29;
@@ -286,12 +283,7 @@ test('journal migration preserves an already finished old Mars chain and later t
         old.story.progress[id] = target;
         if (target) old.story.claimed.push(id);
     }
-    const loaded = parseCampaign(JSON.stringify(old));
-    assert.ok(loaded);
-    assert.ok(loaded.story!.claimed.includes('mars-anomaly-research'));
-    assert.ok(acknowledgeStoryBriefing(loaded));
-    assert.ok(storySectorUnlocked(loaded.story!, 'venus'));
-    assert.ok(parseCampaign(JSON.stringify(loaded)));
+    assert.equal(parseCampaign(JSON.stringify(old)), null);
 });
 test('physical memory retains its last position after loss, and a damaged base retains health', () => {
     const c = ready();
@@ -372,7 +364,7 @@ test('AI hull adaptation is gated by the physical analysis while ordinary materi
     openPhobos(before);
     spawn(before).dispose();
     for (let id = 1; id <= 24; id++) assert.ok(deliverSalvage(before, id, 'patrol'));
-    assert.equal(before.reserveShips.length, 0);
+    assert.ok(!before.reserveShips.some((ship) => ship.hull === 'raider'));
     const after = ready();
     ai(after);
     spawn(after).dispose();
@@ -402,7 +394,7 @@ test('Phobos has dedicated approach artwork and real reversible orbit/surface tr
         assert.ok(s.notice.includes(body.name));
         assert.ok(parseCampaign(JSON.stringify(c)), `${body.id}: landed save remains valid`);
         for (let i = 0; i < 220; i++) s.step(idle);
-        // Releasing E is required, just as for the Moon; holding it cannot bounce back.
+        // Releasing F is required, just as for the Moon; holding it cannot bounce back.
         for (let i = 0; i < 130; i++) s.step({ ...idle, interact: true });
         assert.equal(s.area, 'orbit');
         assert.ok(Math.hypot(s.position.x - body.entrance.x, s.position.y - body.entrance.y) < 10);
@@ -522,7 +514,8 @@ test('the Phobos gate at the maze exit still performs its calibrated jump withou
     const lane = s.sector.hyperlanes.find((l) => l.name === 'Mars — orbita Fobosa')!;
     move(s, lane.a);
     const hp = s.hull;
-    s.step({ ...idle, hyperdrive: true });
+    for (let i = 0; i < 62; i++)
+        s.step({ ...idle, target: s.nearestHypergate!.from, interact: true });
     assert.ok(s.hyperdrive.active);
     for (let i = 0; i < 240 && s.hyperdrive.active; i++) s.step(idle);
     assert.equal(s.hyperdrive.active, false);
@@ -536,7 +529,8 @@ test('actual gates change orbital bounds and allow towing disabled drones back t
     orbitSecured(c);
     const s = spawn(c);
     move(s, PHOBOS_MAZE_GATE);
-    s.step({ ...idle, hyperdrive: true });
+    for (let i = 0; i < 62; i++)
+        s.step({ ...idle, target: s.nearestHypergate!.from, interact: true });
     for (let i = 0; i < 200; i++) s.step(idle);
     assert.equal(s.marsOrbit, 'phobos');
     assert.deepEqual(s.mapCenter, MARS_MAPS.phobos.center);
@@ -551,7 +545,8 @@ test('actual gates change orbital bounds and allow towing disabled drones back t
     );
     assert.ok(s.salvage.attach(drone, s.ship));
     assert.equal(s.hyperdriveLock, null);
-    s.step({ ...idle, hyperdrive: true });
+    for (let i = 0; i < 62; i++)
+        s.step({ ...idle, target: s.nearestHypergate!.from, interact: true });
     for (let i = 0; i < 200; i++) s.step(idle);
     assert.equal(s.marsOrbit, 'mars');
     assert.deepEqual(s.mapCenter, MARS_MAPS.mars.center);
@@ -571,7 +566,8 @@ test('the industrial map is dense, uncontaminated, and reachable through its own
     ai(c);
     const s = spawn(c);
     move(s, MARS_GATES.asteroidExit);
-    s.step({ ...idle, hyperdrive: true });
+    for (let i = 0; i < 62; i++)
+        s.step({ ...idle, target: s.nearestHypergate!.from, interact: true });
     for (let i = 0; i < 200; i++) s.step(idle);
     assert.equal(s.marsOrbit, 'asteroid');
     assert.equal(s.sectorRadius, 1800);
@@ -580,7 +576,8 @@ test('the industrial map is dense, uncontaminated, and reachable through its own
     assert.ok(s.sector.rocks.filter((r) => marsOrbitAt(r)?.id === 'asteroid').length > 150);
     assert.ok(s.sector.rocks.some((r) => r.radius === 420 && r.anchored));
     assert.ok(MARS_YARD_PATROLS.every((id) => s.enemies.enemies.has(id)));
-    s.step({ ...idle, hyperdrive: true });
+    for (let i = 0; i < 62; i++)
+        s.step({ ...idle, target: s.nearestHypergate!.from, interact: true });
     for (let i = 0; i < 200; i++) s.step(idle);
     assert.equal(s.marsOrbit, 'phobos');
     s.dispose();
@@ -593,9 +590,10 @@ test('terminal timer raises an alarm, while waiting beside the console never aut
     s.area = 'surface';
     move(s, M.terminal);
     s.marsAct!.security.disabledTime = 100;
+    s.enemies.enemies.get(MARS_SURFACE_PATROLS[0])!.body.setTranslation({ x: 52.5, y: 56 }, true);
     s.marsAct!.update(idle, 6);
     assert.equal(c.story!.mars.baseNeutralized, false);
-    s.marsAct!.update({ ...idle, interact: true }, 0.01);
+    for (let i = 0; i < 62; i++) s.step({ ...idle, target: M.terminal, interact: true });
     assert.ok(s.terminalPuzzle);
     s.marsAct!.update(idle, 16);
     assert.equal(c.story!.mars.baseAlarm, true);

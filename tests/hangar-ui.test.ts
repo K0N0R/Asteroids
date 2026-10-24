@@ -23,6 +23,7 @@ function walk(root: Container): Container[] {
 }
 function ready() {
     const c = newCampaign();
+    c.ship = newShip(1, 'swift');
     c.station.workshopLevel = 3;
     c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
     for (const id of RESOURCE_IDS) c.bank[id] = 1000;
@@ -86,7 +87,7 @@ test('all hull-specific module offers use real tier costs, compare the next leve
                 const offer = moduleOffer(c, c.ship, key);
                 assert.equal(offer.next, Math.min(3, level + 1));
                 assert.deepEqual(offer.cost, level === 3 ? {} : moduleParts(key, level));
-                assert.equal(!!offer.reason, level === 3);
+                assert.equal(!!offer.reason, level === 3 || hull === 'prospector');
                 assert.deepEqual(c, before);
             }
 });
@@ -152,13 +153,16 @@ test('six module tabs show one offer; activation, facility, missing parts and ma
         assert.equal(t.calls.upgrade, 1);
         t.c.ship!.armor = 1;
         t.c.station.workshopLevel = 0;
-        c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
-        assert.match(moduleOffer(t.c, t.c.ship!, 'armor').reason!, /zaplecze/);
+        const hiddenNext = moduleOffer(t.c, t.c.ship!, 'armor');
+        assert.equal(hiddenNext.next, 1, 'unknown module levels are not previewed');
+        assert.deepEqual(hiddenNext.cost, {});
+        assert.ok(hiddenNext.reason);
         t.c.ship!.armor = 3;
         t.render();
         click(t.ui, 'hangar-upgrade');
         assert.equal(t.calls.upgrade, 1);
-        const reserve = newShip(2);
+        t.c.station.workshopLevel = 1;
+        const reserve = newShip(2, 'mule');
         assert.match(moduleOffer(t.c, reserve, 'engine').reason!, /aktywny/);
     } finally {
         destroyDisplayTree(t.ui);

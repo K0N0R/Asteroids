@@ -1,0 +1,9 @@
+Browser tab: 6, Title: "Core GPU Recovery QA", URL: "http://localhost:3002/qa-core-recovery.html".
+1 AXWebArea Core GPU Recovery QA, URL: localhost:3002/qa-core-recovery.html
+	2 container controls
+		3 button Lose WebGL
+		4 button Restore WebGL
+		5 button Reload saved session in memory
+	6 text {"frame":2100,"ticker":true,"elapsed":3.383333333333326,"flag":true,"popup":true,"ship":1,"pilots":1,"reopened":true,"preserved":true,"error":""}
+
+The focused UI element is 5 button Reload saved session in memory

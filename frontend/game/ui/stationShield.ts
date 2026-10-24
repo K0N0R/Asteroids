@@ -8,6 +8,7 @@ import { C } from '../graphics/shapes';
 import { button, label, STATION_LAYOUT } from './primitives';
 import { STATION_DRONES as D, stationDronesLock } from '../state/stationDrones';
 import { StationSentryView } from '../graphics/stationSentryView';
+import { kineticBlueprintReady, recipeDiscovered } from '../state/discovery';
 import type { RecipeId } from '../state/chemistry';
 
 export function stationShieldContent(
@@ -18,7 +19,7 @@ export function stationShieldContent(
     openRecipe?: (id: RecipeId) => void,
 ) {
     const active = !c.story || c.station.shield;
-    const upgradeMode = c.station.shield;
+    const upgradeMode = kineticBlueprintReady(c) || c.station.shieldLevel >= 2;
     const level = c.station.shieldLevel;
     const nextCost = KINETIC_SHIELD_COSTS[level];
     const g = new Graphics(),
@@ -52,7 +53,7 @@ export function stationShieldContent(
     label(ui, 'Generator tarczy', 1072, 278, 30, C.text);
     label(
         ui,
-        active ? `AKTYWNY · KINETYCZNY ${level}/2` : 'NIEZAMONTOWANY',
+        active ? (level ? `AKTYWNY · WZMOCNIENIE ${level}` : 'AKTYWNY') : 'NIEZAMONTOWANY',
         1072,
         326,
         17,
@@ -60,7 +61,7 @@ export function stationShieldContent(
     );
     label(
         ui,
-        `Po montażu: bezpieczny obszar ${upgradeMode ? stationProtectionRadius(c) : STATION_SHIELD.radius} m wokół stacji na orbicie. Odrzuca asteroidy i wrogów oraz zatrzymuje pociski na granicy.`,
+        `${active && (!upgradeMode || !nextCost) ? 'Aktywny obszar' : 'Po montażu: obszar'} ${upgradeMode && nextCost ? stationProtectionRadius(c) + 150 : active ? stationProtectionRadius(c) : STATION_SHIELD.radius} m wokół stacji na orbicie. Odrzuca asteroidy i wrogów oraz zatrzymuje pociski na granicy.`,
         1072,
         375,
         18,
@@ -76,22 +77,27 @@ export function stationShieldContent(
         C.muted,
         456,
     );
-    if (!upgradeMode || nextCost)
+    if (!active || (upgradeMode && nextCost))
         constructionCosts(
             ui,
             c.bank,
             upgradeMode ? nextCost : STATION_SHIELD.cost,
             542,
             openRecipe,
+            (recipe) => recipeDiscovered(c, recipe),
         );
-    else label(ui, 'Poziom II · maksymalny zasięg 1150 m', 1072, 597, 19, C.gold, 456);
-    const lock = upgradeMode ? kineticInstallationLock(c, 'shield') : stationShieldLock(c);
+    else if (upgradeMode) label(ui, 'Generator w pełni rozbudowany', 1072, 597, 19, C.gold, 456);
+    const lock = upgradeMode
+        ? kineticInstallationLock(c, 'shield')
+        : active
+          ? null
+          : stationShieldLock(c);
     label(
         ui,
         upgradeMode
             ? (lock ?? 'Moduł gotowy · montaż zwiększy rzeczywisty obszar osłony.')
             : active
-              ? 'Tryb testowy korzysta z pełnej osłony od początku.'
+              ? 'Generator pracuje. Obszar ochrony jest aktywny.'
               : (lock ?? 'Zaplecze i składniki gotowe. Można rozpocząć montaż.'),
         1072,
         677,
@@ -113,7 +119,7 @@ export function stationShieldContent(
         456,
         () => (upgradeMode ? upgrade?.() : install?.()),
         true,
-        (upgradeMode ? !!upgrade : !!install) && !lock,
+        (upgradeMode ? !!upgrade : !active && !!install) && !lock,
         STATION_LAYOUT.actionHeight,
         16,
     );

@@ -5,9 +5,7 @@ import {
     STORY_SECTORS,
     EARTH_BRIEFING,
     storyNextStep,
-    storyVisibleTasks,
     storyDiscoveredTasks,
-    actOneComplete,
     storyAct,
 } from '../state/story';
 import { C } from '../graphics/shapes';
@@ -38,7 +36,6 @@ export function storyOverview(
     },
 ) {
     const p = c.story!;
-    const allTasks = storyVisibleTasks(p);
     const discovered = storyDiscoveredTasks(p);
     const filter = actions.filter ?? 'active';
     const tasks = discovered
@@ -110,42 +107,17 @@ export function storyOverview(
             27,
         );
     }
-    const complete = allTasks.filter((t) => t.required).every((t) => p.claimed.includes(t.id));
     const def = STORY_SECTORS[p.sector],
         pilot = selectedPilot(c),
         pilotState = c.pilots.find((entry) => entry.id === c.selectedPilot);
     label(ui, `SATUK 15 / ${storyAct(p)}`, 1072, 244, 13, C.mint);
     label(ui, def.name, 1072, 276, 27, C.text, 456);
     const narrative =
-        p.sector === 'pluto' ||
-        p.sector === 'uranus' ||
-        p.sector === 'neptune' ||
-        p.sector === 'saturn' ||
-        p.sector === 'jupiter' ||
-        p.sector === 'belt' ||
-        storyAct(p) === 'AKT V'
-            ? storyNextStep(p)
-            : p.sector === 'mercury'
-              ? storyNextStep(p)
-              : p.sector === 'earth' && p.claimed.includes('mars-anomaly-research')
-                ? EARTH_BRIEFING
-                : p.sector === 'venus'
-                  ? complete || p.claimed.includes('venus-build')
-                      ? storyNextStep(p)
-                      : 'Przed wyprawą na Merkurego potrzebujesz zaplecza przy Wenus. Rozpoznaj orbitę, wybierz miejsce pod placówkę i zgromadź materiały. Ziemia, Księżyc i Mars pozostają dostępne.'
-                  : p.sector === 'mars'
-                    ? complete
-                        ? storyNextStep(p)
-                        : 'Zbuduj tarcze Satuk 15 i zbadaj barierę lądowania. Odkrywaj dostępne obszary, zabezpiecz sektor i osłaniaj badania anomalii.'
-                    : actOneComplete(p)
-                      ? 'Stacja księżycowa działa, a atak został odparty. Podejmij pościg na Marsie lub wróć do wcześniejszych zadań.'
-                      : p.sector === 'earth'
-                        ? p.claimed.includes('lunar-survey')
-                            ? 'Sonda księżycowa zsynchronizowana. Rozbuduj placówkę na powierzchni; zasoby możesz przywozić z orbity Ziemi i bogatej asteroidy.'
-                            : p.claimed.includes('earth-relay')
-                              ? 'Trasy na Księżyc i do wraków satelit są otwarte. Przygotuj zaplecze Satuk 15 i nawiąż kontakt z sondą księżycową.'
-                              : 'Naukowcy zgłaszają narastające anomalie. Przygotuj zaplecze stacji i przywróć łączność na orbicie Ziemi.'
-                        : storyNextStep(p);
+        p.sector === 'earth' &&
+        p.claimed.includes('mars-anomaly-research') &&
+        !p.claimed.includes('earth-debrief')
+            ? EARTH_BRIEFING
+            : storyNextStep(p);
     const lines = CanvasTextMetrics.measureText(
         narrative,
         new TextStyle({
@@ -164,9 +136,9 @@ export function storyOverview(
                   .replace(/\s+\S*$/, '') + '…'
             : narrative;
     label(ui, brief, 1072, 320, 16, C.muted, 456);
-    const main = allTasks.filter((task) => task.required),
+    const main = discovered.filter((task) => task.required),
         done = main.filter((task) => p.claimed.includes(task.id)).length;
-    label(ui, `Główne cele: ${done}/${main.length}`, 1072, 391, 16, C.mint);
+    label(ui, `Odkryte cele: ${done}/${main.length}`, 1072, 391, 16, C.mint);
     ui.addChild(new Graphics().roundRect(1072, 416, 456, 4, 2).fill(C.line));
     if (done && main.length)
         ui.addChild(

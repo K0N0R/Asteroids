@@ -167,24 +167,11 @@ export class MoonSurfaceView extends Container {
         stage: number,
         cameraAngle: number,
         detail = 1,
-        progress = 0,
+        _progress = 0,
         modules?: readonly boolean[],
     ) {
         if (!this.visible) return;
         this.passageProgress.clear();
-        if (progress > 0) {
-            const anchor = surface ? MOON.exit : MOON.entrance;
-            this.passageProgress
-                .beginPath()
-                .arc(
-                    anchor.x,
-                    anchor.y,
-                    155,
-                    -Math.PI / 2,
-                    -Math.PI / 2 + Math.min(1, progress / MOON.transferSeconds) * Math.PI * 2,
-                )
-                .stroke({ color: C.mint, width: 4 });
-        }
         this.details.alpha = detail;
         this.horizon.alpha = (1 - detail) * 0.24;
         for (const title of this.titles) {

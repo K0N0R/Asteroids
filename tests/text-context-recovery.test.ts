@@ -1,3 +1,4 @@
+import { interactionOutlineRadius } from '../frontend/game/graphics/interactionOutline';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Container, Graphics, Text } from 'pixi.js';
@@ -34,17 +35,31 @@ test('GPU recovery refreshes static and hidden text, pauses simulation and respe
             this.started = true;
         },
     };
-    const unbind = bindRenderContextRecovery({ canvas, stage, ticker } as Parameters<
-        typeof bindRenderContextRecovery
-    >[0]);
+    let suspends = 0,
+        recovers = 0,
+        losses = 0,
+        restores = 0;
+    Object.assign(hidden, {
+        suspendRenderContext: () => suspends++,
+        recoverRenderContext: () => recovers++,
+    });
+    const unbind = bindRenderContextRecovery(
+        { canvas, stage, ticker } as Parameters<typeof bindRenderContextRecovery>[0],
+        { lost: () => losses++, restored: () => restores++ },
+    );
     try {
         const lost = new Event('webglcontextlost', { cancelable: true });
         canvas.dispatchEvent(lost);
         assert.ok(lost.defaultPrevented);
         assert.equal(ticker.started, false);
+        assert.equal(suspends, 1);
+        assert.equal(losses, 1);
+        canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
         canvas.dispatchEvent(new Event('webglcontextrestored'));
         assert.equal(ticker.started, true);
         assert.equal(refreshes, 2);
+        assert.equal(recovers, 1);
+        assert.equal(restores, 1);
         assert.equal(vector.context.dirty, true);
         assert.equal(cacheUpdates, 1);
         assert.equal(title.text, 'Satuk 15');
@@ -72,4 +87,15 @@ test('typography uses one intentional supersampling factor, independent of devic
     } finally {
         label.destroy({ children: true });
     }
+});
+
+test('interaction outline fits physical art, ignores captions and scales with the object', () => {
+    const station = new Container();
+    station.addChild(new Graphics().circle(0, 0, 160).fill(0xffffff));
+    station.addChild(new Typography({ text: 'An enormously long station caption', size: 20 }));
+    assert.equal(interactionOutlineRadius(station, 1), 168);
+    station.scale.set(2);
+    assert.equal(interactionOutlineRadius(station, 1), 328);
+    assert.equal(interactionOutlineRadius(station, 2), 324);
+    station.destroy({ children: true });
 });

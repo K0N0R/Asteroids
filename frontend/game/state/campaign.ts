@@ -139,6 +139,8 @@ export interface Campaign {
     selectedPilot: number;
     nextPilotId: number;
     activeRun: {
+        /** A recorded renderer failure must not be settled as a ship/pilot loss on reload. */
+        technicalInterruption?: boolean;
         mission?: MissionOrder;
         pilotId: number;
         seed: number;
@@ -340,6 +342,8 @@ export function parseCampaign(json: string | null): Campaign | null {
         if (p.activeRun !== null) {
             if (
                 !object(p.activeRun) ||
+                (p.activeRun.technicalInterruption !== undefined &&
+                    typeof p.activeRun.technicalInterruption !== 'boolean') ||
                 !integer(p.activeRun.seed, 0xffffffff) ||
                 !integer(p.activeRun.contract, CONTRACTS.length - 1) ||
                 !ids.includes(p.activeRun.pilotId as number) ||

@@ -73,18 +73,34 @@ export function marsRequiredFleet(p: StoryProgress): EnemySpec[] {
         route?: EnemySpec['route'],
     ): EnemySpec => ({ id, x, y, kind, home: { x, y }, phase: 0, route });
     return [
-        ...(phobosRouteOpen(p)
+        ...(phobosRouteOpen(p) && p.mars.ambushEntered
             ? MARS_AMBUSH.map((id, i) =>
-                  make(id, 29200 + i * 460, 700 - i * 500, i === 2 ? 'lancer' : 'patrol'),
+                  make(
+                      id,
+                      MARS_GATES.phobosArrival.x + 500 + i * 160,
+                      MARS_GATES.phobosArrival.y - 300 - i * 180,
+                      'patrol',
+                  ),
               )
             : []),
         ...(phobosOrbitSecured(p) && !p.mars.baseNeutralized
-            ? MARS_SURFACE_PATROLS.map((id, i) => {
-                  const route = Array.from({ length: 4 }, (_, j) => {
-                      const a = ((j + i) * Math.PI) / 2;
-                      return { x: M.base.x + Math.cos(a) * 440, y: M.base.y + Math.sin(a) * 440 };
-                  });
-                  return make(id, route[0].x, route[0].y, 'patrol', route);
+            ? MARS_SURFACE_PATROLS.map((id) => {
+                  // One approach to the base, then a slow circuit across the moon.
+                  const route = [
+                      { x: 6900, y: 6700 },
+                      { x: 7550, y: 7000 },
+                      { x: 6600, y: 7450 },
+                      { x: 5300, y: 6800 },
+                      { x: 5250, y: 5600 },
+                      { x: 6250, y: 4600 },
+                      { x: 7650, y: 5200 },
+                      { x: 7900, y: 6150 },
+                  ];
+                  return {
+                      ...make(id, 7500, 6600, 'patrol', route),
+                      patrolSpeed: 42,
+                      routeLoopFrom: 1,
+                  };
               })
             : []),
         ...(p.mars.aiIdentified
@@ -166,9 +182,7 @@ export function generateMarsActSector(p: StoryProgress) {
                 kind: phobosOrbitSecured(p) ? 'passage' : 'field',
                 surfaceBody: 'phobos',
                 radius: 200,
-                name: phobosOrbitSecured(p)
-                    ? 'Fobos · lądowanie'
-                    : 'Fobos · najpierw odeprzyj zasadzkę',
+                name: phobosOrbitSecured(p) ? 'Fobos · lądowanie' : 'Fobos',
             },
             { ...M.probe, key: 6, kind: 'wreck', radius: 120, name: 'Zapomniana ziemska sonda' },
             { ...M.oldShip, key: 0, kind: 'wreck', radius: 120, name: 'Wrak starego Prospectora' },

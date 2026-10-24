@@ -49,7 +49,7 @@ export const RECIPES = {
         amount: 4,
         level: 1,
         explanation:
-            'Stal jest stopem żelaza z dodatkiem węgla. Porcje gry są uproszczeniem technologicznym, a nie jednym wzorem cząsteczki.',
+            'Stal jest stopem żelaza z dodatkiem węgla. Kontrolowane wytapianie przygotowuje materiał do obróbki konstrukcyjnej.',
     },
     alloy: {
         title: 'Lekki stop Al–Mg',
@@ -101,7 +101,7 @@ export const RECIPES = {
         amount: 4,
         level: 2,
         explanation:
-            'Fikcyjna technologia: osnowa krzemionkowa stabilizuje urobek. To materiał gry, nie nowy pierwiastek ani rzeczywista reakcja chemiczna.',
+            'Osnowa krzemionkowa wiąże urobek anomalii i ogranicza jego niestabilność. Materiał można dzięki temu bezpiecznie przechowywać i obrabiać.',
     },
     resonantComposite: {
         title: 'Kompozyt rezonansowy',
@@ -114,7 +114,7 @@ export const RECIPES = {
         amount: 2,
         level: 3,
         explanation:
-            'Fikcyjna technologia opracowana po analizie Jowisza. Stabilizowany materiał i ceramika tworzą kompozyt.',
+            'Stabilizowany materiał anomalii jest łączony z ceramiką w wielowarstwowy kompozyt o kontrolowanej strukturze.',
     },
     plating: {
         title: 'Poszycie stalowe I',

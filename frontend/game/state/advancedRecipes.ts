@@ -118,7 +118,7 @@ export const ADVANCED_RECIPES = Object.fromEntries(
                     amount: 1,
                     level: tier,
                     explanation:
-                        'Zaawansowane materiały i precyzyjny montaż tworzą gotową część. Nie wymaga zużywania części poprzedniego tieru.',
+                        'Zaawansowane materiały i precyzyjny montaż tworzą podzespół gotowy do instalacji.',
                 },
             ];
         }),

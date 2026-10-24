@@ -51,6 +51,8 @@ export interface EnemySpec extends Point {
     home: Point;
     phase: number;
     route?: Point[];
+    patrolSpeed?: number;
+    routeLoopFrom?: number;
 }
 export interface CacheSpec extends Point {
     id: number;

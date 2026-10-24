@@ -1,8 +1,18 @@
 # Aktualny plan rozwoju
 
-Stan: 2026-10-24, wersja robocza 0.133.
+Stan: 2026-10-24, wersja robocza 0.135.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
+
+## Stabilność WebGL i poprawki Fobosa 0.135
+
+Usunięto transfer ImageBitmap z rasteryzacji anomalii. Pula ma maksymalnie 48 ponownie używanych tekstur 320×320 i zachowane piksele do odtworzenia po awarii GPU. Ten sam widok obsługuje powroty między mapami Marsa. Utrata kontekstu zatrzymuje symulację i dźwięk, zapisuje znacznik ochrony wyprawy, a odtworzenie otwiera pauzę. Brak nowego resetu formatu zapisu. Pojedynczy obrys F/H mierzy fizyczny model celu; stare łuki postępu usunięto. Kepler nie dostaje rozkazu kończenia poprzedniej misji. Baza Fobosa ma jeden wolny patrol i poprawnie podłączony terminal; zasadzka rozpoczyna się atakiem, komunikat następuje po walce. [Dowody i zakres testów](implementation-v0.135.md).
+
+## Stopniowe odkrywanie i oprawa urządzeń 0.134
+
+**Wiedza z planu projektowego nie jest wiedzą gracza.** Nowe teksty i widoki mają opisywać odkryte fakty, bieżący cel oraz dostępne działanie. Nie zapowiadają przyszłej planety, technologii, kadłuba ani pełnej liczby tierów tylko dlatego, że istnieją w planie. Koszt materiałów może blokować znany projekt; brak fabularnej wiedzy ukrywa projekt. Istniejące instalacje pozostają dostępne. Wspólne reguły: `frontend/game/state/discovery.ts`.
+
+Zastosowano je w Rozbudowie stacji, produkcji, stoczni, modułach, tarczach, bazie księżycowej i mapie podróży. Ekstrakcja ujawnia się po zakończeniu aktu II jako badania; jej projekt montażowy pojawia się po zdobyciu technologii. Nowe ilustracje urządzeń odpowiadają funkcji i poziomowi. Odprawy nie zdradzają już Merkurego przed zakończeniem przygotowań Wenus. [Szczegóły i testy](implementation-v0.134.md).
 
 ## Poprawki HUD i stabilności 0.133
 

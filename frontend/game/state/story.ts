@@ -506,7 +506,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         sector: 'earth',
         act: 2,
         title: 'Nowy kierunek',
-        detail: 'Po zakończeniu trzech pomiarów wróć do Satuk 15 i zatwierdź odprawę. Następny kierunek: Wenus i Merkury.',
+        detail: 'Pomiary zakończone. Wróć do Satuk 15 i odbierz odprawę przed wyprawą do Wenus.',
         required: true,
         kind: 'briefing',
         target: 1,
@@ -1219,7 +1219,7 @@ export const VENUS_EXPANSION_TASKS = [
 ];
 export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
-    'Pomiary anomalii wskazują, że brakującą technologię znajdziemy w rejonie Merkurego. Najpierw skieruj Satuk 15 do Wenus: rozpoznaj orbitę i przygotuj zaplecze przed wyprawą bliżej Słońca.';
+    'Pomiary anomalii są zabezpieczone, ale nie potrafimy jeszcze bezpiecznie pobierać ich materiału. Następny kierunek: Wenus. Rozpoznaj orbitę i nawiąż łączność z lokalnym przekaźnikiem.';
 export interface StoryProgress {
     version: 32;
     /** Only written to the separate development save slot. */
@@ -1418,7 +1418,7 @@ export function storyNextStep(p: StoryProgress) {
     }
     if (p.sector === 'jupiter') {
         if (storySectorComplete(p, 'jupiter'))
-            return 'Pakiet Jowisza otwiera Laboratorium III i Warsztat III w Rozbudowie stacji. Możesz przygotować części III oraz Aegisa, Żądło lub Feniksa i kontynuować lot do Saturna.';
+            return 'Pakiet obserwacyjny zabezpieczony. Nowy projekt badań czeka w Rozbudowie stacji. Trasa do Saturna jest otwarta.';
         if (!p.claimed.includes('jupiter-survey'))
             return 'Wykonaj pomiary podejścia. Zbierz odczyt przez F i wróć; raport otworzy rejon patroli oraz chroniony węzeł.';
         if (jupiterObservationsOpen(p))
@@ -1479,7 +1479,7 @@ export function storyNextStep(p: StoryProgress) {
             : 'Rozpoznaj orbitę Wenus i wróć z odczytem. Zwiad otworzy dalszy obszar oraz przygotowania placówki.';
     }
     if (actTwoComplete(p))
-        return 'Akt II ukończony. Trasa do Wenus otwarta. Przygotuj zaplecze przed wyprawą na Merkurego; wcześniejsze sektory pozostają dostępne.';
+        return 'Akt II ukończony. Trasa do Wenus otwarta. Wybierz jej sektor w Układzie słonecznym; wcześniejsze rejony pozostają dostępne.';
     if (p.claimed.includes('mars-anomaly-research'))
         return p.sector === 'earth'
             ? 'Pomiary anomalii dostarczone. Odbierz odprawę Nowy kierunek i zatwierdź plan podróży do Wenus.'

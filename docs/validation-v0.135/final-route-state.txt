@@ -1,0 +1,14 @@
+Browser tab: 5, Title: "Stability route QA", URL: "http://localhost:3002/qa-stability.html".
+1 AXWebArea Stability route QA, URL: localhost:3002/qa-stability.html
+	2 container controls
+		3 button Trzy przebiegi trasy
+		4 button Utrata WebGL
+		5 button OdtwĂłrz WebGL
+		6 button Stop
+		7 button Restart sceny
+		8 button Dok F
+		9 button 10 restartów
+		10 button Anomalia
+	11 text {"lap":3,"running":false,"segment":0,"segments":467,"frame":27180,"elapsed":452.99999999991667,"heapMB":207,"peakHeapMB":668,"anomaly":{"builds":1296,"lastBuildMS":54.79999999888241,"entries":42,"pixels":4507904,"bytes":18031616,"workers":1,"allocations":41},"gpuTextures":92,"graphics":109,"resolutionListeners":52,"lost":1,"restored":1,"restarts":0,"maxFrameMS":30,"area":"orbit","orbit":"mars","dockable":false,"progress":null,"ended":null,"notice":"Wrak drona · H holuj · recykling po powrocie.","error":""}
+
+The focused UI element is 5 button OdtwĂłrz WebGL

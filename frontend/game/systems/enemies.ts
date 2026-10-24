@@ -241,7 +241,10 @@ export class EnemyFleet {
                 enemy.lostSight = 0;
             }
             let vx: number, vy: number;
-            const speed = enemy.state === 'chase' ? config.chaseSpeed : config.patrolSpeed;
+            const speed =
+                enemy.state === 'chase'
+                    ? config.chaseSpeed
+                    : (enemy.patrolSpeed ?? config.patrolSpeed);
             const pursuitTime =
                 enemy.kind === 'interceptor' && visible
                     ? Math.min(0.9, distance / config.chaseSpeed)
@@ -267,7 +270,10 @@ export class EnemyFleet {
                 if (enemy.state === 'patrol' && enemy.route?.length) {
                     const point = enemy.route[enemy.routeIndex];
                     if (Math.hypot(point.x - p.x, point.y - p.y) < 180)
-                        enemy.routeIndex = (enemy.routeIndex + 1) % enemy.route.length;
+                        enemy.routeIndex =
+                            enemy.routeIndex + 1 < enemy.route.length
+                                ? enemy.routeIndex + 1
+                                : (enemy.routeLoopFrom ?? 0);
                 }
                 const target =
                     enemy.state === 'return'

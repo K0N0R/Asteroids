@@ -42,7 +42,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'operations',
-                text: 'Najpierw uruchom Laboratorium: zbierz 8 żelaza, 2 miedzi i 2 krzemu, a potem zamontuj je w Rozbudowie stacji. Przygotujemy tam materiały do placówki księżycowej.',
+                text: 'Najpierw uruchom Laboratorium: zbierz 8 żelaza, 2 miedzi i 2 krzemu, a potem zamontuj je w Rozbudowie stacji. Potrzebujemy go do przygotowywania materiałów z zebranych pierwiastków.',
             },
         ],
     },
@@ -97,7 +97,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'science',
-                text: 'Sprawdzę zapis ich sygnałów. Ty uruchom Warsztat I z materiałów Laboratorium. Otworzy produkcję części i pięciu projektów statków. Nie odcinamy tras do Ziemi ani Księżyca, więc do zaległych spraw będzie można wrócić.',
+                text: 'Sprawdzę zapis ich sygnałów. Ty uruchom Warsztat I z materiałów Laboratorium. Otworzy produkcję części i budowę statków. Nie odcinamy tras do Ziemi ani Księżyca, więc do zaległych spraw będzie można wrócić.',
             },
         ],
     },
@@ -152,7 +152,7 @@ export const DIALOGUES: readonly DialogueDefinition[] = [
             },
             {
                 speaker: 'operations',
-                text: 'Odbierz w Satuk 15 odprawę Nowy kierunek. Przy Wenus przygotujemy osłony, a na Merkurym poszukamy rozwiązania bariery.',
+                text: 'Odbierz w Satuk 15 odprawę Nowy kierunek. Kierujemy ekspedycję do Wenus. Zacznijmy od rozpoznania orbity i odczytu tamtejszego przekaźnika.',
             },
         ],
     },

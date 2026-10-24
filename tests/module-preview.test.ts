@@ -34,6 +34,7 @@ test('reset and complete preview preserve hull identity and clamp individual lev
 
 test('a maximum preview never changes the price or level of a real upgrade', () => {
     const c = newCampaign();
+    c.ship = newShip(1, 'swift');
     c.ship!.armor = 1;
     c.station.workshopLevel = 3;
     c.station.laboratoryLevel = Math.max(c.station.laboratoryLevel, c.station.workshopLevel);
@@ -45,7 +46,7 @@ test('a maximum preview never changes the price or level of a real upgrade', () 
     fundEquipment(c, upgradePrice(c, 'armor'));
     assert.ok(buyUpgrade(c, 'armor'));
     assert.equal(c.ship!.armor, 2);
-    assert.equal(c.bank.ore, 1000 - price.ore);
+    assert.equal(c.bank.ore, 1000, 'module upgrades consume their tiered parts, not raw iron');
     assert.equal(c.bank.parts, 1000);
     assert.equal(c.bank.storageFramesII, 0);
 });
@@ -59,7 +60,11 @@ test('comparison uses the selected hull specialization including cooldown reduct
     assert.equal(moduleComparison(newShip(1, 'atlas'), 'drill', 3).after, '4');
     assert.equal(moduleComparison(newShip(1, 'widmo'), 'drill', 3).after, '7.5 s');
     assert.equal(moduleComparison(newShip(1, 'widmo'), 'handling', 2).after, '97.5');
-    assert.equal(moduleComparison(newShip(1, 'aegis'), 'handling', 2).after, '75');
+    assert.deepEqual(moduleComparison(newShip(1, 'aegis'), 'handling', 2), {
+        title: 'Skręt',
+        before: '1.25',
+        after: '1.75',
+    });
     assert.equal(
         moduleComparison(newShip(1, 'swift'), 'engine', 3).after,
         `${Number((1500 * 1.45).toFixed(2))}`,

@@ -9,7 +9,14 @@ import {
 import { RECIPES, RECIPE_IDS, type RecipeId } from '../state/chemistry';
 import { HULLS, type HullId } from '../config';
 import { C } from '../graphics/shapes';
-import { fittedScene, productionBayScene } from './lobbyGraphics';
+import { fittedScene } from './lobbyGraphics';
+import { stationDeviceScene } from '../graphics/stationDevice';
+import {
+    stationDeviceDiscovered,
+    stationBlueprintReady,
+    visibleStationTiers,
+    recipeDiscovered,
+} from '../state/discovery';
 import { constructionCosts } from './constructionCosts';
 import { stationShieldContent, stationDronesContent } from './stationShield';
 import { button, label, panel, STATION_LAYOUT } from './primitives';
@@ -44,9 +51,14 @@ export function stationScreen(
         ['drones', 'Drony'],
         ['extraction', 'Ekstrakcja anomalii'],
     ] as const;
+    const visible = entries.filter(([id]) => stationDeviceDiscovered(c, id));
+    if (!visible.some(([id]) => id === state.project)) {
+        state.project = 'laboratory';
+        state.preview = 0;
+    }
     panel(ui, 280, STATION_LAYOUT.top, 285, 591);
     label(ui, 'URZĄDZENIA STACJI', 300, 244, 14, C.mint);
-    entries.forEach(([id, title], index) => {
+    visible.forEach(([id, title], index) => {
         const level =
             id === 'shield'
                 ? Number(c.station.shield) + c.station.shieldLevel
@@ -80,8 +92,9 @@ export function stationScreen(
     }
     const id = state.project,
         current = stationProjectLevel(c, id),
-        limit = id === 'extraction' ? 1 : 3;
-    const selected = Math.max(1, Math.min(limit, state.preview || current + 1));
+        tiers = visibleStationTiers(c, id);
+    const selected = tiers.includes(state.preview) ? state.preview : (tiers.at(-1) ?? 0);
+    state.preview = selected;
     const preview: Campaign = { ...c, station: { ...c.station } };
     if (id === 'laboratory') preview.station.laboratoryLevel = selected - 1;
     else if (id === 'workshop') preview.station.workshopLevel = selected - 1;
@@ -89,12 +102,12 @@ export function stationScreen(
     const tierName = ['0', 'I', 'II', 'III'][selected];
     panel(ui, 585, STATION_LAYOUT.top, 430, 591);
     label(ui, title, 609, 244, 27, C.text, 382);
-    if (limit > 1)
-        for (let tier = 1; tier <= limit; tier++)
+    if (tiers.length > 1)
+        tiers.forEach((tier, index) =>
             button(
                 ui,
                 `POZIOM ${['0', 'I', 'II', 'III'][tier]}`,
-                605 + (tier - 1) * 132,
+                605 + index * 132,
                 295,
                 120,
                 () => {
@@ -105,18 +118,35 @@ export function stationScreen(
                 true,
                 34,
                 13,
-            );
-    const art = fittedScene(productionBayScene(selected), 370, 290);
+            ),
+        );
+    const artLevel =
+        id === 'extraction' && selected > 0 ? Math.max(1, c.station.workshopLevel) : selected;
+    const art = fittedScene(stationDeviceScene(id, artLevel), 370, 290);
     art.position.set(800, 515);
     ui.addChild(art);
-    label(ui, `Obecny poziom: ${current} / ${limit}`, 609, 710, 18, C.mint, 380);
+    label(
+        ui,
+        id === 'extraction'
+            ? current
+                ? 'Adapter zamontowany'
+                : 'Projekt badawczy'
+            : `Obecny poziom: ${current}`,
+        609,
+        710,
+        18,
+        C.mint,
+        380,
+    );
     label(
         ui,
         id === 'laboratory'
             ? 'Materiały i procesy badawcze'
             : id === 'workshop'
               ? 'Części, statki i modernizacje'
-              : 'Aktywne wydobycie na brzegu anomalii',
+              : selected > 0
+                ? 'Aktywne wydobycie na brzegu anomalii'
+                : 'Badania bezpiecznego pobierania próbek',
         609,
         750,
         15,
@@ -124,9 +154,31 @@ export function stationScreen(
         380,
     );
     label(ui, `${title} ${id === 'extraction' ? '' : tierName}`, 1072, 244, 28, C.text, 456);
+    if (id === 'extraction' && !current && !stationBlueprintReady(c, id)) {
+        label(ui, 'BADANIA W TOKU', 1072, 290, 13, C.mint);
+        label(
+            ui,
+            'Pomiary potwierdziły możliwość pozyskiwania materiału anomalii. Zespół bada sposób jego bezpiecznego pobierania.',
+            1072,
+            335,
+            19,
+            C.text,
+            456,
+        );
+        label(
+            ui,
+            'Nie mamy jeszcze zatwierdzonego projektu instalacji.',
+            1072,
+            465,
+            16,
+            C.muted,
+            456,
+        );
+        return;
+    }
     const outputs =
         id === 'extraction'
-            ? ['Ekstrakcja urobku statkami wydobywczymi I–III']
+            ? ['Pozyskiwanie urobku anomalii narzędziem wydobywczym']
             : RECIPE_IDS.filter(
                   (key) => RECIPES[key].category === id && RECIPES[key].level === selected,
               ).map((key) => RECIPES[key].title);
@@ -160,7 +212,14 @@ export function stationScreen(
         456,
     );
     if (!installed)
-        constructionCosts(ui, c.bank, stationProjectCost(preview, id), 480, actions.openRecipe);
+        constructionCosts(
+            ui,
+            c.bank,
+            stationProjectCost(preview, id),
+            480,
+            actions.openRecipe,
+            (recipe) => recipeDiscovered(c, recipe),
+        );
     button(
         ui,
         installed ? 'ZAMONTOWANO' : `ZAMONTUJ ${id === 'extraction' ? 'ADAPTER' : tierName}`,

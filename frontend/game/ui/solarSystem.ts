@@ -37,9 +37,10 @@ export function solarSystem(ui: Container, c: Campaign, select: (id: StorySector
     const planets: ReturnType<typeof planetView>[] = [];
     if (!c.story) return planets;
     const center = { x: 920, y: 490 };
+    const destinations = SOLAR_MAP.filter((body) => storySectorUnlocked(c.story!, body.id));
     solarBackdrop(ui, center);
     const g = ui.addChild(new Graphics());
-    for (const body of SOLAR_MAP)
+    for (const body of destinations)
         g.ellipse(center.x, center.y, body.orbit, body.orbit * 0.46).stroke({
             color: C.line,
             alpha: 0.28,
@@ -49,7 +50,7 @@ export function solarSystem(ui: Container, c: Campaign, select: (id: StorySector
     const rng = random(150099);
     const debris = ui.addChild(new Graphics());
     debris.eventMode = 'none';
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < (destinations.some((body) => body.id === 'belt') ? 1000 : 0); i++) {
         const angle = rng() * Math.PI * 2;
         // One radial corridor cuts the belt; the rest is a continuous orbital band.
         if (
@@ -67,7 +68,7 @@ export function solarSystem(ui: Container, c: Campaign, select: (id: StorySector
     g.circle(center.x, center.y, 39).fill(C.gold);
     g.circle(center.x - 9, center.y - 10, 25).fill(0xffdf9f);
     label(ui, 'Słońce', center.x - 30, center.y + 53, 16, C.gold);
-    for (const body of SOLAR_MAP) {
+    for (const body of destinations) {
         const node = ui.addChild(new Container());
         node.label = `solar-sector-${body.id}`;
         node.position.set(

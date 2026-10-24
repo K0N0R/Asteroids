@@ -134,18 +134,28 @@ test('a protected collision does not cause hull damage or engine failure; sector
 });
 
 test('shield upgrades charge exact tiers atomically, respect workshop levels and retain their tiers in refunds', () => {
-    const c = newCampaign(); c.ship!.hull = 'swift';
+    const c = newCampaign();
+    c.ship!.hull = 'swift';
     c.station.workshopLevel = c.station.laboratoryLevel = 1;
-    c.bank = {ore:100,parts:0,electronics:1,powerModules:2};
-    assert.ok(buyUpgrade(c,'shield')); assert.equal(c.ship!.shield,1);
-    const before=structuredClone(c.bank); assert.equal(buyUpgrade(c,'shield'),false);
-    assert.deepEqual(c.bank,before);
+    c.bank = { ore: 100, parts: 0, electronics: 1, powerModules: 2 };
+    assert.ok(buyUpgrade(c, 'shield'));
+    assert.equal(c.ship!.shield, 1);
+    const before = structuredClone(c.bank);
+    assert.equal(buyUpgrade(c, 'shield'), false);
+    assert.deepEqual(c.bank, before);
     c.station.workshopLevel = c.station.laboratoryLevel = 2;
-    assert.deepEqual(upgradePrice(c,'shield'),{ore:0,parts:0,electronicsII:1,powerModulesII:2});
-    c.bank.electronicsII=1; c.bank.powerModulesII=2;
-    assert.ok(buyUpgrade(c,'shield')); assert.equal(c.ship!.shield,2);
-    const refund=scrapRefund(c.ship!);
-    assert.equal(refund.powerModulesII,1);
-    assert.equal(refund.electronicsII??0,0);
-    assert.deepEqual(parseCampaign(JSON.stringify(c)),c);
+    assert.deepEqual(upgradePrice(c, 'shield'), {
+        ore: 0,
+        parts: 0,
+        electronicsII: 1,
+        powerModulesII: 2,
+    });
+    c.bank.electronicsII = 1;
+    c.bank.powerModulesII = 2;
+    assert.ok(buyUpgrade(c, 'shield'));
+    assert.equal(c.ship!.shield, 2);
+    const refund = scrapRefund(c.ship!);
+    assert.equal(refund.powerModulesII, 1);
+    assert.equal(refund.electronicsII ?? 0, 0);
+    assert.deepEqual(parseCampaign(JSON.stringify(c)), c);
 });

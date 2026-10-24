@@ -762,7 +762,7 @@ export const UPGRADES: Record<Upgrade, { title: string; detail: string }> = {
     },
     cargo: {
         title: 'Moduł ładowni',
-        detail: 'Ładownia I ×1.25 · II ×1.5 · III ×2 pojemności bazowej',
+        detail: 'Modułowa zabudowa zwiększa pojemność ładowni.',
     },
     drill: {
         title: 'Laser wydobywczy',
@@ -815,7 +815,7 @@ export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {
         return {
             ...definition,
             title: 'Sterowanie i holowanie',
-            detail: '+1 slot holowania i zwrotność +20% / poziom; baza 2, maksimum 5 holi',
+            detail: '+1 slot holowania i zwrotność +20% przy ulepszeniu',
         };
     if (hull === 'tug' && upgrade === 'drill')
         return {

@@ -33,7 +33,9 @@ export function clearResearchLeg(a: Point, b: Point, rocks: readonly NavigationR
     });
 }
 // A bounded grid search gives the convoy a route around deposits instead of steering straight into them.
-export function researchPath(from: Point, to: Point, rocks: readonly NavigationRock[]) {
+export function researchPath(from: Point, to: Point, rocks: readonly NavigationRock[], allowed?: (a:Point,b:Point)=>boolean) {
+    const clear = (a:Point,b:Point) => clearResearchLeg(a,b,rocks) && (!allowed || allowed(a,b));
+    if(clear(from,to)) return [{...to}];
     const size = 100,
         start = { x: Math.round(from.x / size), y: Math.round(from.y / size) },
         goal = { x: Math.round(to.x / size), y: Math.round(to.y / size) };
@@ -83,11 +85,11 @@ export function researchPath(from: Point, to: Point, rocks: readonly NavigationR
             while (i < points.length - 1) {
                 let next = i + 1;
                 for (let j = points.length - 1; j > i; j--)
-                    if (clearResearchLeg(points[i], points[j], rocks)) {
+                    if (clear(points[i], points[j])) {
                         next = j;
                         break;
                     }
-                if (!clearResearchLeg(points[i], points[next], rocks)) return [];
+                if (!clear(points[i], points[next])) return [];
                 smooth.push(points[next]);
                 i = next;
             }
@@ -112,6 +114,7 @@ export function researchPath(from: Point, to: Point, rocks: readonly NavigationR
                 y < minY ||
                 y > maxY ||
                 blocked.has(k) ||
+                (allowed && !allowed({x:n.x*size,y:n.y*size},{x:x*size,y:y*size})) ||
                 (dx && dy && (blocked.has(key(n.x + dx, n.y)) || blocked.has(key(n.x, n.y + dy))))
             )
                 continue;
@@ -133,6 +136,7 @@ export class ResearchEscort {
     startHeld = false;
     startProgress = 0;
     researchProgress = 0;
+    scanning = false;
     cooldown = 0;
     departure = 0;
     previous: Point = { x: 380, y: 0 };
@@ -198,7 +202,10 @@ export class ResearchEscort {
         this.collider.setSensor(true);
         return true;
     }
+    protected allowsTravel(_a:Point,_b:Point) {return true;}
+    protected get researchOnArrival() {return true;}
     update(dt: number, player: Point, rocks: readonly NavigationRock[], hostileNear: boolean) {
+        this.scanning = false;
         this.previous = this.position;
         this.previousAngle = this.body.rotation();
         this.cooldown = Math.max(0, this.cooldown - dt);
@@ -215,10 +222,14 @@ export class ResearchEscort {
             this.state = 'waiting';
             this.waitingReason = 'player';
         } else if (Math.hypot(p.x - this.destination.x, p.y - this.destination.y) < 90) {
+            if(!this.researchOnArrival) {
+                this.state='complete';this.collider.setSensor(true);this.body.setLinvel({x:0,y:0},true);this.body.setAngvel(0,true);return true;
+            }
             this.state = 'research';
             this.waitingReason = null;
             desired = { x: (this.destination.x - p.x) * 0.7, y: (this.destination.y - p.y) * 0.7 };
-            if (!hostileNear && this.cooldown <= 0) this.researchProgress += dt;
+            this.scanning = !hostileNear && this.cooldown <= 0;
+            if (this.scanning) this.researchProgress += dt;
             if (this.researchProgress + 1e-8 >= ESCORT.researchSeconds) {
                 this.state = 'complete';
                 this.collider.setSensor(true);
@@ -230,9 +241,9 @@ export class ResearchEscort {
                 this.path.shift();
             if (
                 this.replan <= 0 &&
-                (!this.path.length || !clearResearchLeg(p, this.path[0], rocks))
+                (!this.path.length || (!clearResearchLeg(p, this.path[0], rocks) || !this.allowsTravel(p,this.path[0])))
             ) {
-                this.path = researchPath(p, this.destination, rocks);
+                this.path = researchPath(p, this.destination, rocks, (a,b)=>this.allowsTravel(a,b));
                 this.replan = 1;
             }
             if (!this.path.length) {

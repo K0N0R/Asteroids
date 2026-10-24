@@ -15,15 +15,16 @@ function unlocked() {
     }
     return c;
 }
-test('solar map contains all ten selectable sectors and cannot select a locked destination', () => {
+test('solar map only exposes known destinations while retaining all ten sector definitions', () => {
     const c = newStoryCampaign(),
         ui = new Container();
     let requests = 0;
     try {
         solarSystem(ui, c, () => requests++);
         assert.equal(SOLAR_MAP.length, 10);
-        for (const sector of SOLAR_MAP) assert.ok(ui.getChildByLabel(`solar-sector-${sector.id}`));
-        ui.getChildByLabel('solar-sector-mars')!.emit('pointertap', {});
+        assert.ok(ui.getChildByLabel('solar-sector-earth'));
+        for (const sector of SOLAR_MAP.filter((body) => body.id !== 'earth'))
+            assert.equal(ui.getChildByLabel(`solar-sector-${sector.id}`), null);
         assert.equal(requests, 0);
         assert.equal(c.story!.sector, 'earth');
     } finally {

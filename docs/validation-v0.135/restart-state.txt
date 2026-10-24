@@ -1,0 +1,14 @@
+Browser tab: 5, Title: "Stability route QA", URL: "http://localhost:3002/qa-stability.html".
+1 AXWebArea Stability route QA, URL: localhost:3002/qa-stability.html
+	2 container controls
+		3 button Trzy przebiegi trasy
+		4 button Utrata WebGL
+		5 button Odtwórz WebGL
+		6 button Stop
+		7 button Restart sceny
+		8 button Dok F
+		9 button 10 restart�w
+		10 button Anomalia
+	11 text {"lap":0,"running":false,"segment":0,"segments":467,"frame":17130,"elapsed":244.11666666675308,"heapMB":177,"peakHeapMB":349,"anomaly":{"builds":268,"lastBuildMS":47.80000000074506,"entries":36,"pixels":3893504,"bytes":15574016,"workers":1,"allocations":267},"gpuTextures":87,"graphics":88,"resolutionListeners":49,"lost":0,"restored":0,"restarts":10,"maxFrameMS":15,"area":"orbit","orbit":"mars","dockable":false,"progress":null,"ended":null,"notice":"","error":""}
+
+The focused UI element is 9 button 10 restart�w

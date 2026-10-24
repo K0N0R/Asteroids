@@ -22,7 +22,7 @@ export function rasterAnomaly(
     const { x: x0, y: y0, width, height } = window,
         resolution = window.resolution ?? 1;
     const canvas = makeCanvas(Math.ceil(width * resolution), Math.ceil(height * resolution));
-    const ctx = canvas.getContext('2d') as
+    const ctx = canvas.getContext('2d', { willReadFrequently: true }) as
         | CanvasRenderingContext2D
         | OffscreenCanvasRenderingContext2D;
     ctx.scale(resolution, resolution);
@@ -113,7 +113,9 @@ export function rasterAnomaly(
     // Rasterize the polygon union once, then feather it in native canvas code instead of
     // evaluating every polygon for every mask pixel on the JS main thread.
     const mask = makeCanvas(canvas.width, canvas.height);
-    const m = mask.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+    const m = mask.getContext('2d', { willReadFrequently: true }) as
+        | CanvasRenderingContext2D
+        | OffscreenCanvasRenderingContext2D;
     m.scale(resolution, resolution);
     m.translate(-x0, -y0);
     m.beginPath();
@@ -147,6 +149,30 @@ export function rasterAnomaly(
     vertical.addColorStop(1, 'transparent');
     ctx.fillStyle = vertical;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
+    mask.width = mask.height = 0;
     return canvas;
+}
+
+export interface AnomalyPixels {
+    width: number;
+    height: number;
+    pixels: Uint8Array;
+}
+/** Transfer CPU-owned RGBA, never Chromium shared-image/mailbox resources. */
+export function readAnomalyPixels(canvas: OffscreenCanvas | HTMLCanvasElement): AnomalyPixels {
+    const width = canvas.width,
+        height = canvas.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true }) as
+        | CanvasRenderingContext2D
+        | OffscreenCanvasRenderingContext2D;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    const pixels = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    for (let i = 0; i < pixels.length; i += 4) {
+        const alpha = pixels[i + 3] / 255;
+        pixels[i] = Math.round(pixels[i] * alpha);
+        pixels[i + 1] = Math.round(pixels[i + 1] * alpha);
+        pixels[i + 2] = Math.round(pixels[i + 2] * alpha);
+    }
+    canvas.width = canvas.height = 0;
+    return { width, height, pixels };
 }

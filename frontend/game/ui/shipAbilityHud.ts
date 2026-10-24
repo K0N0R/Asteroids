@@ -311,7 +311,7 @@ export class ShipAbilityHud extends Container {
                         ? slot.icon === 'gun'
                             ? `Wyposażenie: ${sim.weaponConfig.name}`
                             : 'Cecha kadłuba · parametry stałe'
-                        : `Ulepszenie: ${level} / 3 · ${slot.module === 'guns' ? 'uzbrojenie' : slot.module === 'handling' ? 'sterowanie' : slot.module === 'grippers' ? 'chwytaki' : 'system specjalny'}`,
+                        : `Ulepszenie: ${level} · ${slot.module === 'guns' ? 'uzbrojenie' : slot.module === 'handling' ? 'sterowanie' : slot.module === 'grippers' ? 'chwytaki' : 'system specjalny'}`,
                     52,
                     721,
                     13,

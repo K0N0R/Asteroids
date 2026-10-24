@@ -2,6 +2,8 @@ import { IPosition } from '@common';
 
 export type TStateMessage = [{ name: 'gameplay-start' }, { name: 'lobby-start' }];
 export type TSystemMessage = [
+    { name: 'render-context-lost' },
+    { name: 'render-context-restored' },
     { name: 'preload'; data: number },
     { name: 'time-scale'; data: { timeScale: number } },
 ];

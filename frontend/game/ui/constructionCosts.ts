@@ -12,6 +12,7 @@ export function constructionCosts(
     bill: ResourceStore,
     y = 542,
     openRecipe?: (id: RecipeId) => void,
+    canOpenRecipe: (id: RecipeId) => boolean = () => true,
 ) {
     label(ui, 'CZĘŚCI DO MONTAŻU', 1072, y, 12, C.muted);
     RESOURCE_IDS.filter((id) => (bill[id] ?? 0) > 0).forEach((id, i) => {
@@ -32,7 +33,7 @@ export function constructionCosts(
             have = bank[id] ?? 0;
         label(ui, `${have} / ${need}`, x + 43, rowY + 26, 13, have >= need ? C.mint : C.gold);
         const recipe = RECIPE_IDS.find((recipe) => RECIPES[recipe].output === id);
-        if (recipe && openRecipe)
+        if (recipe && openRecipe && canOpenRecipe(recipe))
             button(
                 ui,
                 'STWÓRZ',

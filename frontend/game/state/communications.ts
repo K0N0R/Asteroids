@@ -51,3 +51,15 @@ export function validRadio(value: unknown): value is RadioJournal {
         new Set(journal.pending.map(radioKey)).size === journal.pending.length
     );
 }
+
+/** Prune an obsolete objective saved by earlier builds once its mission is complete. */
+export function pruneObsoleteMarsRadio(story: StoryProgress) {
+    if (!story.claimed.includes('mars-sector-secure')) return false;
+    const stale =
+        story.radio?.pending.filter((line) =>
+            line.text.includes('Wyeliminuj pozostałe wymagane jednostki'),
+        ) ?? [];
+    if (!stale.length) return false;
+    acknowledgeRadio(story, stale);
+    return true;
+}

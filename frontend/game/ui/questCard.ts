@@ -1,6 +1,7 @@
 import { marsSecurityObjective } from '../state/marsAct';
 import { CanvasTextMetrics, Container, Graphics, TextStyle } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
+import { recipeDiscovered } from '../state/discovery';
 import { RECIPES, RECIPE_IDS, type RecipeId } from '../state/chemistry';
 import { RESOURCES, type ResourceId } from '../state/resources';
 import { storyRewardText, storyTaskAvailable, type StoryTask } from '../state/story';
@@ -74,7 +75,9 @@ export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCard
                         : [])
               ).map((item) => {
                   const recipe = actions.openRecipe
-                      ? RECIPE_IDS.find((id) => RECIPES[id].output === item.resource)
+                      ? RECIPE_IDS.find(
+                            (id) => RECIPES[id].output === item.resource && recipeDiscovered(c, id),
+                        )
                       : undefined;
                   const nameHeight = textHeight(
                       RESOURCES[item.resource].name,

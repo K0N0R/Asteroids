@@ -13,7 +13,8 @@ import {
 import { ownedShips, type Campaign, type Ship } from '../state/campaign';
 import { moduleParts, WEAPON_PARTS, canAffordEquipment } from '../state/equipmentCosts';
 import { HULL_CONSTRUCTION, hasHullParts } from '../state/fleetConstruction';
-import { hullUnlockReason } from '../state/fleetUnlocks';
+import { hullUnlockReason, hullUnlocked } from '../state/fleetUnlocks';
+import { recipeDiscovered } from '../state/discovery';
 import { RESOURCE_IDS, RESOURCES, type ResourceStore } from '../state/resources';
 import { RECIPE_IDS, RECIPES, type RecipeId } from '../state/chemistry';
 import { itemIllustration } from '../graphics/items';
@@ -59,16 +60,20 @@ export function moduleOffer(
     previewLevel = 1,
 ) {
     const current = project ? 0 : ship[key];
-    const next = project ? Math.max(1, Math.min(3, previewLevel)) : Math.min(3, current + 1);
-    const cost = current >= 3 ? {} : moduleParts(key, next - 1);
+    const knownLimit = Math.max(current, c.station.workshopLevel);
+    const next = Math.min(
+        knownLimit,
+        project ? Math.max(1, Math.min(3, previewLevel)) : current + 1,
+    );
+    const cost = next <= current ? {} : moduleParts(key, next - 1);
     const active = c.ship?.id === ship.id;
     const reason =
         ship.hull === 'prospector'
             ? 'Prospector 0 · statek startowy i awaryjny, bez ulepszeń.'
             : project
               ? 'Podgląd projektu · moduły zamontujesz po zbudowaniu statku.'
-              : current >= 3
-                ? 'Najwyższy poziom tego modułu.'
+              : next <= current
+                ? 'Moduł zamontowany i gotowy do pracy.'
                 : c.activeRun
                   ? 'Montaż dostępny po powrocie do bazy.'
                   : !active
@@ -115,7 +120,7 @@ export function hangarRequirements(
             (c.bank[id] ?? 0) >= bill[id]! ? C.mint : C.gold,
         );
         const recipe = RECIPE_IDS.find((key) => RECIPES[key].output === id);
-        if (recipe)
+        if (recipe && recipeDiscovered(c, recipe))
             button(
                 card,
                 'STWÓRZ',
@@ -141,9 +146,8 @@ export function hangarScreen(
     const ships = ownedShips(c);
     if (!ships.some((ship) => ship.id === state.shipId))
         state.shipId = c.ship?.id ?? ships[0]?.id ?? null;
-    const catalogue = (Object.keys(HULLS) as HullId[]).filter(
-        (id) => id !== 'prospector' && !('salvageOnly' in HULLS[id]),
-    );
+    const catalogue = (Object.keys(HULLS) as HullId[]).filter((id) => hullUnlocked(c, id));
+    if (project && catalogue.length && !catalogue.includes(state.hull)) state.hull = catalogue[0];
     const entries = project ? catalogue : ships;
     const pageCount = Math.max(1, Math.ceil(entries.length / 6));
     state.page = Math.min(state.page, pageCount - 1);
@@ -208,14 +212,18 @@ export function hangarScreen(
     }
     const owned = ships.find((ship) => ship.id === state.shipId);
     const ship: Ship | undefined = project
-        ? { ...bareModules(state.hull), id: 0, weapon: 'standard', weapons: ['standard'] }
+        ? catalogue.length
+            ? { ...bareModules(state.hull), id: 0, weapon: 'standard', weapons: ['standard'] }
+            : undefined
         : owned;
     panel(ui, 555, 214, 1005, 591);
     if (!ship) {
-        label(ui, 'Brak statków w hangarze', 585, 273, 30);
+        label(ui, project ? 'Brak dostępnych projektów' : 'Brak statków w hangarze', 585, 273, 30);
         label(
             ui,
-            'Otwórz Stocznię w bocznym menu, aby wybrać projekt.',
+            project
+                ? 'Katalog nie zawiera obecnie projektów do budowy.'
+                : 'W hangarze nie ma teraz żadnego statku.',
             585,
             328,
             18,
@@ -428,40 +436,56 @@ function moduleScreen(
             state.module === key ? C.mint : C.text,
             200,
         );
-        segments(tab, ship[key], 3, 13, 33, 71);
-        label(tab, project ? 'Podgląd' : `Poziom ${ship[key]} / 3`, 111, 31, 11, C.muted, 102);
+        segments(tab, ship[key], Math.max(1, ship[key], c.station.workshopLevel), 13, 33, 71);
+        label(tab, project ? 'Podgląd' : `Poziom ${ship[key]}`, 111, 31, 11, C.muted, 102);
     });
     const offer = moduleOffer(c, ship, state.module, project, state.previewLevel),
         definition = shipUpgradeDefinition(ship.hull, state.module);
     label(ui, definition.title, 835, 410, 25, C.text, 690);
     if (project)
-        [1, 2, 3].forEach((level, i) =>
-            button(
-                ui,
-                ['I', 'II', 'III'][i],
-                1328 + i * 67,
-                445,
-                57,
-                () => {
-                    state.previewLevel = level;
-                    actions.refresh();
-                },
-                state.previewLevel === level,
-                true,
-                30,
-                13,
-            ),
-        );
+        [1, 2, 3]
+            .filter((level) => level <= c.station.workshopLevel)
+            .forEach((level, i) =>
+                button(
+                    ui,
+                    ['I', 'II', 'III'][i],
+                    1328 + i * 67,
+                    445,
+                    57,
+                    () => {
+                        state.previewLevel = level;
+                        actions.refresh();
+                    },
+                    state.previewLevel === level,
+                    true,
+                    30,
+                    13,
+                ),
+            );
     label(
         ui,
-        project ? 'BAZOWY → PODGLĄD' : `POZIOM ${offer.current} → ${offer.next}`,
+        project
+            ? 'BAZOWY → PODGLĄD'
+            : offer.next > offer.current
+              ? `POZIOM ${offer.current} → ${offer.next}`
+              : `POZIOM ${offer.current}`,
         835,
         455,
         12,
         C.muted,
     );
     label(ui, offer.comparison.title, 835, 482, 16, C.muted, 370);
-    label(ui, `${offer.comparison.before} → ${offer.comparison.after}`, 835, 506, 31, C.cyan, 500);
+    label(
+        ui,
+        offer.next > offer.current || project
+            ? `${offer.comparison.before} → ${offer.comparison.after}`
+            : offer.comparison.before,
+        835,
+        506,
+        31,
+        C.cyan,
+        500,
+    );
     const art = new ShipView(previewModules(ship, 'single', state.module, offer.next));
     const bounds = art.getLocalBounds();
     const scale = Math.min(170 / Math.max(1, bounds.height), 102 / Math.max(1, bounds.width));
@@ -474,7 +498,7 @@ function moduleScreen(
     art.label = 'module-ship-preview';
     ui.addChild(art);
     label(ui, definition.detail, 835, 554, 15, C.muted, 490);
-    if (offer.current < 3) {
+    if (offer.next > offer.current) {
         label(ui, `CZĘŚCI DO POZIOMU ${['0', 'I', 'II', 'III'][offer.next]}`, 835, 609, 12, C.mint);
         hangarRequirements(ui, c, offer.cost, 835, 634, 695, actions.openRecipe);
     }
@@ -519,8 +543,8 @@ function moduleScreen(
     else
         button(
             ui,
-            offer.current >= 3
-                ? 'NAJWYŻSZY POZIOM'
+            offer.next <= offer.current
+                ? 'ZAMONTOWANO'
                 : `ZAMONTUJ ULEPSZENIE ${['0', 'I', 'II', 'III'][offer.next]} →`,
             835,
             749,
@@ -562,7 +586,11 @@ function variantScreen(
     project: boolean,
     actions: HangarActions,
 ) {
-    (Object.keys(WEAPONS) as WeaponId[]).forEach((id, i) => {
+    const variants = (Object.keys(WEAPONS) as WeaponId[]).filter(
+        (id) => ship.weapons.includes(id) || c.station.workshopLevel >= WEAPONS[id].workshop,
+    );
+    if (!variants.includes(state.variant)) state.variant = ship.weapon;
+    variants.forEach((id, i) => {
         const data = variantStats(ship, id);
         const card = choiceCard(ui, 580 + i * 322, 410, 306, 107, state.variant === id, () => {
             state.variant = id;

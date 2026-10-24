@@ -2075,6 +2075,12 @@ export class MissionSimulation {
             add('orbital-base', 'world', this.assaultSite, 180, this.orbitalBaseName);
         const cache = this.nearbyCache;
         if (cache) add(`cache:${cache.id}`, 'world', cache, CACHE.radius, 'Skrytka');
+        if (
+            this.marsAct?.baseFactory &&
+            this.area === 'surface' &&
+            !this.campaign.story!.mars.baseNeutralized
+        )
+            add('mars-terminal', 'world', MARS_ACT.terminal, 125, 'Terminal instalacji Fobosa');
         if (!this.outpost.secured || !this.outpost.equipmentSecured)
             add(
                 'terminal',
@@ -2312,6 +2318,7 @@ export class MissionSimulation {
             interaction &&
             interaction.kind === 'world' &&
             (interaction.id === 'terminal' ||
+                interaction.id === 'mars-terminal' ||
                 this.relayRequired ||
                 (interaction.id.startsWith('rescue:') && !this.rescueOperation?.stabilized)) &&
             !input.thrust &&

@@ -3,6 +3,7 @@ import type { Campaign } from '../state/campaign';
 import { capacity } from '../state/campaign';
 import type { MissionSimulation } from '../systems/mission';
 import { manufacture, type ProductionScope } from '../state/production';
+import { stationTabDiscovered, recipeDiscovered } from '../state/discovery';
 import { transferLunarResource } from '../state/lunarIndustry';
 import { RESOURCE_IDS, RESOURCES, resourceTotal, type ResourceId } from '../state/resources';
 import { RECIPES, type RecipeId } from '../state/chemistry';
@@ -50,7 +51,8 @@ export class LunarStationView extends Container {
             { id: 'workshop', name: 'Warsztat' },
             { id: 'warehouse', name: 'Magazyn' },
         ] as const;
-        tabs.forEach((tab, i) =>
+        if (!stationTabDiscovered(this.c, this.tab)) this.tab = 'warehouse';
+        tabs.filter((tab) => stationTabDiscovered(this.c, tab.id)).forEach((tab, i) =>
             button(
                 this,
                 tab.name,
@@ -85,12 +87,14 @@ export class LunarStationView extends Container {
             this.refresh();
         };
         const showRecipe = (id: RecipeId) => {
+            if (!recipeDiscovered(this.c, id, 1)) return;
             this.recipe = id;
             this.tab = RECIPES[id].category;
             this.refresh();
         };
         const navigation = {
             openRecipe: (id: RecipeId) => {
+                if (!recipeDiscovered(this.c, id, 1)) return;
                 this.recipeHistory.push(this.recipe);
                 showRecipe(id);
             },

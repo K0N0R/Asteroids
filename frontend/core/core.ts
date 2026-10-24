@@ -63,7 +63,10 @@ export class Core {
         });
 
         this.app.canvas.addEventListener('contextmenu', (evt) => evt.preventDefault());
-        bindRenderContextRecovery(this.app);
+        bindRenderContextRecovery(this.app, {
+            lost: () => Bus.emit('system', { name: 'render-context-lost' }),
+            restored: () => Bus.emit('system', { name: 'render-context-restored' }),
+        });
         document.body.appendChild(this.app.canvas);
     }
 

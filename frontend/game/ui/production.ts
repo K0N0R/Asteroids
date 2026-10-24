@@ -3,6 +3,7 @@ import { Container } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
 import { RECIPES, RECIPE_IDS, type RecipeId, type ProcessRecipe } from '../state/chemistry';
 import { productionLock, productionPreview, type ProductionScope } from '../state/production';
+import { visibleRecipes, recipeDiscovered } from '../state/discovery';
 import { RESOURCES } from '../state/resources';
 import { itemIllustration, ingredientIllustration } from '../graphics/items';
 import { C } from '../graphics/shapes';
@@ -63,17 +64,7 @@ function processOverview(
             C.text,
             1100,
         );
-        label(
-            ui,
-            category === 'laboratory'
-                ? 'Pierwszy quest: zbierz pierwiastki i zamontuj Laboratorium I w Rozbudowie stacji.'
-                : 'Po zakończeniu misji księżycowej przygotuj materiały i zamontuj Warsztat I w Rozbudowie stacji.',
-            320,
-            335,
-            20,
-            C.muted,
-            1100,
-        );
+        label(ui, 'Urządzenie nie jest jeszcze uruchomione.', 320, 335, 20, C.muted, 1100);
         if (scope?.site !== 'lunar' && navigation?.openStation)
             button(
                 ui,
@@ -90,11 +81,7 @@ function processOverview(
         return;
     }
     const knownLevel = installed;
-    const ids = RECIPE_IDS.filter(
-        (id) =>
-            RECIPES[id].category === category &&
-            (RECIPES[id].level <= knownLevel || id === selected),
-    );
+    const ids = visibleRecipes(c, category, knownLevel);
     const id = ids.includes(selected) ? selected : ids[0];
     const recipe: ProcessRecipe = RECIPES[id];
     panel(ui, 280, STATION_LAYOUT.top, 285, 591);
@@ -102,7 +89,7 @@ function processOverview(
     if (navigation?.back) button(ui, 'POWRÓT', 453, 237, 96, navigation.back, false, true, 28, 12);
     const tier = partInfo(recipe.output)?.tier ?? 1;
     if (category === 'workshop') {
-        TIER_NAMES.forEach((name, index) =>
+        TIER_NAMES.slice(0, knownLevel).forEach((name, index) =>
             button(
                 ui,
                 `TIER ${name}`,
@@ -150,7 +137,24 @@ function processOverview(
     label(details, 'POTRZEBA', 925, 460, 12, C.muted);
     preview.ingredients.forEach((row, i) => {
         const y = 488 + i * 40;
-        const source = RECIPE_IDS.find((sourceId) => RECIPES[sourceId].output === row.resource);
+        const source = RECIPE_IDS.find(
+            (sourceId) =>
+                RECIPES[sourceId].output === row.resource &&
+                recipeDiscovered(
+                    c,
+                    sourceId,
+                    scope?.site === 'lunar'
+                        ? Math.min(
+                              1,
+                              c.station[
+                                  RECIPES[sourceId].category === 'laboratory'
+                                      ? 'laboratoryLevel'
+                                      : 'workshopLevel'
+                              ],
+                          )
+                        : undefined,
+                ),
+        );
         const canNavigate = !!source && !!navigation;
         const name =
             row.resource === 'stabilizedAnomaly'

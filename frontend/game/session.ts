@@ -1,4 +1,5 @@
-import { enqueueRadio, acknowledgeRadio } from './state/communications';
+import { enqueueRadio, acknowledgeRadio, pruneObsoleteMarsRadio } from './state/communications';
+import { recoverTechnicalInterruption } from './state/technicalRecovery';
 import { installStationProject } from './state/stationProgression';
 import { cargoReceipt } from './ui/cargoReceipt';
 import { LunarStationView } from './ui/lunarStation';
@@ -151,6 +152,8 @@ export class GameSession {
         private background: Background,
     ) {
         this.campaign = this.saves.load();
+        const recoveredGraphicsFailure = recoverTechnicalInterruption(this.campaign);
+        if (this.campaign.story) pruneObsoleteMarsRadio(this.campaign.story);
         developmentControls.actions = {
             canReturn: () => !!this.mission,
             returnToBase: () => this.technicalReturn(),
@@ -275,6 +278,37 @@ export class GameSession {
         this.lobby.refresh(this.saves.warning);
         this.background.setRegion(this.campaign.story?.sector ?? null);
         if (interrupted) this.showResult(interrupted);
+        if (recoveredGraphicsFailure)
+            this.lobby.refresh(
+                'Wyprawa przerwana przez awarię grafiki. Statek i pilot są bezpieczni w Satuk 15.',
+            );
+        Bus.subscribe(
+            'system',
+            (message) => {
+                if (message.name === 'render-context-lost') {
+                    this.mission?.audio.pause();
+                    SoundManager.stopGroup('gameplay');
+                    InputHandler.clear();
+                    if (
+                        this.campaign.activeRun &&
+                        this.mission &&
+                        !this.mission.simulation.ended &&
+                        !this.sandboxRun
+                    ) {
+                        this.campaign.activeRun.technicalInterruption = true;
+                        this.saves.save(this.campaign);
+                    }
+                } else if (
+                    message.name === 'render-context-restored' &&
+                    this.mission &&
+                    !this.mission.simulation.ended
+                ) {
+                    InputHandler.clear();
+                    PopupContainer.show('configuration');
+                }
+            },
+            this,
+        );
         Bus.subscribe(
             'input',
             (message) => {

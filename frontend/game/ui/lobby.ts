@@ -1,5 +1,6 @@
 import { stationScreen, newStationScreenState } from './station';
 import type { StationProject } from '../state/stationProgression';
+import { recipeDiscovered, stationTabDiscovered } from '../state/discovery';
 import { hangarScreen, newHangarState, type HangarState } from './hangar';
 import { pilotScreen } from './pilots';
 import { milkyWayView } from '../graphics/milkyWayView';
@@ -19,7 +20,6 @@ import {
     constructionLoadLock,
     constructionDeliveryTasks,
     actOneComplete,
-    actTwoComplete,
     storyAct,
     type StorySectorId,
 } from '../state/story';
@@ -164,6 +164,7 @@ export class LobbyView extends Container {
         this.refresh();
     }
     private showRecipe(id: RecipeId) {
+        if (!recipeDiscovered(this.campaign, id)) return;
         this.tab = RECIPES[id].category;
         if (this.tab === 'laboratory') this.laboratoryRecipe = id;
         else this.workshopRecipe = id;
@@ -196,6 +197,7 @@ export class LobbyView extends Container {
             openStation: (project: 'laboratory' | 'workshop') =>
                 this.openDestination('station', project),
             openRecipe: (id: RecipeId) => {
+                if (!recipeDiscovered(this.campaign, id)) return;
                 this.recipeHistory.push({
                     tab: this.tab,
                     recipe:
@@ -256,7 +258,10 @@ export class LobbyView extends Container {
         ui.addChild(logo);
         label(ui, c.story ? 'SATUK 15' : 'AURORA', 75, 43, 23, C.text);
         if (c.story?.development) label(ui, 'ZAPIS TESTOWY', 75, 76, 11, C.gold);
-        NAV.filter(({ tab }) => tab !== 'solar' || !!c.story).forEach(({ tab, title, icon }, i) => {
+        if (!stationTabDiscovered(c, this.tab)) this.tab = 'overview';
+        NAV.filter(
+            ({ tab }) => (tab !== 'solar' || !!c.story) && stationTabDiscovered(c, tab),
+        ).forEach(({ tab, title, icon }, i) => {
             const active = this.tab === tab;
             const card = choiceCard(ui, 25, 110 + i * 51, 185, 43, active, () => this.go(tab));
             const mark = lobbyIcon(icon, active ? C.mint : C.muted);
@@ -301,7 +306,7 @@ export class LobbyView extends Container {
                 30,
             );
         label(ui, 'ESC · USTAWIENIA', 30, 818, 12, C.muted);
-        label(ui, 'ORBIT / 0.133', 30, 851, 11, C.muted);
+        label(ui, 'ORBIT / 0.135', 30, 851, 11, C.muted);
         label(ui, '● DOK BEZPIECZNY', 282, 44, 13, C.mint);
         if (this.solarScenery) this.solarScenery.visible = this.tab === 'solar';
         if (this.tab === 'solar') {
@@ -501,31 +506,7 @@ export class LobbyView extends Container {
                                     : actOneComplete(p)
                                       ? 'Akt I ukończony'
                                       : 'Dowodzenie Satuk 15',
-                p.sector === 'pluto'
-                    ? 'Rozpoznaj podejście i przygotuj finałowe starcie. Raport wymaga bezpiecznego powrotu.'
-                    : p.sector === 'uranus' || p.sector === 'neptune'
-                      ? 'Odkryj chronione bazy, zabezpiecz dane i przygotuj się do pierwszego starcia.'
-                      : p.sector === 'saturn'
-                        ? 'Rozpoznaj pierścienie, przywieź zaopatrzenie i zabezpiecz dalszą trasę.'
-                        : p.sector === 'jupiter'
-                          ? 'Rozpoznaj rejon, zabezpiecz podejście i przechwyć dane z chronionego węzła.'
-                          : p.sector === 'belt'
-                            ? 'Wytycz trasę, usuń przeszkody i potwierdź przejście do zewnętrznej granicy pasa.'
-                            : storyAct(p) === 'AKT V'
-                              ? 'Zbuduj bazę i zabezpiecz dalszą ekspedycję przed wrogimi jednostkami.'
-                              : p.sector === 'mercury'
-                                ? 'Wykorzystaj osłonę słoneczną i cień skał. Zabezpiecz dane potrzebne do dalszej drogi.'
-                                : p.sector === 'venus'
-                                  ? 'Zbuduj placówkę, przygotuj osłonę i zabezpiecz wyprawę na Merkurego.'
-                                  : actTwoComplete(p)
-                                    ? 'Akt II ukończony. Trasa do Wenus otwarta.'
-                                    : p.claimed.includes('mars-anomaly-research')
-                                      ? 'Pas blokuje pościg. Odbierz odprawę w sektorze Ziemi.'
-                                      : p.sector === 'mars'
-                                        ? 'Podejście do Marsa. Rozpoznaj trasę i zabezpiecz sektor.'
-                                        : actOneComplete(p)
-                                          ? 'Atak odparty. Stacja księżycowa działa. Następny kierunek: Mars.'
-                                          : 'Akt I · Rozbuduj Satuk 15, nawiąż łączność i przygotuj stację na Księżycu.',
+                'Aktualne zadania i raporty z rozpoznanych obszarów.',
             );
             storyOverview(ui, this.campaign, {
                 solar: () => this.go('solar'),
@@ -684,10 +665,7 @@ export class LobbyView extends Container {
         });
     }
     private station(ui: Container) {
-        this.section(
-            'Rozbudowa stacji',
-            'Rozwijaj osobno Laboratorium, Warsztat i wyposażenie Satuk 15.',
-        );
+        this.section('Rozbudowa stacji', 'Wyposażenie Satuk 15 i dostępne projekty rozbudowy.');
         stationScreen(ui, this.campaign, this.stationState, {
             refresh: () => this.refresh(),
             install: this.actions.installStationProject,
@@ -765,12 +743,20 @@ export class LobbyView extends Container {
                     detail: 'Wytwarzane w Warsztacie lub odzyskiwane z wraków',
                 },
             ] as const;
-            categories.forEach((entry, i) => {
-                const x = 320 + i * 410;
-                illustrationInBox(ui, itemIllustration(entry.id), x + 100, 390, 170, 150);
-                label(ui, entry.title, x, 580, 25, C.text, 365);
-                label(ui, entry.detail, x, 622, 17, C.muted, 350);
-            });
+            categories
+                .filter(
+                    (entry) =>
+                        entry.id === 'ore' ||
+                        (entry.id === 'water'
+                            ? c.station.laboratoryLevel > 0
+                            : c.station.workshopLevel > 0),
+                )
+                .forEach((entry, i) => {
+                    const x = 320 + i * 410;
+                    illustrationInBox(ui, itemIllustration(entry.id), x + 100, 390, 170, 150);
+                    label(ui, entry.title, x, 580, 25, C.text, 365);
+                    label(ui, entry.detail, x, 622, 17, C.muted, 350);
+                });
             button(
                 ui,
                 'PRZYGOTUJ WYPRAWĘ',

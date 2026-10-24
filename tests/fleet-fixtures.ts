@@ -61,7 +61,8 @@ export function grantStoryTasks(c: Campaign, ids: readonly string[]) {
     const story = c.story!,
         mars = story.mars;
     // This is completed history; its lunar reward has already been settled.
-    if (story.claimed.includes('lunar-attack') && story.lunarMule === 'active') story.lunarMule = 'transferred';
+    if (story.claimed.includes('lunar-attack') && story.lunarMule === 'active')
+        story.lunarMule = 'transferred';
     if (story.claimed.includes('mars-shields')) c.station.shield = true;
     if (story.claimed.includes('mars-landing-blocked')) mars.landingBlocked = true;
     if (story.claimed.includes('mars-phobos-route')) mars.ambushEntered = true;

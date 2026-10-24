@@ -3,6 +3,7 @@ import { syncStory } from '../state/story';
 import {
     MARS_ACT as M,
     MARS_SURFACE_PATROLS,
+    MARS_AMBUSH,
     marsArea,
     phobosRouteOpen,
     phobosOrbitSecured,
@@ -51,10 +52,11 @@ export class MarsActMission {
         this.spawnCargo();
         this.security.secured = this.p.baseNeutralized;
         if (this.p.baseNeutralized) this.security.disabledTime = Infinity;
-        this.say(
-            'intro',
-            'Ada Serrin: Rozpoczynamy operację. Przygotuj tarcze Satuk 15 i rozpoznaj możliwość lądowania na Marsie. Orbita jest na razie spokojna.',
-        );
+        if (!s.campaign.story!.claimed.includes('mars-sector-secure'))
+            this.say(
+                'intro',
+                'Ada Serrin: Rozpoczynamy operację. Przygotuj tarcze Satuk 15 i rozpoznaj możliwość lądowania na Marsie. Orbita jest na razie spokojna.',
+            );
     }
     private get p() {
         return this.s.campaign.story!.mars;
@@ -103,6 +105,7 @@ export class MarsActMission {
             p = s.campaign.story!;
         const key = [
             phobosRouteOpen(p),
+            p.mars.ambushEntered,
             phobosOrbitSecured(p),
             p.mars.aiIdentified,
             p.claimed.includes('mars-sector-secure'),
@@ -226,7 +229,7 @@ export class MarsActMission {
         if (this.baseFactory && this.s.enemyFactory) this.s.enemyFactory.active = true;
         this.hacking = false;
         this.s.terminalPuzzle = null;
-        this.s.setNotice('Alarm Fobosa · skaner wykrył intruza · baza produkuje posiłki');
+        this.s.setNotice('Alarm Fobosa · wykryto intruza · baza produkuje posiłki');
         this.s.deliveryRevision++;
     }
     terminalAction(action: TerminalAction) {
@@ -278,10 +281,27 @@ export class MarsActMission {
             s.opticalCloak ? 0 : 1,
             s.scannerLineClear(M.base, s.position),
         );
+        const patrolSpotted =
+            !s.opticalCloak &&
+            MARS_SURFACE_PATROLS.some((id) => {
+                const enemy = s.enemies.enemies.get(id);
+                return (
+                    enemy?.body.isEnabled() &&
+                    enemy.state === 'chase' &&
+                    enemy.target === 'player' &&
+                    Math.hypot(
+                        enemyPosition(enemy).x - s.position.x,
+                        enemyPosition(enemy).y - s.position.y,
+                    ) < enemy.config.detectRange &&
+                    s.scannerLineClear(enemyPosition(enemy), s.position)
+                );
+            });
         if (
-            this.security.update(dt, seen).callGuards ||
-            (Math.hypot(s.position.x - M.base.x, s.position.y - M.base.y) < 850 &&
-                (input.fire || s.marsUnderFire))
+            !this.p.baseAlarm &&
+            (patrolSpotted ||
+                this.security.update(dt, seen).callGuards ||
+                (Math.hypot(s.position.x - M.base.x, s.position.y - M.base.y) < 850 &&
+                    (input.fire || s.marsUnderFire)))
         )
             this.alarmBase();
         if (this.hacking && (!s.terminalPuzzle || !this.canHack())) {
@@ -345,15 +365,14 @@ export class MarsActMission {
             );
         if (area === 'phobos' && phobosRouteOpen(p) && !this.p.ambushEntered) {
             this.p.ambushEntered = true;
-            this.say(
-                'ambush',
-                'Ada Serrin: Trzy wrogie kontakty przy Fobosie! Odeprzyj atak, zanim podejdziesz do powierzchni.',
-            );
+            this.refreshLayout();
+            s.enemies.alert(MARS_AMBUSH, point);
+            s.deliveryRevision++;
         }
         if (phobosOrbitSecured(p))
             this.say(
                 'secured',
-                'Ada Serrin: Orbita Fobosa zabezpieczona. Śluza lądowania otwarta. Zbadaj złoża i ukrytą instalację.',
+                'Ada Serrin: To była zasadzka. Drony zostały zniszczone, ale zachowaj ostrożność. Zejdź na Fobosa i sprawdź, co się tam dzieje.',
             );
         const factory = s.enemyFactory;
         if (

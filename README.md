@@ -1,5 +1,13 @@
 # Orbit · Asteroids
 
+## Stabilność WebGL i Fobos 0.135
+
+Anomalie korzystają z ograniczonej, ponownie używanej puli tekstur z buforami RGBA. Po utracie WebGL symulacja i dźwięki zatrzymują się, a grafika jest odtwarzana z zachowanych danych. Zarejestrowana awaria chroni statek i pilota przy ponownym otwarciu gry. Usunięto powielone wskaźniki interakcji i nieaktualny rozkaz podczas eskorty Keplera. Fobos ma jeden wolny patrol, działający terminal F oraz zasadzkę bez uprzedzającego komunikatu. [Weryfikacja i ograniczenia](docs/implementation-v0.135.md).
+
+## Odkrywanie technologii i oprawa zakładów 0.134
+
+Interfejs odsłania urządzenia, receptury, projekty kadłubów i kierunki podróży wraz z postępem. Pokazuje zamontowane poziomy oraz następne ulepszenie, jeśli jego badania są już zakończone. Ekstrakcja pojawia się dopiero po akcie II jako badania, bez zdradzania przyszłej technologii. Laboratorium, Warsztat i instalacja ekstrakcyjna mają osobne ilustracje rozwijane z poziomem technologii. [Zasady, zakres i weryfikacja](docs/implementation-v0.134.md).
+
 ## HUD i stabilność 0.133
 
 Ikony pokazują wyłącznie zdolności danego kadłuba, bez powielonych podpisów. Klawisze i odliczanie są wyśrodkowane, a kamuflaż przyciemnia statek i zostawia krótką smugę. Poprawiono zwalnianie tekstów i buforów po restartach sandboxa, ograniczono iskry ciągłych trafień i usunięto pomijanie aktualizacji przy wolnych klatkach. [Zakres, pomiary i ograniczenia](docs/implementation-v0.133.md).
