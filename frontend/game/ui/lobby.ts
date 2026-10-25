@@ -1,3 +1,4 @@
+import { VENUS_PROBE_COST } from '../state/venusAct';
 import { stationScreen, newStationScreenState } from './station';
 import type { StationProject } from '../state/stationProgression';
 import { recipeDiscovered, stationTabDiscovered } from '../state/discovery';
@@ -337,7 +338,12 @@ export class LobbyView extends Container {
         if (this.tab === 'laboratory') {
             this.section(
                 'Laboratorium',
-                'Przetwarzaj pierwiastki w materiały. Poznawaj cząsteczki, struktury i procesy.',
+                c.story?.claimed.includes('venus-horizon-project')
+                    ? 'Projekt Horyzont · schemat stabilizacji zabezpieczony.'
+                    : c.story?.sector === 'venus' &&
+                        c.story.claimed.includes('venus-atmospheric-probe')
+                      ? 'Dane sondy odebrane. Analiza jest dostępna w Laboratorium I.'
+                      : 'Przetwarzaj pierwiastki w materiały. Poznawaj cząsteczki, struktury i procesy.',
             );
             laboratoryOverview(
                 ui,
@@ -353,7 +359,14 @@ export class LobbyView extends Container {
             );
         }
         if (this.tab === 'workshop') {
-            this.section('Warsztat', 'Wytwarzaj części i zestawy z przygotowanych materiałów.');
+            this.section(
+                'Warsztat',
+                c.story?.sector === 'venus' &&
+                    c.story.claimed.includes('venus-dead-laboratory') &&
+                    !c.story.venus?.probeBuilt
+                    ? `Sonda atmosferyczna · ${resourceSummary(VENUS_PROBE_COST)}`
+                    : 'Wytwarzaj części i zestawy z przygotowanych materiałów.',
+            );
             workshopOverview(
                 ui,
                 c,
@@ -366,6 +379,45 @@ export class LobbyView extends Container {
                 undefined,
                 this.productionNavigation,
             );
+        }
+        if (this.campaign.story?.sector === 'venus') {
+            const p = this.campaign.story;
+            if (
+                this.tab === 'workshop' &&
+                p.claimed.includes('venus-dead-laboratory') &&
+                !p.venus?.probeBuilt
+            ) {
+                button(
+                    ui,
+                    'ZMONTUJ SONDĘ ATMOSFERYCZNĄ',
+                    1100,
+                    99,
+                    440,
+                    () => this.actions.contribute?.('venus-probe-build'),
+                    true,
+                    !this.campaign.activeRun &&
+                        canAffordEquipment(this.campaign.bank, VENUS_PROBE_COST),
+                    36,
+                    14,
+                );
+            }
+            if (
+                this.tab === 'laboratory' &&
+                p.claimed.includes('venus-atmospheric-probe') &&
+                !p.claimed.includes('venus-horizon-project')
+            )
+                button(
+                    ui,
+                    'PRZEANALIZUJ DANE SONDY',
+                    1100,
+                    155,
+                    440,
+                    () => this.actions.contribute?.('venus-analyse'),
+                    true,
+                    !this.campaign.activeRun,
+                    36,
+                    14,
+                );
         }
         if (this.tab === 'pilots') this.pilots(ui);
         if (this.tab === 'warehouse') this.warehouse(ui);
@@ -500,7 +552,7 @@ export class LobbyView extends Container {
                               : p.sector === 'mercury'
                                 ? 'Akt IV · Blisko Słońca'
                                 : p.sector === 'venus'
-                                  ? 'Akt III · Przygotowania'
+                                  ? 'Akt III · Ślad anomalii'
                                   : storyAct(p) === 'AKT II'
                                     ? 'Akt II · Nowy kierunek'
                                     : actOneComplete(p)

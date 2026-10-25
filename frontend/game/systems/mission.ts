@@ -1,3 +1,5 @@
+import { VenusActMission } from './venusActMission';
+import { nearestVenusMap, venusMapAt } from '../worlds/venusLayout';
 import { MarsResearchEscort } from './marsResearchEscort';
 import { INTERACTION_SECONDS } from './interactionTarget';
 import { ShipAbilities, ABILITY_COOLDOWNS, type Ability } from './shipAbilities';
@@ -503,6 +505,7 @@ export class MissionSimulation {
     readonly destroyedFortressWalls = new Set<number>();
     readonly enemyFactory: EnemyFactory | null;
     readonly marsAct: MarsActMission | null;
+    readonly venusAct: VenusActMission | null;
     get marsAnomalies() {
         return this.marsAct && this.area === 'orbit' ? marsAnomaliesFor(this.marsOrbit) : [];
     }
@@ -519,6 +522,11 @@ export class MissionSimulation {
     /** Both ends are part of the visible world during a gate flight. */
     inVisibleMap(point: Point, margin = 0) {
         const drive = this.hyperdrive;
+        if (this.venusAct && drive.active && drive.transfer)
+            return [drive.origin, drive.target].some((p) => {
+                const m = nearestVenusMap(p);
+                return Math.hypot(point.x - m.center.x, point.y - m.center.y) <= m.radius + margin;
+            });
         if (this.marsAct && this.area === 'orbit' && drive.active && drive.transfer) {
             return [drive.origin, drive.target].some((end) => {
                 const map = nearestMarsOrbit(end);
@@ -533,6 +541,19 @@ export class MissionSimulation {
     private marsActivityKey = '';
     /** Distant maps retain state, but do not simulate collisions and patrol AI off-screen. */
     private syncMarsActivity() {
+        if (this.venusAct) {
+            const drive = this.hyperdrive;
+            const maps = drive.active
+                ? [nearestVenusMap(drive.origin).id, nearestVenusMap(drive.target).id]
+                : [this.venusAct.area];
+            for (const r of this.rocks.values()) {
+                const p = r.body.translation();
+                r.body.setEnabled(maps.includes(nearestVenusMap({ x: p.x * P, y: p.y * P }).id));
+            }
+            for (const e of this.enemies.enemies.values())
+                e.body.setEnabled(maps.includes(nearestVenusMap(e.home).id));
+            return;
+        }
         if (!this.marsAct) return;
         const key = `${this.area}/${this.marsOrbit}/${this.hyperdrive.active}/${this.areaRevision}`;
         if (key === this.marsActivityKey) return;
@@ -877,6 +898,7 @@ export class MissionSimulation {
                 'Sonda pomiarowa utknęła w anomalii. Punkty nawigacyjne prowadzą bezpiecznym objazdem do sondy. Włókna anomalii od razu zadają 15 obrażeń kadłuba na sekundę i silnie spowalniają statek; jasne korytarze są bezpieczne. Sonda ma własną osłonę pomiarową przed skażeniem. Podejdź, przytrzymaj H przez 1 sekundę i odholuj ją do Satuk 15.',
             );
         this.marsAct = marsAct ? new MarsActMission(this) : null;
+        this.venusAct = campaign.story?.sector === 'venus' ? new VenusActMission(this) : null;
         if (marsAct && this.escort) this.escort.ambushed = true;
         if (inEarthSystem(campaign.story?.sector)) {
             if (campaign.story!.claimed.includes('earth-relay')) this.surveyData.add('relay');
@@ -928,6 +950,7 @@ export class MissionSimulation {
             const position = enemyPosition(enemy);
             this.enemies.remove(id);
             this.marsAct?.killed(id);
+            this.venusAct?.killed(id);
             const salvageId = this.campaign.nextSalvageId++;
             this.campaign.worldSalvage.push({
                 ...position,
@@ -944,7 +967,7 @@ export class MissionSimulation {
         return this.escort instanceof MiningEscort ? this.escort : null;
     }
     get escortName() {
-        return this.miningEscort ? 'Muł' : 'Kepler';
+        return this.venusAct ? 'Sonda atmosferyczna' : this.miningEscort ? 'Muł' : 'Kepler';
     }
     get missionReport() {
         return {
@@ -955,7 +978,11 @@ export class MissionSimulation {
         };
     }
     get missionStatus() {
-        return this.marsAct?.status ?? missionOrderStatus(this.campaign, this.missionReport);
+        return (
+            this.venusAct?.status ??
+            this.marsAct?.status ??
+            missionOrderStatus(this.campaign, this.missionReport)
+        );
     }
     get missionReturnBlocked() {
         return (
@@ -1107,7 +1134,7 @@ export class MissionSimulation {
         return this.campaign.story?.sector === 'mars' && beltTechnologyReady(this.campaign.story);
     }
     get orbitalBaseSector() {
-        return this.venusSector || this.marsBaseSector;
+        return this.marsBaseSector;
     }
     get orbitalBuildReady() {
         return this.marsBaseSector ? marsBaseReady(this.campaign.story!) : this.venusBuildReady;
@@ -1150,6 +1177,7 @@ export class MissionSimulation {
         return !!this.campaign.story && venusPreparationComplete(this.campaign.story);
     }
     get venusOutpostStage() {
+        if (this.venusSector) return -1;
         const p = this.campaign.story;
         return !this.venusSector || !p?.claimed.includes('venus-site')
             ? -1
@@ -1183,6 +1211,7 @@ export class MissionSimulation {
         );
     }
     get venusStatus() {
+        if (this.venusAct) return this.venusAct.status;
         const p = this.campaign.story;
         if (!this.venusSector || !p) return '';
         const pending = constructionDeliveryTasks(this.campaign)[0];
@@ -1261,6 +1290,7 @@ export class MissionSimulation {
         );
     }
     get landmarks() {
+        if (this.venusAct) return this.sector.landmarks.filter((l) => this.inCurrentMap(l));
         const landmarks = this.beltSector
             ? this.sector.landmarks.flatMap((l) => {
                   if (l.key < 3 || l.key > 5) return [l];
@@ -1287,7 +1317,7 @@ export class MissionSimulation {
     get mapCenter(): Point {
         return this.area === 'surface'
             ? this.surfaceSite.center
-            : (this.marsMap?.center ?? { x: 0, y: 0 });
+            : (this.venusAct?.map.center ?? this.marsMap?.center ?? { x: 0, y: 0 });
     }
     get nearbyPassage() {
         return this.landmarks.find(
@@ -1407,6 +1437,7 @@ export class MissionSimulation {
     }
     get sectorRadius() {
         if (this.area === 'surface') return this.surfaceSite.radius;
+        if (this.venusAct) return this.venusAct.map.radius;
         if (this.marsMap) return this.marsMap.radius;
         return this.campaign.story ? storyRadius(this.campaign.story) : GAME.sectorRadius;
     }
@@ -1675,6 +1706,10 @@ export class MissionSimulation {
         return this.damageCooldown > 0;
     }
     get context() {
+        if (this.venusAct)
+            return this.venusAct.candidates()[0]
+                ? `F · ${this.venusAct.candidates()[0].name} · przytrzymaj 1 s`
+                : this.venusAct.status;
         if (this.marsAct?.context) return this.marsAct.context;
         if (this.cargoTransferRemaining > 0)
             return `Transfer ładunku · ${Math.floor((1 - this.cargoTransferRemaining / 2.4) * 100)}% · ruch lub ogień przerywa`;
@@ -1993,6 +2028,7 @@ export class MissionSimulation {
         const target = this.interaction.target;
         if (!target) return null;
         const seconds = Math.max(
+            this.venusAct?.progress ?? 0,
             this.gateInteractionProgress,
             this.lunarStationProgress,
             this.orbitalBuildProgress,
@@ -2026,6 +2062,7 @@ export class MissionSimulation {
             if (Math.hypot(point.x - position.x, point.y - position.y) < range)
                 result.push({ ...point, id, kind, name });
         };
+        if (this.venusAct) result.push(...this.venusAct.candidates());
         const gate = this.nearestHypergate;
         if (gate)
             add(
@@ -2066,7 +2103,10 @@ export class MissionSimulation {
                 rescue.name,
             );
         for (const landmark of this.landmarks)
-            if (landmark.siteId || ['passage', 'construction', 'wreck'].includes(landmark.kind))
+            if (
+                (!this.venusAct || landmark.kind === 'wreck') &&
+                (landmark.siteId || ['passage', 'construction', 'wreck'].includes(landmark.kind))
+            )
                 add(
                     `site:${landmark.key}`,
                     'world',
@@ -2115,7 +2155,7 @@ export class MissionSimulation {
                 HYPERDRIVE.gateRadius
         )
             return false;
-        const lock = this.hyperdriveLock;
+        const lock = this.hyperdriveLock ?? (gate ? this.venusAct?.gateLock(gate.to) : null);
         if (lock || input.thrust || input.fire || input.mine || input.repair || input.sabotage) {
             this.gateInteractionProgress = 0;
             this.setNotice(lock ?? 'Zwolnij sterowanie i narzędzia przed skokiem.');
@@ -2145,13 +2185,14 @@ export class MissionSimulation {
         if (
             Math.hypot(target.x - from.x, target.y - from.y) < HYPERDRIVE.minimum ||
             (!this.marsAct &&
+                !this.venusAct &&
                 Math.hypot(target.x - this.mapCenter.x, target.y - this.mapCenter.y) >
                     this.sectorRadius - 100)
         ) {
             this.setNotice('Za mało miejsca na skok wewnątrz sektora.');
             return;
         }
-        if (this.hyperdrive.start(from, target, guided, !!this.marsAct)) {
+        if (this.hyperdrive.start(from, target, guided, !!this.marsAct || !!this.venusAct)) {
             this.hyperHeld = true;
             this.gateInteractionProgress = 0;
             this.setNotice('Przelot śluzą.');
@@ -2224,6 +2265,10 @@ export class MissionSimulation {
             if (next.complete && drive.transfer) item.previous = salvagePosition(item);
         }
         if (next.complete) {
+            if (this.venusAct) {
+                this.venusAct.onGate(drive.origin, drive.target);
+                this.previous = this.position;
+            }
             if (this.marsAct) {
                 this.marsOrbit = marsOrbitAt(this.position)?.id ?? this.marsOrbit;
                 this.previous = this.position;
@@ -2571,7 +2616,7 @@ export class MissionSimulation {
             shipAngle,
             hyperFrame,
         );
-        if (this.escort && (!this.miningEscort || this.area === 'surface')) {
+        if (!this.venusAct && this.escort && (!this.miningEscort || this.area === 'surface')) {
             const obstacles = [...this.rocks.values()]
                 .map((r) => ({ ...r.body.translation(), radius: r.radius }))
                 .map((r) => ({ x: r.x * P, y: r.y * P, radius: r.radius }));
@@ -2878,6 +2923,7 @@ export class MissionSimulation {
                 this.setNotice('Stocznia wypuściła posiłki · 5 wskazuje rdzeń produkcyjny.');
         }
         this.marsAct?.update(input, dt);
+        this.venusAct?.update(input, dt);
         this.updateRecovery(
             {
                 ...input,
@@ -2925,7 +2971,7 @@ export class MissionSimulation {
             this.interact(dt);
         else this.dockProgress = 0;
         const distance =
-            this.area === 'surface' || this.marsAct
+            this.area === 'surface' || this.marsAct || this.venusAct
                 ? Math.hypot(this.position.x - this.mapCenter.x, this.position.y - this.mapCenter.y)
                 : this.distanceHome;
         const unprotected =
@@ -3524,6 +3570,7 @@ export class MissionSimulation {
         interrupt = true,
         environmental = false,
     ) {
+        if (this.venusAct && !this.venusAct.allowDamage(enemy.id)) return;
         if (enemy.boss)
             damage = Math.min(
                 Math.max(0, damage),
@@ -3541,6 +3588,7 @@ export class MissionSimulation {
         this.clearAtlasTarget(enemy.id);
         this.enemyKills++;
         this.marsAct?.killed(enemy.id);
+        this.venusAct?.killed(enemy.id);
         if (enemy.storyPatrol) this.storyPatrolKills++;
         this.events.push({
             ...wreck,
@@ -5958,6 +6006,7 @@ export class MissionSimulation {
             this.dockProgress += dt;
             if (this.dockProgress + 1e-8 >= INTERACTION_SECONDS && this.hull > 0) {
                 this.deliverTow();
+                this.venusAct?.dock();
                 this.ended = 'returned';
             }
         } else {

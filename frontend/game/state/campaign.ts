@@ -1,3 +1,5 @@
+import { nearestVenusMap } from '../worlds/venusLayout';
+import { migrateVenusCampaign } from './venusMigration';
 import { installStationProject, stationProjectCost } from './stationProgression';
 import { cargoCapacity } from '../config';
 import { nearestMarsOrbit } from '../worlds/marsLayout';
@@ -101,7 +103,7 @@ export interface SalvageDelivery {
     rescueXp: number;
 }
 export interface Campaign {
-    version: 67;
+    version: 68;
     story: StoryProgress | null;
     bank: Cargo;
     lunarStation: { bank: Cargo };
@@ -201,7 +203,7 @@ export const newShip = (id = 1, hull: HullId = 'prospector'): Ship => ({
 });
 export function newCampaign(): Campaign {
     return {
-        version: 67,
+        version: 68,
         story: null,
         bank: { ore: 0, parts: 0 },
         lunarStation: { bank: { ore: 0, parts: 0 } },
@@ -253,8 +255,8 @@ const cargo = (value: unknown): value is Cargo =>
 
 export function parseCampaign(json: string | null): Campaign | null {
     try {
-        const p: unknown = JSON.parse(json ?? 'null');
-        if (!object(p) || p.version !== 67 || !cargo(p.bank) || !object(p.station)) return null;
+        const p: unknown = migrateVenusCampaign(JSON.parse(json ?? 'null'));
+        if (!object(p) || p.version !== 68 || !cargo(p.bank) || !object(p.station)) return null;
         // Starter hulls are destroyed on signal loss; keep any independently surviving capsule.
         // Apply the same rule to old beacons so saved wrecks cannot fund repeated free starters.
         if (Array.isArray(p.recoverySignals)) {
@@ -537,7 +539,13 @@ export function parseCampaign(json: string | null): Campaign | null {
                             signal.y - nearestMarsOrbit(signal).center.y,
                         ) >
                         nearestMarsOrbit(signal).radius - 200
-                      : Math.hypot(signal.x, signal.y) > signalRadius - 200) ||
+                      : signal.seed === STORY_SECTORS.venus.seed
+                        ? Math.hypot(
+                              signal.x - nearestVenusMap(signal).center.x,
+                              signal.y - nearestVenusMap(signal).center.y,
+                          ) >
+                          nearestVenusMap(signal).radius - 200
+                        : Math.hypot(signal.x, signal.y) > signalRadius - 200) ||
                 (signal.ship === null && signal.pilot === null) ||
                 (signal.ship !== null && (!validShip(signal.ship) || signal.ship.id !== signal.id))
             )
@@ -1178,9 +1186,11 @@ export function finishRun(
                 ? active.area === 'surface'
                     ? nearestMarsSurface(loss)
                     : nearestMarsOrbit(loss)
-                : active.area === 'surface'
-                  ? MOON
-                  : null;
+                : active.sector === 'venus'
+                  ? nearestVenusMap(loss)
+                  : active.area === 'surface'
+                    ? MOON
+                    : null;
         const signal = createRecoverySignal(
             c.ship!,
             pilot,
@@ -1243,6 +1253,18 @@ export class SaveRepository {
         try {
             const json = this.storage.getItem(this.options.key ?? SAVE_KEY);
             const campaign = parseCampaign(json);
+            if (campaign && json && JSON.parse(json).version === 67) {
+                try {
+                    const key = `${this.options.key ?? SAVE_KEY}.backup-v67`;
+                    if (!this.storage.getItem(key)) this.storage.setItem(key, json);
+                    this.storage.setItem(this.options.key ?? SAVE_KEY, JSON.stringify(campaign));
+                    this.warning =
+                        'Zapis zaktualizowany. Kopia poprzedniej wersji została zachowana.';
+                } catch {
+                    this.warning =
+                        'Kampania została odczytana. Brak miejsca na kopię starego zapisu; postęp pozostaje w tej sesji.';
+                }
+            }
             if (json && !campaign)
                 this.warning =
                     'Niekompatybilny lub nieprawidłowy zapis. Ta wersja wymaga nowej kampanii.';

@@ -122,6 +122,23 @@ export function createDevelopmentAct(id: DevelopmentStartId): Campaign {
             dialogueReady(p, d)
         )
             p.dialogues.push(d.id);
+    if (complete.has('venus-mercury-signal'))
+        p.venus = {
+            powerRestored: true,
+            probeBuilt: true,
+            transmission: 3,
+            guardianDefeated: true,
+            announcements: [
+                'intro',
+                'relay',
+                'archive',
+                'transmission',
+                'horizon',
+                'guardian',
+                'victory',
+                'finale',
+            ],
+        };
     p.sector = start.sector;
     // Normal story locks are intentional: previous acts are completed, bypass flags are absent.
     if (c.station.workshopLevel) {

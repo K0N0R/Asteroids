@@ -16,6 +16,7 @@ export class Background extends Container {
     cameraAngle = 0;
     cameraZoom = 1;
     surface = false;
+    worldPlanet = false;
     lunarTransfer = false;
     transferBody = 'moon';
     private flight = false;
@@ -117,7 +118,8 @@ export class Background extends Container {
         this.time += deltaMS / 1000;
         this.illustration.updateAppearance(this.time);
         this.scenery.visible = !this.flight;
-        this.celestialLayer.visible = this.flight && (!this.surface || this.lunarTransfer);
+        this.celestialLayer.visible =
+            this.flight && !this.worldPlanet && (!this.surface || this.lunarTransfer);
         if (this.flight) {
             this.celestialLayer.update(
                 this.camera,

@@ -13,6 +13,7 @@ export function radioKey(line: DialogueLine) {
     return (hash >>> 0).toString(16);
 }
 export function enqueueRadio(story: StoryProgress, line: DialogueLine) {
+    if (obsoleteVenusRadio(story, line)) return false;
     const journal = (story.radio ??= { pending: [], acknowledged: [] });
     const key = radioKey(line);
     if (
@@ -21,6 +22,24 @@ export function enqueueRadio(story: StoryProgress, line: DialogueLine) {
     )
         return false;
     journal.pending.push(line);
+    return true;
+}
+
+export function obsoleteVenusRadio(story: StoryProgress, line: DialogueLine) {
+    const markers: [string, string][] = [
+        ['Orbita Wenus jest dostępna', 'venus-toxic-orbit'],
+        ['Odczyt odebrany. Odszukaliśmy stację', 'venus-dead-laboratory'],
+        ['Archiwum zabezpieczone. SI prowadziła', 'venus-atmospheric-probe'],
+        ['Pełna transmisja została odebrana', 'venus-horizon-project'],
+        ['System obronny właśnie się uruchomił', 'venus-guardian'],
+        ['Rdzeń wyłączony. Terminal odzyskał', 'venus-mercury-signal'],
+    ];
+    return markers.some(([text, id]) => line.text.includes(text) && story.claimed.includes(id));
+}
+export function pruneObsoleteVenusRadio(story: StoryProgress) {
+    const stale = story.radio?.pending.filter((line) => obsoleteVenusRadio(story, line)) ?? [];
+    if (!stale.length) return false;
+    acknowledgeRadio(story, stale);
     return true;
 }
 export function acknowledgeRadio(story: StoryProgress, lines: readonly DialogueLine[]) {

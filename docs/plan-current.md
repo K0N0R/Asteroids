@@ -4,6 +4,10 @@ Stan: 2026-10-24, wersja robocza 0.137.
 
 Ten plik określa aktualny backlog. `plan-v0.1.md`, `roadmap-after-v0.19.md` oraz opisy `implementation-*` zachowują historię decyzji; ich dawne zdania „następny etap” nie oznaczają niezrealizowanych zadań.
 
+## Planowany refaktor aktu III — Wenus: Ślad anomalii
+
+Nowy kierunek zastępuje obecną budowę i obronę placówki sześcioma misjami badawczymi: rozpoznanie orbity, martwe laboratorium, sonda atmosferyczna, Projekt Horyzont, strażnik SI i odkrycie źródła materiału na Merkurym. Układ według SVG: duża otwarta orbita oraz trzy mniejsze lokacje za lokalnymi przejściami. Około 70% aktywnej rozgrywki pozostaje na orbicie. Całość na zakładach i statkach I, z informacjami ujawnianymi podczas kolejnych odkryć. Schemat nie daje jeszcze działającego stabilizatora ani części II. [Pełny plan misji, mapy, integracji, zapisu i odbioru](act-3-venus-refactor-plan.md). Status: plan, jeszcze niewdrożony; zastępuje wcześniejsze założenia o budowie placówki Wenus.
+
 ## Start aktów od początku 0.137
 
 Narzędzia ESC zastępują swobodne przełączanie sektora świeżymi początkami aktów I–X. Poprzednie wymagane zadania są ukończone, a wybrany etap ma wyzerowane misje, świat, łączność i odpowiednie zakłady oraz flotę. Normalne blokady odkrywania pozostają aktywne. Dostępny jest reset bieżącego etapu, osobny Akt V na Marsie i dodatkowe wejścia na Księżyc oraz Neptuna. Wszystko działa w oddzielnym zapisie testowym. [Zakres i testy](implementation-v0.137.md).

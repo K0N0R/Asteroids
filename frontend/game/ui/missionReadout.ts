@@ -152,6 +152,15 @@ export function flightHint(s: MissionSimulation) {
     const percent = (progress: number, seconds: number) =>
         `${Math.min(100, Math.floor((progress / seconds) * 100))}%`;
     if (s.pendingChoice) return '';
+    if (
+        s.venusAct &&
+        !s.repairProgress &&
+        !s.dockProgress &&
+        !s.salvageProgress &&
+        !s.recoveryProgress &&
+        !s.engineFault
+    )
+        return s.context;
     if (s.escort?.state === 'idle' && s.nearbyEscort)
         return s.escort.startProgress > 0
             ? `F Eskorta · ${percent(s.escort.startProgress, 1)}`

@@ -66,23 +66,16 @@ function replaceLost(c: ReturnType<typeof ready>) {
     emergencyKit(c);
     if (!c.pilots.length) assert.ok(hirePilot(c, 0));
 }
-test('Mercury needs both solar preparation and defended Venus; backtracking keeps earlier acts complete', () => {
+test('Mercury requires the delivered Venus finale and keeps earlier travel available', () => {
     const c = ready();
-    assert.equal(c.story!.progress['venus-reserve'], 0);
     travelStory(c, 'venus');
-    c.story!.claimed = c.story!.claimed.filter((id) => id !== 'venus-defense');
-    c.story!.progress['venus-defense'] = 0;
+    c.story!.claimed = c.story!.claimed.filter((id) => id !== 'venus-mercury-signal');
+    c.story!.progress['venus-mercury-signal'] = 0;
     assert.equal(storySectorUnlocked(c.story!, 'mercury'), false);
-    assert.equal(travelStory(c, 'mercury'), false);
-    c.story!.claimed.push('venus-defense');
-    c.story!.progress['venus-defense'] = 1;
-    c.story!.claimed = c.story!.claimed.filter((id) => id !== 'venus-shield');
-    c.story!.progress['venus-shield'] = 0;
-    assert.equal(travelStory(c, 'mercury'), false);
-    c.story!.claimed.push('venus-shield');
-    c.story!.progress['venus-shield'] = 1;
-    for (const sector of ['earth', 'lunar', 'mars', 'mercury'] as const)
-        assert.ok(travelStory(c, sector));
+    c.story!.claimed.push('venus-mercury-signal');
+    c.story!.progress['venus-mercury-signal'] = 1;
+    assert.ok(storySectorUnlocked(c.story!, 'lunar'));
+    for (const sector of ['earth', 'mars', 'mercury'] as const) assert.ok(travelStory(c, sector));
     assert.ok(parseCampaign(JSON.stringify(c)));
 });
 

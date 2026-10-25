@@ -66,7 +66,7 @@ function hold(s: MissionSimulation, input: FlightInput, frames = 150) {
 }
 
 test('orbital manifests load five named part families once, preserve freight and reject old saves', () => {
-    for (const sector of ['mars', 'venus'] as const) {
+    for (const sector of ['mars'] as const) {
         const c = ready(sector);
         const entries = sector === 'mars' ? MARS_CONSTRUCTION : VENUS_CONSTRUCTION;
         const manifest = constructionManifest(c);
@@ -125,7 +125,7 @@ test('orbital deliveries reject wrong sectors, lunar surface, aborted sorties an
     assert.equal(cargo.parts, 12);
 });
 
-for (const sector of ['mars', 'venus'] as const)
+for (const sector of ['mars'] as const)
     test(`${sector}: C transfer is physical, interruptible and leaves surplus aboard`, () => {
         const c = ready(sector);
         beginRun(c, 1, null, true);
@@ -158,30 +158,3 @@ for (const sector of ['mars', 'venus'] as const)
             s.dispose();
         }
     });
-
-test('E delivers the Venus equipment, mounts the base and accepts solar shield equipment in the same sortie', () => {
-    const c = ready('venus');
-    grantOrbitalSupplies(c, [{ id: 'venus-site', target: 1 }]);
-    beginRun(c, 1, null, true);
-    const s = new MissionSimulation(c, c.activeRun!.seed);
-    try {
-        at(s, VENUS_OUTPOST);
-        hold(s, { ...idle, interact: true }, 125);
-        assert.equal(c.story!.claimed.includes('venus-build'), false);
-        hold(s, { ...idle, interact: true }, 125);
-        assert.equal(c.story!.claimed.includes('venus-build'), true);
-        assert.equal(s.venusOutpostStage, 1);
-        s.cargo.lightPlating = 6;
-        s.cargo.powerModules = 3;
-        hold(s, { ...idle, interact: true }, 125);
-        assert.equal(solarShieldReady(c.story!), false);
-        s.cargo.electronics = 2;
-        hold(s, { ...idle, interact: true }, 125);
-        assert.equal(solarShieldReady(c.story!), true);
-        assert.equal(s.venusOutpostStage, 2);
-        assert.ok(VENUS_SHIELD.every((t) => c.story!.claimed.includes(t.id)));
-        assert.ok(parseCampaign(JSON.stringify(c)));
-    } finally {
-        s.dispose();
-    }
-});

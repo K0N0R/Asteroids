@@ -1,3 +1,4 @@
+import { generateVenusSector } from './venusSystem';
 import { generateMarsActSector } from './marsSystem';
 import { MARS_MOONS } from './marsMoons';
 import {
@@ -49,6 +50,7 @@ export function marsCorridorFleet(progress: StoryProgress): EnemySpec[] {
         : [];
 }
 export function generateStorySector(progress: StoryProgress) {
+    if (progress.sector === 'venus') return generateVenusSector(progress);
     if (progress.sector === 'mars' && !beltTechnologyReady(progress))
         return generateMarsActSector(progress);
     const def = STORY_SECTORS[progress.sector],
@@ -271,48 +273,6 @@ export function generateStorySector(progress: StoryProgress) {
             [MARS_BASE, ...contacts, ...sector.landmarks.filter((l) => l.siteId)].every(
                 (p) => Math.hypot(r.x - p.x, r.y - p.y) > r.radius + 360,
             ),
-        );
-    }
-    if (progress.sector === 'venus') {
-        sector.landmarks = [
-            { x: 1100, y: 0, name: 'Złoże przy Wenus', key: 2, kind: 'field', radius: 330 },
-            {
-                x: -1300,
-                y: 800,
-                name: 'Przekaźnik orbity Wenus',
-                key: 7,
-                kind: 'relay',
-                siteId: 'relay',
-                radius: 180,
-            },
-            {
-                x: 850,
-                y: -550,
-                name: 'Pozostałości na orbicie',
-                key: 4,
-                kind: 'wreck',
-                radius: 100,
-            },
-            ...(progress.claimed.includes('venus-survey')
-                ? [
-                      {
-                          x: 2700,
-                          y: -1100,
-                          name: progress.claimed.includes('venus-build')
-                              ? 'Placówka badawcza Wenus'
-                              : 'Miejsce pod placówkę',
-                          key: 8,
-                          kind: 'archive' as const,
-                          siteId: 'archive' as const,
-                          radius: 180,
-                      },
-                  ]
-                : []),
-        ];
-        sector.rocks = sector.rocks.filter((r) =>
-            sector.landmarks
-                .filter((l) => l.siteId)
-                .every((l) => Math.hypot(r.x - l.x, r.y - l.y) > r.radius + 360),
         );
     }
     if (progress.sector === 'mercury') {

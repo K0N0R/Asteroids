@@ -1,4 +1,10 @@
-import { enqueueRadio, acknowledgeRadio, pruneObsoleteMarsRadio } from './state/communications';
+import { venusStationAction } from './state/venusActions';
+import {
+    enqueueRadio,
+    acknowledgeRadio,
+    pruneObsoleteMarsRadio,
+    pruneObsoleteVenusRadio,
+} from './state/communications';
 import { recoverTechnicalInterruption } from './state/technicalRecovery';
 import { installStationProject } from './state/stationProgression';
 import { cargoReceipt } from './ui/cargoReceipt';
@@ -192,6 +198,23 @@ export class GameSession {
                 ),
             contribute: (id) => {
                 if (this.mission || this.hasOverlay) return;
+                if (id === 'venus-probe-build' || id === 'venus-analyse') {
+                    const ok = venusStationAction(this.campaign, id);
+                    if (ok && id === 'venus-analyse' && this.campaign.story)
+                        enqueueRadio(this.campaign.story, {
+                            speaker: 'science',
+                            text: 'Projekt Horyzont opisuje sposób stabilizacji anomalii. Odtworzyliśmy schemat, ale brakuje specyfikacji materiału rdzenia. Odszukana instalacja SI może zawierać pełne parametry.',
+                        });
+                    this.saves.save(this.campaign);
+                    this.lobby.refresh(
+                        ok
+                            ? id === 'venus-analyse'
+                                ? 'Projekt Horyzont: schemat stabilizacji odtworzony. Brakuje specyfikacji materiału rdzenia. Dane wskazują lokalną instalację SI.'
+                                : 'Sonda gotowa przy Satuk 15. Rozpocznij eskortę przez F.'
+                            : 'Brak wymaganych części lub analiza jeszcze niedostępna.',
+                    );
+                    return;
+                }
                 const change = contributeStory(this.campaign, id);
                 this.saves.save(this.campaign);
                 this.lobby.refresh(
@@ -955,9 +978,19 @@ export class GameSession {
             this.dialoguePanel = null;
             clear(this.communications);
         }
+        if (this.campaign.story && pruneObsoleteVenusRadio(this.campaign.story)) {
+            if (this.dialogue?.definition.id === 'radio-report') {
+                this.dialogue = null;
+                this.dialoguePanel = null;
+                clear(this.communications);
+            }
+            this.dialogueQueue = this.dialogueQueue.filter((d) => d.id !== 'radio-report');
+            this.saves.save(this.campaign);
+        }
         this.communications.visible = !this.hasOverlay && !PopupContainer.hasActivePopup();
         if (this.dialogue && this.communications.visible) this.dialoguePanel?.update(deltaMS);
         this.background.setFlight(!!this.mission);
+        this.background.worldPlanet = !!this.mission?.simulation.venusAct;
         if (this.mission) {
             this.background.lunarTransfer = this.mission.simulation.transferActive;
             this.background.camera = this.mission.backgroundCamera;
@@ -1077,8 +1110,15 @@ export class GameSession {
                 let changed = false;
                 for (const text of sim.radioMessages.splice(0))
                     changed =
-                        enqueueRadio(this.campaign.story, { speaker: 'operations', text }) ||
-                        changed;
+                        enqueueRadio(this.campaign.story, {
+                            speaker:
+                                sim.venusAct && text.startsWith('Ivo Nadir:')
+                                    ? 'science'
+                                    : 'operations',
+                            text: sim.venusAct
+                                ? text.replace(/^(Ada Serrin|Ivo Nadir): /, '')
+                                : text,
+                        }) || changed;
                 for (const text of sim.guideMessages.splice(0))
                     changed =
                         enqueueRadio(this.campaign.story, { speaker: 'guide', text }) || changed;

@@ -1,3 +1,5 @@
+import { canAffordEquipment } from '../state/equipmentCosts';
+import { VENUS_PROBE_COST } from '../state/venusAct';
 import { marsSecurityObjective } from '../state/marsAct';
 import { CanvasTextMetrics, Container, Graphics, TextStyle } from 'pixi.js';
 import type { Campaign } from '../state/campaign';
@@ -44,6 +46,13 @@ function textHeight(text: string, width: number, size: number) {
 
 export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCardActions) {
     const p = c.story!;
+    if (task.id === 'venus-atmospheric-probe')
+        task = p.venus?.probeBuilt
+            ? {
+                  ...task,
+                  detail: 'Sonda gotowa. Rozpocznij eskortę przez F przy Satuk 15 i osłaniaj transmisję z atmosfery.',
+              }
+            : { ...task, requirements: VENUS_PROBE_COST };
     const complete = p.claimed.includes(task.id);
     const shipping = task.id === 'lunar-equipment' && !!c.lunarShipment;
     const items =
@@ -114,38 +123,56 @@ export function questCardLayout(c: Campaign, task: StoryTask, actions: QuestCard
                 task.kind === 'kineticShield'
               ? 'station'
               : null;
+    const venusAction =
+        task.id === 'venus-atmospheric-probe' && !p.venus?.probeBuilt
+            ? 'venus-probe-build'
+            : task.id === 'venus-horizon-project'
+              ? 'venus-analyse'
+              : null;
     const action = complete
         ? null
-        : destination && actions.openDestination
+        : venusAction && actions.contribute
           ? {
-                title: destination === 'hangar' ? 'OTWÓRZ HANGAR →' : 'ROZBUDOWA STACJI →',
-                run: () =>
-                    actions.openDestination?.(
-                        destination,
-                        task.stationProject ??
-                            (task.id === 'earth-supply'
-                                ? 'laboratory'
-                                : task.id === 'earth-workshop'
-                                  ? 'workshop'
-                                  : 'shield'),
-                    ),
-                enabled: true,
+                title:
+                    venusAction === 'venus-probe-build'
+                        ? 'ZMONTUJ SONDĘ · WARSZTAT I'
+                        : 'ANALIZUJ W LABORATORIUM',
+                run: () => actions.contribute?.(venusAction),
+                enabled:
+                    !c.activeRun &&
+                    (venusAction === 'venus-analyse' ||
+                        canAffordEquipment(c.bank, VENUS_PROBE_COST)),
             }
-          : storyTaskAvailable(p, task) &&
-              ['ore', 'parts'].includes(task.kind) &&
-              actions.contribute
+          : destination && actions.openDestination
             ? {
-                  title: `PRZEKAŻ ${task.kind === 'parts' ? 'KOMPONENTY' : 'RUDĘ'}`,
-                  run: () => actions.contribute?.(task.id),
-                  enabled: (c.bank[task.kind === 'parts' ? 'parts' : 'ore'] ?? 0) > 0,
+                  title: destination === 'hangar' ? 'OTWÓRZ HANGAR →' : 'ROZBUDOWA STACJI →',
+                  run: () =>
+                      actions.openDestination?.(
+                          destination,
+                          task.stationProject ??
+                              (task.id === 'earth-supply'
+                                  ? 'laboratory'
+                                  : task.id === 'earth-workshop'
+                                    ? 'workshop'
+                                    : 'shield'),
+                      ),
+                  enabled: true,
               }
-            : storyTaskAvailable(p, task) && task.kind === 'briefing' && actions.briefing
+            : storyTaskAvailable(p, task) &&
+                ['ore', 'parts'].includes(task.kind) &&
+                actions.contribute
               ? {
-                    title: 'ZATWIERDŹ PLAN DO WENUS',
-                    run: () => actions.briefing?.(),
-                    enabled: !c.activeRun,
+                    title: `PRZEKAŻ ${task.kind === 'parts' ? 'KOMPONENTY' : 'RUDĘ'}`,
+                    run: () => actions.contribute?.(task.id),
+                    enabled: (c.bank[task.kind === 'parts' ? 'parts' : 'ore'] ?? 0) > 0,
                 }
-              : null;
+              : storyTaskAvailable(p, task) && task.kind === 'briefing' && actions.briefing
+                ? {
+                      title: 'ZATWIERDŹ PLAN DO WENUS',
+                      run: () => actions.briefing?.(),
+                      enabled: !c.activeRun,
+                  }
+                : null;
     const stageY = bodyY + descriptionHeight + 16;
     const actionY = stage ? stageY + 24 + 18 : bodyY + descriptionHeight + 20;
     const leftHeight = action

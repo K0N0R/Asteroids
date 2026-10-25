@@ -111,7 +111,7 @@ export class MissionHud extends Container {
             graphic.eventMode = 'none';
         this.health = label(this, '', 80, 41, 20);
         this.shieldValue = label(this, '', 342, 43, 17, 0x86bded);
-        if (sim.marsAct) this.areaTitle = label(this, '', 40, 145, 18, C.cyan, 700);
+        if (sim.marsAct || sim.venusAct) this.areaTitle = label(this, '', 40, 145, 18, C.cyan, 700);
         if (
             sim.surfaceUnlocked ||
             sim.orbitalBaseSector ||
@@ -176,6 +176,7 @@ export class MissionHud extends Container {
     get availableTargets() {
         const s = this.sim;
         const targets = new Set(s.landmarks.map((site) => site.key - 1));
+        if (s.venusAct) targets.add(18);
         targets.add(0);
         if (s.area === 'orbit') {
             targets.add(-1);
@@ -267,6 +268,11 @@ export class MissionHud extends Container {
         this.target = 14;
     }
     get waypoint() {
+        if (this.sim.venusAct) {
+            const v = this.sim.venusAct;
+            const p = this.target === 18 ? v.waypoint : this.worldWaypoint;
+            return v.navigate(p, p.name);
+        }
         const s = this.sim,
             recovery =
                 s.marsAct && this.target === 5
@@ -466,7 +472,13 @@ export class MissionHud extends Container {
         );
         if (this.areaRevision !== this.sim.areaRevision) {
             this.areaRevision = this.sim.areaRevision;
-            this.target = this.sim.area === 'surface' ? (this.sim.miningEscort ? 15 : 0) : 2;
+            this.target = this.sim.venusAct
+                ? 18
+                : this.sim.area === 'surface'
+                  ? this.sim.miningEscort
+                      ? 15
+                      : 0
+                  : 2;
             if (this.sim.marsAct && this.sim.area === 'orbit') {
                 const mars = this.sim.campaign.story!.mars;
                 this.target = !mars.landingBlocked
@@ -493,6 +505,7 @@ export class MissionHud extends Container {
         );
         this.health.setText(`${Math.ceil(s.hull)} / ${s.maxHull}`);
         this.health.setColor(C.red);
+        if (this.areaTitle && s.venusAct) this.areaTitle.setText(s.venusAct.map.name);
         this.abilitiesHud.update();
         this.noticePanel.visible = s.noticeTime > 0 && !!s.notice && !s.interactionProgress;
         this.noticeText.setText(s.notice);
@@ -567,7 +580,7 @@ export class MissionHud extends Container {
             this.orderStatus,
         ])
             if (status) status.visible = false;
-        if (s.marsAct && this.orderStatus) this.orderStatus.visible = true;
+        if ((s.marsAct || s.venusAct) && this.orderStatus) this.orderStatus.visible = true;
         const towedIds = [...s.salvage.towing.keys()].join(',');
         if (this.towedIds !== towedIds) {
             this.towedIds = towedIds;
@@ -577,14 +590,14 @@ export class MissionHud extends Container {
             this.recoveryWasSecured = true;
             this.target = 0;
         }
-        if (!s.marsAct && s.surveyData.size !== this.lastSurveyCount) {
+        if (!s.marsAct && !s.venusAct && s.surveyData.size !== this.lastSurveyCount) {
             this.lastSurveyCount = s.surveyData.size;
             const nextSite = CONTRACTS[this.contract].sites.find((site) => !s.surveyData.has(site));
             if (CONTRACTS[this.contract].sites.length && (!s.recoverySignal || s.recoverySecured))
                 this.target = nextSite ? SCAN_SITES[nextSite].key - 1 : 0;
         }
         const kills = CONTRACTS[this.contract].kills;
-        if (!s.marsAct && kills && !this.combatComplete && s.enemyKills >= kills) {
+        if (!s.marsAct && !s.venusAct && kills && !this.combatComplete && s.enemyKills >= kills) {
             this.combatComplete = true;
             this.target = s.recoverySignal && !s.recoverySecured ? 5 : 0;
         }
@@ -683,7 +696,7 @@ export class MissionHud extends Container {
         if (!this.trails.has(trailKey)) this.trails.set(trailKey, new RadarTrail());
         this.trail = this.trails.get(trailKey)!;
         this.trail.update(p, s.elapsed);
-        if (s.area === 'surface' || s.marsAct) {
+        if (s.area === 'surface' || s.marsAct || s.venusAct) {
             this.surfaceRadar(waypoint);
             this.navigationArrow(waypoint, distance);
             return;
@@ -926,7 +939,7 @@ export class MissionHud extends Container {
             x = 1470,
             y = 130,
             baseFrame =
-                s.marsAct && s.area === 'orbit'
+                (s.marsAct || s.venusAct) && s.area === 'orbit'
                     ? gateRadarFrame(s.mapCenter, s.sectorRadius, s.hyperdrive)
                     : { center: s.mapCenter, radius: s.sectorRadius },
             frame = zoomRadarFrame(
@@ -955,7 +968,7 @@ export class MissionHud extends Container {
                 alpha: this.trail.opacity(s.elapsed, dot),
             });
         }
-        if (s.marsAct) {
+        if (s.marsAct || s.venusAct) {
             for (const lane of s.sector.hyperlanes)
                 for (const p of [lane.a, lane.b])
                     if (inside(p)) {
@@ -997,7 +1010,13 @@ export class MissionHud extends Container {
         }
         for (const e of s.enemies.enemies.values()) {
             const ep = enemyPosition(e);
-            if (!inside(ep)) continue;
+            if (
+                !inside(ep) ||
+                !e.body.isEnabled() ||
+                (s.venusAct?.stormInterference &&
+                    Math.hypot(ep.x - s.position.x, ep.y - s.position.y) > 1200)
+            )
+                continue;
             const p = point(ep);
             map.circle(p.x, p.y, 3).fill(C.red);
         }

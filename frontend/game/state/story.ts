@@ -1,4 +1,11 @@
 import {
+    VENUS_TASKS,
+    venusObjective,
+    validVenusProgress,
+    newVenusProgress,
+    type VenusProgress,
+} from './venusAct';
+import {
     phobosOrbitSecured,
     newMarsProgress,
     validMarsProgress,
@@ -513,104 +520,7 @@ export const STORY_TASKS: readonly StoryTask[] = [
         dependencies: ['mars-anomaly-research'],
         reward: { ore: 0, parts: 0 },
     },
-    {
-        id: 'venus-survey',
-        sector: 'venus',
-        act: 3,
-        title: 'Rozpoznanie orbity',
-        required: true,
-        detail: 'Leć do przekaźnika przy Wenus. Zbierz odczyt przez F i poczekaj na potwierdzenie radiowe Satuk 15.',
-        kind: 'scan',
-        site: 'relay',
-        target: 1,
-        dependencies: [],
-        reward: { ore: 18, parts: 4 },
-    },
-    {
-        id: 'venus-site',
-        sector: 'venus',
-        act: 3,
-        title: 'Miejsce pod placówkę',
-        required: true,
-        detail: 'Po zwiadzie leć do punktu pomiarowego. Zbierz odczyt przez F i wróć, aby zatwierdzić miejsce pod przyszłą placówkę.',
-        kind: 'scan',
-        site: 'archive',
-        target: 1,
-        dependencies: ['venus-survey'],
-        reward: { ore: 16, parts: 4 },
-    },
-    ...VENUS_CONSTRUCTION.map(
-        (entry): StoryTask => ({
-            ...entry,
-            sector: 'venus',
-            act: 3,
-            required: true,
-            kind: 'delivery',
-            detail: `Dostarcz ${entry.target} × ${RESOURCES[entry.resource].name}. Załaduj manifest i przekaż części przy budowie.`,
-            dependencies: ['venus-survey'],
-            reward: { ore: 0, parts: 0 },
-        }),
-    ),
-    {
-        id: 'venus-reserve',
-        sector: 'venus',
-        act: 3,
-        title: 'Zapas na dalszą drogę',
-        required: false,
-        detail: 'Dodatkowy przydział: przekaż 16 rudy na zapasy. Nie blokuje przygotowania placówki.',
-        kind: 'ore',
-        target: 16,
-        dependencies: [],
-        reward: { ore: 8, parts: 3 },
-    },
-    {
-        id: 'venus-build',
-        sector: 'venus',
-        act: 3,
-        title: 'Budowa placówki',
-        required: true,
-        detail: 'Po pomiarach i dostarczeniu części leć na plac budowy. Przytrzymaj F przez 1 s przy nieruchomym statku. Materiały są już opłacone.',
-        kind: 'construction',
-        target: 1,
-        dependencies: ['venus-site', ...VENUS_CONSTRUCTION.map((t) => t.id)],
-        reward: { ore: 0, parts: 0 },
-    },
-    ...VENUS_SHIELD.map(
-        (entry): StoryTask => ({
-            ...entry,
-            sector: 'venus',
-            act: 3,
-            required: true,
-            kind: 'delivery',
-            detail: `Dostarcz ${entry.target} × ${RESOURCES[entry.resource].name} do osłony. Części przyjmuje zbudowana placówka.`,
-            dependencies: ['venus-build'],
-            reward: { ore: 0, parts: 0 },
-        }),
-    ),
-    {
-        id: 'venus-shield',
-        sector: 'venus',
-        act: 3,
-        title: 'Osłona słoneczna',
-        required: true,
-        detail: 'Po dostarczeniu poszycia lekkiego, zasilania i elektroniki placówka potwierdzi gotowość osłony do podróży bliżej Słońca.',
-        kind: 'construction',
-        target: 1,
-        dependencies: VENUS_SHIELD.map((t) => t.id),
-        reward: { ore: 0, parts: 0 },
-    },
-    {
-        id: 'venus-defense',
-        sector: 'venus',
-        act: 3,
-        title: 'Obrona przygotowań',
-        required: true,
-        detail: 'Po budowie: G przez 1 s przy placówce rozpoczyna atak AI. Odeprzyj trzy kontakty i poczekaj na potwierdzenie radiowe. Osłonę możesz przygotować równolegle.',
-        kind: 'assault',
-        target: 1,
-        dependencies: ['venus-build'],
-        reward: { ore: 30, parts: 8 },
-    },
+    ...VENUS_TASKS,
     {
         id: 'mercury-survey',
         sector: 'mercury',
@@ -1221,7 +1131,8 @@ export const VENUS_OUTPOST = { x: 2700, y: -1100 } as const;
 export const EARTH_BRIEFING =
     'Pomiary anomalii są zabezpieczone, ale nie potrafimy jeszcze bezpiecznie pobierać ich materiału. Następny kierunek: Wenus. Rozpoznaj orbitę i nawiąż łączność z lokalnym przekaźnikiem.';
 export interface StoryProgress {
-    version: 32;
+    version: 33;
+    venus?: VenusProgress;
     /** Only written to the separate development save slot. */
     development?: boolean;
     mars: MarsProgress;
@@ -1234,7 +1145,8 @@ export interface StoryProgress {
     searchedWrecks: StorySectorId[];
 }
 export const newStoryProgress = (): StoryProgress => ({
-    version: 32,
+    version: 33,
+    venus: newVenusProgress(),
     mars: newMarsProgress(),
     lunarMule: 'active',
     dialogues: [],
@@ -1332,7 +1244,20 @@ export function storyVisibleTasks(p: StoryProgress) {
 }
 /** Only revealed tasks belong in the journal, HUD and briefing. Definitions remain intact. */
 export function storyDiscoveredTasks(p: StoryProgress) {
-    return storyVisibleTasks(p).filter((t) => p.claimed.includes(t.id) || storyTaskAvailable(p, t));
+    return storyVisibleTasks(p)
+        .filter((t) => p.claimed.includes(t.id) || storyTaskAvailable(p, t))
+        .map((t) => {
+            if (p.claimed.includes(t.id)) return t;
+            const title =
+                t.id === 'venus-horizon-project'
+                    ? 'Analiza transmisji'
+                    : t.id === 'venus-guardian' && !p.venus?.announcements.includes('guardian')
+                      ? 'Instalacja SI'
+                      : t.id === 'venus-mercury-signal'
+                        ? 'Odzysk specyfikacji'
+                        : t.title;
+            return title === t.title ? t : { ...t, title };
+        });
 }
 export function marsBaseReady(p: StoryProgress) {
     return orbitalSuppliesReady(p, 'mars');
@@ -1347,7 +1272,7 @@ export function venusPreparationComplete(p: StoryProgress) {
     return p.claimed.includes('venus-site') && orbitalSuppliesReady(p, 'venus');
 }
 export function solarShieldReady(p: StoryProgress) {
-    return p.claimed.includes('venus-shield');
+    return p.claimed.includes('venus-mercury-signal');
 }
 export function beltTechnologyReady(p: StoryProgress) {
     return p.claimed.includes('mercury-technology');
@@ -1463,21 +1388,7 @@ export function storyNextStep(p: StoryProgress) {
             : p.claimed.includes('mercury-survey')
               ? 'Zabezpiecz podejście i wróć z raportami. W cieniu dużych asteroid statek chłodzi się; nie niszcz osłon bez potrzeby.'
               : 'Wykonaj pomiary podejścia. Kolejne schronienie pojawi się po zwiadzie. Chłodź statek w zaznaczonym cieniu dużych skał.';
-    if (p.sector === 'venus') {
-        if (storySectorComplete(p, 'venus'))
-            return 'Akt III ukończony. Placówka obroniona, osłona słoneczna gotowa. Następny kierunek: Merkury.';
-        if (p.claimed.includes('venus-build'))
-            return p.claimed.includes('venus-defense')
-                ? 'Placówka obroniona. Dostarcz brakujące części osłony słonecznej do placówki, aby zakończyć przygotowania.'
-                : solarShieldReady(p)
-                  ? 'Osłona gotowa. Obroń placówkę: G przez 1 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio Satuk 15.'
-                  : 'Dostarcz części osłony do placówki i obroń placówkę: G przez 1 s przy obiekcie rozpoczyna atak. Raport potwierdzi radio.';
-        if (venusPreparationComplete(p))
-            return 'Miejsce i materiały przygotowane. Wyrusz do placówki i przytrzymaj F przez 1 s, aby ją zbudować.';
-        return p.claimed.includes('venus-survey')
-            ? 'Wykonaj pomiary miejsca pod placówkę i dostarcz manifest części przez C lub F. Te cele możesz realizować równolegle.'
-            : 'Rozpoznaj orbitę Wenus i wróć z odczytem. Zwiad otworzy dalszy obszar oraz przygotowania placówki.';
-    }
+    if (p.sector === 'venus') return venusObjective(p);
     if (actTwoComplete(p))
         return 'Akt II ukończony. Trasa do Wenus otwarta. Wybierz jej sektor w Układzie słonecznym; wcześniejsze rejony pozostają dostępne.';
     if (p.claimed.includes('mars-anomaly-research'))
@@ -1535,7 +1446,7 @@ export function storyRadius(p: StoryProgress) {
     if (p.sector === 'mercury' && p.claimed.includes('mercury-survey')) return 4700;
     if (p.sector === 'mars' && p.claimed.includes('mars-base-build')) return 5400;
     if (p.sector === 'mars' && !beltTechnologyReady(p)) return 11000;
-    if (p.sector === 'venus' && p.claimed.includes('venus-survey')) return 3900;
+    if (p.sector === 'venus') return 10400;
     return p.sector === 'earth' &&
         ['earth-supply', 'earth-relay'].every((id) => p.claimed.includes(id))
         ? 2450
@@ -1548,7 +1459,8 @@ export function validStory(value: unknown): value is StoryProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as StoryProgress;
     if (
-        p.version !== 32 ||
+        p.version !== 33 ||
+        (p.venus !== undefined && !validVenusProgress(p.venus)) ||
         (p.radio !== undefined && !validRadio(p.radio)) ||
         !validMarsProgress(p.mars) ||
         !['active', 'destroyed', 'transferred'].includes(p.lunarMule) ||
@@ -1634,8 +1546,6 @@ function settle(c: Campaign): StoryChange {
         if (task.id === 'mars-anomaly-research' && p.mars.researchReturned === true)
             p.progress[task.id] = 1;
         if (task.id === 'mars-probe' && p.mars.probeDelivered) p.progress[task.id] = 1;
-        if (task.id === 'venus-shield' && VENUS_SHIELD.every((t) => p.claimed.includes(t.id)))
-            p.progress[task.id] = 1;
         if (
             task.id === 'earth-ship-upgrade' &&
             [c.ship, ...c.reserveShips].some(
@@ -1756,6 +1666,7 @@ export function recordVenusConstruction(c: Campaign) {
     if (
         !p ||
         p.sector !== 'venus' ||
+        !task ||
         c.activeRun?.sector !== 'venus' ||
         c.activeRun.area ||
         !storyTaskAvailable(p, task) ||
@@ -1979,7 +1890,11 @@ export function recordStoryReturn(
         const task = STORY_TASKS.find((t) => t.id === 'mars-base-defense')!;
         if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
     }
-    if (sector === 'venus' && venusDefenseWon) {
+    if (
+        sector === 'venus' &&
+        venusDefenseWon &&
+        STORY_TASKS.some((t) => t.id === 'venus-defense')
+    ) {
         const task = STORY_TASKS.find((t) => t.id === 'venus-defense')!;
         if (storyTaskAvailable(c.story, task)) c.story.progress[task.id] = 1;
     }

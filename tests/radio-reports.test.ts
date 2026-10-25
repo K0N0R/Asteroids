@@ -90,7 +90,6 @@ test('radio persists partial patrol counts once, does not open docking early, an
 });
 
 for (const [sector, task] of [
-    ['venus', 'venus-survey'],
     ['mercury', 'mercury-survey'],
     ['belt', 'belt-survey'],
     ['jupiter', 'jupiter-survey'],

@@ -197,14 +197,14 @@ test('real mixed lunar arrivals honor the actual camera and do not overlap each 
 });
 
 test('failed defense removes only its own mines and permits a clean new attempt', () => {
-    const c = ready('venus'),
+    const c = ready('lunar'),
         s = new MissionSimulation(c, 1);
     try {
         for (const [id, offset] of [
             [90010, -300],
             [90011, 300],
         ]) {
-            const p = { x: VENUS_OUTPOST.x, y: VENUS_OUTPOST.y + offset };
+            const p = { x: MOON.construction.x, y: MOON.construction.y + offset };
             s.enemies.add([
                 { ...p, id, kind: 'minelayer', phase: 0, home: p, assault: id === 90010 },
             ]);
@@ -220,18 +220,18 @@ test('failed defense removes only its own mines and permits a clean new attempt'
             () => assert.fail('unexpected blast'),
         );
         assert.equal(s.mines.mines.size, 2);
-        s.venusAssault.start();
-        s.venusAssault.enemies.add(90010);
-        s.venusAssault.spawned.add(90010);
+        s.lunarAssault.start();
+        s.lunarAssault.enemies.add(90010);
+        s.lunarAssault.spawned.add(90010);
         s.step(idle);
-        assert.equal(s.venusAssault.state, 'failed');
+        assert.equal(s.lunarAssault.state, 'failed');
         assert.deepEqual(
             [...s.mines.mines.values()].map((m) => m.owner),
             [90011],
         );
         assert.ok(!s.enemies.enemies.has(90010));
         assert.ok(s.enemies.enemies.has(90011));
-        assert.ok(s.venusAssault.start());
+        assert.ok(s.lunarAssault.start());
     } finally {
         s.dispose();
     }

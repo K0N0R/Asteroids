@@ -1,3 +1,4 @@
+import { VenusActView } from '../graphics/venusActView';
 import { MarsResearchEscort } from '../systems/marsResearchEscort';
 import { drawResearchScan } from '../graphics/researchScan';
 import { interactionOutlineRadius } from '../graphics/interactionOutline';
@@ -130,6 +131,7 @@ export class MissionWorld extends Container {
     }
     private factoryView: EnemyFactoryView | null = null;
     private venusOutpost = new OrbitalOutpostView();
+    private venusView: VenusActView | null = null;
     readonly audio = createMissionAudio();
     readonly camera = new Container();
     readonly shipView;
@@ -225,6 +227,10 @@ export class MissionWorld extends Container {
         this.moon = new MoonSurfaceView(!!simulation.surfaceUnlocked);
         this.moonPrepared = !!simulation.surfaceUnlocked;
         this.camera.addChild(this.moon, this.venusOutpost, this.solarShadows);
+        if (simulation.venusAct) {
+            this.venusView = new VenusActView();
+            this.camera.addChildAt(this.venusView, 0);
+        }
         if (simulation.anomalyMission) {
             const field = anomalyFieldView();
             this.jupiterCloud = field.cloud;
@@ -387,10 +393,10 @@ export class MissionWorld extends Container {
     private routeSignature = '';
     private syncRoutes() {
         const signature = JSON.stringify([
-            this.simulation.marsAct
+            this.simulation.marsAct || this.simulation.venusAct
                 ? [
                       this.simulation.area,
-                      this.simulation.marsOrbit,
+                      this.simulation.venusAct?.area ?? this.simulation.marsOrbit,
                       this.simulation.hyperdrive.active,
                   ]
                 : null,
@@ -403,20 +409,22 @@ export class MissionWorld extends Container {
         for (const item of this.gateLabels) destroyDisplayTree(item.view);
         this.gateLabels = [];
         for (const region of this.simulation.sector.regions.filter(
-            (r) => !this.simulation.marsAct || this.simulation.inVisibleMap(r),
+            (r) =>
+                (!this.simulation.marsAct && !this.simulation.venusAct) ||
+                this.simulation.inVisibleMap(r),
         ))
             this.routes
                 .circle(region.x, region.y, region.radius)
                 .stroke({ color: C.cyan, width: 2, alpha: 0.1 });
         for (const lane of this.simulation.sector.hyperlanes) {
-            if (!this.simulation.marsAct)
+            if (!this.simulation.marsAct && !this.simulation.venusAct)
                 this.routes
                     .moveTo(lane.a.x, lane.a.y)
                     .lineTo(lane.b.x, lane.b.y)
                     .stroke({ color: 0xa3a9f2, width: 3, alpha: 0.18 });
             for (const point of [lane.a, lane.b]) {
                 if (
-                    this.simulation.marsAct &&
+                    (this.simulation.marsAct || this.simulation.venusAct) &&
                     (this.simulation.area === 'surface' || !this.simulation.inVisibleMap(point))
                 )
                     continue;
@@ -836,7 +844,11 @@ export class MissionWorld extends Container {
     private render(alpha: number, dt = 0) {
         const s = this.simulation,
             p = s.position;
-        this.home.visible = s.area === 'orbit' && (!s.marsAct || s.inVisibleMap({ x: 0, y: 0 }));
+        this.venusView?.update(s, this.clock, this.camera.rotation);
+        this.home.visible =
+            s.area === 'orbit' &&
+            (!s.venusAct || s.inVisibleMap({ x: 0, y: 0 })) &&
+            (!s.marsAct || s.inVisibleMap({ x: 0, y: 0 }));
         this.shield.visible = this.home.visible;
         this.navigation.visible = !s.transferActive;
         if (s.marsAct) {
@@ -1728,10 +1740,12 @@ export class MissionWorld extends Container {
                 p = e.position;
             this.researchView.visible =
                 e.state !== 'destroyed' &&
-                e.departure < 2 &&
+                (!s.venusAct || s.inVisibleMap(e.position)) &&
+                (s.venusAct || e.departure < 2) &&
                 (!s.miningEscort || s.area === 'surface') &&
                 this.inView(p);
-            this.researchView.alpha = e.state === 'complete' ? Math.max(0, 1 - e.departure / 2) : 1;
+            this.researchView.alpha =
+                e.state === 'complete' && !s.venusAct ? Math.max(0, 1 - e.departure / 2) : 1;
             this.researchView.position.set(
                 interpolate(e.previous.x, p.x, alpha),
                 interpolate(e.previous.y, p.y, alpha),
@@ -1739,7 +1753,10 @@ export class MissionWorld extends Container {
             this.researchView.rotation =
                 e.previousAngle + angleDifference(e.body.rotation(), e.previousAngle) * alpha;
             this.anomalyView.visible =
-                !s.miningEscort && !s.marsAct && this.inView(s.sector.researchSite, 180);
+                !s.venusAct &&
+                !s.miningEscort &&
+                !s.marsAct &&
+                this.inView(s.sector.researchSite, 180);
             this.anomalyView.rotation = this.clock * 0.08;
             this.researchStatus.clear();
             if (this.researchView.visible)
@@ -1756,7 +1773,7 @@ export class MissionWorld extends Container {
                 this.researchView.visible
             )
                 drawResearchScan(this.researchScan, p, e.scanTarget, this.clock, e.scanning);
-            if (e.state === 'research' && !s.miningEscort && !s.marsAct)
+            if (e.state === 'research' && !s.venusAct && !s.miningEscort && !s.marsAct)
                 this.researchStatus
                     .beginPath()
                     .arc(
@@ -2172,6 +2189,8 @@ export class MissionWorld extends Container {
     private interactionRadius(id: string) {
         let view: Container | undefined | null;
         const key = Number(id.split(':')[1]);
+        if (id.startsWith('venus:'))
+            return this.simulation.venusAct?.targets.find((t) => t.id === id)?.radius ?? 65;
         if (id === 'dock') view = this.home;
         else if (id.startsWith('tow:')) view = this.salvageViews.get(key);
         else if (id.startsWith('recovery:')) view = this.recoveryViews.get(key);
