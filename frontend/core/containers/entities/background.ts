@@ -12,6 +12,11 @@ import { marsCelestialBodies } from '../../../game/worlds/celestialBodies';
 import type { MarsOrbitId } from '../../../game/worlds/marsLayout';
 import type { VenusArea } from '../../../game/worlds/venusLayout';
 import { VenusCloudDeck } from '../../../game/graphics/venusCloudDeck';
+import {
+    venusTransferPose,
+    type VenusTransferPresentation,
+} from '../../../game/graphics/venusTransfer';
+import { V, VENUS_MAPS } from '../../../game/worlds/venusLayout';
 
 export class Background extends Container {
     camera = { x: 0, y: 0 };
@@ -27,6 +32,10 @@ export class Background extends Container {
     private celestialLayer = new CelestialLayer();
     private venusDeck = new VenusCloudDeck();
     private venusArea: VenusArea | null = null;
+    private venusTransfer: VenusTransferPresentation | null = null;
+    setVenusTransfer(transfer: VenusTransferPresentation | null) {
+        this.venusTransfer = transfer;
+    }
     setVenusArea(area: VenusArea | null) {
         this.venusArea = area;
     }
@@ -111,6 +120,7 @@ export class Background extends Container {
         if (region === this.region) return;
         this.region = region;
         this.venusArea = null;
+        this.venusTransfer = null;
         this.venusDeck.alpha = 0;
         this.venusDeck.visible = false;
         this.marsArea = null;
@@ -127,32 +137,65 @@ export class Background extends Container {
     }
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
+        const venus = this.flight && this.region === 'venus';
+        const transfer = venus ? this.venusTransfer : null;
+        const venusPose = transfer
+            ? venusTransferPose(transfer, this.cameraZoom)
+            : venus && this.venusArea === 'atmosphere'
+              ? venusTransferPose(
+                    {
+                        progress: 1,
+                        descending: true,
+                        orbitalCamera: V.atmosphereApproach,
+                        atmospherePoint: this.camera,
+                    },
+                    this.cameraZoom,
+                )
+              : null;
+        const cosmosCamera =
+            transfer?.orbitalCamera ??
+            (venus && this.venusArea === 'atmosphere' ? V.atmosphereApproach : this.camera);
         this.venusDeck.update(
-            this.flight && this.region === 'venus' && this.venusArea === 'atmosphere',
-            this.camera,
+            venus,
+            transfer?.atmospherePoint ?? this.camera,
             this.cameraAngle,
             this.time,
             Math.min(0.1, deltaMS / 1000),
+            venus ? (venusPose?.atmosphere ?? 0) : undefined,
         );
         if (!this.flight) this.venusDeck.alpha = 0;
         this.clouds.alpha = 1 - this.venusDeck.alpha;
         this.illustration.updateAppearance(this.time);
         this.scenery.visible = !this.flight;
         this.celestialLayer.visible =
-            this.flight && !this.worldPlanet && (!this.surface || this.lunarTransfer);
+            this.flight && !this.worldPlanet && (!this.surface || this.lunarTransfer || venus);
         if (this.flight) {
             this.celestialLayer.update(
-                this.camera,
+                cosmosCamera,
                 this.cameraAngle,
                 this.cameraZoom,
                 this.lunarTransfer ? [this.transferBody] : [],
                 this.time,
+                venusPose
+                    ? {
+                          venus: {
+                              position: parallaxPoint(
+                                  VENUS_MAPS.atmosphere.center,
+                                  venusPose.pivot,
+                                  this.cameraAngle,
+                                  1,
+                                  venusPose.zoom,
+                              ),
+                              scale: venusPose.planetScale,
+                          },
+                      }
+                    : undefined,
             );
             this.clouds.pivot.set(800, 450);
             this.clouds.position.copyFrom(
                 parallaxPoint(
                     { x: 0, y: 0 },
-                    this.camera,
+                    cosmosCamera,
                     this.cameraAngle,
                     0.002,
                     this.cameraZoom,
@@ -169,15 +212,15 @@ export class Background extends Container {
         for (const star of this.stars) {
             const anchor = {
                 x:
-                    (wrap(star.x - this.camera.x * star.depth, 2300) - 1150) / star.depth +
-                    this.camera.x,
+                    (wrap(star.x - cosmosCamera.x * star.depth, 2300) - 1150) / star.depth +
+                    cosmosCamera.x,
                 y:
-                    (wrap(star.y - this.camera.y * star.depth, 2300) - 1150) / star.depth +
-                    this.camera.y,
+                    (wrap(star.y - cosmosCamera.y * star.depth, 2300) - 1150) / star.depth +
+                    cosmosCamera.y,
             };
             const position = parallaxPoint(
                 anchor,
-                this.camera,
+                cosmosCamera,
                 this.flight ? this.cameraAngle : 0,
                 star.depth,
             );

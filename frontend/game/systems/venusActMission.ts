@@ -1,4 +1,5 @@
 import { segmentDistance } from './hyperdrive';
+import { traceRenderEvent } from '../../core/systems/renderTrace';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { GAME } from '../config';
 import { venusProgress, venusObjective } from '../state/venusAct';
@@ -25,7 +26,17 @@ import type { InteractionTarget } from './interactionTarget';
 const P = GAME.pixelsPerMeter,
     CORE = 81900,
     ANCHORS = [81901, 81902];
+export const VENUS_DESCENT_SECONDS = 5;
 export class VenusActMission {
+    transfer: {
+        descending: boolean;
+        elapsed: number;
+        orbitalCamera: Point;
+        atmospherePoint: Point;
+    } | null = null;
+    get transferFraction() {
+        return this.transfer ? this.transfer.elapsed / VENUS_DESCENT_SECONDS : 1;
+    }
     area: VenusArea = 'orbit';
     progress = 0;
     packet: 'archive' | 'final' | null = null;
@@ -75,6 +86,10 @@ export class VenusActMission {
         return this.area === 'atmosphere';
     }
     get status() {
+        if (this.transfer)
+            return this.transfer.descending
+                ? 'Zejście w górną atmosferę Wenus'
+                : 'Wznoszenie na orbitę Wenus';
         if (this.powerPuzzle) return 'Zasilanie stacji · odizoluj przebicie i połącz trzy obwody';
         if (this.packet) return 'Pakiet na pokładzie · wróć i zadokuj do Satuk 15';
         if (this.guardianAwake)
@@ -90,7 +105,13 @@ export class VenusActMission {
                     recovering: 'ponowna kalibracja po trafieniu',
                     incoming: 'oczekiwanie na bezpieczne podejście',
                 };
-                return `${e.sampleTarget.name} · dane ${this.v.transmission}/3 · ${e.state === 'research' ? `${Math.floor(e.sampleProgress)}/15 s · ${e.blocked ? pause[e.blocked] : 'transmisja aktywna'}` : 'lot do miejsca pomiaru'}`;
+                const travel =
+                    e.state === 'waiting'
+                        ? e.waitingReason === 'player'
+                            ? 'sonda czeka · zbliż się do sondy'
+                            : 'sonda szuka wolnej trasy'
+                        : 'lot do miejsca pomiaru';
+                return `${e.sampleTarget.name} · dane ${this.v.transmission}/3 · ${e.state === 'research' ? `${Math.floor(e.sampleProgress)}/15 s · ${e.blocked ? pause[e.blocked] : 'transmisja aktywna'}` : travel}`;
             }
         }
         return venusObjective(this.p);
@@ -115,7 +136,7 @@ export class VenusActMission {
                 this.s.escort.stage === 'orbit' &&
                 this.s.escort?.state === 'complete'
             ) {
-                q = V.atmosphereGate;
+                q = V.atmosphereApproach;
                 name = 'Wejście w górną atmosferę';
             }
         } else if (this.has('venus-horizon-project') && !this.has('venus-mercury-signal')) {
@@ -128,6 +149,10 @@ export class VenusActMission {
     navigate(q: Point, name: string) {
         const dest = nearestVenusMap(q).id;
         if (dest !== this.area) {
+            if (this.area === 'atmosphere')
+                return { ...V.atmosphereAscent, name: 'Wznoszenie na orbitę Wenus' };
+            if (dest === 'atmosphere')
+                return { ...V.atmosphereApproach, name: 'Zejście w atmosferę Wenus' };
             const lane = venusLanes(this.p).find((l) =>
                 this.area === 'orbit'
                     ? nearestVenusMap(l.b).id === dest
@@ -158,7 +183,7 @@ export class VenusActMission {
     }
     private ensureProbe() {
         if (!this.v.probeBuilt || this.has('venus-atmospheric-probe') || this.s.escort) return;
-        const e = new VenusProbe(this.s.world, { ...V.atmosphereGate });
+        const e = new VenusProbe(this.s.world, { ...V.atmosphereApproach });
         this.s.escort = e;
         e.ambushed = true;
     }
@@ -200,6 +225,10 @@ export class VenusActMission {
         }
         if (this.area === 'orbit' && this.s.escort?.state === 'idle')
             add('probe', this.s.escort.position, 'Rozpocznij eskortę sondy', 55);
+        if (this.area === 'orbit' && this.v.probeBuilt)
+            add('descend', V.atmosphereApproach, 'Zejdź w atmosferę Wenus', 110);
+        if (this.area === 'atmosphere')
+            add('ascend', V.atmosphereAscent, 'Wznieś się na orbitę Wenus', 110);
         if (
             this.area === 'installation' &&
             this.has('venus-horizon-project') &&
@@ -220,7 +249,74 @@ export class VenusActMission {
             (t) => Math.hypot(t.x - this.s.position.x, t.y - this.s.position.y) < 190,
         );
     }
-    onGate(from: Point, to: Point) {
+    advanceTransfer(dt: number) {
+        const transfer = this.transfer;
+        if (!transfer) return;
+        transfer.elapsed = Math.min(VENUS_DESCENT_SECONDS, transfer.elapsed + dt);
+        if (transfer.elapsed >= VENUS_DESCENT_SECONDS) {
+            this.transfer = null;
+            this.s.setNotice(
+                transfer.descending
+                    ? 'Górna atmosfera Wenus · osłaniaj sondę między pomiarami'
+                    : 'Orbita Wenus · odzyskano sterowanie',
+            );
+        }
+    }
+    private moveAtmosphericPayload(descending: boolean) {
+        const from = descending ? V.atmosphereApproach : V.atmosphereAscent;
+        const to = descending ? V.atmosphereAscent : V.atmosphereApproach;
+        const e = this.s.escort;
+        const escortOffset = e
+            ? { x: e.position.x - this.s.position.x, y: e.position.y - this.s.position.y }
+            : undefined;
+        const dx = to.x - this.s.position.x,
+            dy = to.y - this.s.position.y;
+        const move = (body: RAPIER.RigidBody) => {
+            const p = body.translation();
+            body.setTranslation({ x: p.x + dx / P, y: p.y + dy / P }, true);
+            body.setLinvel({ x: 0, y: 0 }, true);
+            body.setAngvel(0, true);
+        };
+        move(this.s.ship);
+        for (const item of this.s.salvage.towing.values()) {
+            move(item.body);
+            item.previous = {
+                x: item.body.translation().x * P,
+                y: item.body.translation().y * P,
+            };
+            item.previousAngle = item.body.rotation();
+        }
+        if (this.s.aegis?.drone) move(this.s.aegis.drone.body);
+        this.s.previous = this.s.position;
+        this.onGate(from, to, escortOffset);
+        if (this.s.campaign.activeRun) this.s.campaign.activeRun.lastPosition = this.s.position;
+        this.s.deliveryRevision++;
+    }
+    private beginAtmosphericTransfer(descending: boolean) {
+        if (descending) {
+            const locked = this.gateLock(V.atmosphereAscent);
+            if (locked) {
+                this.s.setNotice(locked);
+                return;
+            }
+        }
+        if (this.s.grippers.arms.some((a) => a.held)) {
+            this.s.setNotice('Najpierw zakończ pracę chwytaków.');
+            return;
+        }
+        this.transfer = {
+            descending,
+            elapsed: 0,
+            orbitalCamera: descending ? { ...this.s.position } : { ...V.atmosphereApproach },
+            atmospherePoint: descending ? { ...V.atmosphereAscent } : { ...this.s.position },
+        };
+        this.moveAtmosphericPayload(descending);
+        this.s.ship.setLinvel({ x: 0, y: 0 }, true);
+        this.s.ship.setAngvel(0, true);
+        this.s.escort?.body.setLinvel({ x: 0, y: 0 }, true);
+        this.s.escort?.body.setAngvel(0, true);
+    }
+    onGate(from: Point, to: Point, escortOffset?: Point) {
         const next = nearestVenusMap(to).id,
             e = this.s.escort;
         if (
@@ -232,7 +328,10 @@ export class VenusActMission {
             Math.hypot(e.position.x - from.x, e.position.y - from.y) < 750 &&
             ['orbit', 'atmosphere'].includes(next)
         ) {
-            e.body.setTranslation({ x: (to.x + 90) / P, y: to.y / P }, true);
+            e.body.setTranslation(
+                { x: (to.x + (escortOffset?.x ?? 90)) / P, y: (to.y + (escortOffset?.y ?? 0)) / P },
+                true,
+            );
             e.body.setLinvel({ x: 0, y: 0 }, true);
             e.previous = e.position;
             if (next === 'atmosphere') e.enterAtmosphere(this.v.transmission);
@@ -256,13 +355,17 @@ export class VenusActMission {
     gateLock(to: Point) {
         if (nearestVenusMap(to).id === 'atmosphere' && !this.has('venus-atmospheric-probe')) {
             const e = this.s.escort;
+            if (e instanceof VenusProbe && e.stage === 'atmosphere' && e.state !== 'destroyed')
+                return null;
             if (
                 !e ||
                 !(e instanceof VenusProbe) ||
                 !e.started ||
                 e.state === 'destroyed' ||
-                Math.hypot(e.position.x - V.atmosphereGate.x, e.position.y - V.atmosphereGate.y) >
-                    650
+                Math.hypot(
+                    e.position.x - V.atmosphereApproach.x,
+                    e.position.y - V.atmosphereApproach.y,
+                ) > 650
             )
                 return 'Najpierw doprowadź sondę do wejścia w atmosferę.';
         }
@@ -286,6 +389,12 @@ export class VenusActMission {
         this.packet = null;
     }
     private activate(id: string) {
+        traceRenderEvent(
+            'venus-interaction',
+            `${id}; area=${this.area}; guardian=${this.guardianAwake}; elapsed=${this.s.elapsed.toFixed(2)}`,
+        );
+        if (id === 'venus:descend') this.beginAtmosphericTransfer(true);
+        if (id === 'venus:ascend') this.beginAtmosphericTransfer(false);
         if (id === 'venus:relay') {
             this.complete('venus-toxic-orbit');
             this.say(
@@ -414,6 +523,7 @@ export class VenusActMission {
         );
     }
     killed(id: number) {
+        traceRenderEvent('venus-enemy-destroyed', `${id}; elapsed=${this.s.elapsed.toFixed(2)}`);
         if (id === CORE && this.guardianAwake) {
             this.guardianAwake = false;
             this.v.guardianDefeated = true;
@@ -462,7 +572,7 @@ export class VenusActMission {
                 this.activate(target.id);
             }
         } else this.progress = 0;
-        if (this.s.hyperdrive.active) return;
+        if (this.s.hyperdrive.active || this.transfer) return;
         if (this.guardianAwake) {
             this.guardianTime += dt;
             const e = this.s.enemies.enemies.get(CORE);
@@ -509,8 +619,8 @@ export class VenusActMission {
             if (e.stage === 'orbit') {
                 if (
                     Math.hypot(
-                        e.position.x - V.atmosphereGate.x,
-                        e.position.y - V.atmosphereGate.y,
+                        e.position.x - V.atmosphereApproach.x,
+                        e.position.y - V.atmosphereApproach.y,
                     ) < 2300
                 )
                     this.spawnWave(2, 0, e.position);

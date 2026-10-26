@@ -48,14 +48,14 @@ export class VenusFlightPilot {
             const e = s.escort as VenusProbe;
             phase = 'Eskorta / ' + e.stage + ' / ' + v.transmission;
             if (!e.started) goal = V.probe;
-            else if (e.stage === 'orbit' && e.state === 'complete') goal = V.atmosphereGate;
+            else if (e.stage === 'orbit' && e.state === 'complete') goal = V.atmosphereApproach;
             else {
                 // Follow beside the probe, leaving its physical flight path clear.
                 goal = { x: e.position.x + 170, y: e.position.y - 120 };
                 interact = false;
             }
         } else if (has('venus-atmospheric-probe') && !has('venus-horizon-project')) {
-            goal = act.area === 'atmosphere' ? V.atmosphereEntry : goal;
+            goal = act.area === 'atmosphere' ? V.atmosphereAscent : goal;
         } else if (has('venus-horizon-project') && !has('venus-mercury-signal')) {
             goal = act.area === 'orbit' ? V.aiGate : V.terminal;
             phase = 'Instalacja SI';

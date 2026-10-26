@@ -1,4 +1,5 @@
 import { VenusActView } from '../graphics/venusActView';
+import { venusTransferPose, type VenusTransferPresentation } from '../graphics/venusTransfer';
 import { venusProbeView } from '../graphics/venusProbeView';
 import { MarsResearchEscort } from '../systems/marsResearchEscort';
 import { drawResearchScan } from '../graphics/researchScan';
@@ -133,6 +134,17 @@ export class MissionWorld extends Container {
     }
     get backgroundZoom() {
         return this.camera.scale.x / this.transferZoom;
+    }
+    get venusTransferPresentation(): VenusTransferPresentation | null {
+        const transfer = this.simulation.venusAct?.transfer;
+        return transfer
+            ? {
+                  progress: this.simulation.transferFraction,
+                  descending: transfer.descending,
+                  orbitalCamera: transfer.orbitalCamera,
+                  atmospherePoint: transfer.atmospherePoint,
+              }
+            : null;
     }
     private factoryView: EnemyFactoryView | null = null;
     private venusOutpost = new OrbitalOutpostView();
@@ -880,6 +892,12 @@ export class MissionWorld extends Container {
         const s = this.simulation,
             p = s.position;
         this.venusView?.update(s, this.clock, this.camera.rotation);
+        if (this.venusView) {
+            const transfer = this.venusTransferPresentation;
+            this.venusView.alpha = transfer
+                ? venusTransferPose(transfer, this.backgroundZoom).atmosphere
+                : 1;
+        }
         this.home.visible =
             s.area === 'orbit' &&
             (!s.venusAct || s.inVisibleMap({ x: 0, y: 0 })) &&
@@ -959,7 +977,8 @@ export class MissionWorld extends Container {
             this.camera.addChildAt(this.moon, 0);
             this.moonPrepared = true;
         }
-        this.moon.visible = s.campaign.story?.sector !== 'mars' && !!s.surfaceUnlocked;
+        this.moon.visible =
+            !s.venusAct && s.campaign.story?.sector !== 'mars' && !!s.surfaceUnlocked;
         this.moon.update(
             s.area === 'surface' || s.transferActive,
             s.buildStage,
@@ -1072,9 +1091,12 @@ export class MissionWorld extends Container {
         }
         const normalZoom = followCameraZoom(this.camera.scale.x / this.transferZoom, s.speed, dt);
         const t = s.transferFraction;
-        const approach = s.transferActive
-            ? lunarTransferPose(t, s.area === 'surface', normalZoom, s.surfaceSite)
-            : null;
+        const venusTransfer = this.venusTransferPresentation;
+        const approach = venusTransfer
+            ? venusTransferPose(venusTransfer, normalZoom)
+            : s.transferActive
+              ? lunarTransferPose(t, s.area === 'surface', normalZoom, s.surfaceSite)
+              : null;
         const shipPosition = {
             x: interpolate(s.previous.x, p.x, alpha),
             y: interpolate(s.previous.y, p.y, alpha),
@@ -1219,7 +1241,13 @@ export class MissionWorld extends Container {
             shipScale * (1 - (approach?.pitch ?? 0) * 0.16),
             shipScale * (1 + (approach?.pitch ?? 0) * 0.035),
         );
-        this.transfer.update(s.transferActive, t, s.area === 'surface', s.surfaceName);
+        this.transfer.update(
+            s.transferActive,
+            t,
+            venusTransfer?.descending ?? s.area === 'surface',
+            s.venusAct ? 'Wenus' : s.surfaceName,
+            !!s.venusAct,
+        );
         this.camera.pivot.copyFrom(approach?.pivot ?? this.shipView.position);
         this.camera.position.set(800, 450);
         this.homeTitle.rotation = -this.camera.rotation;
@@ -1773,23 +1801,29 @@ export class MissionWorld extends Container {
             }
             const e = s.escort,
                 p = e.position;
+            const carried =
+                !!venusTransfer && Math.hypot(p.x - s.position.x, p.y - s.position.y) < 800;
             this.researchView.visible =
                 e.state !== 'destroyed' &&
                 (!s.venusAct || s.inVisibleMap(e.position)) &&
                 (s.venusAct || e.departure < 2) &&
                 (!s.miningEscort || s.area === 'surface') &&
-                this.inView(p);
+                (carried || this.inView(p));
             this.researchView.alpha =
                 e.state === 'complete' && !s.venusAct ? Math.max(0, 1 - e.departure / 2) : 1;
-            this.researchView.position.set(
-                interpolate(e.previous.x, p.x, alpha),
-                interpolate(e.previous.y, p.y, alpha),
+            const escortPoint = {
+                x: interpolate(e.previous.x, p.x, alpha),
+                y: interpolate(e.previous.y, p.y, alpha),
+            };
+            this.researchView.position.copyFrom(
+                s.venusAct ? transferPoint(escortPoint) : escortPoint,
             );
+            if (s.venusAct) this.researchView.scale.set(transferScale);
             this.researchView.rotation =
                 e.previousAngle + angleDifference(e.body.rotation(), e.previousAngle) * alpha;
             if (this.researchView instanceof ShipView)
                 this.researchView.updateDrive(e.thrusting, false, false, false, this.clock);
-            else updateResearchDrive(this.researchView, e.thrusting, this.clock);
+            else updateResearchDrive(this.researchView, e.thrusting || carried, this.clock);
             this.anomalyView.visible =
                 !s.venusAct &&
                 !s.miningEscort &&
@@ -1797,7 +1831,7 @@ export class MissionWorld extends Container {
                 this.inView(s.sector.researchSite, 180);
             this.anomalyView.rotation = this.clock * 0.08;
             this.researchStatus.clear();
-            if (this.researchView.visible)
+            if (this.researchView.visible && !venusTransfer)
                 this.holHealthBar(
                     this.researchStatus,
                     p,

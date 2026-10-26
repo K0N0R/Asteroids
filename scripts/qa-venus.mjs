@@ -11,6 +11,6 @@ await build({
 });
 await writeFile(
     `${out}/qa-venus.html`,
-    `<!doctype html><meta charset="utf-8"><title>Venus Act III QA</title><style>body{margin:0;background:#10152b;color:white;font:12px monospace}#qa-controls{position:fixed;top:0;z-index:200000}#qa-state{position:fixed;top:30px;left:0;right:0;z-index:200000;background:#10152bee;pointer-events:none;white-space:pre-wrap}button{padding:5px;margin-right:4px}</style><div id="qa-controls"></div><div id="qa-state"></div><script type="module" src="qa-venus.js?v=${Date.now()}"></script>`,
+    `<!doctype html><meta charset="utf-8"><title>Venus Act III QA</title><style>body{margin:0;overflow:hidden;background:#10152b;color:white;font:12px monospace}canvas{display:block}#qa-controls{position:fixed;top:0;z-index:200000;max-width:100%;display:flex;flex-wrap:wrap}#qa-state{position:fixed;top:62px;left:0;right:0;z-index:200000;background:#10152bee;pointer-events:none;white-space:pre-wrap}button{padding:5px;margin-right:4px}</style><div id="qa-controls"></div><div id="qa-state"></div><script type="module" src="qa-venus.js?v=${Date.now()}"></script>`,
 );
 console.log('Venus QA (isolated storage): http://localhost:3002/qa-venus.html');

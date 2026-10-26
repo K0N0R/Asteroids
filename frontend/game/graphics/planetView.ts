@@ -17,11 +17,12 @@ import { drawCeresTerrain } from './ceresTerrain';
 
 export type PlanetAppearance = StorySectorId | MarsMoonId | 'ceres' | null;
 
+export const VENUS_PLANET_RADIUS = 144;
 const PLANETS = {
     earth: { radius: 144, body: 0x3b87cb, light: 0x75cde8 },
     lunar: { radius: 126, body: 0xa6aac6, light: 0xd9d8e7 },
     mars: { radius: 135, body: 0xdd8069, light: 0xffb086 },
-    venus: { radius: 144, body: 0xd7ab72, light: 0xf5dfad },
+    venus: { radius: VENUS_PLANET_RADIUS, body: 0xd7ab72, light: 0xf5dfad },
     mercury: { radius: 118, body: 0x8c92a5, light: 0xd9c9a4 },
     jupiter: { radius: 160, body: 0xe7d4b4, light: 0xf2ddbc },
     saturn: { radius: 120, body: 0xdfc996, light: 0xf1dfb9 },

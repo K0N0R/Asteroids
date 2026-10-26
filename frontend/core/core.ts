@@ -11,11 +11,22 @@ import { Background } from '@entities/background';
 import { FrameDiagnostics } from './systems/frameDiagnostics';
 import { bindRenderContextRecovery } from './systems/renderContextRecovery';
 import { InputHandler } from './systems/inputHandler';
+import { StableViewportResize } from './systems/stableViewportResize';
 
 export class Core {
     app!: PIXI.Application;
 
     timeScale = 1;
+    private viewport!: StableViewportResize;
+    private contextLost = false;
+    private queueViewport = () => {
+        this.viewport.suspend(this.contextLost || document.hidden);
+        this.viewport.request(
+            window.innerWidth,
+            window.innerHeight,
+            Math.min(window.devicePixelRatio || 1, 2),
+        );
+    };
     background!: Background;
     worldContainer!: WorldContainer;
 
@@ -56,18 +67,33 @@ export class Core {
     async instantiateApp() {
         this.app = new PIXI.Application();
         await this.app.init({
-            resizeTo: window,
             backgroundColor: 0x000000,
             antialias: true,
             resolution: Math.min(window.devicePixelRatio || 1, 2),
             autoDensity: true,
         });
+        this.viewport = new StableViewportResize(({ width, height, resolution }) => {
+            // Ticker owns rendering. Pixi's default ResizePlugin calls render() immediately,
+            // including when the GPU context is suspended or a transient resize is undone.
+            this.app.renderer.resize(width, height, resolution);
+        });
+        window.addEventListener('resize', this.queueViewport);
+        document.addEventListener('visibilitychange', this.queueViewport);
 
         this.app.canvas.addEventListener('contextmenu', (evt) => evt.preventDefault());
         bindRenderContextRecovery(this.app, {
             clearInput: () => InputHandler.clear(),
-            lost: () => Bus.emit('system', { name: 'render-context-lost' }),
-            restored: () => Bus.emit('system', { name: 'render-context-restored' }),
+            lost: () => {
+                this.contextLost = true;
+                this.viewport.suspend(true);
+                Bus.emit('system', { name: 'render-context-lost' });
+            },
+            restored: () => {
+                this.contextLost = false;
+                this.queueViewport();
+                this.viewport.flush();
+                Bus.emit('system', { name: 'render-context-restored' });
+            },
         });
         document.body.appendChild(this.app.canvas);
     }
@@ -103,7 +129,11 @@ export class Core {
     }
 
     private triggerResize() {
-        this.app.renderer.resize(window.innerWidth, window.innerHeight);
+        this.queueViewport();
+        this.viewport.flush();
+        // Newly mounted containers need layout even when the backing size stays unchanged.
+        for (const object of this.scalableContainers)
+            this.calculateObjectRatio(object, this.app.screen.width, this.app.screen.height);
     }
 
     bindEvents() {

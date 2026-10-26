@@ -49,10 +49,15 @@ let pilot: VenusFlightPilot | null = null;
 let pilotWorld: any = null;
 let pilotDone = false;
 let pilotSorties = 0;
+let slowTransfer = false;
+let transferFrame: number | null = null;
 function stats() {
     const s = session.mission?.simulation,
         c = session.campaign;
     const heap = (performance as any).memory?.usedJSHeapSize / 1048576;
+    const planet = core.background
+        .getChildByLabel('celestial-layer')
+        ?.getChildByLabel('celestial-venus');
     peak = Math.max(peak, heap || 0);
     document.querySelector('#qa-state')!.textContent = JSON.stringify({
         area: s?.venusAct?.area ?? 'lobby',
@@ -63,6 +68,27 @@ function stats() {
         tasks: c.story.claimed.filter((id: string) => id.startsWith('venus-')),
         transmission: c.story.venus.transmission,
         probe: s?.escort?.state,
+        atmosphericTransfer: s?.venusAct?.transfer,
+        planet: planet
+            ? {
+                  uid: planet.uid,
+                  x: planet.x,
+                  y: planet.y,
+                  scale: planet.scale.x,
+                  visible: planet.visible,
+              }
+            : null,
+        atmosphere: core.background.getChildByLabel('venus-cloud-deck')?.alpha,
+        slowTransfer,
+        transferFrame,
+        dialogue: session.dialogue
+            ? {
+                  id: session.dialogue.definition.id,
+                  index: session.dialogue.index,
+                  typing: session.dialogue.typing,
+              }
+            : null,
+        canvas: { width: core.app.canvas.width, height: core.app.canvas.height },
         guardian: s?.venusAct?.guardianPhase,
         enemies: s?.enemies.enemies.size,
         worlds: session.worldHost.children.length,
@@ -97,6 +123,9 @@ function button(name: string, action: () => void) {
     document.querySelector('#qa-controls')!.appendChild(b);
 }
 function prepare(stage: number) {
+    transferFrame = null;
+    slowTransfer = false;
+    core.timeScale = 1;
     pilot = null;
     follow = false;
     developmentControls.actions!.startAct('act-3');
@@ -155,6 +184,60 @@ button('Sonda i atmosfera', () => {
     e.previous = e.position;
     follow = true;
 });
+button('Podejście do Wenus', () => {
+    prepare(2);
+    venusStationAction(session.campaign, 'venus-probe-build');
+    launch('orbit', { x: V.atmosphereApproach.x + 90, y: V.atmosphereApproach.y });
+    const e = session.mission.simulation.escort;
+    e.launch();
+    e.state = 'complete';
+    e.body.setTranslation(
+        { x: V.atmosphereApproach.x / 100, y: V.atmosphereApproach.y / 100 },
+        true,
+    );
+    e.previous = e.position;
+});
+button('Wznoszenie z Wenus', () => {
+    prepare(2);
+    venusStationAction(session.campaign, 'venus-probe-build');
+    launch('atmosphere', { ...V.atmosphereAscent });
+});
+button('Zwolnij transfer (QA)', () => {
+    slowTransfer = !slowTransfer;
+});
+for (const descending of [true, false])
+    for (const progress of [0, 0.25, 0.5, 0.75, 1])
+        button(`${descending ? 'Zejście' : 'Wznoszenie'} ${progress * 100}%`, () => {
+            if (
+                !session.mission?.simulation.venusAct.transfer ||
+                session.mission.simulation.venusAct.transfer.descending !== descending
+            ) {
+                prepare(2);
+                venusStationAction(session.campaign, 'venus-probe-build');
+                const point = descending ? V.atmosphereApproach : V.atmosphereAscent;
+                launch(descending ? 'orbit' : 'atmosphere', { x: point.x + 90, y: point.y });
+                const s = session.mission.simulation,
+                    e = s.escort;
+                e.launch();
+                if (!descending) e.enterAtmosphere(0);
+                e.state = descending ? 'complete' : 'travel';
+                e.body.setTranslation({ x: point.x / 100, y: point.y / 100 }, true);
+                e.previous = e.position;
+                s.venusAct.activate(descending ? 'venus:descend' : 'venus:ascend');
+            }
+            transferFrame = progress;
+            session.mission.simulation.venusAct.transfer.elapsed = progress * 5;
+            core.timeScale = 0;
+        });
+button('Resize 20× (QA)', () => {
+    for (let i = 0; i < 20; i++)
+        window.setTimeout(() => {
+            (core as any).viewport.request(1920, i % 2 ? 911 : 1080, 1);
+        }, i * 200);
+    window.setTimeout(() => {
+        (core as any).queueViewport();
+    }, 4200);
+});
 button('Strażnik', () => {
     prepare(4);
     launch('installation', { x: V.guardian.x, y: V.guardian.y + 250 });
@@ -196,6 +279,12 @@ window.addEventListener('error', (e) => {
     stats();
 });
 core.app.ticker.add(() => {
+    core.timeScale =
+        transferFrame !== null
+            ? 0
+            : slowTransfer && session.mission?.simulation.venusAct?.transfer
+              ? 0.25
+              : 1;
     if (pilot && !pilotDone) {
         const world = session.mission;
         if (world && world !== pilotWorld) {

@@ -1,5 +1,6 @@
 import { Graphics, Text, type Application, type Container } from 'pixi.js';
 import { heapMB } from './frameDiagnostics';
+import { watchRenderTrace } from './renderTrace';
 
 export const WEBGL_REPORT_KEY = 'asteroids.webgl-report';
 type DiagnosticApp = Pick<Application, 'canvas' | 'stage' | 'ticker'> &
@@ -20,6 +21,7 @@ export class RenderContextJournal {
 }
 
 export class RenderContextDiagnostics {
+    private stopTrace: (() => void) | null = null;
     private journal = new RenderContextJournal();
     private timer: ReturnType<typeof setInterval> | undefined;
     private report: Record<string, unknown> | null = null;
@@ -44,6 +46,7 @@ export class RenderContextDiagnostics {
         private clearInput: () => void = () => {},
     ) {
         if (typeof window === 'undefined' || typeof document === 'undefined') return;
+        this.stopTrace = watchRenderTrace((kind, detail) => this.journal.event(kind, detail));
         const gl = (app.renderer as unknown as { gl?: WebGLRenderingContext })?.gl;
         if (gl) {
             const debug = gl.getExtension('WEBGL_debug_renderer_info');
@@ -85,16 +88,24 @@ export class RenderContextDiagnostics {
         visit(this.app.stage);
         const renderer = this.app.renderer as unknown as {
             resolution?: number;
+            buffer?: { _gpuBuffers?: Record<string, { byteLength: number }> };
             texture?: {
                 managedTextures?: { pixelWidth: number; pixelHeight: number; label?: string }[];
             };
         };
         const textures = renderer?.texture?.managedTextures ?? [];
+        const buffers = Object.values(renderer?.buffer?._gpuBuffers ?? {});
         this.journal.sample({
             canvas: {
                 width: this.app.canvas.width,
                 height: this.app.canvas.height,
                 resolution: renderer?.resolution,
+                viewportWidth: typeof window === 'undefined' ? undefined : window.innerWidth,
+                viewportHeight: typeof window === 'undefined' ? undefined : window.innerHeight,
+            },
+            buffers: {
+                count: buffers.length,
+                estimatedMB: buffers.reduce((n, b) => n + (b.byteLength || 0), 0) / 1048576,
             },
             fps: this.app.ticker.FPS,
             heapMB: heapMB(),
@@ -231,6 +242,8 @@ export class RenderContextDiagnostics {
         }
     }
     dispose() {
+        this.stopTrace?.();
+        this.stopTrace = null;
         if (this.timer !== undefined) clearInterval(this.timer);
         this.panel?.remove();
         this.reopen?.remove();

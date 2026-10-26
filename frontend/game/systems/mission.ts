@@ -632,9 +632,10 @@ export class MissionSimulation {
     areaRevision = 0;
     transferRemaining = 0;
     get transferActive() {
-        return this.transferRemaining > 1e-8;
+        return this.transferRemaining > 1e-8 || !!this.venusAct?.transfer;
     }
     get transferFraction() {
+        if (this.venusAct?.transfer) return this.venusAct.transferFraction;
         return 1 - this.transferRemaining / MOON.arrivalSeconds;
     }
     passageProgress = 0;
@@ -2345,6 +2346,7 @@ export class MissionSimulation {
         if (this.guide) snapshot(this.guide);
         const protectedBodies = [
             this.ship,
+            ...(this.venusAct?.transfer && this.escort ? [this.escort.body] : []),
             ...[...this.salvage.towing.values()].map((item) => item.body),
             ...(this.aegis?.drone ? [this.aegis.drone.body] : []),
         ];
@@ -2383,6 +2385,7 @@ export class MissionSimulation {
             if (!input.interact && !input.tow) this.interaction.resolve(false, [], input.target);
             this.abilities.tick(dt, !!input.abilityQ, !!input.abilityE, () => false);
             this.stepCinematic();
+            this.venusAct?.advanceTransfer(dt);
             this.transferRemaining = Math.max(0, this.transferRemaining - dt);
             return;
         }
@@ -5110,6 +5113,7 @@ export class MissionSimulation {
                 (collider) =>
                     this.isObstacle(collider) ||
                     this.enemies.colliders.has(collider.handle) ||
+                    this.salvage.canDismantle(collider.handle) ||
                     this.mines.colliders.has(collider.handle),
             );
             if (obstruction) {
@@ -5158,10 +5162,20 @@ export class MissionSimulation {
                     collider.handle === this.enemyFactory?.collider?.handle ||
                     this.asteroidColliders.has(collider.handle) ||
                     this.enemies.colliders.has(collider.handle) ||
+                    this.salvage.canDismantle(collider.handle) ||
                     this.mines.colliders.has(collider.handle),
             );
         });
         for (const { collider, point } of contacts.values()) {
+            const salvage = this.salvage.items.get(this.salvage.colliders.get(collider.handle)!);
+            if (salvage) {
+                this.damageSalvage(
+                    salvage,
+                    HARPOON_ARMS.shipDamage * arms.damageMultiplier * this.armament.power,
+                    point,
+                );
+                continue;
+            }
             const mineId = this.mines.colliders.get(collider.handle);
             if (mineId !== undefined) {
                 this.damageMine(

@@ -31,13 +31,13 @@ export function generateVenusSector(p: StoryProgress) {
         const q = { x: Math.cos(angle) * d, y: 3600 + Math.sin(angle) * d };
         if (
             Math.hypot(q.x, q.y) < 850 ||
-            [V.relay, V.stationGate, V.atmosphereGate, V.aiGate, V.wreck].some(
+            [V.relay, V.stationGate, V.atmosphereApproach, V.aiGate, V.wreck].some(
                 (p) => Math.hypot(p.x - q.x, p.y - q.y) < 500,
             )
         )
             continue;
         // Keep a broad escort corridor between the station and atmospheric entry clear.
-        if (segmentDistance(q, V.probe, V.atmosphereGate) < radius + 350) continue;
+        if (segmentDistance(q, V.probe, V.atmosphereApproach) < radius + 350) continue;
         rocks.push({ ...q, radius, rich: i % 7 === 0, variant: i % 5, vx: 0, vy: 0 });
     }
     sector.rocks = rocks;

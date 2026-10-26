@@ -999,13 +999,16 @@ export class GameSession {
         this.communications.visible =
             !this.hasOverlay &&
             !PopupContainer.hasActivePopup() &&
-            !this.mission?.simulation.venusAct?.powerPuzzle;
+            !this.mission?.simulation.venusAct?.powerPuzzle &&
+            !this.mission?.simulation.transferActive;
         if (this.dialogue && this.communications.visible) this.dialoguePanel?.update(deltaMS);
         this.background.setFlight(!!this.mission);
         this.background.worldPlanet = false;
         this.background.setVenusArea(this.mission?.simulation.venusAct?.area ?? null);
+        this.background.setVenusTransfer(this.mission?.venusTransferPresentation ?? null);
         if (this.mission) {
-            this.background.lunarTransfer = this.mission.simulation.transferActive;
+            this.background.lunarTransfer =
+                this.mission.simulation.transferActive && !this.mission.simulation.venusAct;
             this.background.camera = this.mission.backgroundCamera;
             this.background.cameraAngle = this.mission.camera.rotation;
             this.background.cameraZoom = this.mission.backgroundZoom;
@@ -1065,9 +1068,12 @@ export class GameSession {
             this.openLunarStation();
             if (this.lunarStationOpen) return;
         }
-        this.background.lunarTransfer = this.mission.simulation.transferActive;
+        this.background.lunarTransfer =
+            this.mission.simulation.transferActive && !this.mission.simulation.venusAct;
         this.background.transferBody = this.mission.simulation.marsMoon?.id ?? 'moon';
         this.background.setMarsArea(this.mission.simulation.marsMap?.id ?? null);
+        this.background.setVenusArea(this.mission.simulation.venusAct?.area ?? null);
+        this.background.setVenusTransfer(this.mission.venusTransferPresentation);
         this.background.camera = this.mission.backgroundCamera;
         this.background.cameraAngle = this.mission.camera.rotation;
         this.background.cameraZoom = this.mission.backgroundZoom;

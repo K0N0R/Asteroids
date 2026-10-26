@@ -24,7 +24,7 @@ const idle = {
     interact: false,
 };
 function arena(
-    hull: 'prospector' | 'atlas' | 'fighter' = 'prospector',
+    hull: 'prospector' | 'atlas' | 'fighter' | 'harpoon' = 'prospector',
     seed = 71,
     escort = false,
     upgraded = false,
@@ -248,6 +248,80 @@ test('lasers, rounds and explosive missiles dismantle wrecks into parts exactly 
         } finally {
             s.dispose();
         }
+    }
+});
+test('Harpoon jaws dismantle enemy wrecks once per squeeze and retain their component tier', () => {
+    const s = arena('harpoon');
+    try {
+        s.enemies.dispose();
+        const item = s.salvage.add(1, 'lancer', { x: 3180, y: 0 }, { x: 0, y: 0 }, 0, false, 3)!;
+        const aim = { ...idle, target: { x: 3180, y: 0 }, mine: true };
+        for (let f = 0; f < 60; f++) s.step(aim);
+        assert.equal(item.health, 120, 'extending the jaws is not an attack');
+        for (let f = 0; f < 20; f++) s.step({ ...aim, fire: true });
+        assert.equal(item.health, 25, 'two jaws count as one strike');
+        for (let f = 0; f < 60; f++) s.step({ ...aim, fire: true });
+        assert.equal(item.health, 25, 'holding LMB does not repeat the squeeze');
+        s.step(aim);
+        for (let f = 0; f < 20; f++) s.step({ ...aim, fire: true });
+        assert.equal(s.salvage.items.size, 0);
+        assert.equal(
+            [...s.loot.values()].reduce((n, i) => n + i.amount, 0) +
+                resourceTotal(s.cargo) +
+                s.grippers.arms.filter((a) => a.held).length,
+            7,
+        );
+        assert.ok([...s.loot.values()].every((i) => i.kind.endsWith('III')));
+        for (let f = 0; f < 60; f++) s.step({ ...aim, fire: true });
+        assert.equal(
+            [...s.loot.values()].reduce((n, i) => n + i.amount, 0) +
+                resourceTotal(s.cargo) +
+                s.grippers.arms.filter((a) => a.held).length,
+            7,
+            'no duplicated parts',
+        );
+    } finally {
+        s.dispose();
+    }
+});
+test('Harpoon jaws cannot dismantle enemy wrecks through a solid wall', () => {
+    const s = arena('harpoon');
+    try {
+        s.enemies.dispose();
+        const item = s.salvage.add(1, 'patrol', { x: 3180, y: 0 }, { x: 0, y: 0 })!;
+        const wall = s.world.createCollider(
+            RAPIER.ColliderDesc.cuboid(0.1, 2).setTranslation(31, 0),
+        );
+        s.fortressColliders.add(wall.handle);
+        for (let f = 0; f < 60; f++) s.step({ ...idle, target: { x: 3180, y: 0 }, mine: true });
+        for (let f = 0; f < 20; f++)
+            s.step({ ...idle, target: { x: 3180, y: 0 }, mine: true, fire: true });
+        assert.equal(item.health, item.maxHealth);
+        assert.equal(s.loot.size, 0);
+    } finally {
+        s.dispose();
+    }
+});
+test('Harpoon jaws preserve quest objects, rescue targets and shipments', () => {
+    const s = arena('harpoon');
+    try {
+        s.enemies.dispose();
+        for (const [id, source] of [
+            [-73003, 'patrol'],
+            [-73002, 'satellite'],
+            [-1, 'recovery'],
+            [2, 'shipment'],
+        ] as const) {
+            const item = s.salvage.add(id, source, { x: 3180, y: 0 }, { x: 0, y: 0 })!;
+            for (let f = 0; f < 60; f++) s.step({ ...idle, target: { x: 3180, y: 0 }, mine: true });
+            for (let f = 0; f < 20; f++)
+                s.step({ ...idle, target: { x: 3180, y: 0 }, mine: true, fire: true });
+            assert.equal(item.health, item.maxHealth, source);
+            assert.equal(s.loot.size, 0);
+            s.salvage.remove(item);
+        }
+    } finally {
+        s.dispose();
     }
 });
 test('player fire preserves quest probes, rescue targets and shipments', () => {

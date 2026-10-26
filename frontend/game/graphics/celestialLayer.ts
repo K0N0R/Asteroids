@@ -37,13 +37,17 @@ export class CelestialLayer extends Container {
         zoom: number,
         hiddenIds: readonly string[] = [],
         seconds = 0,
+        poses?: Readonly<Record<string, { position: Point; scale: number }>>,
     ) {
         for (const { spec, view } of this.bodies) {
             view.updateAppearance(seconds);
             view.visible = !hiddenIds.includes(spec.id);
-            view.position.copyFrom(parallaxPoint(spec.anchor, camera, angle, spec.depth, zoom));
+            view.position.copyFrom(
+                poses?.[spec.id]?.position ??
+                    parallaxPoint(spec.anchor, camera, angle, spec.depth, zoom),
+            );
             view.rotation = angle;
-            view.scale.set(spec.scale * zoom);
+            view.scale.set(poses?.[spec.id]?.scale ?? spec.scale * zoom);
         }
     }
 }

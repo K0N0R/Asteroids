@@ -37,6 +37,33 @@ function expanded() {
     });
     return c;
 }
+
+test('radio dismissal waits three seconds after typing or manual reveal and resets for each line', () => {
+    const playback = new DialoguePlayback({
+        ...DIALOGUES[0],
+        lines: [
+            { speaker: 'operations', text: 'Próba wiadomości.' },
+            { speaker: 'science', text: 'Druga próba.' },
+        ],
+    });
+    for (let i = 0; i < 4; i++) playback.update(100);
+    assert.equal(playback.autoAdvanceReady, false);
+    playback.interact(); // Manual reveal starts the readable period, it does not skip it.
+    for (let i = 0; i < 29; i++) playback.update(100);
+    assert.equal(playback.autoAdvanceReady, false);
+    playback.update(100);
+    assert.equal(playback.autoAdvanceReady, true);
+    playback.advance();
+    assert.equal(playback.autoAdvanceReady, false);
+    while (playback.typing) playback.update(100);
+    for (let i = 0; i < 29; i++) playback.update(100);
+    assert.equal(playback.autoAdvanceReady, false);
+    playback.update(100);
+    assert.equal(playback.autoAdvanceReady, true);
+    playback.advance();
+    assert.equal(playback.complete, true);
+    assert.equal(playback.autoAdvanceReady, false);
+});
 function finishSequence(c: ReturnType<typeof newStoryCampaign>) {
     const d = pendingDialogue(c)!;
     assert.ok(d);

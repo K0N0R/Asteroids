@@ -43,9 +43,10 @@ function hold(s: MissionSimulation, q: Point) {
 }
 function gate(s: MissionSimulation, q: Point) {
     hold(s, q);
-    assert.ok(s.hyperdrive.active, 'gate starts');
-    for (let i = 0; i < 220 && s.hyperdrive.active; i++) s.step(idle);
+    assert.ok(s.hyperdrive.active || s.transferActive, 'passage starts');
+    for (let i = 0; i < 600 && (s.hyperdrive.active || s.transferActive); i++) s.step(idle);
     assert.equal(s.hyperdrive.active, false);
+    assert.equal(s.transferActive, false);
 }
 function sortie(c = createDevelopmentAct('act-3')) {
     assert.ok(beginRun(c, 1));
@@ -166,7 +167,7 @@ test('complete physical probe voyage, safe offscreen waves, transmission and gua
         }
         assert.ok(arrived, 'probe physically reaches atmosphere gate');
         assert.ok(spawned >= 2);
-        gate(s, V.atmosphereGate);
+        gate(s, V.atmosphereApproach);
         assert.equal(s.venusAct!.area, 'atmosphere');
         assert.equal(nearestVenusMap(s.escort!.position).id, 'atmosphere');
         for (let f = 0; f < 60 * 100 && !c.story!.claimed.includes(VENUS_TASK_IDS[2]); f++) {
@@ -197,7 +198,7 @@ test('complete physical probe voyage, safe offscreen waves, transmission and gua
         assert.equal(c.story!.venus!.transmission, 3);
         assert.ok(c.story!.claimed.includes(VENUS_TASK_IDS[2]));
         assert.equal(spawned, 7);
-        gate(s, V.atmosphereEntry);
+        gate(s, V.atmosphereAscent);
         hold(s, { x: 0, y: 0 });
         assert.equal(s.ended, 'returned');
         finishRun(c, true, s.cargo, s.elapsed, 'dock', s.repairKits);

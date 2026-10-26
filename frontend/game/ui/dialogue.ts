@@ -7,7 +7,7 @@ import { button, label, panel } from './primitives';
 import { dialogueTick } from '../systems/audio';
 import { CoreConfig } from '../../core/config/coreConfig';
 
-/** Nonblocking radio card. Only its controls receive pointer events; messages wait for acknowledgement. */
+/** Nonblocking radio card. Manual input or three readable seconds acknowledge the current line. */
 export function dialogueView(playback: DialoguePlayback, advance: () => void) {
     const root = new Container(),
         line = playback.line;
@@ -67,13 +67,17 @@ export function dialogueView(playback: DialoguePlayback, advance: () => void) {
         32,
         14,
     );
-    label(root, 'Spacja / Enter', controlsLeft, height / 2 + 36, 12, C.muted);
+    label(root, 'Znika po 3 s · Spacja / Enter', controlsLeft, height / 2 + 36, 12, C.muted);
     const caption = next.children[1] as ReturnType<typeof label>;
     const final = playback.index + 1 === playback.definition.lines.length;
     let shown = -1,
         wasTyping: boolean | undefined;
     const update = (deltaMS: number) => {
         if (playback.update(deltaMS)) dialogueTick();
+        if (playback.autoAdvanceReady) {
+            advance();
+            return;
+        }
         const length = Array.from(playback.visibleText).length;
         if (shown !== length) {
             text.setText(playback.typing ? wrapped.slice(0, length).join('') : wrapped.join(''));

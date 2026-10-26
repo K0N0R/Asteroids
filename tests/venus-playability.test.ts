@@ -97,10 +97,10 @@ test('a real hit during an atmospheric scan expires and the probe resumes withou
         const probe = s.escort as VenusProbe;
         probe.launch();
         probe.body.setTranslation(
-            { x: V.atmosphereGate.x / 100, y: V.atmosphereGate.y / 100 },
+            { x: V.atmosphereApproach.x / 100, y: V.atmosphereApproach.y / 100 },
             true,
         );
-        s.venusAct!.onGate(V.atmosphereGate, V.atmosphereEntry);
+        s.venusAct!.onGate(V.atmosphereApproach, V.atmosphereAscent);
         const target = probe.destination;
         probe.body.setTranslation({ x: target.x / 100, y: target.y / 100 }, true);
         s.ship.setTranslation({ x: (target.x + 200) / 100, y: target.y / 100 }, true);
@@ -140,12 +140,23 @@ test('a real hit during an atmospheric scan expires and the probe resumes withou
         s.ship.setTranslation({ x: (pos.x + 200) / 100, y: pos.y / 100 }, true);
         s.step(idle);
         assert.equal(probe.scanning, true);
+        probe.moveToSample(1);
+        s.ship.setTranslation(
+            { x: (probe.position.x + 1100) / 100, y: probe.position.y / 100 },
+            true,
+        );
+        s.step(idle);
+        assert.equal(probe.state, 'waiting');
+        assert.match(s.venusAct!.status, /sonda czeka.*zbliż/);
     } finally {
         s.dispose();
     }
 });
 test('sample flight legs and entry stay clear of the visible storms', () => {
-    const route = [V.atmosphereEntry, ...VENUS_SAMPLES.map((p) => ({ x: p.x - 150, y: p.y - 80 }))];
+    const route = [
+        V.atmosphereAscent,
+        ...VENUS_SAMPLES.map((p) => ({ x: p.x - 150, y: p.y - 80 })),
+    ];
     for (let i = 1; i < route.length; i++)
         for (let t = 0; t <= 1; t += 0.02)
             for (const time of [0, 30, 100, 300]) {

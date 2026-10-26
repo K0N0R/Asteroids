@@ -21,7 +21,7 @@ export class VenusProbe extends ResearchEscort {
     launch() {
         this.started = true;
         this.stage = 'orbit';
-        this.resumeResearch({ ...V.atmosphereGate });
+        this.resumeResearch({ ...V.atmosphereApproach });
     }
     enterAtmosphere(index: number) {
         this.stage = 'atmosphere';

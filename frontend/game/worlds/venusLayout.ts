@@ -43,8 +43,9 @@ export const V = {
     stationEntry: facingPort('station', 'orbit'),
     power: at('station', -440, -650),
     archive: at('station', 750, 300),
-    atmosphereGate: facingPort('orbit', 'atmosphere'),
-    atmosphereEntry: facingPort('atmosphere', 'orbit'),
+    // Vertical descent/ascent, not a hyperlane to another orbital disc.
+    atmosphereApproach: { x: 0, y: 5200 },
+    atmosphereAscent: at('atmosphere', 700, -1000),
     scan: at('atmosphere', 700, -300),
     probe: { x: 380, y: 0 },
     aiGate: facingPort('orbit', 'installation'),
@@ -76,8 +77,6 @@ export function venusLanes(p: StoryProgress): Hyperlane[] {
         lanes: Hyperlane[] = [];
     if (has('venus-toxic-orbit'))
         lanes.push({ name: 'Śluza stacji badawczej', a: V.stationGate, b: V.stationEntry });
-    if (p.venus?.probeBuilt)
-        lanes.push({ name: 'Górna atmosfera', a: V.atmosphereGate, b: V.atmosphereEntry });
     if (has('venus-horizon-project'))
         lanes.push({ name: 'Śluza instalacji SI', a: V.aiGate, b: V.aiEntry });
     return lanes;
@@ -87,6 +86,24 @@ export function venusLandmarks(p: StoryProgress): Landmark[] {
         { ...V.relay, name: 'Przekaźnik orbity Wenus', key: 7, kind: 'relay', radius: 150 },
         { ...V.wreck, name: 'Wrak badawczy', key: 4, kind: 'wreck', radius: 110 },
         { x: 1900, y: 400, name: 'Złoże orbitalne', key: 2, kind: 'field', radius: 300 },
+        ...(p.venus?.probeBuilt
+            ? [
+                  {
+                      ...V.atmosphereApproach,
+                      name: 'Podejście do atmosfery Wenus',
+                      key: 33,
+                      kind: 'passage' as const,
+                      radius: 110,
+                  },
+                  {
+                      ...V.atmosphereAscent,
+                      name: 'Wznoszenie na orbitę Wenus',
+                      key: 34,
+                      kind: 'passage' as const,
+                      radius: 110,
+                  },
+              ]
+            : []),
         ...venusLanes(p).flatMap((l, i) =>
             [l.a, l.b].map((q) => ({
                 ...q,

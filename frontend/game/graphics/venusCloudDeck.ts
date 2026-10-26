@@ -82,8 +82,16 @@ export class VenusCloudDeck extends Container {
         for (const texture of this.textures) texture.destroy(true);
         this.textures.length = 0;
     }
-    update(active: boolean, camera: Point, angle: number, time: number, dt: number) {
-        this.alpha += (Number(active) - this.alpha) * (1 - Math.exp(-dt * 3));
+    update(
+        active: boolean,
+        camera: Point,
+        angle: number,
+        time: number,
+        dt: number,
+        density?: number,
+    ) {
+        if (density !== undefined) this.alpha = active ? density : 0;
+        else this.alpha += (Number(active) - this.alpha) * (1 - Math.exp(-dt * 3));
         this.visible = this.alpha > 0.002;
         if (!this.visible) return;
         const center = VENUS_MAPS.atmosphere.center;

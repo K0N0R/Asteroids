@@ -23,17 +23,24 @@ export function lunarTransferPose(
     progress: number,
     surface: boolean,
     zoom: number,
-    site: { center: Point; exit: Point; radius: number } = MOON,
+    site: {
+        center: Point;
+        exit: Point;
+        radius: number;
+        globeRadius?: number;
+        orbitalPivot?: Point;
+    } = MOON,
 ) {
     const t = Math.max(0, Math.min(1, progress));
     const ease = t * t * (3 - 2 * t);
     const approach = surface ? ease : 1 - ease;
-    const globeZoom = (126 * EARTH_SYSTEM_BODY_SCALE.moon) / site.radius;
+    const globeZoom = (site.globeRadius ?? 126 * EARTH_SYSTEM_BODY_SCALE.moon) / site.radius;
+    const origin = site.orbitalPivot ?? site.center;
     return {
         zoom: globeZoom * (zoom / globeZoom) ** approach,
         pivot: {
-            x: site.center.x + (site.exit.x - site.center.x) * approach,
-            y: site.center.y + (site.exit.y - site.center.y) * approach,
+            x: origin.x + (site.exit.x - origin.x) * approach,
+            y: origin.y + (site.exit.y - origin.y) * approach,
         },
         detail: Math.min(1, approach * 3),
         pitch: Math.sin(Math.PI * t) ** 2,
@@ -58,7 +65,13 @@ export class LunarTransferView extends Container {
         this.eventMode = 'none';
         this.visible = false;
     }
-    update(active: boolean, progress: number, surface: boolean, name = 'Księżyc') {
+    update(
+        active: boolean,
+        progress: number,
+        surface: boolean,
+        name = 'Księżyc',
+        atmosphere = false,
+    ) {
         const g = this.scene.clear();
         this.visible = active;
         if (!this.visible) return;
@@ -66,7 +79,7 @@ export class LunarTransferView extends Container {
         const t = Math.max(0, Math.min(1, progress));
         const opacity = Math.min(1, t * 8, (1 - t) * 8);
         this.title.setText(
-            `${name.toUpperCase()} · ${surface ? 'WEJŚCIE NAD POWIERZCHNIĘ' : 'POWRÓT NA ORBITĘ'}`,
+            `${name.toUpperCase()} · ${surface ? (atmosphere ? 'WEJŚCIE W GÓRNĄ ATMOSFERĘ' : 'WEJŚCIE NAD POWIERZCHNIĘ') : 'POWRÓT NA ORBITĘ'}`,
         );
         this.title.alpha = this.hint.alpha = opacity;
         // A quiet curved limb, motion streaks and a fade soften the coordinate-space handoff.

@@ -251,6 +251,10 @@ export class DialoguePlayback {
     index = 0;
     private held = new Set<string>();
     private reveal: DialogueReveal;
+    private readableMS = 0;
+    get autoAdvanceReady() {
+        return !this.complete && !this.typing && this.readableMS >= 3000;
+    }
     constructor(readonly definition: DialogueDefinition) {
         this.reveal = new DialogueReveal(this.line?.text ?? '');
     }
@@ -261,7 +265,11 @@ export class DialoguePlayback {
         return this.reveal.typing;
     }
     update(deltaMS: number) {
-        return this.reveal.update(deltaMS);
+        const wasTyping = this.typing;
+        const audible = this.reveal.update(deltaMS);
+        if (!wasTyping && !this.complete && Number.isFinite(deltaMS) && deltaMS > 0)
+            this.readableMS += deltaMS;
+        return audible;
     }
     interact() {
         if (this.complete) return false;
@@ -280,6 +288,7 @@ export class DialoguePlayback {
     advance() {
         if (this.complete) return false;
         this.index++;
+        this.readableMS = 0;
         this.reveal = new DialogueReveal(this.line?.text ?? '');
         return true;
     }

@@ -38,6 +38,8 @@ export class VenusActView extends Container {
             ['power', V.power, 'Zasilanie awaryjne', 90],
             ['archive', V.archive, 'Terminal archiwum', 90],
             ['terminal', V.terminal, 'Terminal instalacji', 140],
+            ['descend', V.atmosphereApproach, 'Zejście w atmosferę Wenus', 140],
+            ['ascend', V.atmosphereAscent, 'Wznoszenie na orbitę', 140],
         ] as const)
             this.labels.push({
                 id: 'venus:' + id,
@@ -115,6 +117,15 @@ export class VenusActView extends Container {
         }
         const g = this.dynamic.clear();
         this.scan.clear();
+        const approach = act.area === 'atmosphere' ? V.atmosphereAscent : V.atmosphereApproach;
+        if (['orbit', 'atmosphere'].includes(act.area) && s.campaign.story!.venus!.probeBuilt) {
+            g.circle(approach.x, approach.y, 85).stroke({ color: C.gold, width: 2, alpha: 0.7 });
+            for (const sign of [-1, 1])
+                g.moveTo(approach.x - 30, approach.y + sign * 35)
+                    .lineTo(approach.x, approach.y + sign * 55)
+                    .lineTo(approach.x + 30, approach.y + sign * 35)
+                    .stroke({ color: C.gold, width: 3 });
+        }
         if (act.area === 'atmosphere') {
             for (const h of venusStorms(time)) {
                 for (let rim = 4; rim >= 0; rim--)

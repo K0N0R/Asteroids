@@ -40,7 +40,6 @@ export class VenusLaboratoryView extends Container {
                 g.rect(px, y, 126, 340).fill(0x1b2e41).stroke({ color: 0x9c9f8e, width: 8 });
                 for (let row = 0; row < 9; row++)
                     for (let col = 0; col < 3; col++) {
-                        if (sign === 1 && p === 1 && row < 3 && col > 0) continue;
                         detail
                             .rect(px + 9 + col * 37, y + 10 + row * 35, 31, 29)
                             .fill(sign > 0 && row % 4 === 0 ? 0x263845 : 0x3f6279)
@@ -140,17 +139,6 @@ export class VenusLaboratoryView extends Container {
             .lineTo(110, -78)
             .lineTo(100, -53)
             .stroke({ color: 0xc49a6c, width: 4 });
-        for (let i = 0; i < 9; i++)
-            detail
-                .poly([
-                    790 + i * 12,
-                    -620 + i * 21,
-                    807 + i * 12,
-                    -613 + i * 21,
-                    795 + i * 12,
-                    -601 + i * 21,
-                ])
-                .fill(0x70838b);
         detail.moveTo(-475, -590).lineTo(-475, -550).stroke({ color: 0xa6bbb7, width: 10 });
         detail
             .roundRect(-488, -686, 96, 65, 8)
