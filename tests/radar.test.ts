@@ -60,7 +60,7 @@ test('empty anomaly overlay never repaints the radar background, including all a
     }
     const g = new Graphics().circle(1470, 130, RADAR_RADIUS).fill(0x303c45);
     const before = [...g.context.instructions];
-    assert.equal(drawRadarAnomaly(g, { center: { x: 31500, y: 0 }, radius: 700 }), 0);
+    assert.equal(drawRadarAnomaly(g, { center: { x: 28500, y: 0 }, radius: 700 }), 0);
     assert.deepEqual(
         [...g.context.instructions],
         before,
@@ -78,7 +78,7 @@ test('partial Phobos coverage never colors the whole radar and zooming into safe
     assert.ok(cells > 300 && cells < 2000, `partial contamination: ${cells}`);
     g.clear().circle(1470, 130, RADAR_RADIUS).fill(0x303c45);
     const before = [...g.context.instructions];
-    assert.equal(drawRadarAnomaly(g, { center: { x: 31500, y: 0 }, radius: 700 }), 0);
+    assert.equal(drawRadarAnomaly(g, { center: { x: 28500, y: 0 }, radius: 700 }), 0);
     assert.deepEqual([...g.context.instructions], before);
     g.destroy(true);
 });

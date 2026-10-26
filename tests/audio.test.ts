@@ -143,6 +143,34 @@ function rig() {
         },
     };
 }
+test('Kepler flight and repairs drive nearby machinery audio and stop when idle or distant', () => {
+    const r = rig();
+    const escort = {
+        state: 'travel',
+        position: { x: 100, y: 0 },
+        velocity: { x: 80, y: 0 },
+        thrusting: true,
+        repairProgress: 0,
+    };
+    const update = () => r.audio.update({ ...state, position: { x: 0, y: 0 }, escort });
+    update();
+    assert.ok(r.played.some((voice) => voice.cue === 'engine'));
+    escort.thrusting = false;
+    escort.velocity = { x: 0, y: 0 };
+    escort.repairProgress = 1;
+    update();
+    assert.ok(r.stopped.includes(r.played.find((voice) => voice.cue === 'engine')!.id));
+    const repair = r.played.find((voice) => voice.cue === 'repair')!;
+    assert.ok(repair);
+    escort.position.x = 2000;
+    update();
+    assert.ok(r.stopped.includes(repair.id));
+    const count = r.played.length;
+    escort.position.x = 100;
+    escort.repairProgress = 0;
+    update();
+    assert.equal(r.played.length, count);
+});
 const state = {
     ended: null,
     pendingChoice: null,

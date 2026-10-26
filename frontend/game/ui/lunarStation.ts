@@ -5,7 +5,13 @@ import type { MissionSimulation } from '../systems/mission';
 import { manufacture, type ProductionScope } from '../state/production';
 import { stationTabDiscovered, recipeDiscovered } from '../state/discovery';
 import { transferLunarResource } from '../state/lunarIndustry';
-import { RESOURCE_IDS, RESOURCES, resourceTotal, type ResourceId } from '../state/resources';
+import {
+    RESOURCE_IDS,
+    RESOURCES,
+    cargoLoad,
+    isComponent,
+    type ResourceId,
+} from '../state/resources';
 import { RECIPES, type RecipeId } from '../state/chemistry';
 import { itemIllustration } from '../graphics/items';
 import { C } from '../graphics/shapes';
@@ -191,14 +197,14 @@ export class LunarStationView extends Container {
         label(this, `W bazie: ${stored}`, 1072, 520, 20, C.cyan);
         label(
             this,
-            `Na statku: ${held} · ładownia ${resourceTotal(sim.cargo)}/${capacity(c)}`,
+            `Na statku: ${held} · ładownia ${cargoLoad(sim.cargo)}/${capacity(c)}`,
             1072,
             558,
             17,
             C.muted,
             456,
         );
-        const free = Math.max(0, capacity(c) - resourceTotal(sim.cargo));
+        const free = isComponent(id) ? stored : Math.max(0, capacity(c) - cargoLoad(sim.cargo));
         [1, 5, 'all'].forEach((n, i) => {
             const deposit = n === 'all' ? held : Number(n),
                 withdraw = n === 'all' ? Math.min(stored, free) : Number(n);

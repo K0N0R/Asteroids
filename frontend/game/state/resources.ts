@@ -194,6 +194,13 @@ export const RESOURCE_IDS = Object.keys(RESOURCES) as ResourceId[];
 export function resourceTotal(store: ResourceStore) {
     return RESOURCE_IDS.reduce((sum, id) => sum + (store[id] ?? 0), 0);
 }
+export function isComponent(id: ResourceId) {
+    return RESOURCES[id].category === 'CZĘŚCI';
+}
+/** Finished components have separate storage aboard the ship. */
+export function cargoLoad(store: ResourceStore) {
+    return RESOURCE_IDS.reduce((sum, id) => sum + (isComponent(id) ? 0 : (store[id] ?? 0)), 0);
+}
 export function resourceSummary(store: ResourceStore) {
     return (
         RESOURCE_IDS.filter((id) => (store[id] ?? 0) > 0)

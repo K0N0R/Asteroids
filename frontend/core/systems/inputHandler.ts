@@ -1,5 +1,6 @@
 import { Bus } from './bus';
 import { GameState } from './gameState';
+import type { Container } from 'pixi.js';
 
 const defaultKeysConfiguration = {
     PAUSE: 'escape',
@@ -26,6 +27,19 @@ export class InputHandlerBase {
     primaryPressed = false;
     secondaryPressed = false;
     pointerInCanvas = false;
+    private pressedPointerButtons = new Set<number>();
+    private uiPointerButtons = new Set<number>();
+
+    bindUiContainer(container: Container) {
+        // Pixi only dispatches capture listeners on interactive ancestors.
+        container.eventMode = 'static';
+        // Capture before a control can close/rebuild its panel or stop propagation.
+        container.on('pointerdowncapture', (event) => {
+            this.uiPointerButtons.add(event.button);
+            if (event.button === 0) this.primaryPressed = false;
+            if (event.button === 2) this.secondaryPressed = false;
+        });
+    }
     isKeyPressed(key: TInputKeys) {
         return this.pressedKeys.has(this.keyConfiguration[key]);
     }
@@ -36,6 +50,8 @@ export class InputHandlerBase {
         for (const key of this.pressedKeys)
             if (key !== 'escape') Bus.emit('input', { name: 'keyup', data: key });
         this.pressedKeys.clear();
+        this.pressedPointerButtons.clear();
+        // Keep UI presses blocked until release, including compatibility mousedown events.
         this.primaryPressed = false;
         this.secondaryPressed = false;
         Bus.emit('input', { name: 'pointerdown', data: false });
@@ -43,6 +59,7 @@ export class InputHandlerBase {
     }
     init() {
         const loseFocus = () => {
+            this.uiPointerButtons.clear();
             this.clear();
             Bus.emit('input', { name: 'focus-lost' });
         };
@@ -61,10 +78,12 @@ export class InputHandlerBase {
                         : /^Key[A-Z]$/.test(evt.code)
                           ? evt.code.slice(3).toLowerCase()
                           : evt.key.toLowerCase();
-            if (key === 'space' || key === 'k') {
+            if (key === 'space') {
                 if (GameState.state === 'gameplay') evt.preventDefault();
+                if (!evt.repeat) Bus.emit('input', { name: 'keydown', data: key });
                 return;
             }
+            if (key === 'k') return;
             if (
                 [
                     'w',
@@ -102,7 +121,11 @@ export class InputHandlerBase {
                         : /^Key[A-Z]$/.test(evt.code)
                           ? evt.code.slice(3).toLowerCase()
                           : evt.key.toLowerCase();
-            if (key === 'space' || key === 'k') return;
+            if (key === 'space') {
+                Bus.emit('input', { name: 'keyup', data: key });
+                return;
+            }
+            if (key === 'k') return;
             this.pressedKeys.delete(key);
             Bus.emit('input', { name: 'keyup', data: key });
         });
@@ -117,27 +140,36 @@ export class InputHandlerBase {
         const updateButton = (evt: MouseEvent, pressed: boolean) => {
             this.pointer = { x: evt.clientX, y: evt.clientY };
             this.pointerInCanvas = evt.target instanceof HTMLCanvasElement;
+            const wasPressed = this.pressedPointerButtons.has(evt.button);
+            const next = pressed && this.pointerInCanvas;
+            if (next) this.pressedPointerButtons.add(evt.button);
+            else this.pressedPointerButtons.delete(evt.button);
+            const gameplayPressed = next && !this.uiPointerButtons.has(evt.button);
             if (evt.button === 0) {
-                const next = pressed && this.pointerInCanvas;
-                if (this.primaryPressed !== next) {
-                    this.primaryPressed = next;
+                this.primaryPressed = gameplayPressed;
+                // UI controls such as sliders still need the physical press/release events.
+                if (wasPressed !== next) {
                     Bus.emit('input', { name: 'pointerdown', data: next });
                 }
             }
             if (evt.button === 2) {
-                const next = pressed && this.pointerInCanvas;
-                if (this.secondaryPressed !== next) {
-                    this.secondaryPressed = next;
+                this.secondaryPressed = gameplayPressed;
+                if (wasPressed !== next) {
                     Bus.emit('input', { name: 'contextmenu', data: next });
                 }
             }
+            if (!pressed) this.uiPointerButtons.delete(evt.button);
         };
         window.addEventListener('pointerdown', (evt) => updateButton(evt, true));
         window.addEventListener('pointerup', (evt) => updateButton(evt, false));
         window.addEventListener('mousedown', (evt) => updateButton(evt, true));
         window.addEventListener('mouseup', (evt) => updateButton(evt, false));
-        window.addEventListener('pointercancel', () => this.clear());
+        window.addEventListener('pointercancel', () => {
+            this.uiPointerButtons.clear();
+            this.clear();
+        });
         document.addEventListener('pointerleave', () => {
+            this.pressedPointerButtons.clear();
             this.primaryPressed = false;
             this.secondaryPressed = false;
             this.pointerInCanvas = false;

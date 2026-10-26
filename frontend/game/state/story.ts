@@ -37,6 +37,7 @@ import {
 import {
     RESOURCES,
     RESOURCE_IDS,
+    cargoLoad,
     resourceSummary,
     type ResourceStore,
     type ResourceId,
@@ -1802,8 +1803,8 @@ export function constructionManifest(c: Campaign): Cargo {
 export function constructionLoadLock(c: Campaign) {
     if (lunarShipmentPending(c)) return lunarShipmentLock(c);
     const manifest = constructionManifest(c),
-        count = Object.values(manifest).reduce((sum, n) => sum + n, 0);
-    if (!count) return 'Brak ładunku do dostarczenia.';
+        count = cargoLoad(manifest);
+    if (!Object.values(manifest).some((n) => n > 0)) return 'Brak ładunku do dostarczenia.';
     if (!c.ship || count > capacity(c))
         return `Potrzeba miejsca na cały ładunek: ${count} / ${c.ship ? capacity(c) : 0}.`;
     const missing = RESOURCE_IDS.filter((id) => (c.bank[id] ?? 0) < (manifest[id] ?? 0));

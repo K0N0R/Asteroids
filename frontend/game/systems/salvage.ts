@@ -1,6 +1,8 @@
 import { INTERACTION_SECONDS } from './interactionTarget';
 import RAPIER from '@dimforge/rapier2d-compat';
 import { GAME } from '../config';
+import type { EnemyKind } from '../config';
+import type { ResourceId, ResourceStore } from '../state/resources';
 import { random, type Point } from '../worlds/sector';
 
 export const SALVAGE = {
@@ -11,9 +13,33 @@ export const SALVAGE = {
     seconds: INTERACTION_SECONDS,
     shipment: { health: 100, radius: 34, ore: 0, parts: 0, crystals: 0 },
     satellite: { health: 80, radius: 35, ore: 0, parts: 0, crystals: 0 },
-    patrol: { health: 70, radius: 24, ore: 8, parts: 4, crystals: 0 },
-    lancer: { health: 120, radius: 34, ore: 12, parts: 7, crystals: 1 },
+    patrol: { health: 70, radius: 24, parts: 4 },
+    lancer: { health: 120, radius: 34, parts: 7 },
 } as const;
+export type ComponentTier = 1 | 2 | 3;
+export function droneComponentTier(kind: EnemyKind, boss = false): ComponentTier {
+    if (boss || kind === 'heavy') return 3;
+    return kind === 'patrol' || kind === 'interceptor' ? 1 : 2;
+}
+/** A deterministic mix of finished hull, electronic and engine components. */
+export function droneComponents(tier: ComponentTier, count: number): ResourceStore {
+    const suffix = tier === 1 ? '' : tier === 2 ? 'II' : 'III';
+    const kinds = ['parts', 'electronics', 'propulsion', 'powerModules', 'storageFrames'].map(
+        (id) => `${id}${suffix}` as ResourceId,
+    );
+    const result: ResourceStore = {};
+    for (let i = 0; i < count; i++) {
+        const id = kinds[i % kinds.length];
+        result[id] = (result[id] ?? 0) + 1;
+    }
+    return result;
+}
+export function wreckComponents(
+    source: 'patrol' | 'lancer',
+    tier: ComponentTier = source === 'lancer' ? 2 : 1,
+) {
+    return droneComponents(tier, SALVAGE[source].parts);
+}
 export function leavesWreck(seed: number, id: number) {
     return random(seed ^ Math.imul(id, 0x9e3779b1))() < SALVAGE.chance;
 }
@@ -28,6 +54,7 @@ export interface SalvageBody {
     previous: Point;
     previousAngle: number;
     cooldown: number;
+    componentTier: ComponentTier;
 }
 const P = GAME.pixelsPerMeter;
 export function salvagePosition(item: SalvageBody): Point {
@@ -49,6 +76,11 @@ export class SalvageFleet {
     get full() {
         return this.towing.size >= this.capacity;
     }
+    /** Quest probes, rescue targets and shipments retain their interaction mechanics. */
+    canDismantle(handle: number) {
+        const item = this.items.get(this.colliders.get(handle)!);
+        return !!item && item.id >= 0 && (item.source === 'patrol' || item.source === 'lancer');
+    }
     towAnchor(item: SalvageBody): Point {
         return this.ropes.get(item.id)?.anchor ?? { x: -28, y: 0 };
     }
@@ -59,6 +91,7 @@ export class SalvageFleet {
         velocity: Point,
         angle = 0,
         capsule = false,
+        componentTier: ComponentTier = source === 'lancer' ? 2 : 1,
     ) {
         if (
             this.items.has(id) ||
@@ -92,6 +125,7 @@ export class SalvageFleet {
             body,
         );
         const item: SalvageBody = {
+            componentTier,
             id,
             source,
             body,

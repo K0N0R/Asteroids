@@ -11,6 +11,9 @@ export const ESCORT = {
     startRange: 160,
     startSeconds: INTERACTION_SECONDS,
     researchSeconds: 12,
+    repairThreshold: 0.4,
+    repairFraction: 0.25,
+    repairSeconds: 5,
 } as const;
 export type EscortState =
     | 'idle'
@@ -38,18 +41,20 @@ export function researchPath(
     to: Point,
     rocks: readonly NavigationRock[],
     allowed?: (a: Point, b: Point) => boolean,
+    gridSize = 100,
 ) {
     const clear = (a: Point, b: Point) =>
         clearResearchLeg(a, b, rocks) && (!allowed || allowed(a, b));
     if (clear(from, to)) return [{ ...to }];
-    const size = 100,
+    const size = gridSize,
         start = { x: Math.round(from.x / size), y: Math.round(from.y / size) },
         goal = { x: Math.round(to.x / size), y: Math.round(to.y / size) };
     const key = (x: number, y: number) => `${x},${y}`;
-    const minX = Math.min(start.x, goal.x) - 10,
-        maxX = Math.max(start.x, goal.x) + 10,
-        minY = Math.min(start.y, goal.y) - 10,
-        maxY = Math.max(start.y, goal.y) + 10;
+    const margin = Math.ceil(1600 / size),
+        minX = Math.min(start.x, goal.x) - margin,
+        maxX = Math.max(start.x, goal.x) + margin,
+        minY = Math.min(start.y, goal.y) - margin,
+        maxY = Math.max(start.y, goal.y) + margin;
     const blocked = new Set<string>();
     for (const r of rocks) {
         const radius = r.radius + ESCORT.radius + 24;
@@ -136,6 +141,12 @@ export function researchPath(
 }
 const P = GAME.pixelsPerMeter;
 export class ResearchEscort {
+    protected get navigationGridSize() {
+        return 100;
+    }
+    protected get navigationWaypointRadius() {
+        return 50;
+    }
     readonly body: RAPIER.RigidBody;
     readonly collider: RAPIER.Collider;
     state: EscortState = 'idle';
@@ -144,6 +155,9 @@ export class ResearchEscort {
     startProgress = 0;
     researchProgress = 0;
     scanning = false;
+    repairProgress = 0;
+    repairWaiting = false;
+    repairs = 0;
     cooldown = 0;
     departure = 0;
     previous: Point = { x: 380, y: 0 };
@@ -197,10 +211,27 @@ export class ResearchEscort {
     get vulnerable() {
         return this.state !== 'complete' && this.state !== 'destroyed' && this.state !== 'failed';
     }
+    /** Mining convoys have their own repair policy. */
+    protected get selfRepairEnabled() {
+        return true;
+    }
+    get repairing() {
+        return this.repairProgress > 0 || this.repairWaiting;
+    }
+    get thrusting() {
+        return (
+            this.vulnerable &&
+            !this.repairing &&
+            this.state !== 'idle' &&
+            Math.hypot(this.velocity.x, this.velocity.y) > 5
+        );
+    }
     damage(amount: number, safeRadius: number = DRONES.safeRadius) {
         if (!this.vulnerable || Math.hypot(this.position.x, this.position.y) < safeRadius)
             return false;
         this.health = Math.max(0, this.health - amount);
+        this.repairProgress = 0;
+        this.repairWaiting = false;
         this.cooldown = 0.5;
         this.researchProgress = 0;
         if (this.health) return false;
@@ -220,6 +251,7 @@ export class ResearchEscort {
     }
     update(dt: number, player: Point, rocks: readonly NavigationRock[], hostileNear: boolean) {
         this.scanning = false;
+        this.repairWaiting = false;
         this.previous = this.position;
         this.previousAngle = this.body.rotation();
         this.cooldown = Math.max(0, this.cooldown - dt);
@@ -228,6 +260,26 @@ export class ResearchEscort {
             return false;
         }
         if (this.state === 'destroyed' || this.state === 'idle') return false;
+        if (this.selfRepairEnabled && this.health < ESCORT.health * ESCORT.repairThreshold) {
+            this.body.setLinvel({ x: 0, y: 0 }, true);
+            this.body.setAngvel(0, true);
+            if (hostileNear || this.cooldown > 0) {
+                this.repairProgress = 0;
+                this.repairWaiting = true;
+                return false;
+            }
+            this.repairProgress += dt;
+            if (this.repairProgress + 1e-8 >= ESCORT.repairSeconds) {
+                this.health = Math.min(
+                    ESCORT.health,
+                    this.health + ESCORT.health * ESCORT.repairFraction,
+                );
+                this.repairProgress = 0;
+                this.repairs++;
+            }
+            return false;
+        }
+        this.repairProgress = 0;
         const p = this.position,
             distance = Math.hypot(player.x - p.x, player.y - p.y);
         let desired: Point = { x: 0, y: 0 };
@@ -258,7 +310,11 @@ export class ResearchEscort {
                 return true;
             }
         } else {
-            if (this.path.length > 1 && Math.hypot(this.path[0].x - p.x, this.path[0].y - p.y) < 50)
+            if (
+                this.path.length > 1 &&
+                Math.hypot(this.path[0].x - p.x, this.path[0].y - p.y) <
+                    this.navigationWaypointRadius
+            )
                 this.path.shift();
             if (
                 this.replan <= 0 &&
@@ -266,8 +322,12 @@ export class ResearchEscort {
                     !clearResearchLeg(p, this.path[0], rocks) ||
                     !this.allowsTravel(p, this.path[0]))
             ) {
-                this.path = researchPath(p, this.destination, rocks, (a, b) =>
-                    this.allowsTravel(a, b),
+                this.path = researchPath(
+                    p,
+                    this.destination,
+                    rocks,
+                    (a, b) => this.allowsTravel(a, b),
+                    this.navigationGridSize,
                 );
                 this.replan = 1;
             }

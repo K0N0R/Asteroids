@@ -14,6 +14,7 @@ export function radioKey(line: DialogueLine) {
 }
 export function enqueueRadio(story: StoryProgress, line: DialogueLine) {
     if (obsoleteVenusRadio(story, line)) return false;
+    if (obsoleteMarsContact(story, line)) return false;
     const journal = (story.radio ??= { pending: [], acknowledged: [] });
     const key = radioKey(line);
     if (
@@ -26,6 +27,7 @@ export function enqueueRadio(story: StoryProgress, line: DialogueLine) {
 }
 
 export function obsoleteVenusRadio(story: StoryProgress, line: DialogueLine) {
+    if (story.sector === 'venus' && line.text.includes('Mamy kontakt w pobliżu')) return true;
     const markers: [string, string][] = [
         ['Orbita Wenus jest dostępna', 'venus-toxic-orbit'],
         ['Odczyt odebrany. Odszukaliśmy stację', 'venus-dead-laboratory'],
@@ -73,12 +75,18 @@ export function validRadio(value: unknown): value is RadioJournal {
 
 /** Prune an obsolete objective saved by earlier builds once its mission is complete. */
 export function pruneObsoleteMarsRadio(story: StoryProgress) {
-    if (!story.claimed.includes('mars-sector-secure')) return false;
     const stale =
-        story.radio?.pending.filter((line) =>
-            line.text.includes('Wyeliminuj pozostałe wymagane jednostki'),
+        story.radio?.pending.filter(
+            (line) =>
+                obsoleteMarsContact(story, line) ||
+                (story.claimed.includes('mars-sector-secure') &&
+                    line.text.includes('Wyeliminuj pozostałe wymagane jednostki')),
         ) ?? [];
     if (!stale.length) return false;
     acknowledgeRadio(story, stale);
     return true;
+}
+
+function obsoleteMarsContact(story: StoryProgress, line: DialogueLine) {
+    return story.sector === 'mars' && line.text.includes('Mamy kontakt w pobliżu');
 }

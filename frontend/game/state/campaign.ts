@@ -1,4 +1,6 @@
 import { nearestVenusMap } from '../worlds/venusLayout';
+import { migrateMarsOrbitLayout } from './marsLayoutMigration';
+import { migrateVenusLayout } from './venusLayoutMigration';
 import { migrateVenusCampaign } from './venusMigration';
 import { installStationProject, stationProjectCost } from './stationProgression';
 import { cargoCapacity } from '../config';
@@ -17,7 +19,14 @@ import { phobosOrbitSecured } from './marsAct';
 import { WORKSHOP_CONSTRUCTION } from './stationConstruction';
 import { moduleParts, WEAPON_PARTS, spendEquipment } from './equipmentCosts';
 import { HULL_CONSTRUCTION, hasHullParts } from './fleetConstruction';
-import { RESOURCE_IDS, STORAGE_PRIORITY, resourceTotal, type ResourceStore } from './resources';
+import {
+    RESOURCE_IDS,
+    STORAGE_PRIORITY,
+    resourceTotal,
+    resourceSummary,
+    cargoLoad,
+    type ResourceStore,
+} from './resources';
 import { receiveStationCargo } from './earthLogistics';
 import { STATION_DRONES, type StationDroneState } from './stationDrones';
 import { hullUnlocked } from './fleetUnlocks';
@@ -40,7 +49,7 @@ import {
 } from './story';
 import { random } from '../worlds/sector';
 import { MOON, moonDistance } from '../worlds/moon';
-import { SALVAGE } from '../systems/salvage';
+import { wreckComponents, type ComponentTier } from '../systems/salvage';
 import { WEAPONS, type WeaponId } from '../config';
 import {
     CONTRACTS,
@@ -115,6 +124,7 @@ export interface Campaign {
     magneticRelays: number[];
     nextSalvageId: number;
     worldSalvage: {
+        componentTier?: ComponentTier;
         id: number;
         seed: number;
         x: number;
@@ -486,6 +496,8 @@ export function parseCampaign(json: string | null): Campaign | null {
                     integer(item.seed, 0xffffffff) &&
                     validPoint(item) &&
                     ['patrol', 'lancer', 'satellite'].includes(item.source as string) &&
+                    (item.componentTier === undefined ||
+                        [1, 2, 3].includes(item.componentTier as number)) &&
                     (item.area === undefined || item.area === 'surface'),
             ) ||
             new Set(p.worldSalvage.map((item) => item.id)).size !== p.worldSalvage.length ||
@@ -504,6 +516,8 @@ export function parseCampaign(json: string | null): Campaign | null {
         if (!Array.isArray(p.recoverySignals) || p.recoverySignals.length > RECOVERY.signalLimit)
             return null;
         if (p.story !== null && !validStory(p.story)) return null;
+        migrateMarsOrbitLayout(p as unknown as Campaign);
+        migrateVenusLayout(p as unknown as Campaign);
         const allShipIds = ships.map((ship) => ship.id);
         const allPilotIds = [...ids];
         for (const signal of p.recoverySignals) {
@@ -640,7 +654,7 @@ export function parseCampaign(json: string | null): Campaign | null {
         const campaign = p as unknown as Campaign;
         if (campaign.activeRun?.freight !== undefined) {
             const initial = campaign.activeRun.freight;
-            if (!cargo(initial) || resourceTotal(initial) > capacity(campaign)) return null;
+            if (!cargo(initial) || cargoLoad(initial) > capacity(campaign)) return null;
         }
         if (storageUsed(campaign) > storageCapacity(campaign)) return null;
         return campaign;
@@ -818,7 +832,7 @@ export function beginRun(
     )
         return false;
     if (
-        resourceTotal(freight) > capacity(c) ||
+        cargoLoad(freight) > capacity(c) ||
         RESOURCE_IDS.some((id) => (freight[id] ?? 0) > (c.bank[id] ?? 0))
     )
         return false;
@@ -886,13 +900,9 @@ export function deliverSalvage(
         recordSatelliteDelivery(c, satellite.task);
     } else {
         if ((source !== 'patrol' && source !== 'lancer') || !integer(id) || id < 1) return null;
+        const tier = c.worldSalvage.find((item) => item.id === id)?.componentTier;
         c.worldSalvage = c.worldSalvage.filter((item) => item.id !== id);
-        const recipe = SALVAGE[source];
-        refund = {
-            ore: recipe.ore,
-            parts: recipe.parts,
-            ...(recipe.crystals ? { crystals: recipe.crystals } : {}),
-        };
+        refund = { ore: 0, parts: 0, ...wreckComponents(source, tier) };
         description = `Wrak ${source === 'lancer' ? 'Lancer' : 'drona'} #${id}`;
         const rng = random(active.seed ^ Math.imul(id, 0x45d9f3b) ^ 0x16a4c2);
         const rebuild = (!c.story || c.story.mars.aiIdentified) && rng() < 0.3;
@@ -1017,12 +1027,10 @@ export function finishRun(
             result.recoveryText = 'Nie podjęto celu ratunkowego. Sygnał pozostaje dostępny.';
         const recycled = recovery.recycledWreck;
         if (recycled === 'patrol' || recycled === 'lancer') {
-            const refund = SALVAGE[recycled];
-            result.reward.ore += refund.ore;
-            result.reward.parts += refund.parts;
-            if (refund.crystals)
-                result.reward.crystals = (result.reward.crystals ?? 0) + refund.crystals;
-            result.recoveryText += `Recykling wraku ${recycled === 'lancer' ? 'Lancer' : 'drona'}: ${refund.ore} rudy / ${refund.parts} komponentów${refund.crystals ? ' / 1 kryształ' : ''}.`;
+            const refund = wreckComponents(recycled);
+            for (const id of RESOURCE_IDS)
+                if (refund[id]) result.reward[id] = (result.reward[id] ?? 0) + refund[id]!;
+            result.recoveryText += `Recykling wraku ${recycled === 'lancer' ? 'Lancer' : 'drona'}: ${resourceSummary(refund)}.`;
         }
         const contract = CONTRACTS[active.contract];
         const data = (recovery.data ?? []).filter((site) => Object.hasOwn(SCAN_SITES, site));

@@ -1,7 +1,9 @@
 import type { StoryProgress } from './story';
 import type { Point } from '../worlds/sector';
+import { MARS_MAPS } from '../worlds/marsLayout';
 
 export interface MarsProgress {
+    layoutVersion?: 2 | 3;
     announcements: string[];
     landingBlocked: boolean;
     ambushEntered: boolean;
@@ -23,6 +25,7 @@ export interface MarsProgress {
     probeDelivered: boolean;
 }
 export const newMarsProgress = (): MarsProgress => ({
+    layoutVersion: 3,
     announcements: [],
     landingBlocked: false,
     ambushEntered: false,
@@ -47,6 +50,7 @@ export function validMarsProgress(value: unknown): value is MarsProgress {
     if (!value || typeof value !== 'object') return false;
     const p = value as MarsProgress;
     return (
+        (p.layoutVersion === undefined || p.layoutVersion === 2 || p.layoutVersion === 3) &&
         Array.isArray(p.announcements) &&
         new Set(p.announcements).size === p.announcements.length &&
         p.announcements.every((id) =>
@@ -125,15 +129,15 @@ export function validMarsProgress(value: unknown): value is MarsProgress {
 export const MARS_ACT = {
     landing: { x: 4000, y: -4000 },
     deimosGate: { x: -2200, y: -10000 },
-    phobos: { x: 31000, y: -100 },
+    phobos: MARS_MAPS.phobos.center,
     surface: { x: 6500, y: 6000 },
-    asteroid: { x: 60000, y: 0 },
+    asteroid: MARS_MAPS.asteroid.center,
     base: { x: 6900, y: 6300 },
     terminal: { x: 7140, y: 6300 },
-    yard: { x: 60650, y: 100 },
+    yard: { x: MARS_MAPS.asteroid.center.x + 650, y: MARS_MAPS.asteroid.center.y + 100 },
     memory: { x: 6600, y: 6220 },
-    probe: { x: 29100, y: -900 },
-    oldShip: { x: 30700, y: 1000 },
+    probe: { x: 29000, y: -200 },
+    oldShip: { x: 29600, y: 1000 },
     oldShipId: -73003,
     research: [
         { x: 0, y: -2550 },
@@ -190,7 +194,8 @@ export function marsSecurityObjective(p: StoryProgress) {
 export function marsArea(p: Point) {
     if (Math.hypot(p.x - MARS_ACT.surface.x, p.y - MARS_ACT.surface.y) < 1900) return 'surface';
     if (Math.hypot(p.x - MARS_ACT.asteroid.x, p.y - MARS_ACT.asteroid.y) < 2000) return 'asteroid';
-    if (Math.hypot(p.x - 30000, p.y) < 3000) return 'phobos';
+    if (Math.hypot(p.x - MARS_MAPS.phobos.center.x, p.y - MARS_MAPS.phobos.center.y) < 3000)
+        return 'phobos';
     return 'orbit';
 }
 

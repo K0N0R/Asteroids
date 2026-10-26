@@ -1238,7 +1238,8 @@ test('all hulls use one-second wreck and rescue pickup without changing calm-fli
             assert.equal(sim.salvage.towed, null);
             assert.ok(Math.abs(sim.salvageProgress - seconds / 2) < 1e-8);
             assert.match(flightHint(sim), /(?:49|50)%/);
-            sim.step({ ...idle, tow: true, fire: true });
+            // Shooting now dismantles wrecks, so test interruption while aiming away from it.
+            sim.step({ ...idle, target: { x: 3000, y: -1000 }, tow: true, fire: true });
             assert.equal(sim.salvageProgress, 0);
             for (let frame = 0; frame < seconds * 60 - 1; frame++) sim.step({ ...idle, tow: true });
             assert.equal(sim.salvage.towed, null);
@@ -1305,7 +1306,7 @@ test('three grippers cannot double claim a crystal or overfill the last cargo sl
     const arms = new GripperSystem(HULLS.mule.grabbers, 300),
         loot = new Map<number, Resource>();
     for (let id = 1; id <= 4; id++)
-        loot.set(id, { id, x: 80 + id * 20, y: 0, kind: 'parts', amount: 1 });
+        loot.set(id, { id, x: 80 + id * 20, y: 0, kind: 'crystals', amount: 1 });
     let collected = 0;
     for (let i = 0; i < 180; i++)
         arms.update(

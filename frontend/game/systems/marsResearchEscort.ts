@@ -9,6 +9,12 @@ import {
 } from '../worlds/marsResearch';
 
 export class MarsResearchEscort extends ResearchEscort {
+    protected override get navigationGridSize() {
+        return 50;
+    }
+    protected override get navigationWaypointRadius() {
+        return 15;
+    }
     returning = false;
     scanTarget: Point;
     private lastSafe: Point = { x: 380, y: 0 };
@@ -42,7 +48,7 @@ export class MarsResearchEscort extends ResearchEscort {
         hostileNear: boolean,
     ) {
         const complete = super.update(dt, player, rocks, hostileNear);
-        if (this.state === 'research') {
+        if (this.state === 'research' && !this.repairing) {
             const p = this.position,
                 a = Math.atan2(this.scanTarget.y - p.y, this.scanTarget.x - p.x),
                 error = Math.atan2(
@@ -53,7 +59,7 @@ export class MarsResearchEscort extends ResearchEscort {
         }
         const p = this.position,
             v = this.velocity;
-        if (!marsResearchLegClear(p, { x: p.x + v.x * dt * 3, y: p.y + v.y * dt * 3 }, 65))
+        if (!marsResearchLegClear(p, { x: p.x + v.x * dt * 3, y: p.y + v.y * dt * 3 }, 45))
             this.body.setLinvel({ x: 0, y: 0 }, true);
         if (marsResearchPointClear(p, 55)) this.lastSafe = { ...p };
         return complete;

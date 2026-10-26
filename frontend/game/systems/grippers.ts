@@ -1,4 +1,4 @@
-import type { ResourceId } from '../state/resources';
+import { isComponent, type ResourceId } from '../state/resources';
 import type { Mount } from '../config';
 import { rotateVector } from './flight';
 import type { Point } from '../worlds/sector';
@@ -57,14 +57,18 @@ export class GripperSystem {
             if (arm.phase === 'idle') {
                 arm.tip = { ...origin };
                 arm.previous = { ...origin };
-                const pending = this.arms.filter((other) => other.phase !== 'idle').length;
-                if (!this.enabled || space <= pending) continue;
+                const pending = this.arms.filter((other) => {
+                    const kind = other.held ?? loot.get(other.targetId!)?.kind;
+                    return other.phase !== 'idle' && kind && !isComponent(kind);
+                }).length;
+                if (!this.enabled) continue;
                 let best: Resource | undefined,
                     distance = this.range;
                 for (const item of loot.values()) {
                     const gap = Math.hypot(item.x - origin.x, item.y - origin.y);
                     if (
                         item.amount > 0 &&
+                        (isComponent(item.kind) || space > pending) &&
                         !reserved.has(item.id) &&
                         gap < distance &&
                         clearLine(origin, item)
@@ -123,9 +127,9 @@ export class GripperSystem {
                 arm.targetId = null;
                 arm.phase = 'return';
             } else if (arm.phase === 'return') {
-                if (arm.held && space > 0) {
+                if (arm.held && (isComponent(arm.held) || space > 0)) {
                     deliver(arm.held);
-                    space--;
+                    if (!isComponent(arm.held)) space--;
                 } else if (arm.held) continue;
                 arm.held = null;
                 arm.phase = 'idle';

@@ -1,5 +1,6 @@
 import type { StoryTask, StoryProgress } from './story';
 import type { ResourceStore } from './resources';
+import { validVenusPowerState, type VenusPowerState } from '../systems/venusPower';
 
 export const VENUS_PROBE_COST: ResourceStore = {
     lightPlating: 2,
@@ -43,6 +44,8 @@ export const VENUS_TASKS: StoryTask[] = VENUS_TASK_IDS.map((id, i) => ({
     rewardXp: [2, 3, 4, 2, 5, 2][i],
 }));
 export interface VenusProgress {
+    layoutVersion?: 2;
+    powerGrid?: VenusPowerState;
     powerRestored: boolean;
     probeBuilt: boolean;
     transmission: number;
@@ -50,6 +53,7 @@ export interface VenusProgress {
     announcements: string[];
 }
 export const newVenusProgress = (): VenusProgress => ({
+    layoutVersion: 2,
     powerRestored: false,
     probeBuilt: false,
     transmission: 0,
@@ -63,6 +67,8 @@ export function validVenusProgress(p: unknown): p is VenusProgress {
     if (!p || typeof p !== 'object') return false;
     const v = p as VenusProgress;
     return (
+        (v.layoutVersion === undefined || v.layoutVersion === 2) &&
+        (v.powerGrid === undefined || validVenusPowerState(v.powerGrid)) &&
         ['powerRestored', 'probeBuilt', 'guardianDefeated'].every(
             (k) => typeof v[k as keyof VenusProgress] === 'boolean',
         ) &&
@@ -76,6 +82,8 @@ export function validVenusProgress(p: unknown): p is VenusProgress {
             [
                 'intro',
                 'relay',
+                'laboratory-entry',
+                'atmosphere-entry',
                 'archive',
                 'transmission',
                 'horizon',

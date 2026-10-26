@@ -10,6 +10,7 @@ import { Bus } from '@systems/bus';
 import { Background } from '@entities/background';
 import { FrameDiagnostics } from './systems/frameDiagnostics';
 import { bindRenderContextRecovery } from './systems/renderContextRecovery';
+import { InputHandler } from './systems/inputHandler';
 
 export class Core {
     app!: PIXI.Application;
@@ -64,6 +65,7 @@ export class Core {
 
         this.app.canvas.addEventListener('contextmenu', (evt) => evt.preventDefault());
         bindRenderContextRecovery(this.app, {
+            clearInput: () => InputHandler.clear(),
             lost: () => Bus.emit('system', { name: 'render-context-lost' }),
             restored: () => Bus.emit('system', { name: 'render-context-restored' }),
         });
@@ -74,6 +76,7 @@ export class Core {
         this.background = new Background();
         PopupContainer.createInstance();
         this.popupContainer = PopupContainer.instance;
+        InputHandler.bindUiContainer(this.popupContainer);
         this.app.stage.addChild(this.background, PopupContainer.instance);
         this.scalableContainers.push(this.background, PopupContainer.instance);
         this.triggerResize();
@@ -81,6 +84,7 @@ export class Core {
 
     public instantiateComponents() {
         this.uiContainer = new UiContainer();
+        InputHandler.bindUiContainer(this.uiContainer);
         this.worldContainer = new WorldContainer();
         this.app.stage.addChild(this.worldContainer, this.uiContainer);
         this.app.stage.addChild(this.popupContainer);

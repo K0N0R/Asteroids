@@ -1,6 +1,7 @@
 import { generateSector, random, type RockSpec } from './sector';
 import { VENUS_MAPS, V, venusLanes, venusLandmarks } from './venusLayout';
 import type { StoryProgress } from '../state/story';
+import { segmentDistance } from '../systems/hyperdrive';
 export function generateVenusSector(p: StoryProgress) {
     const sector = generateSector(150074),
         rng = random(150074);
@@ -36,7 +37,7 @@ export function generateVenusSector(p: StoryProgress) {
         )
             continue;
         // Keep a broad escort corridor between the station and atmospheric entry clear.
-        if (q.x < 600 && q.x > -3100 && q.y > -400 && q.y < 8100) continue;
+        if (segmentDistance(q, V.probe, V.atmosphereGate) < radius + 350) continue;
         rocks.push({ ...q, radius, rich: i % 7 === 0, variant: i % 5, vx: 0, vy: 0 });
     }
     sector.rocks = rocks;

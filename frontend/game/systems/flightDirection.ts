@@ -12,6 +12,7 @@ export interface DirectionSnapshot {
     destroyed: boolean;
     interrupted: boolean;
     threat: boolean;
+    suppressContact?: boolean;
     hullFraction: number;
     heat: number;
     discoveries: { id: string; name: string; position: Point; text?: string }[];
@@ -78,7 +79,7 @@ export class FlightDirection {
                         id: 'heat',
                         text: 'Temperatura szybko rośnie. Schowaj statek w cieniu dużej skały.',
                     }
-                  : state.threat
+                  : state.threat && !state.suppressContact
                     ? {
                           id: 'contact',
                           text: 'Mamy kontakt w pobliżu. Uważaj na ostrzał — obserwujemy Twoją pozycję.',

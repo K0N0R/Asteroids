@@ -1,7 +1,10 @@
 import type { Point } from './sector';
 import { segmentDistance } from '../systems/hyperdrive';
-import { MARS_ACT } from '../state/marsAct';
 import { MARS_MAPS, MARS_GATES } from './marsLayout';
+import { polygonDistance, ANOMALY_FEATHER } from '../systems/anomalyField';
+import { removeSmallAnomalyPatches } from './anomalyPatches';
+import { MARS_ACT } from '../state/marsAct';
+export const MARS_CORRIDOR_NARROWING = 96;
 export const PHOBOS_MAZE_GATE = { x: 10500, y: -9500 };
 export const PHOBOS_MAZE_ENTRY = { x: 1700, y: 900 };
 
@@ -103,23 +106,24 @@ function rawClearance(p: Point, phobos = false) {
         Math.sin(p.x / 310 + Math.sin(p.y / 570) * 1.8) * 150 +
         Math.sin(p.y / 190 + Math.cos(p.x / 410)) * 75;
     if (phobos) {
-        const north = p.y - (-1000 + Math.sin(p.x / 750) * 180 + Math.sin(p.x / 310) * 95),
-            northwest = Math.max(p.x - (29100 + Math.sin(p.y / 430) * 150), p.y - 250);
-        return Math.max(
-            Math.min(north, northwest),
-            340 -
-                segmentDistance(p, MARS_ACT.probe, {
-                    x: MARS_ACT.probe.x + 850,
-                    y: MARS_ACT.probe.y + 500,
-                }),
-        );
+        const edge =
+            MARS_MAPS.phobos.center.x + 650 + Math.sin(p.y / 750) * 180 + Math.sin(p.y / 310) * 95;
+        return edge - p.x - MARS_CORRIDOR_NARROWING;
     }
     const width = 400 + 70 * Math.sin(p.x / 880 + p.y / 1430) + 40 * Math.cos(p.y / 510);
     let safe = Math.max(
-        2700 - Math.hypot(p.x, p.y) + ripple,
-        Math.max(240, width + ripple) - mazeDistance(p),
+        2700 - MARS_CORRIDOR_NARROWING - Math.hypot(p.x, p.y) + ripple,
+        Math.max(160, width + ripple - MARS_CORRIDOR_NARROWING) - mazeDistance(p),
+        // The southwest is open space for the one-way return from the rich asteroid.
+        Math.min(900 - p.x + ripple, p.y + 700 + ripple) - MARS_CORRIDOR_NARROWING,
     );
-    for (const q of pockets) safe = Math.max(safe, q.r - Math.hypot(p.x - q.x, p.y - q.y) + ripple);
+    for (const q of pockets)
+        safe = Math.max(
+            safe,
+            q.r - MARS_CORRIDOR_NARROWING - Math.hypot(p.x - q.x, p.y - q.y) + ripple,
+        );
+    for (const site of MARS_ACT.research)
+        safe = Math.max(safe, 220 - Math.hypot(p.x - site.x, p.y - site.y));
     return safe;
 }
 
@@ -128,7 +132,7 @@ export const MARS_CLEAR_ROUTES = [
     { a: MARS_GATES.asteroidExit, b: MARS_GATES.asteroidArrival },
 ] as const;
 
-/** Shared interpolated field: constant-time damage tests, matching the rendered boundary. */
+/** Shared construction field for contour generation, radar and placement checks. */
 function field(center: Point, radius: number, phobos = false) {
     const step = 120,
         extent = radius + (phobos ? 1500 : 2600),
@@ -156,6 +160,7 @@ function field(center: Point, radius: number, phobos = false) {
                 laneClearance,
             );
         }
+    removeSmallAnomalyPatches(values, n + 1);
     const sample = (p: Point) => {
         const gx = (p.x - left) / step,
             gy = (p.y - top) / step,
@@ -220,12 +225,48 @@ function field(center: Point, radius: number, phobos = false) {
         }
         flush(n);
     }
-    return { sample, polygons };
+    // The construction field is not a signed Euclidean distance: ripples and merged
+    // corridors can flatten its gradient. Use the actual visible polygons for hull contact.
+    const cells: (Point[][] | undefined)[] = new Array(n * n);
+    for (const polygon of polygons) {
+        const x0 = Math.max(0, Math.floor((Math.min(...polygon.map((p) => p.x)) - left) / step)),
+            x1 = Math.min(n - 1, Math.floor((Math.max(...polygon.map((p) => p.x)) - left) / step)),
+            y0 = Math.max(0, Math.floor((Math.min(...polygon.map((p) => p.y)) - top) / step)),
+            y1 = Math.min(n - 1, Math.floor((Math.max(...polygon.map((p) => p.y)) - top) / step));
+        for (let y = y0; y <= y1; y++)
+            for (let x = x0; x <= x1; x++) (cells[y * n + x] ??= []).push(polygon);
+    }
+    const touches = (p: Point, radius: number) => {
+        const x0 = Math.max(0, Math.floor((p.x - radius - left) / step)),
+            x1 = Math.min(n - 1, Math.floor((p.x + radius - left) / step)),
+            y0 = Math.max(0, Math.floor((p.y - radius - top) / step)),
+            y1 = Math.min(n - 1, Math.floor((p.y + radius - top) / step));
+        for (let y = y0; y <= y1; y++)
+            for (let x = x0; x <= x1; x++)
+                for (const polygon of cells[y * n + x] ?? [])
+                    if (polygonDistance(p, polygon) <= radius) return true;
+        return false;
+    };
+    return { sample, polygons, touches };
 }
 const mars = field(MARS_MAPS.mars.center, MARS_MAPS.mars.radius);
 const phobos = field(MARS_MAPS.phobos.center, MARS_MAPS.phobos.radius, true);
 export const PHOBOS_MAZE_BANDS = mars.polygons;
 export const PHOBOS_ORBIT_BANDS = phobos.polygons;
+/** Construction clearance is not a Euclidean distance; use marsAnomalyTouches for hull damage. */
 export function marsAnomalyClearance(p: Point, orbit: 'mars' | 'phobos' | 'asteroid') {
     return orbit === 'mars' ? mars.sample(p) : orbit === 'phobos' ? phobos.sample(p) : Infinity;
+}
+
+export function marsAnomalyTouches(
+    p: Point,
+    orbit: 'mars' | 'phobos' | 'asteroid',
+    radius: number,
+) {
+    radius += ANOMALY_FEATHER;
+    return orbit === 'mars'
+        ? mars.touches(p, radius)
+        : orbit === 'phobos'
+          ? phobos.touches(p, radius)
+          : false;
 }

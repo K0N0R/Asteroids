@@ -14,7 +14,7 @@ import {
 } from '../state/marsAct';
 import { marsSystemLanes, marsSystemZones, generateMarsActSector } from '../worlds/marsSystem';
 import { ANOMALY } from './anomalyField';
-import { marsAnomalyClearance } from '../worlds/phobosMaze';
+import { marsAnomalyTouches } from '../worlds/phobosMaze';
 import { enemyPosition } from './enemies';
 import { salvagePosition } from './salvage';
 import { awardPilotXp } from '../state/pilots';
@@ -38,6 +38,7 @@ export class MarsActMission {
     private knownLayout = '';
     private warned = '';
     private lastAllowed: Point = { x: 240, y: 0 };
+    private inPhobosCombat = false;
     constructor(private s: MissionSimulation) {
         this.researchWaves = new MarsResearchWaves(s, (id, text) => this.say(id, text));
         const factory = s.enemyFactory;
@@ -86,6 +87,10 @@ export class MarsActMission {
         ) {
             if (e?.state === 'destroyed')
                 return 'Kepler utracony · wróć do Satuk 15 po nową jednostkę';
+            if (e?.repairing)
+                return e.repairWaiting
+                    ? 'Kepler · naprawa wstrzymana · usuń przeciwników z otoczenia statku'
+                    : `Kepler · naprawa ${Math.floor(e.repairProgress)}/5 s · +25% HP · osłaniaj statek`;
             const waiting =
                 e?.waitingReason === 'player'
                     ? 'zbliż się do Keplera'
@@ -209,7 +214,7 @@ export class MarsActMission {
             this.p.yardHealth = 0;
             this.say(
                 'yard',
-                'Ada Serrin: Produkcja zatrzymana. Wypuszczone jednostki nadal są aktywne — oczyść dostępne obszary.',
+                'Ada Serrin: Produkcja zatrzymana. Jednokierunkowa śluza do orbity Marsa jest otwarta — możesz wrócić prosto do Satuk 15. Wypuszczone jednostki nadal są aktywne.',
             );
         }
         this.spawnCargo();
@@ -397,12 +402,27 @@ export class MarsActMission {
                 'route',
                 'Ada Serrin: Tarcze Satuk 15 działają. Skany wykryły korytarz przez anomalie do hiperśluzy na Fobosa.',
             );
-        if (area === 'phobos' && phobosRouteOpen(p) && !this.p.ambushEntered) {
-            this.p.ambushEntered = true;
-            this.refreshLayout();
+        const phobosCombat =
+            area === 'phobos' && s.area === 'orbit' && !s.hyperdrive.active && phobosRouteOpen(p);
+        if (phobosCombat && !this.inPhobosCombat) {
+            if (!this.p.ambushEntered) {
+                this.p.ambushEntered = true;
+                this.refreshLayout();
+                s.deliveryRevision++;
+            }
             s.enemies.alert(MARS_AMBUSH, point);
-            s.deliveryRevision++;
+            for (const id of MARS_AMBUSH) {
+                const enemy = s.enemies.enemies.get(id);
+                if (!enemy) continue;
+                const position = enemyPosition(enemy);
+                enemy.body.setRotation(
+                    Math.atan2(point.y - position.y, point.x - position.x),
+                    true,
+                );
+                enemy.charge = enemy.config.windup;
+            }
         }
+        this.inPhobosCombat = phobosCombat;
         if (phobosOrbitSecured(p))
             this.say(
                 'secured',
@@ -444,8 +464,11 @@ export class MarsActMission {
             }
         const contaminated =
             s.area === 'orbit' &&
-            marsAnomalyClearance(point, s.marsOrbit) <=
-                Math.max(...s.hullConfig.hitbox) * s.hullConfig.size;
+            marsAnomalyTouches(
+                point,
+                s.marsOrbit,
+                Math.max(...s.hullConfig.hitbox) * s.hullConfig.size,
+            );
         this.exposure = contaminated && !s.hyperdrive.active ? this.exposure + dt : 0;
         if (this.exposure > 0) {
             s.applyAnomalyExposure(ANOMALY.damagePerSecond * dt);

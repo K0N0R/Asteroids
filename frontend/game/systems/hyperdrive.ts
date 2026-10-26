@@ -13,6 +13,7 @@ export interface Hyperlane {
     name: string;
     a: Point;
     b: Point;
+    oneWay?: boolean;
 }
 export interface SectorRegion extends Point {
     name: string;
@@ -30,7 +31,7 @@ export function nearestGate(lanes: readonly Hyperlane[], p: Point) {
         lanes
             .flatMap((l) => [
                 { name: l.name, from: l.a, to: l.b },
-                { name: l.name, from: l.b, to: l.a },
+                ...(!l.oneWay ? [{ name: l.name, from: l.b, to: l.a }] : []),
             ])
             .sort(
                 (a, b) =>

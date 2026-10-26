@@ -15,7 +15,7 @@ import {
     scrapRefund,
 } from '../frontend/game/state/campaign';
 import { createRecoverySignal, recoveryChances } from '../frontend/game/state/recovery';
-import { GAME, RECOVERY } from '../frontend/game/config';
+import { GAME, RECOVERY, FLEET_LIMIT } from '../frontend/game/config';
 import { MissionSimulation, FlightInput } from '../frontend/game/systems/mission';
 
 before(async () => {
@@ -148,16 +148,20 @@ test('full hangar converts the rescued hull to materials without warehouse overf
     const c = lostCampaign(),
         signal = c.recoverySignals[0];
     emergencyKit(c);
-    c.bank.ore = 100;
-    fundHull(c, 'prospector', 5);
-    while (c.reserveShips.length < 5) assert.ok(buyShip(c));
+    c.station.workshopLevel = c.station.laboratoryLevel = 1;
+    fundHull(c, 'swift', FLEET_LIMIT - 1);
+    while (c.reserveShips.length < FLEET_LIMIT - 1) assert.ok(buyShip(c, 'swift'));
+    const parked = c.reserveShips.map((ship) => ship.id);
     const refund = scrapRefund(signal.ship!);
     c.bank = { ore: 149, parts: 0 };
-    beginRun(c, 7, signal.id);
+    assert.ok(beginRun(c, 7, signal.id));
     const result = finishRun(c, true, { ore: 0, parts: 0 }, 5, 'dock', 0, { securedId: signal.id });
-    assert.equal(c.reserveShips.length, 5);
+    assert.deepEqual(
+        c.reserveShips.map((ship) => ship.id),
+        parked,
+    );
     assert.equal(c.recoverySignals.length, 0);
-    assert.equal(c.bank.ore + c.bank.parts, 149 + refund.ore + refund.parts);
+    assert.deepEqual(c.bank, { ...refund, ore: 149 + refund.ore });
     assert.equal(result!.overflow, 0);
     assert.deepEqual(result!.reward, refund);
     assert.ok(c.pilots.some((p) => p.id === signal.pilot!.id));
@@ -231,22 +235,27 @@ test('live pickup requires uninterrupted calm flight and remains possible with a
     try {
         for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
         sim.rocks.clear();
+        sim.enemies.dispose();
         sim.ship.setTranslation({ x: signal.x / 100, y: signal.y / 100 }, true);
         sim.cargo.ore = sim.cargoCapacity;
-        for (let i = 0; i < 180; i++) sim.step({ ...idle, tow: true });
+        for (let i = 0; i < 30; i++) sim.step({ ...idle, tow: true });
         assert.equal(sim.recoverySecured, false);
-        assert.ok(sim.recoveryProgress > 2.9);
+        assert.ok(Math.abs(sim.recoveryProgress - 0.5) < 1e-8);
         sim.step({ ...idle, tow: true, fire: true });
         assert.equal(sim.recoveryProgress, 0);
         sim.ship.setLinvel({ x: 2, y: 0 }, true);
         sim.step({ ...idle, tow: true });
         assert.equal(sim.recoveryProgress, 0);
         sim.ship.setLinvel({ x: 0, y: 0 }, true);
-        for (let i = 0; i < 241; i++) sim.step({ ...idle, tow: true });
+        for (let i = 0; i < 59; i++) sim.step({ ...idle, tow: true });
+        assert.equal(sim.recoverySecured, false);
+        sim.step({ ...idle, tow: true });
         assert.equal(sim.recoverySecured, true);
+        assert.equal(sim.cargoUsed, sim.cargoCapacity);
         assert.equal(c.reserveShips.length, 0);
         assert.equal(c.pilots.length, 1);
         assert.match(sim.context, /Aurory/);
+        sim.step(idle);
         sim.ship.setTranslation({ x: 0, y: 0 }, true);
         // Move the whole tow to the dock in this fixture; teleporting only the ship now stretches a physical rope.
         sim.salvage.towed!.body.setTranslation({ x: -1.4, y: 0 }, true);

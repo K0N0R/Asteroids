@@ -1,5 +1,7 @@
 import type { Point } from '../worlds/sector';
 import { MARS_SURFACE_PATROLS } from './marsAct';
+import type { Campaign } from './campaign';
+import { MARS_MAPS } from '../worlds/marsLayout';
 /** Journal 30 used adjacent patches in one coordinate space. Keep saved physical items with their map. */
 export function migrateMarsLayout(c: Record<string, any>) {
     const p = c.story;
@@ -40,4 +42,24 @@ export function migrateMarsLayout(c: Record<string, any>) {
         } else if (run.area !== 'surface') relocate(point);
     }
     p.version = 31;
+}
+
+/** Relocate persisted orbital objects once when loading the triangular Mars system layout. */
+export function migrateMarsOrbitLayout(c: Campaign) {
+    const mars = c.story?.mars;
+    if (!mars || mars.layoutVersion === 3) return;
+    const oldCenter = mars.layoutVersion === 2 ? { x: 22000, y: 12000 } : { x: 60000, y: 0 };
+    const relocate = (point: Point | null | undefined) => {
+        if (!point || Math.hypot(point.x - oldCenter.x, point.y - oldCenter.y) > 5000) return;
+        point.x += MARS_MAPS.asteroid.center.x - oldCenter.x;
+        point.y += MARS_MAPS.asteroid.center.y - oldCenter.y;
+    };
+    relocate(mars.memoryPosition);
+    mars.reinforcements.forEach(relocate);
+    for (const group of [c.worldSalvage, c.recoverySignals])
+        for (const item of group)
+            if (item.seed === 150073 && item.area !== 'surface') relocate(item);
+    if (c.activeRun?.sector === 'mars' && c.activeRun.area !== 'surface')
+        relocate(c.activeRun.lastPosition);
+    mars.layoutVersion = 3;
 }

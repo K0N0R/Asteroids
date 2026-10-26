@@ -1,7 +1,7 @@
 import type { Campaign } from './campaign';
 import { capacity } from './campaign';
 import type { MissionSimulation } from '../systems/mission';
-import { RESOURCE_IDS, resourceTotal, type ResourceId } from './resources';
+import { RESOURCE_IDS, cargoLoad, isComponent, type ResourceId } from './resources';
 import { recordCargoDelivery } from './earthLogistics';
 
 /** Physical access is rechecked on each transaction; the two station banks never alias. */
@@ -25,7 +25,7 @@ export function transferLunarResource(
     if (
         (source[id] ?? 0) < amount ||
         !Number.isSafeInteger((target[id] ?? 0) + amount) ||
-        (withdraw && resourceTotal(sim.cargo) + amount > capacity(c))
+        (withdraw && !isComponent(id) && cargoLoad(sim.cargo) + amount > capacity(c))
     )
         return false;
     if (withdraw && !Number.isSafeInteger((c.activeRun.freight?.[id] ?? 0) + amount)) return false;

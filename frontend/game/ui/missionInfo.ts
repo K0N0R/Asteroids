@@ -164,6 +164,7 @@ export class MissionInfoPopup extends BasePopup<MissionInfoData> {
             root.addChild(ship);
         }
         label(root, `ŁADOWNIA · ${s.cargoUsed} / ${s.cargoCapacity}`, 510, 238, 17, C.mint);
+        label(root, 'Gotowe części nie zajmują miejsca w ładowni', 510, 259, 12, C.muted);
         button(
             root,
             `ZBIERANIE: ${s.grippers.enabled ? 'WŁ.' : 'WYŁ.'}`,

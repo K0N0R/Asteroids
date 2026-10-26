@@ -33,24 +33,43 @@ export function anomalyFieldView() {
 
 export function recoveryProbeView() {
     const view = new Container();
+    view.label = 'recovery-probe';
+    const panels = new Graphics();
+    for (const side of [-1, 1]) {
+        panels
+            .moveTo(0, side * 14)
+            .lineTo(0, side * 34)
+            .stroke({ color: 0xa6aebb, width: 4 })
+            .rect(-34, side < 0 ? -65 : 33, 68, 32)
+            .fill(0x244d7b)
+            .stroke({ color: 0x8cbed4, width: 2 });
+        for (const x of [-17, 0, 17])
+            panels
+                .moveTo(x, side < 0 ? -65 : 33)
+                .lineTo(x, side < 0 ? -33 : 65)
+                .stroke({ color: 0x598cbd, width: 1 });
+    }
     view.addChild(
+        panels,
         new Graphics()
-            .roundRect(-24, -19, 48, 38, 9)
-            .fill(0xc1c9d4)
+            .poly([-20, -13, -8, -23, 14, -18, 23, 0, 14, 18, -8, 23, -20, 13])
+            .fill(0xd1b76a)
             .stroke({ color: 0x526583, width: 3 })
-            .rect(-14, -51, 28, 26)
-            .fill(0x597fa8)
-            .stroke({ color: 0x8cbed4, width: 2 })
-            .rect(-14, 25, 28, 26)
-            .fill(0x597fa8)
-            .stroke({ color: 0x8cbed4, width: 2 })
-            .circle(5, 0, 10)
-            .fill(0x69d9d3)
-            .moveTo(23, 0)
-            .lineTo(42, 0)
+            .circle(-3, 0, 7)
+            .fill(0x343f52)
+            .moveTo(18, 0)
+            .lineTo(44, 0)
             .stroke({ color: 0xd3d6df, width: 3 })
-            .circle(44, 0, 5)
-            .fill(0xf5d572),
+            .arc(48, 0, 18, Math.PI / 2, -Math.PI / 2)
+            .lineTo(48, 18)
+            .fill(0xe1e6ed)
+            .stroke({ color: 0x8799ac, width: 2 })
+            .moveTo(48, -18)
+            .lineTo(68, 0)
+            .lineTo(48, 18)
+            .stroke({ color: 0xa7b6c7, width: 2 })
+            .circle(68, 0, 3)
+            .fill(0x69d9d3),
     );
     return view;
 }

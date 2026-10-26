@@ -2,6 +2,7 @@ import { VenusActMission } from './venusActMission';
 import { nearestVenusMap, venusMapAt } from '../worlds/venusLayout';
 import { MarsResearchEscort } from './marsResearchEscort';
 import { INTERACTION_SECONDS } from './interactionTarget';
+import { repairWeld } from './repairEffects';
 import { ShipAbilities, ABILITY_COOLDOWNS, type Ability } from './shipAbilities';
 import { AnomalyExtraction } from './anomalyExtraction';
 import { InteractionLatch, type InteractionTarget } from './interactionTarget';
@@ -41,7 +42,14 @@ import {
     type MineralDeposit,
 } from '../worlds/mineralDeposits';
 import { MAGNETIC_RELAYS } from './magneticZones';
-import { type ResourceId, type ResourceStore, RESOURCE_IDS, RESOURCES } from '../state/resources';
+import {
+    type ResourceId,
+    type ResourceStore,
+    RESOURCE_IDS,
+    RESOURCES,
+    cargoLoad,
+    isComponent,
+} from '../state/resources';
 import { ANOMALY, AnomalyExposure, SECTOR_RADIATION_DAMAGE } from './anomalyField';
 import { EarthGuide } from './earthGuide';
 import { Hyperdrive, HYPERDRIVE, nearestGate, segmentDistance } from './hyperdrive';
@@ -96,7 +104,16 @@ import { AegisSupport } from './aegisSupport';
 import { StationSentries, sentryPosition, type StationSentry } from './stationSentries';
 import { STATION_DRONES } from '../state/stationDrones';
 import { ResearchEscort, ESCORT } from './escort';
-import { SalvageFleet, SALVAGE, leavesWreck, salvagePosition, type SalvageBody } from './salvage';
+import {
+    SalvageFleet,
+    SALVAGE,
+    leavesWreck,
+    salvagePosition,
+    droneComponentTier,
+    droneComponents,
+    wreckComponents,
+    type SalvageBody,
+} from './salvage';
 import type { SoundCue } from './audioPolicy';
 import {
     AEGIS,
@@ -762,7 +779,15 @@ export class MissionSimulation {
         for (const item of campaign.worldSalvage.filter(
             (entry) => entry.seed === campaign.activeRun?.seed,
         ))
-            this.salvage.add(item.id, item.source, item, { x: 0, y: 0 });
+            this.salvage.add(
+                item.id,
+                item.source,
+                item,
+                { x: 0, y: 0 },
+                0,
+                false,
+                item.componentTier,
+            );
         this.spawnEarthSatellites();
         this.harpoonArms =
             this.modules.hull === 'harpoon'
@@ -1463,12 +1488,15 @@ export class MissionSimulation {
         return (
             this.cargoCapacity -
                 this.cargoUsed -
-                this.grippers.arms.filter((a) => a.held || a.phase === 'extend').length >=
+                this.grippers.arms.filter((a) => {
+                    const kind = a.held ?? this.loot.get(a.targetId!)?.kind;
+                    return kind && !isComponent(kind);
+                }).length >=
             OUTPOST.equipmentSlots
         );
     }
     get cargoUsed() {
-        return resourceTotal(this.cargo) + (this.stolenEquipment ? OUTPOST.equipmentSlots : 0);
+        return cargoLoad(this.cargo) + (this.stolenEquipment ? OUTPOST.equipmentSlots : 0);
     }
     get prototypes(): readonly PrototypeId[] {
         return this.installed;
@@ -1669,6 +1697,7 @@ export class MissionSimulation {
     }
     private isObstacle(collider: RAPIER.Collider) {
         return (
+            this.venusAct?.obstacles.has(collider.handle) ||
             collider.handle === this.enemyFactory?.collider?.handle ||
             this.asteroidColliders.has(collider.handle) ||
             collider.handle === this.outpostCollider.handle ||
@@ -2634,7 +2663,25 @@ export class MissionSimulation {
                             enemyPosition(e).y - this.escort!.position.y,
                         ) < 750,
                 );
+            const beforeRepair = this.escort.repairProgress,
+                beforeRepairs = this.escort.repairs;
             const completed = this.escort.update(dt, this.position, obstacles, hostileNear);
+            const weld = repairWeld(
+                beforeRepair,
+                this.escort.repairProgress,
+                this.escort.position,
+                this.escort.body.rotation(),
+                this.miningEscort ? HULLS.mule.size : 1.5,
+                this.escort.velocity,
+            );
+            if (weld) this.events.push(weld);
+            if (this.escort.repairs > beforeRepairs)
+                this.events.push({
+                    ...this.escort.position,
+                    kind: 'collect',
+                    rich: true,
+                    sound: 'complete',
+                });
             if (this.miningEscort) this.updateMiningEscort(dt, hostileNear);
             if (
                 this.miningEscort &&
@@ -3093,7 +3140,8 @@ export class MissionSimulation {
         if (!e.extracting || hostileNear || e.cooldown > 0) return;
         if (
             e.cargoUsed >= MINING_CONVOY.target ||
-            (e.cargoUsed > 0 && !lunarDeliveryTasks(this.campaign).some((t) => needed(t.resource!)))
+            (resourceTotal(e.cargo) > 0 &&
+                !lunarDeliveryTasks(this.campaign).some((t) => needed(t.resource!)))
         ) {
             e.returnToStation();
             return;
@@ -3168,7 +3216,7 @@ export class MissionSimulation {
                     x: rp.x + ((p.x - rp.x) / d) * (remaining.radius + 120),
                     y: rp.y + ((p.y - rp.y) / d) * (remaining.radius + 120),
                 });
-            } else if (e.cargoUsed) e.returnToStation();
+            } else if (resourceTotal(e.cargo)) e.returnToStation();
             else e.fail('złoże wyczerpane');
             return;
         }
@@ -3599,6 +3647,7 @@ export class MissionSimulation {
             velocity: { x: velocity.x * P, y: velocity.y * P },
         });
         if (enemy.assault || enemy.factorySpawn) return; // Failed attempts must not farm loot or recoverable hulls.
+        const componentTier = droneComponentTier(enemy.kind, enemy.boss || enemy.finalBoss);
         if (
             leavesWreck(this.sector.seed, enemy.id) &&
             this.salvage.add(
@@ -3607,24 +3656,31 @@ export class MissionSimulation {
                 wreck,
                 { x: velocity.x * P * 0.35, y: velocity.y * P * 0.35 },
                 wreckAngle,
+                false,
+                componentTier,
             )
         ) {
             const id = this.campaign.nextSalvageId++;
             const item = this.salvage.items.get(id)!;
             this.campaign.worldSalvage.push({
                 id,
+                componentTier,
                 seed: this.campaign.activeRun?.seed ?? this.seed,
                 ...salvagePosition(item),
                 source: enemy.kind === 'lancer' || enemy.kind === 'heavy' ? 'lancer' : 'patrol',
                 ...(this.area === 'surface' ? { area: 'surface' as const } : {}),
             });
 
-            this.setNotice('Wrak drona · H holuj · recykling po powrocie.');
+            this.setNotice(
+                'Wrak drona · ostrzelaj, aby odzyskać części, lub H: holuj do recyklingu.',
+            );
             return;
         }
-        this.addLoot(wreck.x - 20, wreck.y, 'ore', enemy.config.oreLoot);
-        this.addLoot(wreck.x + 20, wreck.y, 'parts', enemy.config.partsLoot);
-        this.setNotice('Dron zniszczony · odzyskaj komponenty i rudę.');
+        for (const [kind, count] of Object.entries(
+            droneComponents(componentTier, enemy.config.partsLoot),
+        ))
+            this.addLoot(wreck.x, wreck.y, kind as ResourceId, count);
+        this.setNotice(`Dron zniszczony · odzyskaj gotowe części tieru ${componentTier}.`);
     }
     private damageFactory(damage: number, point: Point) {
         const factory = this.enemyFactory;
@@ -3705,6 +3761,12 @@ export class MissionSimulation {
             this.setNotice(
                 'Hol zerwany. Wrak i kapsuła pozostają w sektorze do ponownego podjęcia.',
             );
+        } else if (item.id >= 0 && (item.source === 'patrol' || item.source === 'lancer')) {
+            for (const [kind, count] of Object.entries(
+                wreckComponents(item.source, item.componentTier),
+            ))
+                this.addLoot(point.x, point.y, kind as ResourceId, count);
+            this.setNotice('Wrak rozebrany · odzyskaj gotowe części.');
         } else this.setNotice('Wrak zniszczony · recykling niemożliwy.');
         this.syncTow();
         this.events.push({ ...point, kind: 'break', sound: 'destroy', strength: item.radius });
@@ -4239,23 +4301,17 @@ export class MissionSimulation {
             this.repairProgress = 0;
             return;
         }
-        const before = Math.floor(this.repairProgress * 12);
+        const before = this.repairProgress;
         this.repairProgress += dt;
-        if (Math.floor(this.repairProgress * 12) > before) {
-            const sites = [
-                { x: -18, y: -12 },
-                { x: 11, y: 13 },
-                { x: -10, y: 14 },
-                { x: 18, y: -10 },
-            ];
-            const point = mountPosition(
-                this.position,
-                this.ship.rotation(),
-                this.hullConfig.size,
-                sites[before % sites.length],
-            );
-            this.events.push({ ...point, kind: 'weld', strength: 3, velocity: this.velocity });
-        }
+        const weld = repairWeld(
+            before,
+            this.repairProgress,
+            this.position,
+            this.ship.rotation(),
+            this.hullConfig.size,
+            this.velocity,
+        );
+        if (weld) this.events.push(weld);
         if (this.repairProgress + 1e-8 >= this.repairSeconds) {
             if (this.modules.hull !== 'mule') {
                 this.repairKits--;
@@ -4355,7 +4411,10 @@ export class MissionSimulation {
                     'grenade',
                     (index - (count - 1) / 2) * ATLAS_WEAPONS.grenade.spread,
                 );
-            this.grenadeCooldown = ATLAS_WEAPONS.grenade.interval * this.armament.cooldown;
+            this.grenadeCooldown = Math.max(
+                1,
+                ATLAS_WEAPONS.grenade.interval * this.armament.cooldown,
+            );
         }
     }
     private launchAtlas(kind: 'rocket' | 'grenade' | 'emp', offset = 0) {
@@ -4409,6 +4468,7 @@ export class MissionSimulation {
             enemy?: Enemy;
             factory?: boolean;
             mine?: number;
+            salvage?: SalvageBody;
         }[] = [];
         this.world.intersectionsWithShape(
             { x: position.x / P, y: position.y / P },
@@ -4421,12 +4481,15 @@ export class MissionSimulation {
                 );
                 const factory = collider.handle === this.enemyFactory?.collider?.handle;
                 const mine = this.mines.colliders.get(collider.handle);
-                if (rock || enemy || factory || mine !== undefined)
-                    targets.push({ collider, rock, enemy, factory, mine });
+                const salvage = this.salvage.canDismantle(collider.handle)
+                    ? this.salvage.items.get(this.salvage.colliders.get(collider.handle)!)
+                    : undefined;
+                if (rock || enemy || factory || mine !== undefined || salvage)
+                    targets.push({ collider, rock, enemy, factory, mine, salvage });
                 return true;
             },
         );
-        for (const { collider, rock, enemy, factory, mine } of targets) {
+        for (const { collider, rock, enemy, factory, mine, salvage } of targets) {
             const center = collider.translation();
             const obstruction = this.world.castRay(
                 new RAPIER.Ray(
@@ -4459,6 +4522,8 @@ export class MissionSimulation {
                 this.damageEnemy(enemy, bullet.damage, { x: center.x * P, y: center.y * P });
             if (factory) this.damageFactory(bullet.damage, { x: center.x * P, y: center.y * P });
             if (mine !== undefined) this.damageMine(mine, bullet.damage);
+            if (salvage && this.salvage.items.has(salvage.id))
+                this.damageSalvage(salvage, bullet.damage, { x: center.x * P, y: center.y * P });
         }
     }
     private damageMine(id: number, damage: number) {
@@ -4879,6 +4944,7 @@ export class MissionSimulation {
                                 collider.handle === this.escort.collider.handle))) ||
                     (bullet.team === 'player'
                         ? this.enemies.colliders.has(collider.handle) ||
+                          this.salvage.canDismantle(collider.handle) ||
                           this.mines.colliders.has(collider.handle)
                         : this.dashTime <= 0 && collider.handle === this.shipCollider.handle),
             );
@@ -4944,8 +5010,7 @@ export class MissionSimulation {
                 const salvage = this.salvage.items.get(
                     this.salvage.colliders.get(hit.collider.handle)!,
                 );
-                if (salvage && bullet.team === 'enemy')
-                    this.damageSalvage(salvage, bullet.damage, contact);
+                if (salvage) this.damageSalvage(salvage, bullet.damage, contact);
                 const rock = this.rocks.get(this.asteroidColliders.get(hit.collider.handle)!);
                 const mineId = this.mines.colliders.get(hit.collider.handle);
                 if (bullet.team === 'player' && mineId !== undefined) {
@@ -5284,6 +5349,7 @@ export class MissionSimulation {
             (collider) =>
                 this.isObstacle(collider) ||
                 this.enemies.colliders.has(collider.handle) ||
+                (!escort && this.salvage.canDismantle(collider.handle)) ||
                 this.mines.colliders.has(collider.handle),
         );
         const distance = hit ? hit.timeOfImpact * P : reach;
@@ -5294,6 +5360,11 @@ export class MissionSimulation {
             this.laserBeams.push({ from, to });
         }
         if (!hit) return;
+        const salvage = this.salvage.items.get(this.salvage.colliders.get(hit.collider.handle)!);
+        if (salvage) {
+            this.damageSalvage(salvage, GAME.laserDamage * power * hull.miningPower * dt, to);
+            return;
+        }
         const mineId = this.mines.colliders.get(hit.collider.handle);
         if (mineId !== undefined) {
             this.damageMine(mineId, GAME.laserDamage * hull.miningPower * dt);

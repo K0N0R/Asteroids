@@ -1,11 +1,11 @@
 import type { Point } from './sector';
-import { marsAnomalyClearance } from './phobosMaze';
+import { marsAnomalyTouches } from './phobosMaze';
 import { MARS_MAPS, inMarsMap } from './marsLayout';
 
 export const MARS_RESEARCH_HOME = { x: 140, y: 0 };
-export const RESEARCH_CLEARANCE = 90;
+export const RESEARCH_CLEARANCE = 60;
 export function marsResearchPointClear(p: Point, margin = RESEARCH_CLEARANCE) {
-    return inMarsMap('mars', p, -margin) && marsAnomalyClearance(p, 'mars') > margin;
+    return inMarsMap('mars', p, -margin) && !marsAnomalyTouches(p, 'mars', margin);
 }
 /** Check the entire swept leg, including diagonals and path smoothing. */
 export function marsResearchLegClear(a: Point, b: Point, margin = RESEARCH_CLEARANCE) {
@@ -25,7 +25,7 @@ export function marsResearchScanTarget(site: Point) {
         const angle = (i * Math.PI * 2) / 64;
         for (let d = 20; d < Math.min(1600, distance); d += 20) {
             const p = { x: site.x + Math.cos(angle) * d, y: site.y + Math.sin(angle) * d };
-            if (marsAnomalyClearance(p, 'mars') > 0) continue;
+            if (!marsAnomalyTouches(p, 'mars', 0)) continue;
             nearest = p;
             distance = d;
             break;

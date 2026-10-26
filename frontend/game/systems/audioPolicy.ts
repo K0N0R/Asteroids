@@ -131,6 +131,13 @@ export class MissionAudio<H> {
             velocity: { x: number; y: number };
             beams: readonly unknown[];
         } | null;
+        escort?: {
+            state: string;
+            position: { x: number; y: number };
+            velocity: { x: number; y: number };
+            thrusting?: boolean;
+            repairProgress?: number;
+        } | null;
         elapsed?: number;
         hyperdrive?: { state: string };
         anomalyMission?: boolean;
@@ -155,11 +162,12 @@ export class MissionAudio<H> {
         const warning = !!state.anomalyMission && !!state.anomalyExposure?.contaminated;
         const machinery = warning ? 0.4 : (state.elapsed ?? 0) < this.combatUntil ? 0.65 : 1;
         const listener = state.position ?? { x: 0, y: 0 };
-        const supports = [state.guide, state.miningEscort].filter(
+        const supports = [state.guide, state.escort ?? state.miningEscort].filter(
             (unit) => unit && !['destroyed', 'complete'].includes(unit.state),
         );
         let allyEngine = 0,
-            allyMining = 0;
+            allyMining = 0,
+            allyRepair = 0;
         for (const unit of supports) {
             if (!unit) continue;
             const attenuation =
@@ -169,9 +177,16 @@ export class MissionAudio<H> {
                         Math.hypot(unit.position.x - listener.x, unit.position.y - listener.y) /
                             1300,
                 ) ** 2;
-            if (Math.hypot(unit.velocity.x, unit.velocity.y) > 12)
+            if (
+                'thrusting' in unit
+                    ? unit.thrusting
+                    : Math.hypot(unit.velocity.x, unit.velocity.y) > 12
+            )
                 allyEngine = Math.max(allyEngine, attenuation * 0.8);
-            if (unit.beams.length) allyMining = Math.max(allyMining, attenuation);
+            if ('beams' in unit && unit.beams.length)
+                allyMining = Math.max(allyMining, attenuation);
+            if ('repairProgress' in unit && (unit.repairProgress ?? 0) > 0)
+                allyRepair = Math.max(allyRepair, attenuation);
         }
         const desired: [SoundCue, boolean, number][] = [
             [
@@ -194,7 +209,11 @@ export class MissionAudio<H> {
                 state.laserBeams.length > 0 || allyMining > 0.005,
                 machinery * Math.max(state.laserBeams.length ? 1 : 0, allyMining),
             ],
-            ['repair', state.repairProgress > 0, machinery],
+            [
+                'repair',
+                state.repairProgress > 0 || allyRepair > 0.005,
+                machinery * Math.max(state.repairProgress > 0 ? 1 : 0, allyRepair),
+            ],
             ['alarm', warning, 1],
         ];
         for (const [cue, active, multiplier] of desired) {

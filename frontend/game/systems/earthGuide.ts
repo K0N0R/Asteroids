@@ -5,7 +5,7 @@ import type RAPIER from '@dimforge/rapier2d-compat';
 import { HULLS } from '../config';
 import type { Campaign, Cargo } from '../state/campaign';
 import { capacity } from '../state/campaign';
-import { resourceTotal } from '../state/resources';
+import { cargoLoad } from '../state/resources';
 import type { Point } from '../worlds/sector';
 import { ResearchEscort, type NavigationRock } from './escort';
 
@@ -51,7 +51,7 @@ export function earthGuideGoal(c: Campaign, cargo: Cargo): GuideGoal {
             ([id, count]) =>
                 (c.bank[id as ResourceId] ?? 0) + (cargo[id as ResourceId] ?? 0) >= count,
         );
-        if (cargoCompletes || resourceTotal(cargo) >= capacity(c))
+        if (cargoCompletes || cargoLoad(cargo) >= capacity(c))
             return {
                 ...home,
                 id: 'delivery',
@@ -91,6 +91,9 @@ function relay(): GuideGoal {
 
 /** A physical instructor. Helps mine; collection and objective delivery remain with the player. */
 export class EarthGuide extends ResearchEscort {
+    protected override get selfRepairEnabled() {
+        return false;
+    }
     goal: GuideGoal;
     minedOre = 0;
     private rangeReported = false;

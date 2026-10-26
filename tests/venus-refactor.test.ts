@@ -21,6 +21,7 @@ import { outsideCombatView } from '../frontend/game/systems/assaultEntry';
 import { enemyPosition } from '../frontend/game/systems/enemies';
 import { VENUS_CONSTRUCTION, VENUS_SHIELD } from '../frontend/game/state/orbitalConstruction';
 import type { Point } from '../frontend/game/worlds/sector';
+import { restoreVenusPower } from './venus-power-helper';
 before(async () => RAPIER.init());
 const idle: FlightInput = {
     target: { x: 0, y: 0 },
@@ -97,6 +98,8 @@ test('real interaction holds, both-way gates, archive delivery and packet loss',
         gate(s, V.stationGate);
         assert.equal(s.venusAct!.area, 'station');
         hold(s, V.power);
+        assert.equal(c.story!.venus!.powerRestored, false);
+        restoreVenusPower(s);
         assert.ok(c.story!.venus!.powerRestored);
         hold(s, V.archive);
         assert.equal(s.venusAct!.packet, 'archive');

@@ -1,5 +1,5 @@
 import type { Cargo } from '../state/campaign';
-import { resourceTotal, resourceSummary } from '../state/resources';
+import { cargoLoad, resourceSummary } from '../state/resources';
 import { ResearchEscort } from './escort';
 import { GAME, HULLS } from '../config';
 import { MOON } from '../worlds/moon';
@@ -32,8 +32,9 @@ export class MiningEscort extends ResearchEscort {
     }
     deliveredOre = 0;
     trips = 0;
-    repairProgress = 0;
-    repairs = 0;
+    protected override get selfRepairEnabled() {
+        return false;
+    }
     returning = false;
     processingReady = true;
     failed = '';
@@ -53,7 +54,7 @@ export class MiningEscort extends ResearchEscort {
         return this.state !== 'destroyed' && this.state !== 'failed';
     }
     get cargoUsed() {
-        return resourceTotal(this.cargo);
+        return cargoLoad(this.cargo);
     }
     get extracting() {
         return !this.returning && this.state === 'research' && !this.failed && !this.repairProgress;

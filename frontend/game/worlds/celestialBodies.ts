@@ -55,6 +55,15 @@ export const SECTOR_CELESTIAL_BODIES: Partial<Record<StorySectorId, readonly Cel
         earth: EARTH_SYSTEM_BODIES,
         lunar: EARTH_SYSTEM_BODIES,
         mars: MARS_SYSTEM_PREVIEW_BODIES,
+        venus: [
+            {
+                id: 'venus',
+                appearance: 'venus',
+                anchor: { x: 0, y: 3600 },
+                depth: 0.035,
+                scale: 1.45,
+            },
+        ],
     };
 /** Sector scenery is a list: adding another planet or moon needs no renderer branch. */
 export function celestialBodiesFor(region: StorySectorId | null): readonly CelestialBodySpec[] {

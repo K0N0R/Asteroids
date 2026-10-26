@@ -13,7 +13,9 @@ import {
     venusStorms,
     type VenusArea,
 } from '../worlds/venusLayout';
-import { ResearchEscort } from './escort';
+import { VenusProbe } from './venusProbe';
+import { VenusPower, type VenusPowerAction } from './venusPower';
+import { VENUS_LAB_MODULES, laboratoryHull } from '../worlds/venusLaboratory';
 import { assaultEntry } from './assaultEntry';
 import { enemyPosition } from './enemies';
 import type { Point } from '../worlds/sector';
@@ -23,11 +25,6 @@ import type { InteractionTarget } from './interactionTarget';
 const P = GAME.pixelsPerMeter,
     CORE = 81900,
     ANCHORS = [81901, 81902];
-class VenusProbe extends ResearchEscort {
-    protected override get researchOnArrival() {
-        return false;
-    }
-}
 export class VenusActMission {
     area: VenusArea = 'orbit';
     progress = 0;
@@ -37,15 +34,24 @@ export class VenusActMission {
     guardianPhase = 0;
     private held = false;
     private layout = '';
-    private scan = 0;
-    private wave = 0;
+    powerPuzzle: VenusPower | null = null;
+    readonly obstacles = new Set<number>();
+    private hulls: RAPIER.Collider[] = [];
     private nextEnemy = 81200;
-    private probeStarted = false;
     private waves = new Set<number>();
-    private probeStage: 'orbit' | 'atmosphere' = 'orbit';
-    private lastSafe: Point = { ...V.probe };
     constructor(private s: MissionSimulation) {
         venusProgress(this.p);
+        const center = VENUS_MAPS.station.center;
+        for (const m of VENUS_LAB_MODULES) {
+            const shape = RAPIER.ColliderDesc.convexHull(
+                new Float32Array(laboratoryHull(m).flatMap((q) => [q.x / P, q.y / P])),
+            )!;
+            const hull = this.s.world.createCollider(
+                shape.setTranslation(center.x / P, center.y / P).setRestitution(0.15),
+            );
+            this.hulls.push(hull);
+            this.obstacles.add(hull.handle);
+        }
         this.refresh();
         this.say(
             'intro',
@@ -69,6 +75,7 @@ export class VenusActMission {
         return this.area === 'atmosphere';
     }
     get status() {
+        if (this.powerPuzzle) return 'Zasilanie stacji · odizoluj przebicie i połącz trzy obwody';
         if (this.packet) return 'Pakiet na pokładzie · wróć i zadokuj do Satuk 15';
         if (this.guardianAwake)
             return `Strażnik · ${this.guardianPhase === 0 ? 'zniszcz dwie kotwy osłony' : this.guardianPhase === 1 ? 'rdzeń odsłonięty' : 'rdzeń krytyczny'} · ${Math.ceil(this.s.enemies.enemies.get(CORE)?.health ?? 0)} HP`;
@@ -76,8 +83,15 @@ export class VenusActMission {
             const e = this.s.escort;
             if (e?.state === 'destroyed')
                 return 'Sonda utracona · wróć do Satuk 15 po jednostkę zastępczą';
-            if (this.probeStage === 'atmosphere' && e?.state === 'research')
-                return `Transmisja ${this.v.transmission}/3 · ${Math.floor(this.scan)}/15 s · ${e.scanning ? 'osłaniaj sondę' : 'wstrzymana: zbliż się i odeprzyj drony'}`;
+            if (e instanceof VenusProbe && e.stage === 'atmosphere') {
+                const pause = {
+                    threat: 'odeprzyj drony',
+                    distance: 'zbliż się do sondy',
+                    recovering: 'ponowna kalibracja po trafieniu',
+                    incoming: 'oczekiwanie na bezpieczne podejście',
+                };
+                return `${e.sampleTarget.name} · dane ${this.v.transmission}/3 · ${e.state === 'research' ? `${Math.floor(e.sampleProgress)}/15 s · ${e.blocked ? pause[e.blocked] : 'transmisja aktywna'}` : 'lot do miejsca pomiaru'}`;
+            }
         }
         return venusObjective(this.p);
     }
@@ -96,8 +110,9 @@ export class VenusActMission {
             q = this.s.escort?.position ?? V.probe;
             name = 'Sonda atmosferyczna';
             if (
-                this.probeStarted &&
-                this.probeStage === 'orbit' &&
+                this.s.escort instanceof VenusProbe &&
+                this.s.escort.started &&
+                this.s.escort.stage === 'orbit' &&
                 this.s.escort?.state === 'complete'
             ) {
                 q = V.atmosphereGate;
@@ -147,6 +162,28 @@ export class VenusActMission {
         this.s.escort = e;
         e.ambushed = true;
     }
+    powerAction(action: VenusPowerAction) {
+        if (!this.powerPuzzle) return false;
+        if ('cancel' in action) {
+            this.powerPuzzle = null;
+            return false;
+        }
+        const complete = this.powerPuzzle.act(action);
+        this.v.powerGrid = {
+            isolated: this.powerPuzzle.state.isolated,
+            rotations: [...this.powerPuzzle.state.rotations],
+        };
+        this.s.deliveryRevision++;
+        if (complete) {
+            this.v.powerRestored = true;
+            this.powerPuzzle = null;
+            this.s.events.push({ ...V.power, kind: 'collect', sound: 'complete', rich: true });
+            this.s.setNotice(
+                'Chłodzenie, sterowanie i archiwum aktywne · podejdź do terminala archiwum',
+            );
+        }
+        return complete;
+    }
     get targets(): (InteractionTarget & { radius: number })[] {
         const list: (InteractionTarget & { radius: number })[] = [];
         const add = (id: string, p: Point, name: string, radius = 70) =>
@@ -188,7 +225,8 @@ export class VenusActMission {
             e = this.s.escort;
         if (
             e &&
-            this.probeStarted &&
+            e instanceof VenusProbe &&
+            e.started &&
             e.state !== 'destroyed' &&
             !this.has('venus-atmospheric-probe') &&
             Math.hypot(e.position.x - from.x, e.position.y - from.y) < 750 &&
@@ -197,21 +235,31 @@ export class VenusActMission {
             e.body.setTranslation({ x: (to.x + 90) / P, y: to.y / P }, true);
             e.body.setLinvel({ x: 0, y: 0 }, true);
             e.previous = e.position;
-            e.resumeResearch(next === 'atmosphere' ? V.scan : { ...V.atmosphereGate });
-            this.probeStage = next === 'atmosphere' ? 'atmosphere' : 'orbit';
-            this.lastSafe = e.position;
+            if (next === 'atmosphere') e.enterAtmosphere(this.v.transmission);
+            else e.launch();
         }
         if (this.area === 'installation' && next !== 'installation' && this.guardianAwake)
             this.resetGuardian();
         this.area = next;
         this.s.areaRevision++;
+        if (next === 'station' && !this.v.powerRestored)
+            this.say(
+                'laboratory-entry',
+                'Ivo Nadir: Stacja jest bez zasilania. Odszukaj zewnętrzną konsolę przy reaktorze. Najpierw odetnij przebicie, potem połącz trzy obwody. Możesz spokojnie próbować — niczego tu nie zużyjesz.',
+            );
+        if (next === 'atmosphere' && !this.has('venus-atmospheric-probe'))
+            this.say(
+                'atmosphere-entry',
+                'Ivo Nadir: Jesteśmy w górnych chmurach Wenus. Sonda wykona trzy różne pomiary. Trzymaj się blisko i osłaniaj ją. Po odparciu dronów badanie wznowi się samo; zapisane próbki pozostaną bezpieczne. Omijaj oznaczone burze.',
+            );
     }
     gateLock(to: Point) {
         if (nearestVenusMap(to).id === 'atmosphere' && !this.has('venus-atmospheric-probe')) {
             const e = this.s.escort;
             if (
                 !e ||
-                !this.probeStarted ||
+                !(e instanceof VenusProbe) ||
+                !e.started ||
                 e.state === 'destroyed' ||
                 Math.hypot(e.position.x - V.atmosphereGate.x, e.position.y - V.atmosphereGate.y) >
                     650
@@ -246,16 +294,14 @@ export class VenusActMission {
             );
         }
         if (id === 'venus:power') {
-            this.v.powerRestored = true;
-            this.s.deliveryRevision++;
+            this.powerPuzzle = new VenusPower(this.v.powerGrid);
         }
         if (id === 'venus:archive') {
             this.packet = 'archive';
             this.s.setNotice('Archiwum na pokładzie · zadokuj do Satuk 15');
         }
-        if (id === 'venus:probe' && this.s.escort) {
-            this.probeStarted = true;
-            this.s.escort.resumeResearch({ ...V.atmosphereGate });
+        if (id === 'venus:probe' && this.s.escort instanceof VenusProbe) {
+            this.s.escort.launch();
         }
         if (id === 'venus:terminal') {
             if (this.has('venus-guardian')) {
@@ -388,6 +434,13 @@ export class VenusActMission {
     update(input: FlightInput, dt: number) {
         this.refresh();
         this.ensureProbe();
+        for (const hull of this.hulls) hull.setEnabled(this.area === 'station');
+        if (
+            this.powerPuzzle &&
+            (this.area !== 'station' ||
+                Math.hypot(this.s.position.x - V.power.x, this.s.position.y - V.power.y) > 240)
+        )
+            this.powerPuzzle = null;
         const target = this.s.interaction.target;
         if (!input.interact) this.held = false;
         if (
@@ -399,7 +452,8 @@ export class VenusActMission {
             !input.thrust &&
             !input.repair &&
             this.s.speed < 60 &&
-            !this.s.marsUnderFire
+            !this.s.marsUnderFire &&
+            !this.powerPuzzle
         ) {
             this.progress += dt;
             if (this.progress + 1e-8 >= 1) {
@@ -426,8 +480,8 @@ export class VenusActMission {
         }
         const e = this.s.escort;
         if (
-            e &&
-            this.probeStarted &&
+            e instanceof VenusProbe &&
+            e.started &&
             !this.has('venus-atmospheric-probe') &&
             e.state !== 'destroyed' &&
             nearestVenusMap(e.position).id === this.area
@@ -446,8 +500,13 @@ export class VenusActMission {
                         enemyPosition(x).y - e.position.y,
                     ) < 700,
             );
-            if (e.state !== 'research') e.update(dt, this.s.position, obstacles, near);
-            if (this.probeStage === 'orbit') {
+            const waveReady =
+                e.stage !== 'atmosphere' ||
+                e.state !== 'research' ||
+                this.v.transmission === 2 ||
+                this.spawnWave(this.v.transmission + 2, 10 + this.v.transmission, e.position);
+            const sampleComplete = e.update(dt, this.s.position, obstacles, near, waveReady);
+            if (e.stage === 'orbit') {
                 if (
                     Math.hypot(
                         e.position.x - V.atmosphereGate.x,
@@ -455,35 +514,29 @@ export class VenusActMission {
                     ) < 2300
                 )
                     this.spawnWave(2, 0, e.position);
-            } else if (e.state === 'complete' || e.state === 'research') {
-                e.state = 'research';
-                e.collider.setSensor(false);
-                e.body.setLinvel({ x: 0, y: 0 }, true);
-                e.scanning =
-                    !near &&
-                    e.cooldown <= 0 &&
-                    Math.hypot(e.position.x - this.s.position.x, e.position.y - this.s.position.y) <
-                        650;
-                const waveReady =
-                    this.v.transmission === 2 ||
-                    this.spawnWave(this.v.transmission + 2, 10 + this.v.transmission, e.position);
-                if (e.scanning && waveReady) this.scan += dt;
-                if (this.scan + 1e-8 >= 15) {
-                    this.scan = 0;
-                    this.v.transmission++;
-                    this.s.deliveryRevision++;
-                    if (this.v.transmission >= 3) {
-                        e.state = 'complete';
-                        e.collider.setSensor(true);
-                        this.complete('venus-atmospheric-probe');
-                        this.say(
-                            'transmission',
-                            'Ivo Nadir: Pełna transmisja została odebrana w Satuk 15. Wróć do Laboratorium, żeby przeanalizować dane.',
-                        );
-                    }
-                }
+            } else if (sampleComplete) {
+                this.v.transmission++;
+                this.s.deliveryRevision++;
+                this.s.events.push({
+                    ...e.position,
+                    kind: 'collect',
+                    sound: 'complete',
+                    rich: true,
+                });
+                this.s.setNotice(
+                    `${e.sampleTarget.name} · próbka zapisana (${this.v.transmission}/3)${this.v.transmission < 3 ? ' · leć z sondą do następnego pomiaru' : ' · transmisja ukończona'}`,
+                );
+                if (this.v.transmission >= 3) {
+                    e.state = 'complete';
+                    e.scanning = false;
+                    e.collider.setSensor(true);
+                    this.complete('venus-atmospheric-probe');
+                    this.say(
+                        'transmission',
+                        'Ivo Nadir: Pełna transmisja została odebrana w Satuk 15. Wróć do Laboratorium, żeby przeanalizować dane.',
+                    );
+                } else e.moveToSample(this.v.transmission);
             }
-            this.lastSafe = e.position;
         }
         if (
             this.area === 'atmosphere' &&

@@ -117,7 +117,7 @@ export class MarsResearchWaves {
         for (const p of valid) {
             if (chosen.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 150)) continue;
             if (++attempts > 12) break;
-            if (!researchPath(p, site, rocks, marsResearchLegClear).length) continue;
+            if (!researchPath(p, site, rocks, marsResearchLegClear, 50).length) continue;
             chosen.push({ ...p });
             if (chosen.length === count) break;
         }
@@ -148,7 +148,7 @@ export class MarsResearchWaves {
             ) {
                 while (
                     route.path.length &&
-                    Math.hypot(route.path[0].x - p.x, route.path[0].y - p.y) < 50
+                    Math.hypot(route.path[0].x - p.x, route.path[0].y - p.y) < 20
                 )
                     route.path.shift();
                 if (route.replan <= 0) {
@@ -159,7 +159,7 @@ export class MarsResearchWaves {
                         !clearResearchLeg(p, route.path[0], rocks) ||
                         !marsResearchLegClear(p, route.path[0])
                     ) {
-                        route.path = researchPath(p, target, rocks, marsResearchLegClear);
+                        route.path = researchPath(p, target, rocks, marsResearchLegClear, 50);
                         route.goal = { ...target };
                     }
                     route.replan = 1.2 + (enemy.id % 3) * 0.2;

@@ -3,6 +3,14 @@ import { Container, Graphics } from 'pixi.js';
 export function researchShipView() {
     const view = new Container(),
         g = new Graphics();
+    const exhaust = new Graphics({ label: 'kepler-exhaust' });
+    for (const y of [-19, 19]) {
+        exhaust.poly([-39, y - 9, -80, y, -39, y + 9]).fill({ color: 0x64d9f1, alpha: 0.22 });
+        exhaust.poly([-40, y - 5, -67, y, -40, y + 5]).fill({ color: 0x8ceaff, alpha: 0.8 });
+        exhaust.poly([-40, y - 3, -54, y, -40, y + 3]).fill(0xe6fcff);
+    }
+    exhaust.visible = false;
+    view.addChild(exhaust);
     for (const side of [-1, 1]) {
         g.roundRect(-24, side * 36 - 10, 48, 20, 8).fill(0x426b96);
         for (let x = -18; x <= 12; x += 10) g.roundRect(x, side * 36 - 6, 7, 12, 3).fill(0x729fc3);
@@ -40,6 +48,17 @@ export function researchShipView() {
         .fill(0x78b6b6);
     view.addChild(g);
     return view;
+}
+export function updateResearchDrive(view: Container, thrusting: boolean, time: number) {
+    const exhaust =
+        view.getChildByLabel('engine-exhaust') ?? view.getChildByLabel('kepler-exhaust');
+    if (!exhaust) return;
+    exhaust.visible = thrusting;
+    // Scale around the nozzle, so the plume remains attached to the engine.
+    const pulse = 0.9 + Math.sin(time * 37) * 0.08 + Math.sin(time * 53) * 0.04;
+    exhaust.scale.set(pulse, 1);
+    exhaust.x = -40 * (1 - pulse);
+    exhaust.alpha = 0.85 + Math.sin(time * 29) * 0.15;
 }
 export function researchAnomalyView() {
     const view = new Container(),

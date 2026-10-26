@@ -1,4 +1,5 @@
 import { venusStationAction } from './state/venusActions';
+import { venusPowerPanel } from './ui/venusPower';
 import {
     enqueueRadio,
     acknowledgeRadio,
@@ -342,8 +343,9 @@ export class GameSession {
             (message) => {
                 if (
                     this.dialogue &&
+                    (this.communications.visible || message.name === 'keyup') &&
                     (message.name === 'keydown' || message.name === 'keyup') &&
-                    message.data === 'enter'
+                    (message.data === 'enter' || message.data === 'space')
                 ) {
                     const previousIndex = this.dialogue.index;
                     if (
@@ -364,6 +366,7 @@ export class GameSession {
                 if (
                     (this.mission?.simulation.terminalPuzzle ||
                         this.mission?.simulation.relayTuning ||
+                        this.mission?.simulation.venusAct?.powerPuzzle ||
                         this.mission?.simulation.rescueOperation?.repair ||
                         this.mission?.simulation.transferActive) &&
                     message.name === 'keydown' &&
@@ -495,7 +498,13 @@ export class GameSession {
         }
     }
     private showPendingRadio() {
-        if (this.dialogue || this.hasOverlay || PopupContainer.hasActivePopup()) return;
+        if (
+            this.dialogue ||
+            this.hasOverlay ||
+            PopupContainer.hasActivePopup() ||
+            this.mission?.simulation.venusAct?.powerPuzzle
+        )
+            return;
         const lines = this.campaign.story?.radio?.pending;
         if (lines?.length)
             this.openDialogue({
@@ -987,10 +996,14 @@ export class GameSession {
             this.dialogueQueue = this.dialogueQueue.filter((d) => d.id !== 'radio-report');
             this.saves.save(this.campaign);
         }
-        this.communications.visible = !this.hasOverlay && !PopupContainer.hasActivePopup();
+        this.communications.visible =
+            !this.hasOverlay &&
+            !PopupContainer.hasActivePopup() &&
+            !this.mission?.simulation.venusAct?.powerPuzzle;
         if (this.dialogue && this.communications.visible) this.dialoguePanel?.update(deltaMS);
         this.background.setFlight(!!this.mission);
-        this.background.worldPlanet = !!this.mission?.simulation.venusAct;
+        this.background.worldPlanet = false;
+        this.background.setVenusArea(this.mission?.simulation.venusAct?.area ?? null);
         if (this.mission) {
             this.background.lunarTransfer = this.mission.simulation.transferActive;
             this.background.camera = this.mission.backgroundCamera;
@@ -1021,6 +1034,7 @@ export class GameSession {
             !!simInput.terminalPuzzle ||
             !!simInput.relayTuning ||
             !!simInput.rescueOperation?.repair ||
+            !!simInput.venusAct?.powerPuzzle ||
             simInput.transferActive ||
             simInput.hyperdrive.active ||
             !!simInput.ended;
@@ -1104,6 +1118,7 @@ export class GameSession {
             !sim.transferActive &&
             !sim.terminalPuzzle &&
             !sim.relayTuning &&
+            !sim.venusAct?.powerPuzzle &&
             !sim.pendingChoice
         ) {
             if (this.campaign.story) {
@@ -1194,7 +1209,10 @@ export class GameSession {
     private syncInteractionPanel() {
         const sim = this.mission?.simulation;
         const tuning = !sim?.ended
-            ? (sim?.terminalPuzzle ?? sim?.relayTuning ?? sim?.rescueOperation?.repair)
+            ? (sim?.terminalPuzzle ??
+              sim?.relayTuning ??
+              sim?.rescueOperation?.repair ??
+              sim?.venusAct?.powerPuzzle)
             : null;
         if (!tuning) {
             if (this.interactionPanel) destroyDisplayTree(this.interactionPanel);
@@ -1216,6 +1234,14 @@ export class GameSession {
         } else clear(this.interactionPanel);
         this.interactionRevision = tuning.revision;
         this.interactionModel = tuning;
+        if (sim?.venusAct?.powerPuzzle) {
+            venusPowerPanel(this.interactionPanel, sim.venusAct.powerPuzzle, (action) => {
+                sim.venusAct!.powerAction(action);
+                InputHandler.clear();
+                this.syncInteractionPanel();
+            });
+            return;
+        }
         if (sim?.terminalPuzzle) {
             terminalPuzzlePanel(this.interactionPanel, sim.terminalPuzzle, (action) => {
                 sim.terminalAction(action);

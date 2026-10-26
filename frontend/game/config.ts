@@ -806,7 +806,7 @@ export const ATLAS_WEAPONS = {
     launcher: { x: 34, y: 0, length: 35 },
     lockTime: 3,
     rocket: { speed: 240, life: 12, radius: 180, damage: 160, interval: 1.8, turn: 2.8 },
-    grenade: { speed: 320, life: 0.7, radius: 65, damage: 45, interval: 0.55, spread: 0.16 },
+    grenade: { speed: 320, life: 0.7, radius: 65, damage: 45, interval: 1.5, spread: 0.16 },
 } as const;
 
 export function shipUpgradeDefinition(hull: HullId, upgrade: Upgrade) {

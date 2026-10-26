@@ -79,6 +79,22 @@ test('heat warning is issued once per sortie; destruction clears commentary and 
     assert.equal(direction.active, false);
     assert.equal(direction.focusWeight, 0);
 });
+
+test('a silent ambush still releases discovery framing without a contact message', () => {
+    const direction = new FlightDirection(false),
+        state = quiet();
+    state.discoveries = [{ id: 'archive', name: 'archiwum', position: { x: 50, y: 50 } }];
+    advance(direction, state, 1);
+    state.threat = true;
+    state.suppressContact = true;
+    direction.advance(0.05, state);
+    assert.notEqual(direction.cue?.id, 'contact');
+    assert.equal(direction.focusWeight, 0);
+    assert.equal(direction.cue?.focus, undefined);
+    state.hullFraction = 0.2;
+    direction.advance(0.05, state);
+    assert.equal(direction.cue?.id, 'hull', 'critical damage warning remains available');
+});
 test('large frame gaps cannot finish an entire cinematic and presentation never changes the snapshot', () => {
     const direction = new FlightDirection(),
         state = quiet(),

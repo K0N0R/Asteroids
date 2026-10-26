@@ -6,7 +6,7 @@ export const MARS_MAPS = {
     asteroid: {
         id: 'asteroid',
         name: 'Obszar asteroidy',
-        center: { x: 60000, y: 0 },
+        center: { x: 3000, y: 24000 },
         radius: 1800,
     },
 } as const;
@@ -28,7 +28,13 @@ export function inMarsMap(id: MarsOrbitId, p: Point, margin = 0) {
     return Math.hypot(p.x - m.center.x, p.y - m.center.y) <= m.radius + margin;
 }
 export const MARS_GATES = {
-    phobosArrival: { x: 28250, y: 1650 },
-    asteroidExit: { x: 31800, y: 1300 },
-    asteroidArrival: { x: 58600, y: 400 },
+    phobosArrival: { x: 28350, y: -1550 },
+    asteroidExit: { x: 29400, y: 2200 },
+    asteroidArrival: { x: 3800, y: 22800 },
+    asteroidReturn: { x: 1700, y: 24100 },
+    marsReturn: { x: -1100, y: 1400 },
 } as const;
+export const PHOBOS_AMBUSH_POSITIONS = Array.from({ length: 3 }, (_, i) => ({
+    x: MARS_GATES.phobosArrival.x + 300 + i * 80,
+    y: MARS_GATES.phobosArrival.y - 180 + i * 170,
+}));

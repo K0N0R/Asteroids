@@ -1,5 +1,7 @@
 import { Container, BufferImageSource, MeshPlane, Texture, Sprite } from 'pixi.js';
 import type { Point } from '../worlds/sector';
+import { drawAnomalyCoverage } from './anomalyCoverage';
+import { ANOMALY_FEATHER } from '../systems/anomalyField';
 import {
     rasterAnomaly,
     readAnomalyPixels,
@@ -87,31 +89,29 @@ export class AnomalyCloudView extends Container {
         super();
         this.eventMode = 'none';
         this.bounds = polygons.map((p) => ({
-            left: Math.min(...p.map((q) => q.x)),
-            right: Math.max(...p.map((q) => q.x)),
-            top: Math.min(...p.map((q) => q.y)),
-            bottom: Math.max(...p.map((q) => q.y)),
+            left: Math.min(...p.map((q) => q.x)) - ANOMALY_FEATHER,
+            right: Math.max(...p.map((q) => q.x)) + ANOMALY_FEATHER,
+            top: Math.min(...p.map((q) => q.y)) - ANOMALY_FEATHER,
+            bottom: Math.max(...p.map((q) => q.y)) + ANOMALY_FEATHER,
         }));
         if (typeof document !== 'undefined' && polygons.length) {
             const left = Math.min(...this.bounds.map((b) => b.left)) - BLEED,
                 top = Math.min(...this.bounds.map((b) => b.top)) - BLEED,
                 width = Math.max(...this.bounds.map((b) => b.right)) - left + BLEED,
                 height = Math.max(...this.bounds.map((b) => b.bottom)) - top + BLEED,
-                scale = Math.min(1, 768 / Math.max(width, height)),
+                scale = Math.min(1, 1536 / Math.max(width, height)),
                 canvas = document.createElement('canvas');
             canvas.width = Math.max(1, Math.ceil(width * scale));
             canvas.height = Math.max(1, Math.ceil(height * scale));
             const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
             ctx.scale(scale, scale);
             ctx.translate(-left, -top);
-            ctx.beginPath();
-            for (const poly of polygons) {
-                ctx.moveTo(poly[0].x, poly[0].y);
-                for (const p of poly.slice(1)) ctx.lineTo(p.x, p.y);
-                ctx.closePath();
-            }
-            ctx.fillStyle = 'rgba(174,65,48,0.30)';
-            ctx.fill();
+            drawAnomalyCoverage(ctx, polygons, scale);
+            // A solid base remains legible over planets and stars, even before tiles arrive.
+            // Tint the union once so adjacent polygons do not leave a grid of darker seams.
+            ctx.globalCompositeOperation = 'source-in';
+            ctx.fillStyle = 'rgba(201,75,38,0.42)';
+            ctx.fillRect(left, top, width, height);
             const raster = readAnomalyPixels(canvas),
                 texture = textureFor(raster),
                 sprite = new Sprite(texture);
@@ -122,7 +122,7 @@ export class AnomalyCloudView extends Container {
             resources.add(raster);
         }
         if (typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined') {
-            const source = `const raster=${rasterAnomaly.toString()};const read=${readAnomalyPixels.toString()};let polygons,seed;onmessage=({data})=>{if(data.init){polygons=data.polygons;seed=data.seed;return;}const t=performance.now();const result=read(raster(polygons,seed,data.window));postMessage({...result,serial:data.serial,ms:performance.now()-t},[result.pixels.buffer]);};`;
+            const source = `const ANOMALY_FEATHER=${ANOMALY_FEATHER};const drawAnomalyCoverage=${drawAnomalyCoverage.toString()};const raster=${rasterAnomaly.toString()};const read=${readAnomalyPixels.toString()};let polygons,seed;onmessage=({data})=>{if(data.init){polygons=data.polygons;seed=data.seed;return;}const t=performance.now();const result=read(raster(polygons,seed,data.window));postMessage({...result,serial:data.serial,ms:performance.now()-t},[result.pixels.buffer]);};`;
             const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
             try {
                 const worker = (this.worker = new Worker(url));
@@ -260,6 +260,14 @@ export class AnomalyCloudView extends Container {
                     const texture = textureFor(raster),
                         sprite = new OwnedAnomalyMesh({ texture, verticesX: 9, verticesY: 9 });
                     tile = { texture, sprite, raster, x: job.x, y: job.y };
+                    const buffer = sprite.geometry.getBuffer('aPosition');
+                    for (let y = 0; y < 9; y++)
+                        for (let x = 0; x < 9; x++) {
+                            const i = (y * 9 + x) * 2;
+                            buffer.data[i] = (x * (SIZE + 2 * BLEED)) / 8 - BLEED;
+                            buffer.data[i + 1] = (y * (SIZE + 2 * BLEED)) / 8 - BLEED;
+                        }
+                    buffer.update();
                     this.addChild(sprite);
                     allocations++;
                 }
@@ -270,20 +278,10 @@ export class AnomalyCloudView extends Container {
                 this.tiles.set(job.key, tile);
             } else release(raster);
         }
-        if (this.haze) this.haze.sprite.alpha = 0.91 + Math.sin(time * 0.63) * 0.09;
         for (const tile of this.tiles.values()) {
-            tile.sprite.alpha = 0.88 + Math.sin(time * 0.75) * 0.12;
-            const buffer = tile.sprite.geometry.getBuffer('aPosition');
-            for (let y = 0; y < 9; y++)
-                for (let x = 0; x < 9; x++) {
-                    const lx = (x * (SIZE + 2 * BLEED)) / 8 - BLEED,
-                        ly = (y * (SIZE + 2 * BLEED)) / 8 - BLEED,
-                        d = anomalyDrift(tile.x + lx, tile.y + ly, time),
-                        i = (y * 9 + x) * 2;
-                    buffer.data[i] = lx + d.x;
-                    buffer.data[i + 1] = ly + d.y;
-                }
-            buffer.update();
+            // Animate brightness inside the stable coverage, not the collision boundary.
+            const pulse = anomalyDrift(tile.x, tile.y, time);
+            tile.sprite.alpha = 0.88 + Math.sin(time * 0.75 + pulse.x * 0.02) * 0.12;
         }
         if (this.pending) return;
         const job = [...this.wanted.values()].find((j) => !this.tiles.has(j.key));

@@ -166,6 +166,10 @@ export function flightHint(s: MissionSimulation) {
             ? `F Eskorta · ${percent(s.escort.startProgress, 1)}`
             : `F Rozpocznij eskortę: ${s.escortName} · 1 s`;
     if (s.miningEscort && s.area === 'surface') return s.miningEscort.status;
+    if (s.escort?.repairing)
+        return s.escort.repairWaiting
+            ? 'Kepler · naprawa wstrzymana · oczyść otoczenie statku'
+            : `Kepler · naprawa ${percent(s.escort.repairProgress, 5)} · +25% HP`;
     if (s.escort?.state === 'waiting')
         return s.escort.waitingReason === 'player'
             ? 'Kepler czeka na eskortę'

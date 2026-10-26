@@ -288,8 +288,8 @@ export class DialoguePlayback {
             this.held.delete(key);
             return false;
         }
-        if (key !== 'enter' || this.held.has(key)) return false;
+        if ((key !== 'enter' && key !== 'space') || this.held.has(key)) return false;
         this.held.add(key);
-        return this.interact();
+        return this.advance();
     }
 }

@@ -1,6 +1,6 @@
 import type { Graphics } from 'pixi.js';
 import type { Point } from '../worlds/sector';
-import { marsAnomalyClearance } from '../worlds/phobosMaze';
+import { marsAnomalyTouches } from '../worlds/phobosMaze';
 import { RADAR_RADIUS } from '../systems/radarFrame';
 
 /** Fixed pixel budget; an empty overlay must never fill the preceding radar disc. */
@@ -15,8 +15,7 @@ export function drawRadarAnomaly(map: Graphics, frame: { center: Point; radius: 
                 x: frame.center.x + (dx + cell / 2) * worldPerPixel,
                 y: frame.center.y + (dy + cell / 2) * worldPerPixel,
             };
-            if (Math.min(marsAnomalyClearance(p, 'mars'), marsAnomalyClearance(p, 'phobos')) > 0)
-                continue;
+            if (!marsAnomalyTouches(p, 'mars', 0) && !marsAnomalyTouches(p, 'phobos', 0)) continue;
             if (!cells) map.beginPath();
             map.rect(1470 + dx, 130 + dy, cell, cell);
             cells++;

@@ -126,7 +126,7 @@ test('Manta tow partners have no mutual physical contacts or impact damage, deta
         }
     }
 });
-test('actual drone destruction gives either a wreck or loose resources, never both', () => {
+test('actual drone destruction gives either a wreck or finished parts, never both', () => {
     for (const wreck of [true, false]) {
         let seed = 1;
         while (leavesWreck(seed, 1) !== wreck) seed++;
@@ -145,7 +145,7 @@ test('actual drone destruction gives either a wreck or loose resources, never bo
             sim.step(idle);
             assert.equal(sim.enemyKills, 1);
             assert.equal(sim.salvage.items.size, wreck ? 1 : 0);
-            assert.equal(sim.loot.size, wreck ? 0 : 5);
+            assert.equal(sim.loot.size, wreck ? 0 : 2);
             sim.step(idle);
             assert.equal(sim.enemyKills, 1);
         } finally {
@@ -160,12 +160,17 @@ test('pickup requires a calm continuous hold, permits full cargo and supports on
         const item = sim.salvage.add(1, 'patrol', { x: 3120, y: 0 }, { x: 0, y: 0 })!;
         sim.salvage.add(2, 'lancer', { x: 3100, y: 100 }, { x: 0, y: 0 });
         sim.cargo.ore = sim.cargoCapacity;
-        for (let i = 0; i < 90; i++) sim.step({ ...idle, tow: true });
-        assert.ok(sim.salvageProgress > 1.4);
-        sim.step({ ...idle, tow: true, fire: true });
+        const pickup = { ...idle, target: { x: 3120, y: 0 }, tow: true };
+        for (let i = 0; i < 30; i++) sim.step(pickup);
+        assert.equal(sim.salvage.towed, null);
+        assert.ok(Math.abs(sim.salvageProgress - 0.5) < 1e-8);
+        sim.step({ ...pickup, target: { x: 3000, y: -1000 }, fire: true });
         assert.equal(sim.salvageProgress, 0);
-        for (let i = 0; i < 181; i++) sim.step({ ...idle, tow: true });
+        for (let i = 0; i < 59; i++) sim.step(pickup);
+        assert.equal(sim.salvage.towed, null);
+        sim.step(pickup);
         assert.equal(sim.salvage.towed, item);
+        assert.equal(sim.cargoUsed, sim.cargoCapacity);
         assert.equal(sim.recycledWreck, 'patrol');
         assert.equal(sim.salvage.attach(sim.salvage.items.get(2)!, sim.ship), false);
         sim.releaseWreck();
@@ -182,7 +187,16 @@ test('Manta picks up two wrecks with H, rejects a third and delivers both only o
     try {
         const first = sim.salvage.add(1, 'patrol', { x: 3120, y: -50 }, { x: 0, y: 0 })!;
         const second = sim.salvage.add(2, 'lancer', { x: 3120, y: 50 }, { x: 0, y: 0 })!;
-        for (let frame = 0; frame < 361; frame++) sim.step({ ...idle, tow: true });
+        const pickupFirst = { ...idle, target: { x: 3120, y: -50 }, tow: true };
+        for (let frame = 0; frame < 120; frame++) sim.step(pickupFirst);
+        assert.equal(sim.salvage.towed, first);
+        assert.equal(sim.salvage.towing.size, 1);
+        assert.equal(sim.interaction.requiresRelease, true);
+        sim.step(idle);
+        const pickupSecond = { ...idle, target: { x: 3120, y: 50 }, tow: true };
+        for (let frame = 0; frame < 59; frame++) sim.step(pickupSecond);
+        assert.equal(sim.salvage.towing.size, 1);
+        sim.step(pickupSecond);
         assert.equal(sim.salvage.towing.size, 2);
         const third = sim.salvage.add(3, 'patrol', { x: 3000, y: 140 }, { x: 0, y: 0 })!;
         assert.equal(sim.salvage.attach(third, sim.ship), false);
@@ -203,7 +217,18 @@ test('Manta picks up two wrecks with H, rejects a third and delivers both only o
         sim.step(idle);
         assert.equal(sim.salvage.towing.size, 0);
         assert.equal(sim.deliveryRevision, 2);
-        assert.deepEqual(c.bank, { ore: 20, parts: 11, crystals: 1 });
+        assert.deepEqual(c.bank, {
+            ore: 0,
+            parts: 1,
+            electronics: 1,
+            propulsion: 1,
+            powerModules: 1,
+            partsII: 2,
+            electronicsII: 2,
+            propulsionII: 1,
+            powerModulesII: 1,
+            storageFramesII: 1,
+        });
         sim.step(idle);
         assert.equal(c.activeRun!.deliveries!.length, 2);
         assert.ok(parseCampaign(JSON.stringify(c)));
@@ -225,11 +250,18 @@ test('Manta can tow a rescue and wreck together, releases only the wreck and wai
         for (const rock of sim.rocks.values()) sim.world.removeRigidBody(rock.body);
         sim.rocks.clear();
         sim.ship.setTranslation({ x: 30, y: 0 }, true);
-        for (let frame = 0; frame < 241; frame++) sim.step({ ...idle, tow: true });
+        for (let frame = 0; frame < 60; frame++)
+            sim.step({ ...idle, target: { x: 3000, y: 0 }, tow: true });
         const rescue = sim.salvage.towed!;
+        assert.equal(rescue.source, 'recovery');
+        sim.step(idle);
         const wreck = sim.salvage.add(10, 'patrol', { x: 3120, y: 80 }, { x: 0, y: 0 })!;
-        for (let frame = 0; frame < 181; frame++) sim.step({ ...idle, tow: true });
+        for (let frame = 0; frame < 60; frame++)
+            sim.step({ ...idle, target: { x: 3120, y: 80 }, tow: true });
         assert.equal(sim.salvage.towing.size, 2);
+        sim.step(idle);
+        sim.selectTow(wreck.id);
+        assert.equal(sim.selectedTow, wreck);
         sim.releaseWreck();
         assert.equal(sim.salvage.towed, rescue);
         assert.ok(sim.salvage.items.has(wreck.id));
@@ -252,15 +284,15 @@ test('Manta can tow a rescue and wreck together, releases only the wreck and wai
         sim.dispose();
     }
 });
-test('player rounds and physical contacts ignore salvage while enemy rounds can destroy it', () => {
+test('physical contacts ignore salvage while player and enemy rounds dismantle it', () => {
     const { sim } = arena();
     try {
         const item = sim.salvage.add(1, 'patrol', { x: 3300, y: 0 }, { x: 0, y: 0 })!;
         sim.world.step();
-        shot(sim, 3200, 'player', 1000);
+        shot(sim, 3200, 'player', 18);
         sim.step(idle);
-        assert.equal(item.health, 70);
-        assert.ok(sim.bullets.has(9999));
+        assert.equal(item.health, 52);
+        assert.equal(sim.bullets.has(9999), false);
         sim.ship.setTranslation({ x: 33, y: 0 }, true);
         sim.world.step();
         let contact = false;
@@ -304,8 +336,17 @@ test('salvage recycling pays only after safe return, has unlimited storage and c
     const result = finishRun(c, true, { ore: 0, parts: 0 }, 60, 'dock', 0, {
         recycledWreck: 'lancer',
     });
-    assert.deepEqual(result?.reward, { ore: 12, parts: 7, crystals: 1 });
-    assert.deepEqual(c.bank, { ore: 12, parts: 7, crystals: 1 });
+    const refund = {
+        ore: 0,
+        parts: 0,
+        partsII: 2,
+        electronicsII: 2,
+        propulsionII: 1,
+        powerModulesII: 1,
+        storageFramesII: 1,
+    };
+    assert.deepEqual(result?.reward, refund);
+    assert.deepEqual(c.bank, refund);
     assert.equal(
         finishRun(c, true, { ore: 0, parts: 0 }, 60, 'dock', 0, { recycledWreck: 'lancer' }),
         null,
@@ -323,8 +364,8 @@ test('salvage recycling pays only after safe return, has unlimited storage and c
     const overflow = finishRun(full, true, { ore: 0, parts: 0 }, 60, 'dock', 0, {
         recycledWreck: 'lancer',
     })!;
-    assert.equal(full.bank.crystals, 1);
-    assert.equal(full.bank.parts, 7);
+    assert.equal(full.bank.partsII, 2);
+    assert.equal(full.bank.electronicsII, 2);
     assert.equal(overflow.overflow, 0);
 });
 
@@ -421,7 +462,19 @@ test('multiple automatic deliveries free the tow, keep the sortie running and su
             assert.equal(sim.salvage.towed, null);
             assert.equal(sim.ended, null);
         }
-        assert.deepEqual(c.bank, { ore: 20, parts: 11, crystals: 1 });
+        const refund = {
+            ore: 0,
+            parts: 1,
+            electronics: 1,
+            propulsion: 1,
+            powerModules: 1,
+            partsII: 2,
+            electronicsII: 2,
+            propulsionII: 1,
+            powerModulesII: 1,
+            storageFramesII: 1,
+        };
+        assert.deepEqual(c.bank, refund);
         assert.equal(c.activeRun!.deliveries!.length, 2);
         const reload = parseCampaign(JSON.stringify(c))!;
         assert.ok(reload);
@@ -430,7 +483,7 @@ test('multiple automatic deliveries free the tow, keep the sortie running and su
             result.deliveries.map((d) => d.id),
             [1, 2],
         );
-        assert.deepEqual(reload.bank, { ore: 20, parts: 11, crystals: 1 });
+        assert.deepEqual(reload.bank, refund);
         assert.deepEqual(result.reward, { ore: 0, parts: 0 });
     } finally {
         sim.dispose();
@@ -450,7 +503,13 @@ test('holding E at the dock also settles a tow still outside the automatic deliv
         assert.equal(c.activeRun!.deliveries!.length, 1);
         const result = finishRun(c, true, sim.cargo, sim.elapsed, 'dock')!;
         assert.equal(result.deliveries.length, 1);
-        assert.deepEqual(c.bank, { ore: 8, parts: 4 });
+        assert.deepEqual(c.bank, {
+            ore: 0,
+            parts: 1,
+            electronics: 1,
+            propulsion: 1,
+            powerModules: 1,
+        });
         assert.deepEqual(result.reward, { ore: 0, parts: 0 });
     } finally {
         sim.dispose();

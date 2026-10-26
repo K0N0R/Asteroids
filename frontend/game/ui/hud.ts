@@ -1,6 +1,12 @@
 import { ShipAbilityHud } from './shipAbilityHud';
 import { magneticBoundaryArcs } from '../systems/magneticZones';
-import { RESOURCE_IDS, RESOURCES, resourceSummary, resourceTotal } from '../state/resources';
+import {
+    RESOURCE_IDS,
+    RESOURCES,
+    resourceSummary,
+    resourceTotal,
+    isComponent,
+} from '../state/resources';
 import { salvagePosition } from '../systems/salvage';
 import { radarRocks } from './radarRocks';
 import { drawRadarAnomaly } from './radarAnomaly';
@@ -542,6 +548,7 @@ export class MissionHud extends Container {
         this.meters.rect(80, 104, 190, 7).fill({ color: C.line, alpha: 0.65 });
         let cargoOffset = 0;
         for (const id of RESOURCE_IDS) {
+            if (isComponent(id)) continue;
             const width =
                 (190 * Math.min(s.cargo[id] ?? 0, Math.max(0, s.cargoCapacity - cargoOffset))) /
                 s.cargoCapacity;

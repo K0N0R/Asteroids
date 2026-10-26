@@ -12,7 +12,10 @@ import { STORY_SAVE_KEY } from '../../frontend/game/state/story';
 import { parseCampaign } from '../../frontend/game/state/campaign';
 import { completeVenusTask, venusStationAction } from '../../frontend/game/state/venusActions';
 import { VENUS_TASK_IDS } from '../../frontend/game/state/venusAct';
-import { V } from '../../frontend/game/worlds/venusLayout';
+import { V, VENUS_MAPS } from '../../frontend/game/worlds/venusLayout';
+import { VenusFlightPilot } from '../venus-flight-pilot';
+import { clear } from '../../frontend/game/ui/primitives';
+import { InputHandler } from '../../frontend/core/systems/inputHandler';
 const original = JSON.stringify(createDevelopmentAct('act-3')),
     store = new Map([[STORY_SAVE_KEY, original]]);
 Object.defineProperty(window, 'localStorage', {
@@ -29,7 +32,9 @@ for (const name of ['sound-enabled.png', 'sound-disabled.png']) {
     await Assets.load(name);
 }
 const core = new Core();
+(window as any).devApi = { core };
 await core.init();
+InputHandler.init();
 PopupContainer.instantiatePopups();
 core.instantiateComponents();
 const session: any = core.worldContainer.session;
@@ -40,6 +45,10 @@ let frames = 0,
     error = '',
     peak = 0;
 const samples: number[] = [];
+let pilot: VenusFlightPilot | null = null;
+let pilotWorld: any = null;
+let pilotDone = false;
+let pilotSorties = 0;
 function stats() {
     const s = session.mission?.simulation,
         c = session.campaign;
@@ -65,6 +74,11 @@ function stats() {
         stressRemaining: stress,
         stressSamples: samples,
         error,
+        pilot: pilot?.phase,
+        pilotDone,
+        pilotSorties,
+        pilotMinHull: pilot?.minHull,
+        pilotHistory: pilot?.history,
     });
 }
 function button(name: string, action: () => void) {
@@ -83,6 +97,7 @@ function button(name: string, action: () => void) {
     document.querySelector('#qa-controls')!.appendChild(b);
 }
 function prepare(stage: number) {
+    pilot = null;
     follow = false;
     developmentControls.actions!.startAct('act-3');
     const c = session.campaign;
@@ -104,25 +119,40 @@ function launch(
     s.hull = s.maxHull;
 }
 button('Nowy akt III', () => prepare(0));
+button('Pełny przelot aktu (QA)', () => {
+    pilot = null;
+    prepare(0);
+    pilot = new VenusFlightPilot();
+    pilotWorld = null;
+    pilotDone = false;
+    pilotSorties = 0;
+    session.launch();
+});
 button('Orbita', () => {
     prepare(0);
     launch('orbit', { x: V.relay.x - 200, y: V.relay.y + 100 });
 });
 button('Martwe laboratorium', () => {
     prepare(1);
-    launch('station', { x: 20000, y: -100 });
+    launch('station', {
+        x: VENUS_MAPS.station.center.x + 250,
+        y: VENUS_MAPS.station.center.y - 220,
+    });
+});
+button('Konsola zasilania', () => {
+    prepare(1);
+    launch('station', { x: V.power.x, y: V.power.y - 90 });
 });
 button('Sonda i atmosfera', () => {
     prepare(2);
     venusStationAction(session.campaign, 'venus-probe-build');
-    launch('atmosphere', { x: 40150, y: -350 });
+    launch('atmosphere', { x: V.scan.x + 200, y: V.scan.y });
     const s = session.mission.simulation,
         e = s.escort;
-    e.body.setTranslation({ x: 400, y: -3.5 }, true);
+    e.launch();
+    e.enterAtmosphere(session.campaign.story.venus.transmission);
+    e.body.setTranslation({ x: e.destination.x / 100, y: e.destination.y / 100 }, true);
     e.previous = e.position;
-    e.resumeResearch(V.scan);
-    s.venusAct.probeStarted = true;
-    s.venusAct.probeStage = 'atmosphere';
     follow = true;
 });
 button('Strażnik', () => {
@@ -152,13 +182,50 @@ button('Przechwyć drony (QA)', () => {
             if (id >= 81200 && id < 81900) s.enemies.remove(id);
 });
 button('Inspekcja', stats);
+button('Utrata WebGL (QA)', () => {
+    const extension = (core.app.renderer as any).gl.getExtension('WEBGL_lose_context');
+    extension?.loseContext();
+    window.setTimeout(() => extension?.restoreContext(), 1000);
+});
+button('Ukryj pasek QA', () => {
+    for (const id of ['qa-controls', 'qa-state'])
+        (document.getElementById(id) as HTMLElement).style.display = 'none';
+});
 window.addEventListener('error', (e) => {
     error = e.message;
     stats();
 });
 core.app.ticker.add(() => {
+    if (pilot && !pilotDone) {
+        const world = session.mission;
+        if (world && world !== pilotWorld) {
+            pilotWorld = world;
+            const step = world.simulation.step.bind(world.simulation);
+            world.simulation.step = () => step(pilot!.next(world.simulation));
+            const update = world.update.bind(world);
+            world.update = (ms: number, input: any) => update(ms * 6, input);
+        } else if (!world && pilotWorld) {
+            if (pilotWorld.simulation.ended !== 'returned') {
+                error = 'Pełny przelot: statek utracony';
+                pilotDone = true;
+            } else {
+                pilotSorties++;
+                clear(session.overlay);
+                session.hasOverlay = false;
+                const c = session.campaign;
+                if (c.story.claimed.includes('venus-mercury-signal')) pilotDone = true;
+                else {
+                    venusStationAction(
+                        c,
+                        c.story.venus.probeBuilt ? 'venus-analyse' : 'venus-probe-build',
+                    );
+                    session.launch();
+                }
+            }
+        }
+    }
     const s = session.mission?.simulation;
-    if (s) {
+    if (s && !pilot) {
         s.hull = s.maxHull;
         if (s.escort) s.escort.health = 140;
     }

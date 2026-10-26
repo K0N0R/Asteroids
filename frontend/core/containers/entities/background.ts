@@ -10,6 +10,8 @@ import { celestialBodiesFor } from '../../../game/worlds/celestialBodies';
 import { CelestialLayer } from '../../../game/graphics/celestialLayer';
 import { marsCelestialBodies } from '../../../game/worlds/celestialBodies';
 import type { MarsOrbitId } from '../../../game/worlds/marsLayout';
+import type { VenusArea } from '../../../game/worlds/venusLayout';
+import { VenusCloudDeck } from '../../../game/graphics/venusCloudDeck';
 
 export class Background extends Container {
     camera = { x: 0, y: 0 };
@@ -23,6 +25,11 @@ export class Background extends Container {
     private clouds = new Container();
     private scenery = new Container();
     private celestialLayer = new CelestialLayer();
+    private venusDeck = new VenusCloudDeck();
+    private venusArea: VenusArea | null = null;
+    setVenusArea(area: VenusArea | null) {
+        this.venusArea = area;
+    }
     private stars: { view: Graphics; x: number; y: number; depth: number; phase: number }[] = [];
     private time = 0;
     private region: StorySectorId | null = null;
@@ -93,6 +100,7 @@ export class Background extends Container {
         this.addChild(this.scenery);
         this.celestialLayer.setBodies(celestialBodiesFor(null));
         this.addChild(this.celestialLayer);
+        this.addChild(this.venusDeck);
         const viewportMask = new Graphics().rect(0, 0, 1600, 900).fill(0xffffff);
         this.addChild(viewportMask);
         this.mask = viewportMask;
@@ -102,6 +110,9 @@ export class Background extends Container {
     setRegion(region: StorySectorId | null) {
         if (region === this.region) return;
         this.region = region;
+        this.venusArea = null;
+        this.venusDeck.alpha = 0;
+        this.venusDeck.visible = false;
         this.marsArea = null;
         this.celestialLayer.setBodies(celestialBodiesFor(region));
         destroyDisplayTree(this.illustration);
@@ -116,6 +127,15 @@ export class Background extends Container {
     }
     update(deltaMS: number) {
         this.time += deltaMS / 1000;
+        this.venusDeck.update(
+            this.flight && this.region === 'venus' && this.venusArea === 'atmosphere',
+            this.camera,
+            this.cameraAngle,
+            this.time,
+            Math.min(0.1, deltaMS / 1000),
+        );
+        if (!this.flight) this.venusDeck.alpha = 0;
+        this.clouds.alpha = 1 - this.venusDeck.alpha;
         this.illustration.updateAppearance(this.time);
         this.scenery.visible = !this.flight;
         this.celestialLayer.visible =
@@ -165,7 +185,9 @@ export class Background extends Container {
             star.view.position.copyFrom(position);
             star.view.visible =
                 offset.x >= -805 && offset.x <= 805 && offset.y >= -455 && offset.y <= 455;
-            star.view.alpha = 0.45 + Math.sin(this.time * 0.35 + star.phase) * 0.12;
+            star.view.alpha =
+                (0.45 + Math.sin(this.time * 0.35 + star.phase) * 0.12) *
+                (1 - this.venusDeck.alpha);
         }
     }
 }

@@ -46,31 +46,27 @@ function finishSequence(c: ReturnType<typeof newStoryCampaign>) {
     return d.id;
 }
 
-test('input reveals before advancing and holding a key never skips a line', () => {
+test('click reveals before advancing, while Space and Enter dismiss immediately without repeating', () => {
     const playback = new DialoguePlayback(DIALOGUES[0]);
     assert.equal(playback.visibleText, '');
     assert.equal(playback.key('e', true), false);
-    assert.equal(playback.key('enter', true), true);
+    assert.equal(playback.interact(), true);
     assert.equal(playback.visibleText, playback.line!.text);
-    for (let n = 0; n < 120; n++) playback.key('enter', true);
-    assert.equal(playback.index, 0);
-    playback.key('enter', false);
-    assert.equal(playback.key('enter', true), true);
-    assert.equal(playback.index, 1);
-    assert.equal(playback.visibleText, '');
-    assert.equal(playback.typing, true);
-    playback.key('enter', false);
-    for (let n = 0; n < 2; n++) {
-        assert.equal(playback.key('enter', true), true);
-        assert.equal(playback.visibleText, playback.line!.text);
-        playback.key('enter', false);
-        assert.equal(playback.key('enter', true), true);
-        playback.key('enter', false);
+    for (const key of ['space', 'enter']) {
+        const p = new DialoguePlayback(DIALOGUES[0]);
+        for (let index = 0; index < p.definition.lines.length; index++) {
+            assert.equal(p.typing, true);
+            assert.equal(p.key(key, true), true);
+            assert.equal(p.index, index + 1);
+            for (let n = 0; n < 120; n++) assert.equal(p.key(key, true), false);
+            assert.equal(p.index, index + 1);
+            p.key(key, false);
+        }
+        assert.equal(p.complete, true);
+        assert.equal(p.line, null);
+        assert.equal(p.interact(), false);
+        assert.equal(p.update(100), false);
     }
-    assert.equal(playback.complete, true);
-    assert.equal(playback.line, null);
-    assert.equal(playback.interact(), false);
-    assert.equal(playback.update(100), false);
 });
 
 test('reveal follows elapsed time, pauses at punctuation and limits stalls without audio bursts', () => {

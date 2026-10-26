@@ -25,7 +25,7 @@ import { grantStoryTasks } from './fleet-fixtures';
 import { MissionSimulation } from '../frontend/game/systems/mission';
 import { MarsResearchEscort } from '../frontend/game/systems/marsResearchEscort';
 import { researchPath } from '../frontend/game/systems/escort';
-import { marsAnomalyClearance } from '../frontend/game/worlds/phobosMaze';
+import { marsAnomalyClearance, marsAnomalyTouches } from '../frontend/game/worlds/phobosMaze';
 import {
     marsResearchLegClear,
     marsResearchScanTarget,
@@ -77,11 +77,11 @@ test('three research sites face real nearby boundaries and every travel leg has 
     for (const site of MARS_ACT.research) {
         assert.ok(marsAnomalyClearance(site, 'mars') > 100);
         const target = marsResearchScanTarget(site);
-        assert.ok(marsAnomalyClearance(target, 'mars') <= 0);
+        assert.ok(marsAnomalyTouches(target, 'mars', 0));
         assert.ok(Math.hypot(site.x - target.x, site.y - target.y) < 600);
     }
     for (let i = 1; i < points.length; i++) {
-        const path = researchPath(points[i - 1], points[i], [], marsResearchLegClear);
+        const path = researchPath(points[i - 1], points[i], [], marsResearchLegClear, 50);
         assert.ok(path.length);
         let from = points[i - 1];
         for (const to of path) {
@@ -98,7 +98,6 @@ test('all scans plus a fourth incoming wave complete only after actual return to
     let returnAttack = false;
     let approached = 0,
         returned = false,
-        minClearance = Infinity,
         thirdAway = false;
     try {
         for (let i = 0; i < 62; i++) s.step({ ...idle, interact: true });
@@ -108,14 +107,16 @@ test('all scans plus a fourth incoming wave complete only after actual return to
             e.health = 140;
             const view = s.combatView;
             s.step(idle);
-            const clearance = marsAnomalyClearance(e.position, 'mars');
-            minClearance = Math.min(minClearance, clearance);
-            assert.ok(clearance > 40, `Kepler in hazard ${JSON.stringify(e.position)}`);
+            assert.equal(
+                marsAnomalyTouches(e.position, 'mars', 40),
+                false,
+                `Kepler in hazard ${JSON.stringify(e.position)}`,
+            );
             for (const enemy of [...s.enemies.enemies.values()])
                 if (enemy.id >= 74010 && enemy.id < 74050) {
                     const pos = enemyPosition(enemy),
                         distance = Math.hypot(pos.x - e.position.x, pos.y - e.position.y);
-                    assert.ok(marsAnomalyClearance(pos, 'mars') > 35);
+                    assert.equal(marsAnomalyTouches(pos, 'mars', 35), false);
                     if (!seen.has(enemy.id)) {
                         assert.ok(outsideCombatView(pos, 55, view), `spawn on screen ${enemy.id}`);
                         seen.set(enemy.id, distance);
@@ -161,7 +162,6 @@ test('all scans plus a fourth incoming wave complete only after actual return to
         finishRun(s.campaign, true, { ore: 0, parts: 0 }, s.elapsed, 'dock');
         assert.ok(acknowledgeStoryBriefing(s.campaign));
         assert.ok(parseCampaign(JSON.stringify(s.campaign)));
-        assert.ok(minClearance > 40);
     } finally {
         s.dispose();
     }
@@ -251,7 +251,7 @@ test('all four waves enter clear corridors outside rotated and zoomed camera bou
                         if (enemy.id >= 74010) {
                             const point = enemyPosition(enemy);
                             assert.ok(outsideCombatView(point, 55, s.combatView));
-                            assert.ok(marsAnomalyClearance(point, 'mars') > 140);
+                            assert.equal(marsAnomalyTouches(point, 'mars', 140), false);
                         }
                 }
     } finally {

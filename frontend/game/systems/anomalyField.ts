@@ -1,6 +1,8 @@
 import type { Point } from '../worlds/sector';
 
 export const SECTOR_RADIATION_DAMAGE = 10;
+/** The visible outer fade is part of the hazard, not a harmless decorative buffer. */
+export const ANOMALY_FEATHER = 32;
 export const ANOMALY = {
     center: { x: -2400, y: -1700 },
     probe: { x: -2850, y: -1700 },
@@ -81,7 +83,11 @@ export function polygonDistance(point: Point, polygon: readonly Point[]) {
     return inside ? 0 : distance;
 }
 export function anomalyDistance(point: Point) {
-    return Math.min(...ANOMALY_BANDS.map((polygon) => polygonDistance(point, polygon)));
+    return Math.max(
+        0,
+        Math.min(...ANOMALY_BANDS.map((polygon) => polygonDistance(point, polygon))) -
+            ANOMALY_FEATHER,
+    );
 }
 
 /** Integrates exposure along the travelled segment; crossing a band between frames is detected. */

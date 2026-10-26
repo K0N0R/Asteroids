@@ -6,43 +6,58 @@ export const VENUS_MAPS = {
     station: {
         id: 'station',
         name: 'Martwe laboratorium',
-        center: { x: 20000, y: 0 },
-        radius: 1500,
+        center: { x: -14000, y: -10500 },
+        radius: 1750,
     },
     atmosphere: {
         id: 'atmosphere',
         name: 'Górna atmosfera Wenus',
-        center: { x: 40000, y: 0 },
+        center: { x: -14500, y: 22000 },
         radius: 2600,
     },
     installation: {
         id: 'installation',
         name: 'Instalacja SI',
-        center: { x: 60000, y: 0 },
+        center: { x: 15000, y: -10500 },
         radius: 2100,
     },
 } as const;
 export type VenusArea = keyof typeof VENUS_MAPS;
+/** Facing ports keep a gate flight outside both playable discs. */
+function facingPort(from: VenusArea, to: VenusArea) {
+    const a = VENUS_MAPS[from],
+        b = VENUS_MAPS[to];
+    const dx = b.center.x - a.center.x,
+        dy = b.center.y - a.center.y;
+    const scale = (a.radius - 120) / Math.hypot(dx, dy);
+    return { x: a.center.x + dx * scale, y: a.center.y + dy * scale };
+}
+const at = (area: VenusArea, x: number, y: number) => ({
+    x: VENUS_MAPS[area].center.x + x,
+    y: VENUS_MAPS[area].center.y + y,
+});
 export const V = {
     relay: { x: 5200, y: 2900 },
     wreck: { x: -5000, y: 4200 },
-    stationGate: { x: -3800, y: 1400 },
-    stationEntry: { x: 19000, y: 0 },
-    power: { x: 20000, y: -550 },
-    archive: { x: 20700, y: 300 },
-    atmosphereGate: { x: -2600, y: 7600 },
-    atmosphereEntry: { x: 38300, y: 0 },
-    scan: { x: 40000, y: -350 },
+    stationGate: facingPort('orbit', 'station'),
+    stationEntry: facingPort('station', 'orbit'),
+    power: at('station', -440, -650),
+    archive: at('station', 750, 300),
+    atmosphereGate: facingPort('orbit', 'atmosphere'),
+    atmosphereEntry: facingPort('atmosphere', 'orbit'),
+    scan: at('atmosphere', 700, -300),
     probe: { x: 380, y: 0 },
-    aiGate: { x: 3100, y: -500 },
-    aiEntry: { x: 58400, y: 0 },
-    terminal: { x: 60800, y: 400 },
-    guardian: { x: 60300, y: -200 },
-    anchors: [
-        { x: 60000, y: -700 },
-        { x: 60700, y: -650 },
-    ],
+    aiGate: facingPort('orbit', 'installation'),
+    aiEntry: facingPort('installation', 'orbit'),
+    terminal: at('installation', 800, 400),
+    guardian: at('installation', 300, -200),
+    anchors: [at('installation', 0, -700), at('installation', 700, -650)],
 } as const;
+export const VENUS_SAMPLES = [
+    { ...V.scan, name: 'Skład chmur', detail: 'Pobieranie próbki aerozoli' },
+    { ...at('atmosphere', 0, 100), name: 'Ciśnienie i wiatr', detail: 'Pomiar ruchu atmosfery' },
+    { ...at('atmosphere', -700, 500), name: 'Ślad anomalii', detail: 'Analiza widma zakłóceń' },
+] as const;
 export function venusMapAt(p: Point) {
     return Object.values(VENUS_MAPS).find(
         (m) => Math.hypot(p.x - m.center.x, p.y - m.center.y) <= m.radius + 100,
@@ -86,7 +101,7 @@ export function venusLandmarks(p: StoryProgress): Landmark[] {
 /** The probe uses this clear corridor; storms live away from the flight/transmission path. */
 export function venusStorms(time: number) {
     return [
-        { x: 39800 + Math.sin(time * 0.04) * 180, y: 1250, radius: 500 },
-        { x: 40850, y: -1450 + Math.sin(time * 0.05) * 120, radius: 450 },
+        { ...at('atmosphere', 1150 + Math.sin(time * 0.04) * 180, 1250), radius: 500 },
+        { ...at('atmosphere', -1050, -1300 + Math.sin(time * 0.05) * 120), radius: 450 },
     ];
 }

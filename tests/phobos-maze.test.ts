@@ -8,13 +8,15 @@ import {
     PHOBOS_MAZE_ENTRY,
     PHOBOS_MAZE_GATE,
     marsAnomalyClearance,
+    marsAnomalyTouches,
     MARS_CLEAR_ROUTES,
 } from '../frontend/game/worlds/phobosMaze';
-import { polygonDistance } from '../frontend/game/systems/anomalyField';
-import { MARS_MAPS, inMarsMap } from '../frontend/game/worlds/marsLayout';
+import { polygonDistance, ANOMALY_FEATHER } from '../frontend/game/systems/anomalyField';
+import { MARS_MAPS, MARS_GATES, inMarsMap } from '../frontend/game/worlds/marsLayout';
 test('curving passages have full hull clearance, loops, dead ends and varied widths', () => {
     for (const route of [PHOBOS_MAZE_ROUTE, ...PHOBOS_MAZE_BRANCHES])
-        for (const p of route) assert.ok(marsAnomalyClearance(p, 'mars') > 180, JSON.stringify(p));
+        for (const p of route)
+            assert.equal(marsAnomalyTouches(p, 'mars', 58.05), false, JSON.stringify(p));
     assert.ok(PHOBOS_MAZE_BRANCHES.length >= 6);
     const connected = PHOBOS_MAZE_BRANCHES.filter((branch) =>
         PHOBOS_MAZE_ROUTE.some(
@@ -34,7 +36,7 @@ test('curving passages have full hull clearance, loops, dead ends and varied wid
 });
 
 test('independent path search confirms a long route through the maze, without an exterior bypass', () => {
-    const step = 200,
+    const step = 50,
         start = PHOBOS_MAZE_ENTRY,
         goal = PHOBOS_MAZE_GATE,
         key = (x: number, y: number) => `${x},${y}`,
@@ -59,7 +61,7 @@ test('independent path search confirms a long route through the maze, without an
             if (
                 !inMarsMap('mars', { x, y }) ||
                 seen.has(k) ||
-                marsAnomalyClearance({ x, y }, 'mars') <= 80
+                marsAnomalyTouches({ x, y }, 'mars', 40)
             )
                 continue;
             seen.add(k);
@@ -69,7 +71,7 @@ test('independent path search confirms a long route through the maze, without an
     assert.ok(Number.isFinite(shortest));
     assert.ok(shortest > 20000, `shortest ${shortest}`);
 });
-test('separate orbital maps have roughly 75 / 35 / 0 percent contamination', () => {
+test('narrower corridors leave roughly 75 / 38 / 0 percent contamination', () => {
     for (const m of Object.values(MARS_MAPS)) {
         let all = 0,
             on = 0;
@@ -81,7 +83,7 @@ test('separate orbital maps have roughly 75 / 35 / 0 percent contamination', () 
                 all++;
                 if (marsAnomalyClearance(p, m.id) <= 0) on++;
             }
-        const expected = m.id === 'mars' ? 0.75 : m.id === 'phobos' ? 0.35 : 0;
+        const expected = m.id === 'mars' ? 0.75 : m.id === 'phobos' ? 0.38 : 0;
         assert.ok(
             Math.abs(on / all - expected) < (m.id === 'phobos' ? 0.04 : 0.025),
             `${m.id}: ${on / all}`,
@@ -100,7 +102,73 @@ test('interpolated visual boundary agrees with hazard field away from the feathe
         }
 });
 
-test('both gate routes and their approach margins are clear in the damage field and visible geometry', () => {
+test('hull contact uses the visible contour instead of treating the construction field as a distance', () => {
+    const radius = 58.05;
+    let point: { x: number; y: number } | undefined;
+    for (let y = -9000; y < 0 && !point; y += 40)
+        for (let x = 2500; x < 11000; x += 40) {
+            const candidate = { x, y },
+                field = marsAnomalyClearance(candidate, 'mars');
+            if (field >= 0 && field < radius && !marsAnomalyTouches(candidate, 'mars', radius)) {
+                point = candidate;
+                break;
+            }
+        }
+    assert.ok(point, 'a flattened construction gradient must not count as hull contact');
+    assert.ok(
+        marsAnomalyClearance(point, 'mars') < radius,
+        'old contact check reported damage here',
+    );
+    assert.ok(
+        PHOBOS_MAZE_BANDS.every((poly) => polygonDistance(point!, poly) > radius + ANOMALY_FEATHER),
+    );
+    assert.equal(marsAnomalyTouches(point, 'mars', radius), false);
+    assert.equal(marsAnomalyTouches({ x: 4000, y: -4000 }, 'mars', radius), true);
+    assert.equal(marsAnomalyTouches(point, 'asteroid', radius), false);
+});
+
+test('indexed hull contact matches a full scan of the rendered polygons at varied radii and cell boundaries', () => {
+    for (const [id, polygons] of [
+        ['mars', PHOBOS_MAZE_BANDS],
+        ['phobos', PHOBOS_ORBIT_BANDS],
+    ] as const) {
+        const map = MARS_MAPS[id];
+        for (let i = 0; i < 140; i++) {
+            const angle = i * 2.399963,
+                distance = ((i % 19) * map.radius) / 16,
+                point = {
+                    x: map.center.x + Math.cos(angle) * distance,
+                    y: map.center.y + Math.sin(angle) * distance,
+                },
+                radius = [0, 32, 58.05, 128][i % 4];
+            assert.equal(
+                marsAnomalyTouches(point, id, radius),
+                polygons.some((poly) => polygonDistance(point, poly) <= radius + ANOMALY_FEATHER),
+                `${id}: ${JSON.stringify(point)} radius ${radius}`,
+            );
+        }
+    }
+});
+
+test('anomaly contact starts when the hull edge enters, while the ship center is still outside', () => {
+    const radius = 40;
+    let left = 30000,
+        right = 31500;
+    for (let i = 0; i < 50; i++) {
+        const x = (left + right) / 2;
+        if (marsAnomalyTouches({ x, y: 0 }, 'phobos', radius)) right = x;
+        else left = x;
+    }
+    assert.equal(marsAnomalyTouches({ x: left - 1, y: 0 }, 'phobos', radius), false);
+    assert.equal(marsAnomalyTouches({ x: right + 1, y: 0 }, 'phobos', radius), true);
+    assert.equal(
+        marsAnomalyTouches({ x: right + 1, y: 0 }, 'phobos', 0),
+        false,
+        'center has not entered the field',
+    );
+});
+
+test('all gate routes and their approach margins are clear in the damage field and visible geometry', () => {
     for (const lane of MARS_CLEAR_ROUTES) {
         const a = Math.atan2(lane.b.y - lane.a.y, lane.b.x - lane.a.x);
         for (let i = 0; i <= 100; i++)
@@ -147,27 +215,44 @@ test('anomaly continues beyond the playable circle with an irregular outer bound
     assert.ok(Math.max(...edges) - Math.min(...edges) > 700);
 });
 
-test('Phobos return gate is southwest, its southern half stays clear and the north is contaminated', () => {
+test('asteroid return approaches the cleared southwest without carving a straight corridor through Mars', () => {
+    const a = MARS_GATES.asteroidReturn,
+        b = MARS_GATES.marsReturn;
+    assert.ok(MARS_MAPS.asteroid.center.y > MARS_MAPS.phobos.center.y + 20000);
+    for (let i = 0; i <= 200; i++) {
+        const point = { x: a.x + ((b.x - a.x) * i) / 200, y: a.y + ((b.y - a.y) * i) / 200 };
+        if (inMarsMap('mars', point))
+            assert.ok(marsAnomalyClearance(point, 'mars') > 180, JSON.stringify(point));
+    }
+    assert.ok(
+        marsAnomalyClearance({ x: 4000, y: 4000 }, 'mars') < 0,
+        'southeast has no diagonal return cut',
+    );
+    assert.ok(!MARS_CLEAR_ROUTES.some((route) => route.a === a || route.b === b));
+});
+
+test('Phobos return gate is northwest, its western half is clear and the east is contaminated', () => {
     const m = MARS_MAPS.phobos;
     assert.ok(MARS_CLEAR_ROUTES[0].b.x < m.center.x - 1200);
-    assert.ok(MARS_CLEAR_ROUTES[0].b.y > m.center.y + 1200);
-    let north = 0,
+    assert.ok(MARS_CLEAR_ROUTES[0].b.y < m.center.y - 1200);
+    let east = 0,
         total = 0;
     for (let x = m.center.x - m.radius; x < m.center.x + m.radius; x += 160)
         for (let y = -m.radius; y < m.radius; y += 160) {
             const p = { x, y };
             if (!inMarsMap('phobos', p)) continue;
-            if (y > 600) assert.ok(marsAnomalyClearance(p, 'phobos') > 100, JSON.stringify(p));
-            if (y < -1200) {
+            if (x < m.center.x - 300)
+                assert.ok(marsAnomalyClearance(p, 'phobos') > 100, JSON.stringify(p));
+            if (x > m.center.x + 1200) {
                 total++;
-                if (marsAnomalyClearance(p, 'phobos') < 0) north++;
+                if (marsAnomalyClearance(p, 'phobos') < 0) east++;
             }
         }
-    assert.ok(north / total > 0.85);
+    assert.ok(east / total > 0.85);
 });
 
 import { MARS_ACT } from '../frontend/game/state/marsAct';
-test('new northern anomaly leaves the probe, old ship and landing approach accessible', () => {
+test('eastern anomaly leaves probes, landing and the southern asteroid gate accessible', () => {
     for (const point of [MARS_ACT.probe, MARS_ACT.oldShip, MARS_ACT.phobos])
         assert.ok(marsAnomalyClearance(point, 'phobos') > 180, JSON.stringify(point));
     for (let i = 0; i <= 10; i++)

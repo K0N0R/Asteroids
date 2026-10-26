@@ -1,4 +1,5 @@
 import type { Point } from '../worlds/sector';
+import { drawAnomalyCoverage } from './anomalyCoverage';
 export type AnomalyWindow = {
     x: number;
     y: number;
@@ -28,7 +29,7 @@ export function rasterAnomaly(
     ctx.scale(resolution, resolution);
     ctx.translate(-x0, -y0);
     ctx.fillStyle = '#6f3035';
-    ctx.globalAlpha = 0.12;
+    ctx.globalAlpha = 0.26;
     ctx.fillRect(x0, y0, width, height);
     const noise = (x: number, y: number) => {
         const n = Math.sin(x * 127.1 + y * 311.7 + seed * 73.3) * 43758.5453;
@@ -118,20 +119,11 @@ export function rasterAnomaly(
         | OffscreenCanvasRenderingContext2D;
     m.scale(resolution, resolution);
     m.translate(-x0, -y0);
-    m.beginPath();
-    for (const poly of polygons) {
-        m.moveTo(poly[0].x, poly[0].y);
-        for (const p of poly.slice(1)) m.lineTo(p.x, p.y);
-        m.closePath();
-    }
-    m.fillStyle = 'white';
-    m.fill();
+    drawAnomalyCoverage(m, polygons, resolution, window);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'destination-in';
-    ctx.filter = `blur(${Math.max(1, 30 * resolution)}px)`;
     ctx.drawImage(mask, 0, 0);
-    ctx.filter = 'none';
     // Neighbouring tiles overlap by 128 px. Complementary feathering prevents a
     // hard rectangular edge when a neighbour is still streaming or being replaced.
     const fade = 128 * resolution;

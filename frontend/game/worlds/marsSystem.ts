@@ -8,7 +8,13 @@ import {
     phobosRouteOpen,
     phobosOrbitSecured,
 } from '../state/marsAct';
-import { MARS_MAPS, MARS_GATES, inMarsMap, type MarsOrbitId } from './marsLayout';
+import {
+    MARS_MAPS,
+    MARS_GATES,
+    PHOBOS_AMBUSH_POSITIONS,
+    inMarsMap,
+    type MarsOrbitId,
+} from './marsLayout';
 import {
     PHOBOS_MAZE_BANDS,
     PHOBOS_ORBIT_BANDS,
@@ -17,6 +23,7 @@ import {
     marsAnomalyClearance,
 } from './phobosMaze';
 import { MARS_MOONS } from './marsMoons';
+import { segmentDistance } from '../systems/hyperdrive';
 export const MARS_ANOMALIES = PHOBOS_MAZE_BANDS;
 export function marsAnomaliesFor(id: MarsOrbitId) {
     return id === 'mars' ? MARS_ANOMALIES : id === 'phobos' ? PHOBOS_ORBIT_BANDS : [];
@@ -32,6 +39,16 @@ export function marsSystemLanes(p: StoryProgress) {
                       name: 'Fobos — duża asteroida',
                       a: MARS_GATES.asteroidExit,
                       b: MARS_GATES.asteroidArrival,
+                  },
+              ]
+            : []),
+        ...(p.mars.yardDestroyed
+            ? [
+                  {
+                      name: 'Bogata asteroida → Mars · powrót do Satuk 15',
+                      a: MARS_GATES.asteroidReturn,
+                      b: MARS_GATES.marsReturn,
+                      oneWay: true,
                   },
               ]
             : []),
@@ -75,12 +92,7 @@ export function marsRequiredFleet(p: StoryProgress): EnemySpec[] {
     return [
         ...(phobosRouteOpen(p) && p.mars.ambushEntered
             ? MARS_AMBUSH.map((id, i) =>
-                  make(
-                      id,
-                      MARS_GATES.phobosArrival.x + 500 + i * 160,
-                      MARS_GATES.phobosArrival.y - 300 - i * 180,
-                      'patrol',
-                  ),
+                  make(id, PHOBOS_AMBUSH_POSITIONS[i].x, PHOBOS_AMBUSH_POSITIONS[i].y, 'patrol'),
               )
             : []),
         ...(phobosOrbitSecured(p) && !p.mars.baseNeutralized
@@ -175,7 +187,7 @@ export function generateMarsActSector(p: StoryProgress) {
                 name: phobosOrbitSecured(p) ? 'Fobos · lądowanie' : 'Fobos',
             },
             { ...M.probe, key: 6, kind: 'wreck', radius: 120, name: 'Zapomniana ziemska sonda' },
-            { ...M.oldShip, key: 0, kind: 'wreck', radius: 120, name: 'Wrak starego Prospectora' },
+            { ...M.oldShip, key: 0, kind: 'wreck', radius: 120, name: 'Wrak sondy badawczej' },
         );
     if (phobosOrbitSecured(p)) {
         const b = MARS_MOONS.phobos;
@@ -246,13 +258,29 @@ export function generateMarsActSector(p: StoryProgress) {
         { x: 0, y: -1300, radius: 850, count: 100, surface: false },
         { x: 0, y: 1300, radius: 900, count: 100, surface: false },
         ...(phobosRouteOpen(p)
-            ? [{ x: 30000, y: 500, radius: 1850, count: 90, surface: false }]
+            ? [
+                  {
+                      ...MARS_MAPS.phobos.center,
+                      radius: 1850,
+                      count: 90,
+                      surface: false,
+                      orbit: 'phobos' as const,
+                  },
+              ]
             : []),
         ...(phobosOrbitSecured(p)
             ? [{ ...M.surface, radius: 1400, count: 130, surface: true }]
             : []),
         ...(p.mars.aiIdentified
-            ? [{ ...M.asteroid, radius: 1500, count: 300, surface: false }]
+            ? [
+                  {
+                      ...M.asteroid,
+                      radius: 1500,
+                      count: 300,
+                      surface: false,
+                      orbit: 'asteroid' as const,
+                  },
+              ]
             : []),
     ];
     if (p.mars.aiIdentified)
@@ -269,7 +297,8 @@ export function generateMarsActSector(p: StoryProgress) {
         for (let i = 0; i < field.count; i++) {
             const a = rng() * Math.PI * 2,
                 d = Math.sqrt(rng()) * field.radius,
-                asteroid = field.x > 50000;
+                orbit = 'orbit' in field ? field.orbit : 'mars',
+                asteroid = orbit === 'asteroid';
             const r: RockSpec = {
                 x: field.x + Math.cos(a) * d,
                 y: field.y + Math.sin(a) * d,
@@ -286,15 +315,13 @@ export function generateMarsActSector(p: StoryProgress) {
                 vx: field.surface ? 0 : 30 + rng() * 30,
                 vy: field.surface ? 0 : (rng() - 0.5) * 12,
             };
-            const orbit = field.x > 50000 ? 'asteroid' : field.x > 20000 ? 'phobos' : 'mars';
             if (!field.surface && !inMarsMap(orbit, r, -r.radius - 40)) continue;
+            if (!field.surface && marsAnomalyClearance(r, orbit) < r.radius + 80) continue;
             if (
-                !field.surface &&
-                marsAnomalyClearance(
-                    r,
-                    field.x > 50000 ? 'asteroid' : field.x > 20000 ? 'phobos' : 'mars',
-                ) <
-                    r.radius + 80
+                orbit === 'phobos' &&
+                PHOBOS_AMBUSH_POSITIONS.some(
+                    (point) => segmentDistance(r, point, MARS_GATES.phobosArrival) < r.radius + 100,
+                )
             )
                 continue;
             if (

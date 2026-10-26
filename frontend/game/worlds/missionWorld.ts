@@ -1,4 +1,5 @@
 import { VenusActView } from '../graphics/venusActView';
+import { venusProbeView } from '../graphics/venusProbeView';
 import { MarsResearchEscort } from '../systems/marsResearchEscort';
 import { drawResearchScan } from '../graphics/researchScan';
 import { interactionOutlineRadius } from '../graphics/interactionOutline';
@@ -7,7 +8,7 @@ import { releaseSceneBuffers } from '../../core/systems/renderMemory';
 import { MARS_ACT } from '../state/marsAct';
 import { PHOBOS_MAZE_BANDS, PHOBOS_ORBIT_BANDS } from './phobosMaze';
 import { MarsMoonSurfaceView } from '../graphics/marsMoonSurface';
-import { AnomalyCloudView } from '../graphics/anomalyCloudView';
+import { AnomalyCloudView, anomalyCanvasStats } from '../graphics/anomalyCloudView';
 import { lunarShipmentView } from '../graphics/lunarShipmentView';
 import { magneticBoundaryArcs } from '../systems/magneticZones';
 import { itemIllustration } from '../graphics/items';
@@ -20,7 +21,11 @@ import { STATION_DRONES } from '../state/stationDrones';
 import { newShip } from '../state/campaign';
 import { destroyDisplayTree } from '../../core/systems/destroyDisplayTree';
 import { drawKineticShield } from '../graphics/kineticShieldView';
-import { researchShipView, researchAnomalyView } from '../graphics/researchView';
+import {
+    researchShipView,
+    researchAnomalyView,
+    updateResearchDrive,
+} from '../graphics/researchView';
 import { laserTint, laserUpgradeLevel } from '../graphics/shipEquipment';
 import { salvagePosition } from '../systems/salvage';
 import { fortressView } from '../graphics/fortressView';
@@ -334,6 +339,10 @@ export class MissionWorld extends Container {
             this.researchView.scale.set(HULLS.mule.size);
         }
         if (simulation.escort) {
+            if (simulation.venusAct) {
+                destroyDisplayTree(this.researchView);
+                this.researchView = venusProbeView();
+            }
             this.anomalyView.position.copyFrom(simulation.sector.researchSite);
             this.camera.addChild(this.anomalyView, this.researchView, this.researchStatus);
         }
@@ -422,7 +431,10 @@ export class MissionWorld extends Container {
                     .moveTo(lane.a.x, lane.a.y)
                     .lineTo(lane.b.x, lane.b.y)
                     .stroke({ color: 0xa3a9f2, width: 3, alpha: 0.18 });
-            for (const point of [lane.a, lane.b]) {
+            for (const [point, departure] of [
+                [lane.a, true],
+                [lane.b, !lane.oneWay],
+            ] as const) {
                 if (
                     (this.simulation.marsAct || this.simulation.venusAct) &&
                     (this.simulation.area === 'surface' || !this.simulation.inVisibleMap(point))
@@ -433,9 +445,24 @@ export class MissionWorld extends Container {
                     .stroke({ color: 0xa3a9f2, width: 4, alpha: 0.8 })
                     .circle(point.x, point.y, 85)
                     .stroke({ color: C.cyan, width: 2, alpha: 0.4 });
+                const other = point === lane.a ? lane.b : lane.a;
+                const heading =
+                    Math.atan2(other.y - point.y, other.x - point.x) + (departure ? 0 : Math.PI);
+                for (const distance of [124, 145]) {
+                    const chevron = [
+                        { x: distance - 9, y: -10 },
+                        { x: distance + 2, y: 0 },
+                        { x: distance - 9, y: 10 },
+                    ]
+                        .map((p) => rotateVector(p, heading))
+                        .flatMap((p) => [point.x + p.x, point.y + p.y]);
+                    this.routes.poly(chevron).stroke({ color: C.mint, width: 3, alpha: 0.8 });
+                }
                 const view = worldLabel(
                     this.camera,
-                    `Śluza / ${lane.name} · F`,
+                    departure
+                        ? `${lane.oneWay ? 'Śluza jednokierunkowa' : 'Śluza'} / ${lane.name} · F`
+                        : `Wylot śluzy / ${lane.name}`,
                     point.x,
                     point.y + 135,
                     16,
@@ -729,6 +756,12 @@ export class MissionWorld extends Container {
         const threat = [...s.enemies.enemies.values()].some(
             (enemy) =>
                 enemy.health > 0 &&
+                enemy.body.isEnabled() &&
+                s.inCurrentMap(enemyPosition(enemy)) &&
+                enemy.state === 'chase' &&
+                enemy.target === 'player' &&
+                !s.ended &&
+                Math.hypot(s.position.x, s.position.y) >= s.stationSafeRadius &&
                 Math.hypot(
                     enemyPosition(enemy).x - s.position.x,
                     enemyPosition(enemy).y - s.position.y,
@@ -753,9 +786,11 @@ export class MissionWorld extends Container {
                 s.hyperdrive.active ||
                 s.terminalPuzzle ||
                 s.relayTuning ||
+                s.venusAct?.powerPuzzle ||
                 s.speed > 90
             ),
             threat,
+            suppressContact: !!s.venusAct || (!!s.marsAct && s.marsOrbit === 'phobos'),
             hullFraction: s.hull / s.maxHull,
             heat: s.mercurySector ? s.solar.heat : 0,
             discoveries:
@@ -1752,6 +1787,9 @@ export class MissionWorld extends Container {
             );
             this.researchView.rotation =
                 e.previousAngle + angleDifference(e.body.rotation(), e.previousAngle) * alpha;
+            if (this.researchView instanceof ShipView)
+                this.researchView.updateDrive(e.thrusting, false, false, false, this.clock);
+            else updateResearchDrive(this.researchView, e.thrusting, this.clock);
             this.anomalyView.visible =
                 !s.venusAct &&
                 !s.miningEscort &&
@@ -1770,9 +1808,22 @@ export class MissionWorld extends Container {
             if (
                 e instanceof MarsResearchEscort &&
                 e.state === 'research' &&
+                !e.repairing &&
                 this.researchView.visible
             )
                 drawResearchScan(this.researchScan, p, e.scanTarget, this.clock, e.scanning);
+            if (e.repairing && this.researchView.visible) {
+                this.researchStatus
+                    .beginPath()
+                    .arc(
+                        p.x,
+                        p.y,
+                        58,
+                        -Math.PI / 2,
+                        -Math.PI / 2 + (e.repairProgress / GAME.repairSeconds) * Math.PI * 2,
+                    )
+                    .stroke({ color: C.mint, width: 4, alpha: 0.9 });
+            }
             if (e.state === 'research' && !s.venusAct && !s.miningEscort && !s.marsAct)
                 this.researchStatus
                     .beginPath()
@@ -1803,15 +1854,13 @@ export class MissionWorld extends Container {
                               .stroke({ color: 0x79e4de, width: 3 })
                               .rect(-17, -10, 34, 20)
                               .fill(0x759eaa)
-                        : item.id === MARS_ACT.oldShipId
-                          ? new ShipView(newShip(0, 'prospector'))
-                          : item.id === MARS_ACT.probeId
-                            ? recoveryProbeView()
-                            : item.source === 'shipment'
-                              ? lunarShipmentView()
-                              : item.source === 'satellite'
-                                ? surveySiteView('relay')
-                                : new DroneView(item.source);
+                        : item.id === MARS_ACT.oldShipId || item.id === MARS_ACT.probeId
+                          ? recoveryProbeView()
+                          : item.source === 'shipment'
+                            ? lunarShipmentView()
+                            : item.source === 'satellite'
+                              ? surveySiteView('relay')
+                              : new DroneView(item.source);
                 if (drone instanceof DroneView) drone.flame.visible = false;
                 drone.alpha = item.source === 'shipment' ? 1 : 0.75;
                 const scars = new Graphics()
@@ -2206,6 +2255,39 @@ export class MissionWorld extends Container {
             : id.startsWith('gate:') || id.startsWith('site:') || id === 'lunar-station'
               ? 140
               : 48;
+    }
+    renderDiagnostics() {
+        const s = this.simulation;
+        return {
+            mission: {
+                seed: s.sector.seed,
+                elapsed: s.elapsed,
+                sector: s.campaign.story?.sector,
+                area: s.venusAct?.area ?? s.marsMap?.id ?? s.area,
+                position: s.position,
+                hull: s.hullId,
+                transfer: s.transferActive,
+                hyperdrive: s.hyperdrive.state,
+            },
+            objects: {
+                rocks: s.rocks.size,
+                enemies: s.enemies.enemies.size,
+                bullets: s.bullets.size,
+                loot: s.loot.size,
+                salvage: s.salvage.items.size,
+                particles: this.particles.length,
+            },
+            camera: { zoom: this.camera.scale.x, angle: this.camera.rotation },
+            escort: s.escort
+                ? {
+                      state: s.escort.state,
+                      health: s.escort.health,
+                      position: s.escort.position,
+                      repairing: s.escort.repairing,
+                  }
+                : null,
+            anomaly: anomalyCanvasStats(),
+        };
     }
     dispose() {
         this.audio.pause();
